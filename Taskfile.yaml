@@ -1,0 +1,357 @@
+---
+version: '3'
+
+tasks:
+  render:
+    desc: Render a Crossplane configuration locally (pick interactively with gum)
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+
+        CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+          | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
+          | sort)
+
+        if [ -z "$CONFIGS" ]; then
+          gum style --foreground 1 "no configurations found (no crossplane.yaml)"
+          exit 1
+        fi
+
+        CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to render:")
+        [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+
+        XRS=$(find "$CONFIG/examples" -maxdepth 1 -type f -name 'xr*.yaml' 2>/dev/null | sort)
+        XR_COUNT=$(echo -n "$XRS" | grep -c '^' || true)
+        if [ "$XR_COUNT" -eq 0 ]; then
+          gum style --foreground 1 "no xr*.yaml found in $CONFIG/examples"
+          exit 1
+        elif [ "$XR_COUNT" -eq 1 ]; then
+          XR="$XRS"
+        else
+          XR=$(echo "$XRS" | gum choose --header "select example XR:")
+          [ -n "$XR" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        fi
+        COMPOSITION="$CONFIG/apis/composition.yaml"
+        FUNCTIONS="$CONFIG/examples/functions.yaml"
+
+        for f in "$XR" "$COMPOSITION" "$FUNCTIONS"; do
+          if [ ! -f "$f" ]; then
+            gum style --foreground 1 "missing file: $f"
+            exit 1
+          fi
+        done
+
+        gum style --foreground 4 "→ rendering $CONFIG"
+        CMD="crossplane render $XR $COMPOSITION $FUNCTIONS --include-function-results"
+        gum style --foreground 8 "\$ $CMD"
+        eval "$CMD"
+
+  check:
+    desc: Check a cluster against a Configuration's requirements (Crossplane, providers, functions)
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+
+        # --- 1) pick kubeconfig ---
+        KUBE_DIR="${KUBE_DIR:-$HOME/.kube}"
+        KUBECONFIGS=$(find "$KUBE_DIR" -maxdepth 1 -type f -not -name 'cache*' 2>/dev/null | sort)
+        if [ -z "$KUBECONFIGS" ]; then
+          gum style --foreground 1 "no kubeconfigs found in $KUBE_DIR"
+          exit 1
+        fi
+        KUBECONFIG=$(echo "$KUBECONFIGS" | gum choose --header "select kubeconfig:")
+        [ -n "$KUBECONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        export KUBECONFIG
+
+        # --- 2) pick configuration ---
+        CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+          | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
+          | sort)
+        if [ -z "$CONFIGS" ]; then
+          gum style --foreground 1 "no configurations found"
+          exit 1
+        fi
+        CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to check:")
+        [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        META="$CONFIG/crossplane.yaml"
+
+        gum style --foreground 4 "→ checking $CONFIG against $(basename "$KUBECONFIG")"
+
+        # --- 3) cluster reachable ---
+        if ! kubectl version --request-timeout=5s >/dev/null 2>&1; then
+          gum style --foreground 1 "✗ cluster not reachable via $KUBECONFIG"
+          exit 1
+        fi
+        CTX=$(kubectl config current-context 2>/dev/null || echo unknown)
+        gum style --foreground 2 "✓ cluster reachable  (context: $CTX)"
+
+        # --- 4) crossplane core ---
+        REQ_XP=$(yq -r '.spec.crossplane.version' "$META")
+        if ! kubectl -n crossplane-system get deploy crossplane >/dev/null 2>&1; then
+          gum style --foreground 1 "✗ crossplane not installed  (required $REQ_XP)"
+          exit 1
+        fi
+        INST_XP=$(kubectl -n crossplane-system get deploy crossplane \
+          -o jsonpath='{.spec.template.spec.containers[0].image}' | awk -F: '{print $NF}')
+        gum style --foreground 2 "✓ crossplane           installed=$INST_XP  required=$REQ_XP"
+
+        # --- 5) dependencies (providers + functions) ---
+        FAIL=0
+        check_dep() {
+          local kind="$1"   # providers | functions
+          local pkg="$2"
+          local req_ver="$3"
+          local row
+          row=$(kubectl get "${kind}.pkg.crossplane.io" -o json | yq -r \
+            ".items[] | select(.spec.package | test(\"^${pkg}:\")) |
+             [.metadata.name,
+              .spec.package,
+              ([.status.conditions[]? | select(.type==\"Installed\") | .status] | join(\",\")),
+              ([.status.conditions[]? | select(.type==\"Healthy\") | .status] | join(\",\"))]
+             | @tsv" | head -n1)
+          local label="${kind%s}"
+          if [ -z "$row" ]; then
+            gum style --foreground 1 "✗ $label missing       $pkg ($req_ver)"
+            FAIL=$((FAIL+1))
+            return
+          fi
+          local installed_pkg ins healthy inst_ver
+          installed_pkg=$(echo "$row" | cut -f2)
+          ins=$(echo "$row" | cut -f3)
+          healthy=$(echo "$row" | cut -f4)
+          inst_ver=${installed_pkg##*:}
+          if [ "$ins" = "True" ] && [ "$healthy" = "True" ]; then
+            gum style --foreground 2 "✓ $label $(printf '%-20s' "$(basename "$pkg")") installed=$inst_ver  required=$req_ver"
+          else
+            gum style --foreground 3 "! $label $(basename "$pkg")  installed=$inst_ver  Installed=$ins Healthy=$healthy"
+            FAIL=$((FAIL+1))
+          fi
+        }
+
+        while IFS=$'\t' read -r pkg ver; do
+          [ -n "$pkg" ] && check_dep providers "$pkg" "$ver"
+        done < <(yq -r '.spec.dependsOn[] | select(has("provider")) | [.provider, .version] | @tsv' "$META")
+
+        while IFS=$'\t' read -r pkg ver; do
+          [ -n "$pkg" ] && check_dep functions "$pkg" "$ver"
+        done < <(yq -r '.spec.dependsOn[] | select(has("function")) | [.function, .version] | @tsv' "$META")
+
+        echo
+        if [ "$FAIL" -eq 0 ]; then
+          gum style --foreground 2 --bold "✓ all requirements satisfied"
+        else
+          gum style --foreground 1 --bold "✗ $FAIL requirement(s) not satisfied"
+          exit 1
+        fi
+
+  apply-dev:
+    desc: Apply a Configuration and/or example XR from local files (dev install, no OCI packaging)
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+
+        # --- pick kubeconfig ---
+        KUBE_DIR="${KUBE_DIR:-$HOME/.kube}"
+        KUBECONFIGS=$(find "$KUBE_DIR" -maxdepth 1 -type f -not -name 'cache*' 2>/dev/null | sort)
+        [ -n "$KUBECONFIGS" ] || { gum style --foreground 1 "no kubeconfigs in $KUBE_DIR"; exit 1; }
+        KUBECONFIG=$(echo "$KUBECONFIGS" | gum choose --header "select kubeconfig:")
+        [ -n "$KUBECONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        export KUBECONFIG
+
+        # --- pick configuration ---
+        CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+          | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
+          | sort)
+        [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
+        CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration:")
+        [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+
+        # --- pick what to apply ---
+        WHAT=$(printf "configuration\nxr\nboth" \
+          | gum choose --header "what to apply? (configuration = functions+XRD+Composition, xr = example XR only)")
+        [ -n "$WHAT" ] || { gum style --foreground 3 "no selection"; exit 1; }
+
+        FUNCTIONS="$CONFIG/examples/functions.yaml"
+        DEFINITION="$CONFIG/apis/definition.yaml"
+        COMPOSITION="$CONFIG/apis/composition.yaml"
+        XR=""
+
+        # --- if applying XR, pick which one ---
+        if [ "$WHAT" = "xr" ] || [ "$WHAT" = "both" ]; then
+          XRS=$(find "$CONFIG/examples" -maxdepth 1 -type f -name 'xr*.yaml' 2>/dev/null | sort)
+          XR_COUNT=$(echo -n "$XRS" | grep -c '^' || true)
+          if [ "$XR_COUNT" -eq 0 ]; then
+            gum style --foreground 1 "no xr*.yaml in $CONFIG/examples"
+            exit 1
+          elif [ "$XR_COUNT" -eq 1 ]; then
+            XR="$XRS"
+          else
+            XR=$(echo "$XRS" | gum choose --header "select example XR:")
+            [ -n "$XR" ] || { gum style --foreground 3 "no selection"; exit 1; }
+          fi
+        fi
+
+        # --- validate files exist ---
+        if [ "$WHAT" = "configuration" ] || [ "$WHAT" = "both" ]; then
+          for f in "$FUNCTIONS" "$DEFINITION" "$COMPOSITION"; do
+            [ -f "$f" ] || { gum style --foreground 1 "missing file: $f"; exit 1; }
+          done
+        fi
+
+        # --- plan + confirm ---
+        CTX=$(kubectl config current-context 2>/dev/null || echo unknown)
+        gum style --foreground 4 "→ dev-apply $CONFIG  (mode: $WHAT)"
+        echo "  context:    $CTX"
+        echo "  kubeconfig: $(basename "$KUBECONFIG")"
+        echo
+        echo "  manifests:"
+        if [ "$WHAT" = "configuration" ] || [ "$WHAT" = "both" ]; then
+          echo "    - $FUNCTIONS"
+          echo "    - $DEFINITION"
+          echo "    - $COMPOSITION"
+        fi
+        [ -n "$XR" ] && echo "    - $XR"
+        echo
+        gum confirm "apply to '$CTX'?" || { gum style --foreground 3 "aborted"; exit 1; }
+
+        # --- apply configuration ---
+        if [ "$WHAT" = "configuration" ] || [ "$WHAT" = "both" ]; then
+          gum style --foreground 4 "→ apply functions"
+          kubectl apply -f "$FUNCTIONS"
+          kubectl wait --for=condition=Healthy --timeout=120s -f "$FUNCTIONS"
+
+          gum style --foreground 4 "→ apply XRD"
+          kubectl apply -f "$DEFINITION"
+          XRD_NAME=$(yq -r '.metadata.name' "$DEFINITION")
+          kubectl wait --for=condition=Established --timeout=60s "xrd.apiextensions.crossplane.io/$XRD_NAME"
+
+          gum style --foreground 4 "→ apply Composition"
+          kubectl apply -f "$COMPOSITION"
+        fi
+
+        # --- apply XR ---
+        if [ -n "$XR" ]; then
+          XR_NS=$(yq -r '.metadata.namespace // "default"' "$XR")
+          if ! kubectl get ns "$XR_NS" >/dev/null 2>&1; then
+            gum style --foreground 4 "→ create namespace $XR_NS"
+            kubectl create namespace "$XR_NS"
+          fi
+          gum style --foreground 4 "→ apply XR ($(basename "$XR"))"
+          kubectl apply -f "$XR"
+        fi
+
+        # --- status ---
+        echo
+        gum style --foreground 2 --bold "✓ done"
+        echo
+        if [ "$WHAT" = "configuration" ] || [ "$WHAT" = "both" ]; then
+          echo "Functions:"
+          kubectl get functions.pkg.crossplane.io
+          echo
+          echo "XRD:"
+          kubectl get xrd "$XRD_NAME"
+          echo
+          echo "Composition:"
+          kubectl get composition "$(yq -r '.metadata.name' "$COMPOSITION")"
+          echo
+        fi
+        if [ -n "$XR" ]; then
+          XR_KIND=$(yq -r '.kind' "$XR")
+          XR_NAME=$(yq -r '.metadata.name' "$XR")
+          XR_NS=$(yq -r '.metadata.namespace // "default"' "$XR")
+          TRACE_WAIT="${TRACE_WAIT:-5}"
+          gum spin --title "waiting ${TRACE_WAIT}s for reconciliation..." --spinner dot -- sleep "$TRACE_WAIT"
+          echo
+          echo "Trace:"
+          crossplane beta trace "$XR_KIND" "$XR_NAME" -n "$XR_NS" || true
+        fi
+
+  push:
+    desc: Build and push a Crossplane Configuration to an OCI registry (via the Dagger crossplane module)
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+
+        # --- pick configuration ---
+        CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+          | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
+          | sort)
+        [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
+        CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to push:")
+        [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+
+        META="$CONFIG/crossplane.yaml"
+        PKG_NAME=$(yq -r '.metadata.name' "$META")
+        CURRENT=$(yq -r '.metadata.annotations."meta.crossplane.io/version" // "v0.0.0"' "$META")
+
+        # --- compute bump candidates ---
+        NUM=${CURRENT#v}
+        MAJ=$(echo "$NUM" | cut -d. -f1)
+        MIN=$(echo "$NUM" | cut -d. -f2)
+        PAT=$(echo "$NUM" | cut -d. -f3)
+        V_PATCH="v$MAJ.$MIN.$((PAT+1))"
+        V_MINOR="v$MAJ.$((MIN+1)).0"
+        V_MAJOR="v$((MAJ+1)).0.0"
+
+        BUMP=$(printf "patch  →  %s\nminor  →  %s\nmajor  →  %s\ncustom" \
+          "$V_PATCH" "$V_MINOR" "$V_MAJOR" \
+          | gum choose --header "current: $CURRENT — bump:")
+        [ -n "$BUMP" ] || { gum style --foreground 3 "no selection"; exit 1; }
+
+        case "$BUMP" in
+          patch*)  NEW="$V_PATCH" ;;
+          minor*)  NEW="$V_MINOR" ;;
+          major*)  NEW="$V_MAJOR" ;;
+          custom)  NEW=$(gum input --header "version (with leading v):" --value "$V_PATCH")
+                   [ -n "$NEW" ] || { gum style --foreground 3 "no version"; exit 1; } ;;
+        esac
+
+        # --- auth ---
+        REGISTRY="${REGISTRY:-ghcr.io}"
+        USERNAME="${USERNAME:-stuttgart-things}"
+        PASSWORD_ENV="${PASSWORD_ENV:-GITHUB_TOKEN}"
+        if [ -z "${!PASSWORD_ENV:-}" ]; then
+          gum style --foreground 3 "\$$PASSWORD_ENV is not set — prompting"
+          TOKEN=$(gum input --password --header "enter $PASSWORD_ENV:")
+          [ -n "$TOKEN" ] || { gum style --foreground 1 "no token entered"; exit 1; }
+          export "$PASSWORD_ENV=$TOKEN"
+        fi
+
+        PREFIX="${PREFIX-crossplane-configurations}"
+        if [ -n "$PREFIX" ]; then
+          DESTINATION="$REGISTRY/$USERNAME/$PREFIX/$PKG_NAME:$NEW"
+        else
+          DESTINATION="$REGISTRY/$USERNAME/$PKG_NAME:$NEW"
+        fi
+        DAGGER_MOD="${DAGGER_MOD:-github.com/stuttgart-things/dagger/crossplane}"
+
+        # --- plan + confirm ---
+        gum style --foreground 4 "→ push $CONFIG"
+        echo "  package:     $PKG_NAME"
+        echo "  current:     $CURRENT"
+        echo "  new:         $NEW"
+        echo "  destination: $DESTINATION"
+        echo "  registry:    $REGISTRY"
+        echo "  username:    $USERNAME"
+        echo "  password:    \$$PASSWORD_ENV (set)"
+        echo "  dagger mod:  $DAGGER_MOD"
+        echo
+        gum confirm "push?" || { gum style --foreground 3 "aborted"; exit 1; }
+
+        # --- push ---
+        dagger call -m "$DAGGER_MOD" push \
+          --src "$CONFIG" \
+          --registry "$REGISTRY" \
+          --username "$USERNAME" \
+          --password "env:$PASSWORD_ENV" \
+          --destination "$DESTINATION" \
+          --progress plain
+
+        # --- bump annotation in crossplane.yaml ---
+        yq -i ".metadata.annotations.\"meta.crossplane.io/version\" = \"$NEW\"" "$META"
+        gum style --foreground 2 --bold "✓ pushed $DESTINATION"
+        gum style --foreground 8 "  updated $META → meta.crossplane.io/version: $NEW  (don't forget to commit)"

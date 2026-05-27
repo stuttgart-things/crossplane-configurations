@@ -1,0 +1,182 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: cloud-init
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: CloudInit
+  mode: Pipeline
+  pipeline:
+    - step: render-cloud-init-secret
+      functionRef:
+        name: crossplane-contrib-function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: | # pragma: allowlist secret
+            {{- $ns := .observed.composite.resource.spec.namespace | default "vms" }}
+            ---
+            # Ensure the target namespace exists. Observe+Create adopts a
+            # pre-existing namespace unchanged and creates it if missing.
+            # No Update/Delete in managementPolicies means we never modify or
+            # delete the namespace — safe for shared/pre-existing namespaces
+            # and on XR teardown.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print .observed.composite.resource.spec.vmName "-namespace") }}
+              labels:
+                app.kubernetes.io/name: harvester-cloud-init
+                app.kubernetes.io/instance: {{ .observed.composite.resource.spec.vmName }}-namespace
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ .observed.composite.resource.spec.providerConfigRef }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+                - Create
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Namespace
+                  metadata:
+                    name: {{ $ns }}
+            ---
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print .observed.composite.resource.spec.vmName "-cloud-init") }}
+              labels:
+                app.kubernetes.io/name: harvester-cloud-init
+                app.kubernetes.io/instance: {{ .observed.composite.resource.spec.vmName }}-cloud-init
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ .observed.composite.resource.spec.providerConfigRef }}
+                kind: ClusterProviderConfig
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: {{ .observed.composite.resource.spec.vmName }}-cloud-init
+                    namespace: {{ $ns }}
+                    annotations:
+                      gotemplating.fn.crossplane.io/composition-resource-name: cloud-init
+                  type: Opaque
+                  stringData:
+                    userdata: |
+                      #cloud-config
+                      hostname: {{ .observed.composite.resource.spec.hostname }}
+                      fqdn: {{ .observed.composite.resource.spec.hostname }}.{{ .observed.composite.resource.spec.domain | default "local" }}
+                      manage_etc_hosts: true
+
+                      {{- if .observed.composite.resource.spec.timezone }}
+                      timezone: {{ .observed.composite.resource.spec.timezone }}
+                      {{- end }}
+
+                      {{- if .observed.composite.resource.spec.users }}
+                      users:
+                        {{- range .observed.composite.resource.spec.users }}
+                        - name: {{ .name }}
+                          {{- if .sshAuthorizedKeys }}
+                          ssh_authorized_keys:
+                            {{- range .sshAuthorizedKeys }}
+                            - {{ . }}
+                            {{- end }}
+                          {{- end }}
+                          {{- if .sudo }}
+                          sudo: {{ .sudo }}
+                          {{- end }}
+                          {{- if .groups }}
+                          groups: {{ .groups }}
+                          {{- end }}
+                          {{- if .shell }}
+                          shell: {{ .shell }}
+                          {{- end }}
+                          lock_passwd: {{ .lockPasswd | default false }}
+                        {{- end }}
+                      {{- end }}
+
+                      {{- if .observed.composite.resource.spec.users }}
+                      chpasswd:
+                        list: |
+                          {{- range .observed.composite.resource.spec.users }}
+                          {{- if .password }}
+                          {{ .name }}:{{ .password }}
+                          {{- end }}
+                          {{- end }}
+                        expire: false
+                      {{- end }}
+
+                      {{- if .observed.composite.resource.spec.packages }}
+                      packages:
+                        {{- range .observed.composite.resource.spec.packages }}
+                        - {{ . }}
+                        {{- end }}
+                      {{- end }}
+
+                      {{- if .observed.composite.resource.spec.writeFiles }}
+                      write_files:
+                        {{- range .observed.composite.resource.spec.writeFiles }}
+                        - path: {{ .path }}
+                          {{- if .content }}
+                          content: |
+                          {{- .content | nindent 16 }}
+                          {{- end }}
+                          {{- if .owner }}
+                          owner: {{ .owner }}
+                          {{- end }}
+                          {{- if .permissions }}
+                          permissions: '{{ .permissions }}'
+                          {{- end }}
+                          {{- if .encoding }}
+                          encoding: {{ .encoding }}
+                          {{- end }}
+                        {{- end }}
+                      {{- end }}
+
+                      {{- if .observed.composite.resource.spec.runcmd }}
+                      runcmd:
+                        {{- range .observed.composite.resource.spec.runcmd }}
+                        - {{ . }}
+                        {{- end }}
+                      {{- end }}
+
+                      package_update: {{ .observed.composite.resource.spec.packageUpdate | default true }}
+                      package_upgrade: {{ .observed.composite.resource.spec.packageUpgrade | default false }}
+
+                      {{- if .observed.composite.resource.spec.bootcmd }}
+                      bootcmd:
+                        {{- range .observed.composite.resource.spec.bootcmd }}
+                        - {{ . }}
+                        {{- end }}
+                      {{- end }}
+
+                      ssh_pwauth: {{ .observed.composite.resource.spec.sshPasswordAuth | default false }}
+                      disable_root: {{ .observed.composite.resource.spec.disableRoot | default true }}
+
+                      {{- if .observed.composite.resource.spec.networkConfig }}
+                    networkdata: |
+                      {{ .observed.composite.resource.spec.networkConfig | nindent 22 }}
+                      {{- else }}
+                    networkdata: ''
+                      {{- end }}
+              managementPolicies:
+              - '*'
+            ---
+            apiVersion: resources.stuttgart-things.com/v1alpha1
+            kind: CloudInit
+            status:
+              secretName: {{ .observed.composite.resource.spec.vmName }}-cloud-init
+
+    - step: ready
+      functionRef:
+        name: crossplane-contrib-function-auto-ready

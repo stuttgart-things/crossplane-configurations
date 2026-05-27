@@ -1,0 +1,127 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: cloudinits.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: CloudInit
+    plural: cloudinits
+    singular: cloudinit
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                providerConfigRef:
+                  type: string
+                  description: "Name of the ProviderConfig to use for the Kubernetes provider"
+                vmName:
+                  type: string
+                  description: "Name of the VM (used for secret naming)"
+                namespace:
+                  type: string
+                  description: "Namespace for the secret"
+                  default: "vms"
+                hostname:
+                  type: string
+                  description: "Hostname for the VM"
+                domain:
+                  type: string
+                  description: "Domain name"
+                  default: "local"
+                timezone:
+                  type: string
+                  description: "Timezone (e.g., UTC, America/New_York)"
+                users:
+                  type: array
+                  description: "User configurations"
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      sshAuthorizedKeys:
+                        type: array
+                        items:
+                          type: string
+                      sudo:
+                        type: string
+                      groups:
+                        type: string
+                      shell:
+                        type: string
+                      password:
+                        type: string
+                      lockPasswd:
+                        type: boolean
+                packages:
+                  type: array
+                  description: "Packages to install"
+                  items:
+                    type: string
+                writeFiles:
+                  type: array
+                  description: "Files to write"
+                  items:
+                    type: object
+                    properties:
+                      path:
+                        type: string
+                      content:
+                        type: string
+                      owner:
+                        type: string
+                      permissions:
+                        type: string
+                      encoding:
+                        type: string
+                runcmd:
+                  type: array
+                  description: "Commands to run after boot"
+                  items:
+                    type: string
+                bootcmd:
+                  type: array
+                  description: "Commands to run during boot"
+                  items:
+                    type: string
+                packageUpdate:
+                  type: boolean
+                  description: "Update package cache"
+                  default: true
+                packageUpgrade:
+                  type: boolean
+                  description: "Upgrade packages"
+                  default: false
+                sshPasswordAuth:
+                  type: boolean
+                  description: "Enable SSH password authentication"
+                  default: false
+                disableRoot:
+                  type: boolean
+                  description: "Disable root login"
+                  default: true
+                networkConfig:
+                  type: string
+                  description: "Network configuration in cloud-init format"
+              required:
+              - providerConfigRef
+              - vmName
+              - hostname
+            status:
+              type: object
+              properties:
+                secretName:
+                  type: string
+                ready:
+                  type: boolean

@@ -1,0 +1,13 @@
+---
+# Minimum example: only the fields required by the XRD.
+# All other settings fall back to the defaults defined in the XRD
+# (namespace=vms, domain=local, packageUpdate=true, disableRoot=true, ...).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: CloudInit
+metadata:
+  name: min-vm
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  vmName: min
+  hostname: min

@@ -1,0 +1,77 @@
+---
+# Maximum example: every spec field exercised at least once.
+# Useful for verifying the Composition handles all branches of the template.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: CloudInit
+metadata:
+  name: max-vm
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  vmName: max
+  namespace: vms
+  hostname: max
+  domain: example.com
+  timezone: Europe/Berlin
+
+  users:
+    - name: ubuntu
+      sshAuthorizedKeys:
+        - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB... ubuntu@max
+      sudo: "ALL=(ALL) NOPASSWD:ALL" # pragma: allowlist secret
+      groups: sudo,docker
+      shell: /bin/bash
+      lockPasswd: true
+    - name: admin
+      password: "$6$rounds=4096$saltsalt$hashhash" # pragma: allowlist secret
+      sudo: "ALL=(ALL) NOPASSWD:ALL" # pragma: allowlist secret
+      groups: sudo
+      shell: /bin/bash
+      lockPasswd: false
+
+  packages:
+    - curl
+    - wget
+    - git
+    - jq
+    - htop
+
+  writeFiles:
+    - path: /etc/motd
+      content: |
+        Welcome to max-vm — provisioned via Crossplane CloudInit.
+      owner: root:root
+      permissions: "0644"
+    - path: /etc/profile.d/99-prompt.sh
+      content: |
+        export PS1='\u@\h:\w\$ '
+      owner: root:root
+      permissions: "0755"
+
+  bootcmd:
+    - echo "boot stage" >> /var/log/cloud-init-bootcmd.log
+
+  runcmd:
+    - systemctl enable docker
+    - systemctl start docker
+    - usermod -aG docker ubuntu
+
+  packageUpdate: true
+  packageUpgrade: true
+  sshPasswordAuth: true
+  disableRoot: false
+
+  networkConfig: |
+    version: 2
+    ethernets:
+      enp1s0:
+        dhcp4: true
+        dhcp6: false
+      enp2s0:
+        addresses:
+          - 10.0.0.42/24
+        gateway4: 10.0.0.1
+        nameservers:
+          addresses:
+            - 1.1.1.1
+            - 8.8.8.8

@@ -1,0 +1,28 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: CloudInit
+metadata:
+  name: dev2-vm
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  vmName: dev2
+  namespace: default
+  hostname: dev2
+  domain: example.com
+  timezone: UTC
+  users:
+    - name: ubuntu
+      sshAuthorizedKeys:
+        - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB...
+      sudo: "ALL=(ALL) NOPASSWD:ALL" # pragma: allowlist secret
+      groups: sudo,docker
+      shell: /bin/bash
+      lockPasswd: true
+  packages:
+    - curl
+    - wget
+    - git
+  runcmd:
+    - systemctl enable docker
+  packageUpdate: true
