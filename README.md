@@ -32,14 +32,20 @@ Each Configuration follows the same structure:
 
 | Category | Name | Version | Description | OCI |
 |---|---|---|---|---|
-| k8s | [cloud-config](k8s/cloud-config/) | v0.5.2 | Renders cloud-init userdata as a Kubernetes Secret from a namespaced `CloudInit` XR, and manages the target namespace. | `ghcr.io/stuttgart-things/crossplane-configurations/cloud-config` |
+| k8s | [cloud-config](k8s/cloud-config/) | v0.5.2 | Renders cloud-init userdata as a Kubernetes Secret from a namespaced `CloudInit` XR, and manages the target namespace. | [`ghcr.io/stuttgart-things/crossplane-configurations/cloud-config`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fcloud-config) |
 
 ## Requirements
 
 - Crossplane `>= v2.1.3`
 - Crossplane CLI (for local rendering)
 
-Each Configuration declares its own provider and function dependencies in its `crossplane.yaml`.
+Each Configuration declares its own provider and function dependencies in its `crossplane.yaml`. Examples of packages used across this repo:
+
+| Type | Package | Version constraint |
+|---|---|---|
+| Provider | `xpkg.crossplane.io/crossplane-contrib/provider-kubernetes` | `>=v1.2.0,<v2.0.0` |
+| Function | `xpkg.crossplane.io/crossplane-contrib/function-go-templating` | `>=v0.12.1,<v0.13.0` |
+| Function | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready` | `>=v0.6.5,<v0.7.0` |
 
 ## Tasks
 
