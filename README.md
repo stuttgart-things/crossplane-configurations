@@ -36,8 +36,18 @@ Each Configuration follows the same structure:
 
 ## Requirements
 
+**Target cluster**
+
 - Crossplane `>= v2.1.3`
-- Crossplane CLI (for local rendering)
+
+**Dev environment**
+
+- [`crossplane` CLI](https://docs.crossplane.io/latest/cli/) — local rendering, packaging
+- [`task`](https://taskfile.dev/) — runs the workflows in [`Taskfile.yaml`](Taskfile.yaml)
+- [`gum`](https://github.com/charmbracelet/gum) — interactive prompts inside the tasks
+- [`dagger`](https://dagger.io/) — used by `task push` to build and publish the OCI package
+- `kubectl`, `yq` — invoked by `task check` / `task apply-dev`
+- A reachable Kubernetes cluster — required for `task check`, `task apply-dev`, and end-to-end iteration
 
 Each Configuration declares its own provider and function dependencies in its `crossplane.yaml`. Examples of packages used across this repo:
 
