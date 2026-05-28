@@ -1,0 +1,66 @@
+---
+# Maximum example: every spec field exercised at least once.
+# Useful for verifying the Composition handles all branches of the template.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ManagedNamespace
+metadata:
+  name: team-max
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  name: team-max
+
+  labels:
+    team: max
+    env: prod
+    tier: gold
+
+  annotations:
+    owner: max-team@stuttgart-things.com
+    docs: https://wiki.example.com/team-max
+
+  resourceQuota:
+    hard:
+      requests.cpu: "4"
+      requests.memory: 8Gi
+      limits.cpu: "8"
+      limits.memory: 16Gi
+      pods: "20"
+      persistentvolumeclaims: "10"
+
+  limitRange:
+    limits:
+      - type: Container
+        default:
+          cpu: 500m
+          memory: 512Mi
+        defaultRequest:
+          cpu: 100m
+          memory: 128Mi
+        max:
+          cpu: "2"
+          memory: 4Gi
+        min:
+          cpu: 10m
+          memory: 32Mi
+
+  networkPolicy:
+    denyAll: true
+
+  roleBindings:
+    - name: team-max-edit
+      roleRef:
+        kind: ClusterRole
+        name: edit
+      subjects:
+        - kind: Group
+          name: team-max-developers
+          apiGroup: rbac.authorization.k8s.io
+    - name: team-max-ci
+      roleRef:
+        kind: ClusterRole
+        name: admin
+      subjects:
+        - kind: ServiceAccount
+          name: ci-bot
+          namespace: ci

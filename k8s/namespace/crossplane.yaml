@@ -1,0 +1,58 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: namespace
+  annotations:
+    # Local convention used by `task push` to bump and re-publish.
+    # Not a Crossplane-standard field — the true package version is the OCI tag.
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Manages a Kubernetes Namespace from a namespaced ManagedNamespace XR,
+      with optional labels/annotations, ResourceQuota, LimitRange, a
+      default-deny NetworkPolicy and RoleBindings.
+    meta.crossplane.io/readme: |
+      # namespace
+
+      A Crossplane Configuration that turns a `ManagedNamespace` namespaced
+      XR (group `resources.stuttgart-things.com`) into a fully-managed
+      Kubernetes Namespace on a target cluster, plus optional governance
+      addons.
+
+      The Composition emits, via `provider-kubernetes` (namespaced
+      `kubernetes.m.crossplane.io/v1alpha1` Objects):
+
+      1. The Namespace itself (`spec.name`), with labels/annotations from
+         the XR. `managementPolicies: ['*']` — this Configuration owns the
+         Namespace.
+      2. Optionally: a `ResourceQuota`, a `LimitRange`, a default-deny
+         `NetworkPolicy` (ingress + egress), and one `RoleBinding` per
+         entry in `spec.roleBindings`.
+
+      ## Preconditions
+
+      A `ClusterProviderConfig` for `provider-kubernetes` whose name
+      matches `spec.providerConfigRef` on the XR must exist on the target
+      cluster (examples reference `in-cluster`).
+
+      ## Spec fields
+
+      Required: `providerConfigRef`, `name`.
+      Optional: `labels` (map), `annotations` (map), `resourceQuota.hard`
+      (map of quota keys → quantity strings), `limitRange.limits[]`
+      (matches corev1 `LimitRangeSpec.limits`), `networkPolicy.denyAll`
+      (default false), `roleBindings[]`.
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+      version: ">=v1.2.0,<v2.0.0"
+    # Functions used by this Configuration's Composition pipeline.
+    - function: xpkg.crossplane.io/crossplane-contrib/function-go-templating
+      version: ">=v0.12.1,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"

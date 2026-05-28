@@ -1,0 +1,26 @@
+---
+# Realistic "standard" usage: a team namespace with labels, annotations
+# and a single team-view RoleBinding.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ManagedNamespace
+metadata:
+  name: team-alpha
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  name: team-alpha
+  labels:
+    team: alpha
+    env: dev
+    app.kubernetes.io/part-of: stuttgart-things
+  annotations:
+    owner: alpha-team@stuttgart-things.com
+  roleBindings:
+    - name: team-alpha-view
+      roleRef:
+        kind: ClusterRole
+        name: view
+      subjects:
+        - kind: Group
+          name: team-alpha
+          apiGroup: rbac.authorization.k8s.io

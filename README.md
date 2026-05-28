@@ -9,6 +9,7 @@ Each subdirectory is a self-contained Crossplane Configuration package — an XR
 | Category | Name | Version | Description | OCI |
 |---|---|---|---|---|
 | k8s | [cloud-config](k8s/cloud-config/) | v0.5.3 | Renders cloud-init userdata as a Kubernetes Secret from a namespaced `CloudInit` XR, and manages the target namespace. | [`ghcr.io/stuttgart-things/crossplane-configurations/cloud-config`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fcloud-config) |
+| k8s | [namespace](k8s/namespace/) | v0.1.0 | Manages a Kubernetes Namespace from a namespaced `ManagedNamespace` XR, with optional labels/annotations, `ResourceQuota`, `LimitRange`, default-deny `NetworkPolicy` and `RoleBindings`. | [`ghcr.io/stuttgart-things/crossplane-configurations/namespace`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fnamespace) |
 
 ## Tasks
 
@@ -23,6 +24,44 @@ Common workflows are wrapped in [`Taskfile.yaml`](Taskfile.yaml):
 | `task verify` | Offline package + example XR validation (same dagger module the CI workflow runs) |
 | `task push` | Build and push a Configuration as an OCI package (bumps `meta.crossplane.io/version`) |
 
+Each interactive task uses [`gum`](https://github.com/charmbracelet/gum) pickers by default. For CI, scripts and agents — anywhere without a TTY — every picker can be bypassed with an env var (see _Non-interactive usage_ below).
+
+<details>
+<summary><b>Non-interactive usage</b></summary>
+
+Every `gum choose` / `gum confirm` in the Taskfile has an env-var bypass. When the env var is set, the picker is skipped and its value is validated; when unset, the picker runs as before. Mix and match — set only what you need to silence.
+
+| Task | Env vars (bypass) |
+|---|---|
+| `render`     | `CONFIG=k8s/<name>`, `XR=<file>` (path, or basename resolved against `<CONFIG>/examples/`) |
+| `check`      | `KUBECONFIG=<path>`, `CONFIG=k8s/<name>` |
+| `apply-dev`  | `KUBECONFIG=<path>`, `CONFIG=k8s/<name>`, `WHAT=configuration\|xr\|both`, `XR=<file>`, `YES=1` (skip confirm) |
+| `verify`     | `CONFIG=k8s/<name>` |
+| `push`       | `CONFIG=k8s/<name>`, `BUMP=patch\|minor\|major\|custom\|vX.Y.Z` (`custom` requires `VERSION=vX.Y.Z`), `YES=1` (skip confirm), plus the existing `REGISTRY` / `USERNAME` / `PASSWORD_ENV` / `PREFIX` |
+
+Examples:
+
+```bash
+# fully non-interactive render
+CONFIG=k8s/namespace XR=xr-min.yaml task render
+
+# verify a specific Configuration (no picker)
+CONFIG=k8s/namespace task verify
+
+# dev-install everything for one Configuration onto a chosen cluster
+KUBECONFIG=~/.kube/lab.yaml CONFIG=k8s/namespace WHAT=both XR=xr.yaml YES=1 task apply-dev
+
+# tag and push without prompts (token comes from $GITHUB_TOKEN by default)
+CONFIG=k8s/namespace BUMP=patch YES=1 task push
+
+# pin a specific version
+CONFIG=k8s/namespace BUMP=custom VERSION=v0.2.0 YES=1 task push
+```
+
+`push` will refuse to prompt for a password when `YES=1` is set and `$PASSWORD_ENV` (default `GITHUB_TOKEN`) is unset — set the token in the environment for unattended use.
+
+</details>
+
 <details>
 <summary><b>Repository layout</b></summary>
 
@@ -31,7 +70,8 @@ Configurations are grouped by the kind of resource they manage:
 ```
 crossplane-configurations/
 └── k8s/                          # Kubernetes-native resources
-    └── cloud-config/             # cloud-init userdata Secrets for VMs
+    ├── cloud-config/             # cloud-init userdata Secrets for VMs
+    └── namespace/                # managed Namespaces (+ quota/limits/netpol/RBAC)
 ```
 
 Each Configuration follows the same structure:

@@ -1,0 +1,151 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: managednamespaces.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: ManagedNamespace
+    plural: managednamespaces
+    singular: managednamespace
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                providerConfigRef:
+                  type: string
+                  description: "Name of the ClusterProviderConfig to use for the Kubernetes provider"
+                name:
+                  type: string
+                  description: "Name of the Namespace to create on the target cluster"
+                labels:
+                  type: object
+                  description: "Labels applied to the Namespace"
+                  additionalProperties:
+                    type: string
+                annotations:
+                  type: object
+                  description: "Annotations applied to the Namespace"
+                  additionalProperties:
+                    type: string
+                resourceQuota:
+                  type: object
+                  description: "Optional ResourceQuota. Omit the block to skip."
+                  properties:
+                    hard:
+                      type: object
+                      description: "Quota keys (e.g. requests.cpu, limits.memory, pods) → quantity strings"
+                      additionalProperties:
+                        type: string
+                  required:
+                    - hard
+                limitRange:
+                  type: object
+                  description: "Optional LimitRange. Omit the block to skip."
+                  properties:
+                    limits:
+                      type: array
+                      description: "Mirrors corev1 LimitRangeSpec.limits"
+                      items:
+                        type: object
+                        properties:
+                          type:
+                            type: string
+                            description: "Container, Pod, PersistentVolumeClaim, ..."
+                          default:
+                            type: object
+                            additionalProperties:
+                              type: string
+                          defaultRequest:
+                            type: object
+                            additionalProperties:
+                              type: string
+                          max:
+                            type: object
+                            additionalProperties:
+                              type: string
+                          min:
+                            type: object
+                            additionalProperties:
+                              type: string
+                          maxLimitRequestRatio:
+                            type: object
+                            additionalProperties:
+                              type: string
+                        required:
+                          - type
+                  required:
+                    - limits
+                networkPolicy:
+                  type: object
+                  description: "Optional baseline NetworkPolicies."
+                  properties:
+                    denyAll:
+                      type: boolean
+                      description: "When true, render a default-deny NetworkPolicy (ingress + egress) selecting all pods."
+                      default: false
+                roleBindings:
+                  type: array
+                  description: "RoleBindings created in the Namespace."
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      roleRef:
+                        type: object
+                        properties:
+                          kind:
+                            type: string
+                            description: "ClusterRole or Role"
+                            default: ClusterRole
+                          name:
+                            type: string
+                          apiGroup:
+                            type: string
+                            default: rbac.authorization.k8s.io
+                        required:
+                          - name
+                      subjects:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            kind:
+                              type: string
+                              description: "User, Group or ServiceAccount"
+                            name:
+                              type: string
+                            namespace:
+                              type: string
+                              description: "Required for ServiceAccount subjects"
+                            apiGroup:
+                              type: string
+                              description: "rbac.authorization.k8s.io for User/Group; omit for ServiceAccount"
+                          required:
+                            - kind
+                            - name
+                    required:
+                      - name
+                      - roleRef
+                      - subjects
+              required:
+                - providerConfigRef
+                - name
+            status:
+              type: object
+              properties:
+                namespace:
+                  type: string
+                ready:
+                  type: boolean

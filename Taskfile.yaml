@@ -3,34 +3,42 @@ version: '3'
 
 tasks:
   render:
-    desc: Render a Crossplane configuration locally (pick interactively with gum)
+    desc: "Render a Configuration locally (interactive; non-interactive: CONFIG=k8s/<name> [XR=xr.yaml] task render)"
     silent: true
     cmds:
       - |
         set -euo pipefail
 
-        CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
-          | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
-          | sort)
-
-        if [ -z "$CONFIGS" ]; then
-          gum style --foreground 1 "no configurations found (no crossplane.yaml)"
-          exit 1
+        # --- pick configuration (env: CONFIG=<path>, e.g. k8s/namespace) ---
+        if [ -n "${CONFIG:-}" ]; then
+          [ -f "$CONFIG/crossplane.yaml" ] || { gum style --foreground 1 "CONFIG=$CONFIG: missing $CONFIG/crossplane.yaml"; exit 1; }
+        else
+          CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+            | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
+            | sort)
+          [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations found (no crossplane.yaml)"; exit 1; }
+          CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to render:")
+          [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
         fi
 
-        CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to render:")
-        [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
-
-        XRS=$(find "$CONFIG/examples" -maxdepth 1 -type f -name 'xr*.yaml' 2>/dev/null | sort)
-        XR_COUNT=$(echo -n "$XRS" | grep -c '^' || true)
-        if [ "$XR_COUNT" -eq 0 ]; then
-          gum style --foreground 1 "no xr*.yaml found in $CONFIG/examples"
-          exit 1
-        elif [ "$XR_COUNT" -eq 1 ]; then
-          XR="$XRS"
+        # --- pick XR (env: XR=<path|name>, resolved against cwd, $CONFIG/examples/, $CONFIG/) ---
+        if [ -n "${XR:-}" ]; then
+          if [ -f "$XR" ]; then :; \
+          elif [ -f "$CONFIG/examples/$XR" ]; then XR="$CONFIG/examples/$XR"; \
+          elif [ -f "$CONFIG/$XR" ]; then XR="$CONFIG/$XR"; \
+          else gum style --foreground 1 "XR=$XR not found (cwd, $CONFIG/examples/, $CONFIG/)"; exit 1; fi
         else
-          XR=$(echo "$XRS" | gum choose --header "select example XR:")
-          [ -n "$XR" ] || { gum style --foreground 3 "no selection"; exit 1; }
+          XRS=$(find "$CONFIG/examples" -maxdepth 1 -type f -name 'xr*.yaml' 2>/dev/null | sort)
+          XR_COUNT=$(echo -n "$XRS" | grep -c '^' || true)
+          if [ "$XR_COUNT" -eq 0 ]; then
+            gum style --foreground 1 "no xr*.yaml found in $CONFIG/examples"
+            exit 1
+          elif [ "$XR_COUNT" -eq 1 ]; then
+            XR="$XRS"
+          else
+            XR=$(echo "$XRS" | gum choose --header "select example XR:")
+            [ -n "$XR" ] || { gum style --foreground 3 "no selection"; exit 1; }
+          fi
         fi
         COMPOSITION="$CONFIG/apis/composition.yaml"
         FUNCTIONS="$CONFIG/examples/functions.yaml"
@@ -48,33 +56,35 @@ tasks:
         eval "$CMD"
 
   check:
-    desc: Check a cluster against a Configuration's requirements (Crossplane, providers, functions)
+    desc: "Check a cluster against a Configuration's requirements (non-interactive: KUBECONFIG=... CONFIG=k8s/<name> task check)"
     silent: true
     cmds:
       - |
         set -euo pipefail
 
-        # --- 1) pick kubeconfig ---
-        KUBE_DIR="${KUBE_DIR:-$HOME/.kube}"
-        KUBECONFIGS=$(find "$KUBE_DIR" -maxdepth 1 -type f -not -name 'cache*' 2>/dev/null | sort)
-        if [ -z "$KUBECONFIGS" ]; then
-          gum style --foreground 1 "no kubeconfigs found in $KUBE_DIR"
-          exit 1
+        # --- 1) pick kubeconfig (env: KUBECONFIG=<path>) ---
+        if [ -n "${KUBECONFIG:-}" ]; then
+          [ -f "$KUBECONFIG" ] || { gum style --foreground 1 "KUBECONFIG=$KUBECONFIG: file not found"; exit 1; }
+        else
+          KUBE_DIR="${KUBE_DIR:-$HOME/.kube}"
+          KUBECONFIGS=$(find "$KUBE_DIR" -maxdepth 1 -type f -not -name 'cache*' 2>/dev/null | sort)
+          [ -n "$KUBECONFIGS" ] || { gum style --foreground 1 "no kubeconfigs found in $KUBE_DIR"; exit 1; }
+          KUBECONFIG=$(echo "$KUBECONFIGS" | gum choose --header "select kubeconfig:")
+          [ -n "$KUBECONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
         fi
-        KUBECONFIG=$(echo "$KUBECONFIGS" | gum choose --header "select kubeconfig:")
-        [ -n "$KUBECONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
         export KUBECONFIG
 
-        # --- 2) pick configuration ---
-        CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
-          | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
-          | sort)
-        if [ -z "$CONFIGS" ]; then
-          gum style --foreground 1 "no configurations found"
-          exit 1
+        # --- 2) pick configuration (env: CONFIG=<path>, e.g. k8s/namespace) ---
+        if [ -n "${CONFIG:-}" ]; then
+          [ -f "$CONFIG/crossplane.yaml" ] || { gum style --foreground 1 "CONFIG=$CONFIG: missing $CONFIG/crossplane.yaml"; exit 1; }
+        else
+          CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+            | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
+            | sort)
+          [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations found"; exit 1; }
+          CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to check:")
+          [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
         fi
-        CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to check:")
-        [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
         META="$CONFIG/crossplane.yaml"
 
         gum style --foreground 4 "→ checking $CONFIG against $(basename "$KUBECONFIG")"
@@ -147,51 +157,74 @@ tasks:
         fi
 
   apply-dev:
-    desc: Apply a Configuration and/or example XR from local files (dev install, no OCI packaging)
+    desc: "Apply a Configuration and/or example XR from local files (non-interactive: KUBECONFIG=... CONFIG=k8s/<name> WHAT=both [XR=xr.yaml] YES=1 task apply-dev)"
     silent: true
     cmds:
       - |
         set -euo pipefail
 
-        # --- pick kubeconfig ---
-        KUBE_DIR="${KUBE_DIR:-$HOME/.kube}"
-        KUBECONFIGS=$(find "$KUBE_DIR" -maxdepth 1 -type f -not -name 'cache*' 2>/dev/null | sort)
-        [ -n "$KUBECONFIGS" ] || { gum style --foreground 1 "no kubeconfigs in $KUBE_DIR"; exit 1; }
-        KUBECONFIG=$(echo "$KUBECONFIGS" | gum choose --header "select kubeconfig:")
-        [ -n "$KUBECONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        # --- pick kubeconfig (env: KUBECONFIG=<path>) ---
+        if [ -n "${KUBECONFIG:-}" ]; then
+          [ -f "$KUBECONFIG" ] || { gum style --foreground 1 "KUBECONFIG=$KUBECONFIG: file not found"; exit 1; }
+        else
+          KUBE_DIR="${KUBE_DIR:-$HOME/.kube}"
+          KUBECONFIGS=$(find "$KUBE_DIR" -maxdepth 1 -type f -not -name 'cache*' 2>/dev/null | sort)
+          [ -n "$KUBECONFIGS" ] || { gum style --foreground 1 "no kubeconfigs in $KUBE_DIR"; exit 1; }
+          KUBECONFIG=$(echo "$KUBECONFIGS" | gum choose --header "select kubeconfig:")
+          [ -n "$KUBECONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        fi
         export KUBECONFIG
 
-        # --- pick configuration ---
-        CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
-          | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
-          | sort)
-        [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
-        CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration:")
-        [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        # --- pick configuration (env: CONFIG=<path>, e.g. k8s/namespace) ---
+        if [ -n "${CONFIG:-}" ]; then
+          [ -f "$CONFIG/crossplane.yaml" ] || { gum style --foreground 1 "CONFIG=$CONFIG: missing $CONFIG/crossplane.yaml"; exit 1; }
+        else
+          CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+            | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
+            | sort)
+          [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
+          CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration:")
+          [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        fi
 
-        # --- pick what to apply ---
-        WHAT=$(printf "configuration\nxr\nboth" \
-          | gum choose --header "what to apply? (configuration = functions+XRD+Composition, xr = example XR only)")
-        [ -n "$WHAT" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        # --- pick what to apply (env: WHAT=configuration|xr|both) ---
+        if [ -n "${WHAT:-}" ]; then
+          case "$WHAT" in
+            configuration|xr|both) ;;
+            *) gum style --foreground 1 "WHAT=$WHAT not one of: configuration|xr|both"; exit 1 ;;
+          esac
+        else
+          WHAT=$(printf "configuration\nxr\nboth" \
+            | gum choose --header "what to apply? (configuration = functions+XRD+Composition, xr = example XR only)")
+          [ -n "$WHAT" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        fi
 
         FUNCTIONS="$CONFIG/examples/functions.yaml"
         DEFINITION="$CONFIG/apis/definition.yaml"
         COMPOSITION="$CONFIG/apis/composition.yaml"
-        XR=""
 
-        # --- if applying XR, pick which one ---
+        # --- if applying XR, pick which one (env: XR=<path|name>) ---
         if [ "$WHAT" = "xr" ] || [ "$WHAT" = "both" ]; then
-          XRS=$(find "$CONFIG/examples" -maxdepth 1 -type f -name 'xr*.yaml' 2>/dev/null | sort)
-          XR_COUNT=$(echo -n "$XRS" | grep -c '^' || true)
-          if [ "$XR_COUNT" -eq 0 ]; then
-            gum style --foreground 1 "no xr*.yaml in $CONFIG/examples"
-            exit 1
-          elif [ "$XR_COUNT" -eq 1 ]; then
-            XR="$XRS"
+          if [ -n "${XR:-}" ]; then
+            if [ -f "$XR" ]; then :; \
+            elif [ -f "$CONFIG/examples/$XR" ]; then XR="$CONFIG/examples/$XR"; \
+            elif [ -f "$CONFIG/$XR" ]; then XR="$CONFIG/$XR"; \
+            else gum style --foreground 1 "XR=$XR not found (cwd, $CONFIG/examples/, $CONFIG/)"; exit 1; fi
           else
-            XR=$(echo "$XRS" | gum choose --header "select example XR:")
-            [ -n "$XR" ] || { gum style --foreground 3 "no selection"; exit 1; }
+            XRS=$(find "$CONFIG/examples" -maxdepth 1 -type f -name 'xr*.yaml' 2>/dev/null | sort)
+            XR_COUNT=$(echo -n "$XRS" | grep -c '^' || true)
+            if [ "$XR_COUNT" -eq 0 ]; then
+              gum style --foreground 1 "no xr*.yaml in $CONFIG/examples"
+              exit 1
+            elif [ "$XR_COUNT" -eq 1 ]; then
+              XR="$XRS"
+            else
+              XR=$(echo "$XRS" | gum choose --header "select example XR:")
+              [ -n "$XR" ] || { gum style --foreground 3 "no selection"; exit 1; }
+            fi
           fi
+        else
+          XR=""
         fi
 
         # --- validate files exist ---
@@ -215,7 +248,11 @@ tasks:
         fi
         [ -n "$XR" ] && echo "    - $XR"
         echo
-        gum confirm "apply to '$CTX'?" || { gum style --foreground 3 "aborted"; exit 1; }
+        if [ "${YES:-}" = "1" ] || [ "${YES:-}" = "true" ]; then
+          gum style --foreground 8 "  (YES=$YES — skipping confirmation)"
+        else
+          gum confirm "apply to '$CTX'?" || { gum style --foreground 3 "aborted"; exit 1; }
+        fi
 
         # --- apply configuration ---
         if [ "$WHAT" = "configuration" ] || [ "$WHAT" = "both" ]; then
@@ -304,19 +341,23 @@ tasks:
         gum style --foreground 2 --bold "✓ pre-commit passed"
 
   verify:
-    desc: Verify a Configuration package + each example XR (via the Dagger crossplane module)
+    desc: "Verify a Configuration package + each example XR via Dagger (non-interactive: CONFIG=k8s/<name> task verify)"
     silent: true
     cmds:
       - |
         set -euo pipefail
 
-        # --- pick configuration ---
-        CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
-          | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
-          | sort)
-        [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
-        CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to verify:")
-        [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        # --- pick configuration (env: CONFIG=<path>, e.g. k8s/namespace) ---
+        if [ -n "${CONFIG:-}" ]; then
+          [ -f "$CONFIG/crossplane.yaml" ] || { gum style --foreground 1 "CONFIG=$CONFIG: missing $CONFIG/crossplane.yaml"; exit 1; }
+        else
+          CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+            | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
+            | sort)
+          [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
+          CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to verify:")
+          [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        fi
 
         META="$CONFIG/crossplane.yaml"
 
@@ -345,19 +386,23 @@ tasks:
           --progress plain
 
   push:
-    desc: Build and push a Crossplane Configuration to an OCI registry (via the Dagger crossplane module)
+    desc: "Build and push a Configuration to an OCI registry via Dagger (non-interactive: CONFIG=k8s/<name> BUMP=patch|minor|major|vX.Y.Z YES=1 task push)"
     silent: true
     cmds:
       - |
         set -euo pipefail
 
-        # --- pick configuration ---
-        CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
-          | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
-          | sort)
-        [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
-        CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to push:")
-        [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        # --- pick configuration (env: CONFIG=<path>, e.g. k8s/namespace) ---
+        if [ -n "${CONFIG:-}" ]; then
+          [ -f "$CONFIG/crossplane.yaml" ] || { gum style --foreground 1 "CONFIG=$CONFIG: missing $CONFIG/crossplane.yaml"; exit 1; }
+        else
+          CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+            | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
+            | sort)
+          [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
+          CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to push:")
+          [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        fi
 
         META="$CONFIG/crossplane.yaml"
         PKG_NAME=$(yq -r '.metadata.name' "$META")
@@ -372,24 +417,40 @@ tasks:
         V_MINOR="v$MAJ.$((MIN+1)).0"
         V_MAJOR="v$((MAJ+1)).0.0"
 
-        BUMP=$(printf "patch  →  %s\nminor  →  %s\nmajor  →  %s\ncustom" \
-          "$V_PATCH" "$V_MINOR" "$V_MAJOR" \
-          | gum choose --header "current: $CURRENT — bump:")
-        [ -n "$BUMP" ] || { gum style --foreground 3 "no selection"; exit 1; }
-
-        case "$BUMP" in
-          patch*)  NEW="$V_PATCH" ;;
-          minor*)  NEW="$V_MINOR" ;;
-          major*)  NEW="$V_MAJOR" ;;
-          custom)  NEW=$(gum input --header "version (with leading v):" --value "$V_PATCH")
-                   [ -n "$NEW" ] || { gum style --foreground 3 "no version"; exit 1; } ;;
-        esac
+        # --- pick bump (env: BUMP=patch|minor|major|custom|vX.Y.Z; for custom, VERSION=vX.Y.Z) ---
+        if [ -n "${BUMP:-}" ]; then
+          case "$BUMP" in
+            patch)   NEW="$V_PATCH" ;;
+            minor)   NEW="$V_MINOR" ;;
+            major)   NEW="$V_MAJOR" ;;
+            custom)  [ -n "${VERSION:-}" ] || { gum style --foreground 1 "BUMP=custom requires VERSION=vX.Y.Z"; exit 1; }
+                     NEW="$VERSION" ;;
+            v[0-9]*) NEW="$BUMP" ;;
+            *) gum style --foreground 1 "BUMP=$BUMP not one of: patch|minor|major|custom|vX.Y.Z"; exit 1 ;;
+          esac
+        else
+          BUMP=$(printf "patch  →  %s\nminor  →  %s\nmajor  →  %s\ncustom" \
+            "$V_PATCH" "$V_MINOR" "$V_MAJOR" \
+            | gum choose --header "current: $CURRENT — bump:")
+          [ -n "$BUMP" ] || { gum style --foreground 3 "no selection"; exit 1; }
+          case "$BUMP" in
+            patch*)  NEW="$V_PATCH" ;;
+            minor*)  NEW="$V_MINOR" ;;
+            major*)  NEW="$V_MAJOR" ;;
+            custom)  NEW=$(gum input --header "version (with leading v):" --value "$V_PATCH")
+                     [ -n "$NEW" ] || { gum style --foreground 3 "no version"; exit 1; } ;;
+          esac
+        fi
 
         # --- auth ---
         REGISTRY="${REGISTRY:-ghcr.io}"
         USERNAME="${USERNAME:-stuttgart-things}"
         PASSWORD_ENV="${PASSWORD_ENV:-GITHUB_TOKEN}"
         if [ -z "${!PASSWORD_ENV:-}" ]; then
+          if [ "${YES:-}" = "1" ] || [ "${YES:-}" = "true" ]; then
+            gum style --foreground 1 "\$$PASSWORD_ENV is not set (YES=$YES — refusing to prompt)"
+            exit 1
+          fi
           gum style --foreground 3 "\$$PASSWORD_ENV is not set — prompting"
           TOKEN=$(gum input --password --header "enter $PASSWORD_ENV:")
           [ -n "$TOKEN" ] || { gum style --foreground 1 "no token entered"; exit 1; }
@@ -415,7 +476,11 @@ tasks:
         echo "  password:    \$$PASSWORD_ENV (set)"
         echo "  dagger mod:  $DAGGER_MOD"
         echo
-        gum confirm "push?" || { gum style --foreground 3 "aborted"; exit 1; }
+        if [ "${YES:-}" = "1" ] || [ "${YES:-}" = "true" ]; then
+          gum style --foreground 8 "  (YES=$YES — skipping confirmation)"
+        else
+          gum confirm "push?" || { gum style --foreground 3 "aborted"; exit 1; }
+        fi
 
         # --- push ---
         dagger call -m "$DAGGER_MOD" push \

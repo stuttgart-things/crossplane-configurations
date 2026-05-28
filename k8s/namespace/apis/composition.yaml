@@ -1,0 +1,234 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: managed-namespace
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: ManagedNamespace
+  mode: Pipeline
+  pipeline:
+    - step: render-namespace-and-addons
+      functionRef:
+        name: crossplane-contrib-function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $spec := .observed.composite.resource.spec }}
+            {{- $name := $spec.name }}
+            {{- $pcr  := $spec.providerConfigRef }}
+            ---
+            # Namespace — owned by this Configuration. managementPolicies: ['*']
+            # means labels/annotations on the XR are authoritative; the Namespace
+            # is created, updated and deleted with the XR.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-namespace") }}
+              labels:
+                app.kubernetes.io/name: managed-namespace
+                app.kubernetes.io/instance: {{ $name }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $pcr }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Namespace
+                  metadata:
+                    name: {{ $name }}
+                    {{- with $spec.labels }}
+                    labels:
+                      {{- range $k, $v := . }}
+                      {{ $k }}: {{ $v | quote }}
+                      {{- end }}
+                    {{- end }}
+                    {{- with $spec.annotations }}
+                    annotations:
+                      {{- range $k, $v := . }}
+                      {{ $k }}: {{ $v | quote }}
+                      {{- end }}
+                    {{- end }}
+
+            {{- with $spec.resourceQuota }}
+            ---
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-resourcequota") }}
+              labels:
+                app.kubernetes.io/name: managed-namespace
+                app.kubernetes.io/instance: {{ $name }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $pcr }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: ResourceQuota
+                  metadata:
+                    name: default
+                    namespace: {{ $name }}
+                  spec:
+                    hard:
+                      {{- range $k, $v := .hard }}
+                      {{ $k }}: {{ $v | quote }}
+                      {{- end }}
+            {{- end }}
+
+            {{- with $spec.limitRange }}
+            ---
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-limitrange") }}
+              labels:
+                app.kubernetes.io/name: managed-namespace
+                app.kubernetes.io/instance: {{ $name }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $pcr }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: LimitRange
+                  metadata:
+                    name: default
+                    namespace: {{ $name }}
+                  spec:
+                    limits:
+                      {{- range $lim := .limits }}
+                      - type: {{ $lim.type }}
+                        {{- with $lim.default }}
+                        default:
+                          {{- range $k, $v := . }}
+                          {{ $k }}: {{ $v | quote }}
+                          {{- end }}
+                        {{- end }}
+                        {{- with $lim.defaultRequest }}
+                        defaultRequest:
+                          {{- range $k, $v := . }}
+                          {{ $k }}: {{ $v | quote }}
+                          {{- end }}
+                        {{- end }}
+                        {{- with $lim.max }}
+                        max:
+                          {{- range $k, $v := . }}
+                          {{ $k }}: {{ $v | quote }}
+                          {{- end }}
+                        {{- end }}
+                        {{- with $lim.min }}
+                        min:
+                          {{- range $k, $v := . }}
+                          {{ $k }}: {{ $v | quote }}
+                          {{- end }}
+                        {{- end }}
+                        {{- with $lim.maxLimitRequestRatio }}
+                        maxLimitRequestRatio:
+                          {{- range $k, $v := . }}
+                          {{ $k }}: {{ $v | quote }}
+                          {{- end }}
+                        {{- end }}
+                      {{- end }}
+            {{- end }}
+
+            {{- if and $spec.networkPolicy $spec.networkPolicy.denyAll }}
+            ---
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-netpol-deny-all") }}
+              labels:
+                app.kubernetes.io/name: managed-namespace
+                app.kubernetes.io/instance: {{ $name }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $pcr }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: networking.k8s.io/v1
+                  kind: NetworkPolicy
+                  metadata:
+                    name: default-deny-all
+                    namespace: {{ $name }}
+                  spec:
+                    podSelector: {}
+                    policyTypes:
+                      - Ingress
+                      - Egress
+            {{- end }}
+
+            {{- range $rb := $spec.roleBindings }}
+            ---
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-rolebinding-" $rb.name) }}
+              labels:
+                app.kubernetes.io/name: managed-namespace
+                app.kubernetes.io/instance: {{ $name }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $pcr }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: rbac.authorization.k8s.io/v1
+                  kind: RoleBinding
+                  metadata:
+                    name: {{ $rb.name }}
+                    namespace: {{ $name }}
+                  roleRef:
+                    apiGroup: {{ $rb.roleRef.apiGroup | default "rbac.authorization.k8s.io" }}
+                    kind: {{ $rb.roleRef.kind | default "ClusterRole" }}
+                    name: {{ $rb.roleRef.name }}
+                  subjects:
+                    {{- range $s := $rb.subjects }}
+                    - kind: {{ $s.kind }}
+                      name: {{ $s.name }}
+                      {{- if $s.namespace }}
+                      namespace: {{ $s.namespace }}
+                      {{- end }}
+                      {{- if $s.apiGroup }}
+                      apiGroup: {{ $s.apiGroup }}
+                      {{- end }}
+                    {{- end }}
+            {{- end }}
+
+            ---
+            apiVersion: resources.stuttgart-things.com/v1alpha1
+            kind: ManagedNamespace
+            status:
+              namespace: {{ $name }}
+
+    - step: ready
+      functionRef:
+        name: crossplane-contrib-function-auto-ready

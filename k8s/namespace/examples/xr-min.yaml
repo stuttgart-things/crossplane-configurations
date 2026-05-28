@@ -1,0 +1,11 @@
+---
+# Minimum example: only the fields required by the XRD.
+# Renders a bare Namespace on the target cluster, no addons.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ManagedNamespace
+metadata:
+  name: min
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  name: demo-min
