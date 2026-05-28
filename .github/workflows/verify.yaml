@@ -59,6 +59,10 @@ jobs:
           echo "Configurations to verify:"
           echo "${configs_json}" | jq -r '.[]'
 
+  pre-commit:
+    uses: stuttgart-things/github-workflow-templates/.github/workflows/call-pre-commit.yaml@main
+    secrets: inherit
+
   verify:
     needs: discover
     if: needs.discover.outputs.configs != '[]'
