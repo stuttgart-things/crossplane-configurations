@@ -64,6 +64,7 @@ spec:
   managementPolicies: [Observe, Create]   # adopt if exists; create if missing; never modify/delete
   ```
 - The only documented per-Configuration **precondition** that must live on the cluster (not in the package) is the `ClusterProviderConfig` referenced by `spec.providerConfigRef` on the XR. Note this in the per-Configuration README under "Cluster preconditions".
+- **Function CR names: short form, always.** In both `examples/functions.yaml` (`metadata.name`) and the Composition (`functionRef.name`), use the short form — `function-go-templating`, not `crossplane-contrib-function-go-templating`. Same rule for every Function (drop the `crossplane-contrib-` prefix). Target clusters in the stuttgart-things fleet install Functions under the short names via Argo CD; a long-named CR pointing at the same package adds a duplicate node to Crossplane's package lock graph (`cannot resolve package dependencies: ... node ... already exists`), which freezes the dependency resolver for **every** package on the cluster — providers and other Functions flip to `Healthy=False`, and any Configuration delete blocks on foreground deletion. Recovery requires deleting the long-named duplicates by hand. Applies to new Configurations and migrations alike.
 
 ### Example XR conventions
 
