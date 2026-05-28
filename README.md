@@ -19,6 +19,8 @@ Common workflows are wrapped in [`Taskfile.yaml`](Taskfile.yaml):
 | `task render` | Render a Configuration's example XR locally (no cluster needed) |
 | `task check` | Verify a target cluster satisfies a Configuration's dependencies |
 | `task apply-dev` | Apply a Configuration and/or example XR from local files (dev install) |
+| `task pre-commit` | Run the repo's pre-commit hooks (file hygiene, YAML, workflows, secrets) |
+| `task verify` | Offline package + example XR validation (same dagger module the CI workflow runs) |
 | `task push` | Build and push a Configuration as an OCI package (bumps `meta.crossplane.io/version`) |
 
 <details>
@@ -60,7 +62,7 @@ Each Configuration follows the same structure:
 - [`crossplane` CLI](https://docs.crossplane.io/latest/cli/) — local rendering, packaging
 - [`task`](https://taskfile.dev/) — runs the workflows in [`Taskfile.yaml`](Taskfile.yaml)
 - [`gum`](https://github.com/charmbracelet/gum) — interactive prompts inside the tasks
-- [`dagger`](https://dagger.io/) — used by `task push` to build and publish the OCI package
+- [`dagger`](https://dagger.io/) — used by `task pre-commit` (lint hooks), `task verify` (offline validation), and `task push` (OCI build & publish)
 - `kubectl`, `yq` — invoked by `task check` / `task apply-dev`
 - A reachable Kubernetes cluster — required for `task check`, `task apply-dev`, and end-to-end iteration
 
@@ -94,6 +96,61 @@ Or via Taskfile (auto-discovers Configurations and example XRs):
 ```bash
 task render
 ```
+
+</details>
+
+<details>
+<summary><b>Pre-commit hooks (local + CI)</b></summary>
+
+[`.pre-commit-config.yaml`](.pre-commit-config.yaml) runs the standard file-hygiene hooks (trailing whitespace, EOF, large files, merge conflicts, symlinks, YAML, private keys), `shellcheck`, `check-github-workflows`, and Yelp's `detect-secrets` (gated by [`.secrets.baseline`](.secrets.baseline) — a snapshot of known not-a-secret matches that the hook ignores).
+
+**Local**
+
+```bash
+task pre-commit
+```
+
+Wraps the [`dagger/linting`](https://github.com/stuttgart-things/dagger/tree/main/linting) module's `run-pre-commit`, so the host doesn't need Python, the hook environments, or even `pre-commit` itself installed.
+
+**Regenerating the baseline** after intentionally introducing a string `detect-secrets` flags (or after upstream rules change):
+
+```bash
+docker run --rm -v "$PWD:/work" -w /work python:3.12-slim sh -c \
+  "apt-get update -qq && apt-get install -qq -y git >/dev/null && \
+   git config --global --add safe.directory /work && \
+   pip install --quiet detect-secrets && detect-secrets scan" > .secrets.baseline
+```
+
+**CI**
+
+The `pre-commit` job in [`.github/workflows/verify.yaml`](.github/workflows/verify.yaml) calls the reusable [`call-pre-commit.yaml`](https://github.com/stuttgart-things/github-workflow-templates/blob/main/.github/workflows/call-pre-commit.yaml). Findings are printed to the job log, attached as an artifact, and added to the run summary. The job fails on any hook reporting `Failed`.
+
+</details>
+
+<details>
+<summary><b>Verification (local + CI)</b></summary>
+
+Offline, cluster-free validation of a Configuration package. Both the local task and the GitHub workflow drive the same [`dagger/crossplane`](https://github.com/stuttgart-things/dagger/tree/main/crossplane) `verify` function, so a CI failure reproduces with one command.
+
+Per Configuration, `verify` runs four checks:
+
+1. **`crossplane xpkg build`** — the package itself is well-formed.
+2. **Layer 1: XR ↔ XRD** — each `examples/xr*.yaml` validates against the Configuration's own XRD (via `kubeconform`).
+3. **Layer 2: Object wrapper** — every rendered `kubernetes.m.crossplane.io/v1alpha1` Object validates against the `provider-kubernetes` CRD schema (version pinned per Configuration in `crossplane.yaml`).
+4. **Layer 3: embedded manifest** — each `spec.forProvider.manifest` validates against the built-in Kubernetes schemas.
+
+**Local**
+
+```bash
+task verify
+# pick a Configuration in the prompt
+```
+
+The task sniffs the `provider-kubernetes` floor from the Configuration's `dependsOn` and passes it through as `--provider-kubernetes-version`, matching what CI does. Override the dagger module pin with `DAGGER_MOD=...`.
+
+**CI**
+
+`.github/workflows/verify.yaml` runs on every pull request and every push to `main`. A `discover` job lists all Configuration directories, intersects them with the diff against the base SHA, and matrix-invokes the reusable [`call-crossplane-verify.yaml`](https://github.com/stuttgart-things/github-workflow-templates/blob/main/.github/workflows/call-crossplane-verify.yaml) workflow — so a PR only re-verifies the Configurations it actually touched. `fail-fast: false`, so one Configuration's regressions don't mask another's.
 
 </details>
 

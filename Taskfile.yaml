@@ -269,6 +269,40 @@ tasks:
           crossplane beta trace "$XR_KIND" "$XR_NAME" -n "$XR_NS" || true
         fi
 
+  pre-commit:
+    desc: Run pre-commit hooks across the repo (via the Dagger linting module)
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+
+        DAGGER_MOD_LINTING="${DAGGER_MOD_LINTING:-github.com/stuttgart-things/dagger/linting@v0.115.0}"
+        OUT="${OUT:-/tmp/pre-commit-findings.txt}"
+
+        gum style --foreground 4 "→ pre-commit (dagger)"
+        echo "  dagger mod:  $DAGGER_MOD_LINTING"
+        echo "  output:      $OUT"
+        echo
+
+        dagger --progress plain call -m "$DAGGER_MOD_LINTING" run-pre-commit \
+          --src . \
+          export --path "$OUT"
+
+        echo
+        gum style --foreground 8 "── findings ────────────────────────────────────"
+        cat "$OUT"
+        gum style --foreground 8 "────────────────────────────────────────────────"
+        echo
+
+        # The dagger function captures all output with `|| true` and always
+        # exits 0, so we have to read the text to decide pass/fail.
+        # pre-commit prints `<hook>...Failed` per failing hook.
+        if grep -qE '\.\.\.+Failed$' "$OUT"; then
+          gum style --foreground 1 --bold "✗ pre-commit hooks failed"
+          exit 1
+        fi
+        gum style --foreground 2 --bold "✓ pre-commit passed"
+
   verify:
     desc: Verify a Configuration package + each example XR (via the Dagger crossplane module)
     silent: true
