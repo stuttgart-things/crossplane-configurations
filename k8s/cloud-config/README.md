@@ -75,7 +75,7 @@ crossplane render examples/xr.yaml apis/composition.yaml examples/functions.yaml
 Monitor the composition status and track created resources:
 
 ```bash
-crossplane beta trace cloudinit.resources.stuttgart-things.com dev2-vm
+crossplane beta trace cloudinit.resources.stuttgart-things.com dev2-vm -n default
 ```
 
 ### View Resource Tree

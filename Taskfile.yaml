@@ -269,6 +269,47 @@ tasks:
           crossplane beta trace "$XR_KIND" "$XR_NAME" -n "$XR_NS" || true
         fi
 
+  verify:
+    desc: Verify a Configuration package + each example XR (via the Dagger crossplane module)
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+
+        # --- pick configuration ---
+        CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+          | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
+          | sort)
+        [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
+        CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to verify:")
+        [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+
+        META="$CONFIG/crossplane.yaml"
+
+        # --- sniff provider-kubernetes floor from dependsOn ---
+        # Layer 2 of `verify` validates rendered Object resources against the
+        # provider-kubernetes CRD schemas at this version. Falls back to the
+        # module's own default if the Configuration doesn't pin one.
+        PROV_VER=$(yq -r '
+          .spec.dependsOn[]
+          | select(.provider == "xpkg.crossplane.io/crossplane-contrib/provider-kubernetes")
+          | .version
+          | capture("(?P<v>v[0-9]+\\.[0-9]+\\.[0-9]+)").v
+        ' "$META" 2>/dev/null | head -n1)
+        [ -z "$PROV_VER" ] && PROV_VER="v1.2.0"
+
+        DAGGER_MOD="${DAGGER_MOD:-github.com/stuttgart-things/dagger/crossplane@v0.115.0}"
+
+        gum style --foreground 4 "→ verify $CONFIG"
+        echo "  provider-kubernetes: $PROV_VER"
+        echo "  dagger mod:          $DAGGER_MOD"
+        echo
+
+        dagger call -m "$DAGGER_MOD" verify \
+          --src "$CONFIG" \
+          --provider-kubernetes-version "$PROV_VER" \
+          --progress plain
+
   push:
     desc: Build and push a Crossplane Configuration to an OCI registry (via the Dagger crossplane module)
     silent: true
