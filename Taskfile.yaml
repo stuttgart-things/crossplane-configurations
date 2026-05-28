@@ -495,3 +495,36 @@ tasks:
         yq -i ".metadata.annotations.\"meta.crossplane.io/version\" = \"$NEW\"" "$META"
         gum style --foreground 2 --bold "✓ pushed $DESTINATION"
         gum style --foreground 8 "  updated $META → meta.crossplane.io/version: $NEW  (don't forget to commit)"
+
+        # --- ghcr visibility check ---
+        # New ghcr.io packages default to private. Crossplane pulls anonymously
+        # and will hit "UNAUTHORIZED: authentication required" on install until
+        # the package visibility is flipped to Public. There is no REST API
+        # endpoint to change container-package visibility for org packages —
+        # only the web UI — so the best we can do here is detect and remind.
+        if [ "$REGISTRY" = "ghcr.io" ] && command -v gh >/dev/null 2>&1; then
+          PKG_PATH="$(printf '%s' "${PREFIX:-}" | sed 's|/|%2F|g')$([ -n "${PREFIX:-}" ] && printf '%%2F')$PKG_NAME"
+          VIS=$(gh api "/orgs/$USERNAME/packages/container/$PKG_PATH" --jq '.visibility' 2>/dev/null || echo "")
+          OWNER_KIND=orgs
+          if [ -z "$VIS" ]; then
+            VIS=$(gh api "/users/$USERNAME/packages/container/$PKG_PATH" --jq '.visibility' 2>/dev/null || echo "")
+            OWNER_KIND=users
+          fi
+          SETTINGS_URL="https://github.com/$OWNER_KIND/$USERNAME/packages/container/$PKG_PATH/settings"
+          echo
+          case "$VIS" in
+            public)
+              gum style --foreground 2 "✓ ghcr visibility: public — Crossplane can pull anonymously"
+              ;;
+            private)
+              gum style --foreground 3 --bold "⚠ ghcr visibility: PRIVATE — Crossplane will fail to install this package"
+              gum style --foreground 8 "  Flip to Public (UI-only):"
+              gum style --foreground 4 "    $SETTINGS_URL"
+              gum style --foreground 8 "  → Danger Zone → Change visibility → Public → type the package name to confirm"
+              ;;
+            *)
+              gum style --foreground 3 "ℹ ghcr visibility: unknown (gh api 404 / unauthenticated)"
+              gum style --foreground 8 "  Check at $SETTINGS_URL"
+              ;;
+          esac
+        fi
