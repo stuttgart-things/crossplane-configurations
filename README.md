@@ -8,6 +8,7 @@ Each subdirectory is a self-contained Crossplane Configuration package — an XR
 
 | Category | Name | Version | Description | OCI |
 |---|---|---|---|---|
+| cicd | [ansible-run](cicd/ansible-run/) | v0.1.0 | Triggers an Ansible playbook on a target cluster by emitting a Tekton `PipelineRun` from a namespaced `AnsibleRun` XR. The PipelineRun is rendered by `function-kcl` (KCL module [`kcl-tekton-pr`](https://github.com/stuttgart-things/kcl-tekton-pr)) and applied via `provider-kubernetes`. | [`ghcr.io/stuttgart-things/crossplane-configurations/ansible-run`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fansible-run) |
 | k8s | [cloud-config](k8s/cloud-config/) | v0.5.4 | Renders cloud-init userdata as a Kubernetes Secret from a namespaced `CloudInit` XR, and manages the target namespace. | [`ghcr.io/stuttgart-things/crossplane-configurations/cloud-config`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fcloud-config) |
 | k8s | [namespace](k8s/namespace/) | v0.1.1 | Manages a Kubernetes Namespace from a namespaced `ManagedNamespace` XR, with optional labels/annotations, `ResourceQuota`, `LimitRange`, default-deny `NetworkPolicy` and `RoleBindings`. | [`ghcr.io/stuttgart-things/crossplane-configurations/namespace`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fnamespace) |
 | k8s | [volume-claim](k8s/volume-claim/) | v0.1.0 | Provisions a Kubernetes `PersistentVolumeClaim` from a namespaced `VolumeClaim` XR, with optional labels/annotations, label `selector` for pre-provisioned PVs and `dataSource` for snapshot restore / PVC cloning. Falls back to the cluster's default StorageClass when unset. | [`ghcr.io/stuttgart-things/crossplane-configurations/volume-claim`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fvolume-claim) |
@@ -108,6 +109,8 @@ Configurations are grouped by the kind of resource they manage:
 
 ```
 crossplane-configurations/
+├── cicd/                         # CI/CD workflow resources
+│   └── ansible-run/              # Tekton PipelineRun wrapping an Ansible playbook
 └── k8s/                          # Kubernetes-native resources
     ├── cloud-config/             # cloud-init userdata Secrets for VMs
     ├── namespace/                # managed Namespaces (+ quota/limits/netpol/RBAC)
@@ -157,6 +160,7 @@ Each Configuration declares its own provider and function dependencies in its `c
 |---|---|---|
 | Provider | `xpkg.crossplane.io/crossplane-contrib/provider-kubernetes` | `>=v1.2.0,<v2.0.0` |
 | Function | `xpkg.crossplane.io/crossplane-contrib/function-go-templating` | `>=v0.12.1,<v0.13.0` |
+| Function | `xpkg.crossplane.io/crossplane-contrib/function-kcl` | `>=v0.12.0,<v0.13.0` |
 | Function | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready` | `>=v0.6.5,<v0.7.0` |
 
 </details>

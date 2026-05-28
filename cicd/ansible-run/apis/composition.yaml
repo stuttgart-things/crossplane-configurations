@@ -1,0 +1,26 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: ansible-run
+  labels:
+    crossplane.io/xrd: ansibleruns.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: AnsibleRun
+  mode: Pipeline
+  pipeline:
+    - step: render-pipelinerun
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: ansiblerun
+        spec:
+          source: oci://ghcr.io/stuttgart-things/kcl-tekton-pr:0.4.6
+    - step: ready
+      functionRef:
+        name: function-auto-ready

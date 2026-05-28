@@ -1,0 +1,63 @@
+---
+# Realistic "standard" usage: a baseos playbook run against a single
+# target host, with extra roles + collections and a small vars file.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: AnsibleRun
+metadata:
+  name: ansible-run-baseos
+  namespace: default
+spec:
+  pipelineRunName: run-ansible-baseos
+  namespace: tekton-ci
+
+  # Storage Configuration
+  storageSize: 20Mi
+  storageAccessModes: ReadWriteOnce
+
+  # Ansible Configuration
+  ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:11.11.0
+  createInventory: "true"
+  ansibleTargetHost: all
+  ansibleVerbosity: "2"
+  validateInventory: "true"
+
+  # Git Configuration
+  gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  gitRevision: main
+  gitPath: pipelines/execute-ansible-playbooks.yaml
+  gitWorkspaceSubdirectory: /ansible/workdir/
+
+  # Credentials (Secret pre-created in spec.namespace; see README)
+  ansibleCredentialsSecretName: ansible-credentials # pragma: allowlist secret
+  ansibleCredentialsUserKey: ANSIBLE_USER # pragma: allowlist secret
+  ansibleCredentialsPasswordKey: ANSIBLE_PASSWORD # pragma: allowlist secret
+
+  # Ansible Roles and Collections
+  installExtraRoles: "true"
+  ansibleExtraRoles:
+    - "https://github.com/stuttgart-things/install-requirements.git,2024.05.11"
+
+  installExtraCollections: "true"
+  ansibleExtraCollections:
+    - "community.general:10.1.0"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-25.4.118.tar.gz/sthings-baseos-25.4.118.tar.gz"
+
+  # Playbooks and Variables
+  ansiblePlaybooks:
+    - sthings.baseos.setup
+
+  ansibleVarsFile:
+    - manage_filesystem+-true
+    - update_packages+-true
+    - ansible_become+-true
+    - ansible_become_method+-sudo
+
+  ansibleVarsInventory:
+    - 'all+["10.31.102.107"]'
+
+  # Crossplane Configuration (target cluster for the rendered Object)
+  wrapInCrossplane: true
+  crossplaneObjectName: run-ansible-baseos
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
+  crossplaneTimeout: "60"

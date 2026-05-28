@@ -1,0 +1,75 @@
+---
+# Maximum example: every XRD spec field exercised at least once.
+# Useful for catching templating breakage when KCL module inputs change.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: AnsibleRun
+metadata:
+  name: ansible-run-max
+  namespace: default
+spec:
+  # Pipeline Configuration
+  pipelineRunName: run-ansible-max
+  namespace: tekton-ci
+
+  # Storage Configuration
+  storageSize: 100Mi
+  storageAccessModes: ReadWriteOnce
+  storageClass: openebs-hostpath
+
+  # Ansible Configuration
+  ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test
+  createInventory: "true"
+  ansibleTargetHost: all
+  ansibleVerbosity: "3"
+  validateInventory: "true"
+
+  # Git Configuration
+  gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  gitRevision: main
+  gitPath: pipelines/execute-ansible-playbooks-from-collections.yaml
+  gitWorkspaceSubdirectory: /ansible/workdir/
+
+  # Credentials
+  ansibleCredentialsSecretName: ansible-credentials # pragma: allowlist secret
+  ansibleCredentialsUserKey: ANSIBLE_USER # pragma: allowlist secret
+  ansibleCredentialsPasswordKey: ANSIBLE_PASSWORD # pragma: allowlist secret
+
+  # Ansible Roles and Collections
+  installExtraRoles: "true"
+  ansibleExtraRoles:
+    - "https://github.com/stuttgart-things/install-requirements.git,2024.05.11"
+    - "https://github.com/stuttgart-things/ansible-roles-system.git,2024.06.01"
+
+  installExtraCollections: "true"
+  ansibleExtraCollections:
+    - "community.general:10.1.0"
+    - "ansible.posix:1.5.4"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-25.4.118.tar.gz/sthings-baseos-25.4.118.tar.gz"
+
+  # Playbooks and Variables
+  ansiblePlaybooks:
+    - sthings.baseos.setup
+    - sthings.baseos.harden
+
+  ansibleVarsFile:
+    - manage_filesystem+-true
+    - update_packages+-true
+    - ansible_become+-true
+    - ansible_become_method+-sudo
+    - reboot_after_update+-false
+
+  ansibleVarsInventory:
+    - 'all+["10.31.102.107","10.31.102.108"]'
+    - 'webservers+["10.31.102.107"]'
+
+  # Crossplane Configuration
+  wrapInCrossplane: true
+  crossplaneObjectName: run-ansible-max
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
+  crossplaneTimeout: "120"
+
+  # Target Cluster
+  targetCluster:
+    name: in-cluster
+    scope: Namespaced

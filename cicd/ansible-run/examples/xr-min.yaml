@@ -1,0 +1,26 @@
+---
+# Minimum example: XRD-required fields plus the wrap-Object inputs
+# that `function-kcl` needs to render the kubernetes.m.crossplane.io
+# Object. `crossplane render` does not apply XRD-level defaults
+# (they only kick in via the cluster API server), so wrapInCrossplane
+# is set explicitly here to exercise the documented default path.
+# Everything else falls through to the KCL module's own defaults
+# (storage=20Mi/ReadWriteOnce, ansibleWorkingImage,
+# gitRevision=main, credentials Secret = ansible-credentials with
+# ANSIBLE_USER/ANSIBLE_PASSWORD keys, install*={true},
+# crossplaneNamespace=default).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: AnsibleRun
+metadata:
+  name: ansible-run-min
+  namespace: default
+spec:
+  pipelineRunName: run-ansible-min
+  namespace: tekton-ci
+  gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  ansiblePlaybooks:
+    - sthings.baseos.setup
+  wrapInCrossplane: true
+  crossplaneObjectName: run-ansible-min
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
