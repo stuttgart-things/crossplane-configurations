@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.5.3
+    meta.crossplane.io/version: v0.5.4
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
