@@ -10,6 +10,7 @@ Each subdirectory is a self-contained Crossplane Configuration package — an XR
 |---|---|---|---|---|
 | k8s | [cloud-config](k8s/cloud-config/) | v0.5.4 | Renders cloud-init userdata as a Kubernetes Secret from a namespaced `CloudInit` XR, and manages the target namespace. | [`ghcr.io/stuttgart-things/crossplane-configurations/cloud-config`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fcloud-config) |
 | k8s | [namespace](k8s/namespace/) | v0.1.1 | Manages a Kubernetes Namespace from a namespaced `ManagedNamespace` XR, with optional labels/annotations, `ResourceQuota`, `LimitRange`, default-deny `NetworkPolicy` and `RoleBindings`. | [`ghcr.io/stuttgart-things/crossplane-configurations/namespace`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fnamespace) |
+| k8s | [volume-claim](k8s/volume-claim/) | v0.1.0 | Provisions a Kubernetes `PersistentVolumeClaim` from a namespaced `VolumeClaim` XR, with optional labels/annotations, label `selector` for pre-provisioned PVs and `dataSource` for snapshot restore / PVC cloning. Falls back to the cluster's default StorageClass when unset. | [`ghcr.io/stuttgart-things/crossplane-configurations/volume-claim`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fvolume-claim) |
 
 ## Tasks
 
@@ -71,7 +72,8 @@ Configurations are grouped by the kind of resource they manage:
 crossplane-configurations/
 └── k8s/                          # Kubernetes-native resources
     ├── cloud-config/             # cloud-init userdata Secrets for VMs
-    └── namespace/                # managed Namespaces (+ quota/limits/netpol/RBAC)
+    ├── namespace/                # managed Namespaces (+ quota/limits/netpol/RBAC)
+    └── volume-claim/             # PersistentVolumeClaims (default-SC fallback, snapshot restore)
 ```
 
 Each Configuration follows the same structure:

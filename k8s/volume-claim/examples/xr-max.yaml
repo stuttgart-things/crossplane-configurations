@@ -1,0 +1,41 @@
+---
+# Maximum example: every spec field exercised at least once.
+# Exercises selector (pre-provisioned PV binding) and dataSource (snapshot restore).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VolumeClaim
+metadata:
+  name: max
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  pvcName: restored-data
+  namespace: apps
+  storageClassName: fast-ssd
+  storage: 100Gi
+  accessModes:
+    - ReadWriteOnce
+    - ReadOnlyMany
+  volumeMode: Filesystem
+
+  labels:
+    app: max-app
+    tier: prod
+    backup: hourly
+  annotations:
+    description: restored from yesterday's snapshot
+    owner: max-team@stuttgart-things.com
+
+  selector:
+    matchLabels:
+      zone: eu-west-1a
+    matchExpressions:
+      - key: env
+        operator: In
+        values:
+          - prod
+          - staging
+
+  dataSource:
+    name: max-app-snapshot-2026-05-27
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io

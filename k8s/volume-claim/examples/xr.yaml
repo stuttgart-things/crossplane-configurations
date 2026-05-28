@@ -1,0 +1,20 @@
+---
+# Realistic "standard" usage: a named StorageClass + sized PVC + labels.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VolumeClaim
+metadata:
+  name: app-data
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  pvcName: app-data
+  namespace: default
+  storageClassName: standard
+  storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  labels:
+    app: my-app
+    tier: data
+  annotations:
+    description: persistent volume for my-app data directory

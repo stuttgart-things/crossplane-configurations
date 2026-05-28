@@ -1,0 +1,12 @@
+---
+# Minimum example: only the fields required by the XRD.
+# storageClassName is unset, so the cluster's default StorageClass is used.
+# Defaults: namespace=default, storage=10Gi, accessModes=[ReadWriteOnce], volumeMode=Filesystem.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VolumeClaim
+metadata:
+  name: min
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  pvcName: demo-min

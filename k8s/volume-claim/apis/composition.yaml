@@ -1,0 +1,110 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: volume-claim
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: VolumeClaim
+  mode: Pipeline
+  pipeline:
+    - step: render-pvc
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $spec := .observed.composite.resource.spec }}
+            {{- $pvc  := $spec.pvcName }}
+            {{- $ns   := $spec.namespace | default "default" }}
+            ---
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $pvc "-pvc") }}
+              labels:
+                app.kubernetes.io/name: volume-claim
+                app.kubernetes.io/instance: {{ $pvc }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $spec.providerConfigRef }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: PersistentVolumeClaim
+                  metadata:
+                    name: {{ $pvc }}
+                    namespace: {{ $ns }}
+                    {{- with $spec.labels }}
+                    labels:
+                      {{- range $k, $v := . }}
+                      {{ $k }}: {{ $v | quote }}
+                      {{- end }}
+                    {{- end }}
+                    {{- with $spec.annotations }}
+                    annotations:
+                      {{- range $k, $v := . }}
+                      {{ $k }}: {{ $v | quote }}
+                      {{- end }}
+                    {{- end }}
+                  spec:
+                    {{- with $spec.storageClassName }}
+                    storageClassName: {{ . }}
+                    {{- end }}
+                    volumeMode: {{ $spec.volumeMode | default "Filesystem" }}
+                    accessModes:
+                      {{- range ($spec.accessModes | default (list "ReadWriteOnce")) }}
+                      - {{ . }}
+                      {{- end }}
+                    resources:
+                      requests:
+                        storage: {{ $spec.storage | default "10Gi" }}
+                    {{- with $spec.selector }}
+                    selector:
+                      {{- with .matchLabels }}
+                      matchLabels:
+                        {{- range $k, $v := . }}
+                        {{ $k }}: {{ $v | quote }}
+                        {{- end }}
+                      {{- end }}
+                      {{- with .matchExpressions }}
+                      matchExpressions:
+                        {{- range $expr := . }}
+                        - key: {{ $expr.key }}
+                          operator: {{ $expr.operator }}
+                          {{- with $expr.values }}
+                          values:
+                            {{- range . }}
+                            - {{ . | quote }}
+                            {{- end }}
+                          {{- end }}
+                        {{- end }}
+                      {{- end }}
+                    {{- end }}
+                    {{- with $spec.dataSource }}
+                    dataSource:
+                      name: {{ .name }}
+                      kind: {{ .kind }}
+                      {{- if .apiGroup }}
+                      apiGroup: {{ .apiGroup }}
+                      {{- end }}
+                    {{- end }}
+
+            ---
+            apiVersion: resources.stuttgart-things.com/v1alpha1
+            kind: VolumeClaim
+            status:
+              pvcName: {{ $pvc }}
+
+    - step: ready
+      functionRef:
+        name: function-auto-ready
