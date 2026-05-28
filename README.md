@@ -8,7 +8,7 @@ Each subdirectory is a self-contained Crossplane Configuration package — an XR
 
 | Category | Name | Version | Description | OCI |
 |---|---|---|---|---|
-| k8s | [cloud-config](k8s/cloud-config/) | v0.5.2 | Renders cloud-init userdata as a Kubernetes Secret from a namespaced `CloudInit` XR, and manages the target namespace. | [`ghcr.io/stuttgart-things/crossplane-configurations/cloud-config`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fcloud-config) |
+| k8s | [cloud-config](k8s/cloud-config/) | v0.5.3 | Renders cloud-init userdata as a Kubernetes Secret from a namespaced `CloudInit` XR, and manages the target namespace. | [`ghcr.io/stuttgart-things/crossplane-configurations/cloud-config`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fcloud-config) |
 
 ## Tasks
 
