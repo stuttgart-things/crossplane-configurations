@@ -11,7 +11,7 @@ spec:
   pipeline:
     - step: render-namespace-and-addons
       functionRef:
-        name: crossplane-contrib-function-go-templating
+        name: function-go-templating
       input:
         apiVersion: gotemplating.fn.crossplane.io/v1beta1
         kind: GoTemplate
@@ -231,4 +231,4 @@ spec:
 
     - step: ready
       functionRef:
-        name: crossplane-contrib-function-auto-ready
+        name: function-auto-ready
