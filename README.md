@@ -23,7 +23,8 @@ Common workflows are wrapped in [`Taskfile.yaml`](Taskfile.yaml):
 | `task apply-dev` | Apply a Configuration and/or example XR from local files (dev install) |
 | `task pre-commit` | Run the repo's pre-commit hooks (file hygiene, YAML, workflows, secrets) |
 | `task verify` | Offline package + example XR validation (same dagger module the CI workflow runs) |
-| `task push` | Build and push a Configuration as an OCI package (bumps `meta.crossplane.io/version`) |
+| `task push` | Build and push a Configuration as an OCI package to `ghcr.io` (bumps `meta.crossplane.io/version`) |
+| `task push-dev` | Build and push to [ttl.sh](https://ttl.sh) for quick try-on-cluster dev iteration (anonymous, public, ephemeral — default 1 h TTL); no version bump, no canonical-registry touch |
 
 Each interactive task uses [`gum`](https://github.com/charmbracelet/gum) pickers by default. For CI, scripts and agents — anywhere without a TTY — every picker can be bypassed with an env var (see _Non-interactive usage_ below).
 
@@ -39,6 +40,7 @@ Every `gum choose` / `gum confirm` in the Taskfile has an env-var bypass. When t
 | `apply-dev`  | `KUBECONFIG=<path>`, `CONFIG=k8s/<name>`, `WHAT=configuration\|xr\|both`, `XR=<file>`, `YES=1` (skip confirm) |
 | `verify`     | `CONFIG=k8s/<name>` |
 | `push`       | `CONFIG=k8s/<name>`, `BUMP=patch\|minor\|major\|custom\|vX.Y.Z` (`custom` requires `VERSION=vX.Y.Z`), `YES=1` (skip confirm), plus the existing `REGISTRY` / `USERNAME` / `PASSWORD_ENV` / `PREFIX` |
+| `push-dev`   | `CONFIG=k8s/<name>`, `TTL=1h\|24h\|…` (default `1h`), `TTL_PREFIX=<scope>` (default `$(whoami)/crossplane-configurations`) |
 
 Examples:
 
@@ -57,9 +59,45 @@ CONFIG=k8s/namespace BUMP=patch YES=1 task push
 
 # pin a specific version
 CONFIG=k8s/namespace BUMP=custom VERSION=v0.2.0 YES=1 task push
+
+# dev iteration: push to ttl.sh, install on a test cluster, throw away
+CONFIG=k8s/volume-claim task push-dev   # → ttl.sh/<you>/crossplane-configurations/volume-claim:1h
+# task prints a kubectl-apply'able Configuration manifest pointing at the dev URL
 ```
 
 `push` will refuse to prompt for a password when `YES=1` is set and `$PASSWORD_ENV` (default `GITHUB_TOKEN`) is unset — set the token in the environment for unattended use.
+
+</details>
+
+<details>
+<summary><b>Dev iteration with ttl.sh</b></summary>
+
+`task push-dev` publishes the Configuration to [ttl.sh](https://ttl.sh) — an anonymous, public, ephemeral OCI registry where images auto-delete after a configurable duration (the *tag* is the TTL). Use it to try a package on a test cluster without going through the canonical `ghcr.io` release path (which carries version-bump ceremony and the [private-by-default visibility flip](https://github.blog/changelog/2023-08-22/github-packages-set-visibility-for-container-packages/) on first publish per package).
+
+Workflow:
+
+```bash
+# 1. push the current working tree to ttl.sh
+CONFIG=k8s/volume-claim task push-dev
+
+#    ✓ pushed ttl.sh/<you>/crossplane-configurations/volume-claim:1h
+#
+#    Install on a test cluster:
+#    kubectl apply -f - <<MANIFEST
+#    ---
+#    apiVersion: pkg.crossplane.io/v1
+#    kind: Configuration
+#    metadata:
+#      name: volume-claim-dev   # ← suffix avoids clashing with a canonical install
+#    spec:
+#      package: ttl.sh/<you>/crossplane-configurations/volume-claim:1h
+#    MANIFEST
+
+# 2. copy-paste-apply that manifest on the test cluster, exercise XRs, repeat
+# 3. when happy, run `task push` for the canonical ghcr.io release
+```
+
+The dagger module is the same one `task push` uses; the only differences are `--registry ttl.sh`, an anonymous credential, no version-bump and no visibility check.
 
 </details>
 

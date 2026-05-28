@@ -528,3 +528,78 @@ tasks:
               ;;
           esac
         fi
+
+  push-dev:
+    desc: "Build and push a Configuration to ttl.sh for dev iteration (non-interactive: CONFIG=k8s/<name> [TTL=1h] [TTL_PREFIX=...] task push-dev)"
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+
+        # ttl.sh accepts anonymous pushes and serves the image publicly for a
+        # bounded TTL (the tag IS the TTL — `:1h`, `:24h`, etc.). Use it for
+        # try-it-on-a-cluster dev iteration; use `task push` for canonical
+        # ghcr.io releases. No version bump, no annotation write, no visibility
+        # check — every push is throw-away.
+
+        # --- pick configuration (env: CONFIG=<path>, e.g. k8s/namespace) ---
+        if [ -n "${CONFIG:-}" ]; then
+          [ -f "$CONFIG/crossplane.yaml" ] || { gum style --foreground 1 "CONFIG=$CONFIG: missing $CONFIG/crossplane.yaml"; exit 1; }
+        else
+          CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+            | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
+            | sort)
+          [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
+          CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to dev-push:")
+          [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        fi
+
+        META="$CONFIG/crossplane.yaml"
+        PKG_NAME=$(yq -r '.metadata.name' "$META")
+
+        # --- destination (env: TTL=1h|24h|…, TTL_PREFIX=<user>/<scope>) ---
+        TTL="${TTL:-1h}"
+        TTL_PREFIX="${TTL_PREFIX:-$(whoami)/crossplane-configurations}"
+        DESTINATION="ttl.sh/$TTL_PREFIX/$PKG_NAME:$TTL"
+
+        DAGGER_MOD="${DAGGER_MOD:-github.com/stuttgart-things/dagger/crossplane}"
+
+        gum style --foreground 4 "→ push-dev $CONFIG"
+        echo "  package:     $PKG_NAME"
+        echo "  destination: $DESTINATION"
+        echo "  TTL:         $TTL  (image auto-deleted after this duration)"
+        echo "  dagger mod:  $DAGGER_MOD"
+        echo
+
+        # --- push via dagger crossplane module ---
+        # ttl.sh accepts anonymous, but the dagger Push function expects a
+        # *Secret password — pass a harmless env reference; the resulting
+        # docker-config blob is ignored by ttl.sh.
+        TTLSH_DUMMY_PASS=anonymous
+        export TTLSH_DUMMY_PASS
+
+        dagger call -m "$DAGGER_MOD" push \
+          --src "$CONFIG" \
+          --registry "ttl.sh" \
+          --username "anonymous" \
+          --password "env:TTLSH_DUMMY_PASS" \
+          --destination "$DESTINATION" \
+          --progress plain
+
+        echo
+        gum style --foreground 2 --bold "✓ pushed $DESTINATION"
+        echo
+        gum style --foreground 4 "Install on a test cluster:"
+        cat <<EOF
+        kubectl apply -f - <<MANIFEST
+        ---
+        apiVersion: pkg.crossplane.io/v1
+        kind: Configuration
+        metadata:
+          name: $PKG_NAME-dev
+        spec:
+          package: $DESTINATION
+        MANIFEST
+        EOF
+        echo
+        gum style --foreground 8 "  (the Configuration name suffix '-dev' avoids clashing with a canonical $PKG_NAME install)"
