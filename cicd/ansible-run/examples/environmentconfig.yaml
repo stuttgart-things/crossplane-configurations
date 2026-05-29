@@ -1,0 +1,33 @@
+---
+# Shared per-environment defaults for AnsibleRun XRs.
+#
+# The `ansible-run` Composition selects this EnvironmentConfig via the
+# label `resources.stuttgart-things.com/environment`, matched against the
+# XR's `spec.environmentConfig` (default "default"). The `data` values are
+# merged into the pipeline context and consumed by the `kcl-tekton-pr` KCL
+# module as defaults. Anything set explicitly on the XR spec wins over the
+# values here.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: ansible-run-defaults
+  labels:
+    resources.stuttgart-things.com/environment: default
+data:
+  # Git source of the pipeline definition
+  gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  gitRevision: main
+  gitPath: pipelines/execute-ansible-playbooks.yaml
+
+  # Infra defaults
+  storageClass: openebs-hostpath
+  ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:11.11.0
+  namespace: tekton-ci
+
+  # Credentials Secret (pre-created in the pipeline namespace)
+  ansibleCredentialsSecretName: ansible-credentials # pragma: allowlist secret
+
+  # Default Ansible collections (JSON list — overridable per XR)
+  ansibleExtraCollections:
+    - "community.general:10.1.0"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-25.4.118.tar.gz/sthings-baseos-25.4.118.tar.gz"
