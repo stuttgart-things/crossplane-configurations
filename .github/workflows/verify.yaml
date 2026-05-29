@@ -75,6 +75,8 @@ jobs:
       src: ${{ matrix.config }}
       # v0.115.1 adds -ignore-missing-schemas to verify Layer 3 so embedded
       # CRDs without a built-in schema (e.g. the Tekton PipelineRun rendered
-      # by cicd/ansible-run) are skipped instead of hard-failing.
-      crossplane-module-version: v0.115.1
+      # by cicd/ansible-run) are skipped instead of hard-failing; v0.115.2
+      # passes examples/ EnvironmentConfigs to render via --extra-resources
+      # so an XR that sets spec.environmentConfig (xr-max) resolves offline.
+      crossplane-module-version: v0.115.2
     secrets: inherit
