@@ -32,6 +32,10 @@ spec:
                   - key: resources.stuttgart-things.com/environment
                     type: FromCompositeFieldPath
                     valueFromFieldPath: spec.environmentConfig
+                    # Optional: when spec.environmentConfig is absent (e.g. a
+                    # minimal XR before XRD defaulting) skip this matcher
+                    # instead of erroring; the step then becomes a no-op.
+                    fromFieldPathPolicy: Optional
     - step: render-pipelinerun
       functionRef:
         name: function-kcl
