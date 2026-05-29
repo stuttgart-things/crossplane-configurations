@@ -36,8 +36,15 @@ metadata:
         KCL module wraps the PipelineRun in a
         `kubernetes.m.crossplane.io/v1alpha1` Object that targets the
         XR's `spec.crossplaneProviderConfig` ClusterProviderConfig.
-      - `function-auto-ready` marks the XR ready once the composed
-        Object reports ready.
+      - A second `function-kcl` step (`derive-status`) reads the observed
+        Object (which mirrors the live PipelineRun under
+        `status.atProvider.manifest`) and surfaces the PipelineRun's
+        `Succeeded` condition, reason/message, start/completion times and
+        child TaskRuns onto the `AnsibleRun` status.
+      - `function-auto-ready` marks the XR ready once the composed Object
+        reports ready. With `spec.deriveReadiness: true` (default) the
+        Object's readiness is derived from the PipelineRun's `Succeeded`
+        condition, so the XR is Ready only once the pipeline succeeds.
 
       ## Preconditions
 

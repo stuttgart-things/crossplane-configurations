@@ -66,6 +66,9 @@ spec:
   # labelled resources.stuttgart-things.com/environment=default)
   environmentConfig: default
 
+  # Become Ready only once the PipelineRun's Succeeded condition is True
+  deriveReadiness: true
+
   # Crossplane Configuration
   wrapInCrossplane: true
   crossplaneObjectName: run-ansible-max

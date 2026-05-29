@@ -17,6 +17,8 @@ The actual playbook execution lives in the upstream Tekton pipeline (`spec.gitRe
 - **Credentials from a Secret** — `ansibleCredentialsSecretName` / `…UserKey` / `…PasswordKey` reference a Secret pre-created in `spec.namespace`.
 - **Target-cluster routing** — `spec.crossplaneProviderConfig` selects the `ClusterProviderConfig` the wrapped Object is applied through; `spec.targetCluster.scope` toggles Namespaced vs Cluster.
 - **Workspace StorageClass override** — `spec.storageClass` sets the PVC StorageClass for the PipelineRun workspace. Unset → KCL module default (`openebs-hostpath`). Override on clusters whose default SC differs (e.g. `local-path`, `longhorn`).
+- **PipelineRun status surfaced on the XR** — a `derive-status` pipeline step reflects the live PipelineRun onto `status`: `succeeded` (True/False/Unknown), `reason`, `message`, `pipelineRunName`, `startTime`, `completionTime` and the child `taskRuns`.
+- **Readiness tracks the pipeline** — `spec.deriveReadiness` (default `true`) makes the XR Ready only once the PipelineRun's `Succeeded` condition is `True`; set to `false` to be Ready as soon as the Object is applied.
 
 ## Usage
 

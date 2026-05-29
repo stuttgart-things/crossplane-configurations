@@ -177,6 +177,15 @@ spec:
                   type: string
                   description: Timeout for Crossplane operations
                   default: "60"
+                deriveReadiness:
+                  type: boolean
+                  description: |
+                    When true, the AnsibleRun becomes Ready only once the
+                    rendered Tekton PipelineRun's "Succeeded" condition is
+                    True (readiness derived from the live PipelineRun via
+                    provider-kubernetes). When false, it is Ready as soon
+                    as the wrapped Object is applied.
+                  default: true
 
                 # Target Cluster
                 targetCluster:
@@ -207,3 +216,38 @@ spec:
                 installed:
                   type: boolean
                   description: Whether the AnsibleRun has been installed
+                pipelineRunName:
+                  type: string
+                  description: Name of the rendered Tekton PipelineRun
+                succeeded:
+                  type: string
+                  description: |
+                    The PipelineRun's "Succeeded" condition status:
+                    "True" (completed), "False" (failed) or "Unknown"
+                    (running / not yet reported).
+                reason:
+                  type: string
+                  description: |
+                    Reason of the PipelineRun's Succeeded condition
+                    (e.g. Running, Succeeded, Failed, Completed).
+                message:
+                  type: string
+                  description: Human-readable message from the PipelineRun's Succeeded condition
+                startTime:
+                  type: string
+                  description: When the PipelineRun started
+                completionTime:
+                  type: string
+                  description: When the PipelineRun completed
+                taskRuns:
+                  type: array
+                  description: The PipelineRun's child TaskRuns
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: Name of the TaskRun
+                      pipelineTaskName:
+                        type: string
+                        description: The pipeline task this TaskRun runs

@@ -45,7 +45,54 @@ spec:
         metadata:
           name: ansiblerun
         spec:
-          source: oci://ghcr.io/stuttgart-things/kcl-tekton-pr:0.5.0
+          source: oci://ghcr.io/stuttgart-things/kcl-tekton-pr:0.6.0
+    # Surface the live Tekton PipelineRun status onto the AnsibleRun XR.
+    # The wrapped provider-kubernetes Object mirrors the PipelineRun under
+    # status.atProvider.manifest; this inline KCL reads it (observed
+    # composed resources) and patches the composite status. Returning only
+    # the desired XR (dxr) leaves the rendered Object from the previous
+    # step untouched — function-kcl carries forward prior desired state.
+    - step: derive-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: ansiblerun-status
+        spec:
+          source: |
+            _params = option("params") or {}
+            _ocds = _params?.ocds or {}
+
+            # Locate the observed wrapped Object regardless of its
+            # composition-resource-name, and read the live PipelineRun.
+            _objs = [
+                v.Resource for _, v in _ocds if v?.Resource?.kind == "Object"
+            ]
+            _manifest = _objs[0]?.status?.atProvider?.manifest if _objs else {}
+            _pr = _manifest?.status or {}
+
+            _succeeded = [c for c in (_pr?.conditions or []) if c?.type == "Succeeded"]
+            _sc = _succeeded[0] if _succeeded else {}
+            _children = _pr?.childReferences or []
+
+            _statusPatch = {
+                installed = True if _manifest else False
+                succeeded = _sc?.status or "Unknown"
+                if _sc?.reason: reason = _sc.reason
+                if _sc?.message: message = _sc.message
+                if _manifest?.metadata?.name: pipelineRunName = _manifest.metadata.name
+                if _pr?.startTime: startTime = _pr.startTime
+                if _pr?.completionTime: completionTime = _pr.completionTime
+                taskRuns = [
+                    {name = c?.name, pipelineTaskName = c?.pipelineTaskName}
+                    for c in _children
+                ]
+            }
+
+            _dxr = _params?.dxr or {}
+            items = [_dxr | {status = (_dxr?.status or {}) | _statusPatch}]
     - step: ready
       functionRef:
         name: function-auto-ready
