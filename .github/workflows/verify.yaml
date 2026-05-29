@@ -73,4 +73,8 @@ jobs:
     uses: stuttgart-things/github-workflow-templates/.github/workflows/call-crossplane-verify.yaml@main
     with:
       src: ${{ matrix.config }}
+      # v0.115.1 adds -ignore-missing-schemas to verify Layer 3 so embedded
+      # CRDs without a built-in schema (e.g. the Tekton PipelineRun rendered
+      # by cicd/ansible-run) are skipped instead of hard-failing.
+      crossplane-module-version: v0.115.1
     secrets: inherit
