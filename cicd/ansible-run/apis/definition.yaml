@@ -141,6 +141,22 @@ spec:
                   items:
                     type: string
 
+                # Environment / shared defaults
+                environmentConfig:
+                  type: string
+                  description: |
+                    Selects the Crossplane EnvironmentConfig that provides
+                    shared per-environment defaults. The Composition matches
+                    an EnvironmentConfig carrying the label
+                    `resources.stuttgart-things.com/environment=<value>`.
+                    Supported `data` keys: gitRepoUrl, gitRevision, gitPath,
+                    storageClass, ansibleWorkingImage, namespace,
+                    ansibleExtraCollections, ansibleCredentialsSecretName.
+                    Any value set explicitly on this XR's spec overrides the
+                    EnvironmentConfig. When no EnvironmentConfig matches, the
+                    XR spec / built-in defaults are used.
+                  default: default
+
                 # Crossplane Configuration
                 wrapInCrossplane:
                   type: boolean

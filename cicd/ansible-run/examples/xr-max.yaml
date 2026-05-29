@@ -62,6 +62,10 @@ spec:
     - 'all+["10.31.102.107","10.31.102.108"]'
     - 'webservers+["10.31.102.107"]'
 
+  # Shared per-environment defaults (selects the EnvironmentConfig
+  # labelled resources.stuttgart-things.com/environment=default)
+  environmentConfig: default
+
   # Crossplane Configuration
   wrapInCrossplane: true
   crossplaneObjectName: run-ansible-max

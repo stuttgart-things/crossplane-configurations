@@ -4,13 +4,14 @@ A Crossplane v2 Configuration that triggers an Ansible playbook on a target clus
 
 ## Overview
 
-The Composition pipeline renders a Tekton `PipelineRun` via [`function-kcl`](https://github.com/crossplane-contrib/function-kcl) using the KCL module [`oci://ghcr.io/stuttgart-things/kcl-tekton-pr`](https://github.com/stuttgart-things/kcl-tekton-pr). The KCL module wraps the `PipelineRun` in a namespaced `kubernetes.m.crossplane.io/v1alpha1` Object, so `provider-kubernetes` applies it on the cluster identified by `spec.crossplaneProviderConfig`. `function-auto-ready` then bubbles the Object's readiness up to the XR.
+The Composition pipeline first loads shared per-environment defaults via [`function-environment-configs`](https://github.com/crossplane-contrib/function-environment-configs), then renders a Tekton `PipelineRun` via [`function-kcl`](https://github.com/crossplane-contrib/function-kcl) using the KCL module [`oci://ghcr.io/stuttgart-things/kcl-tekton-pr`](https://github.com/stuttgart-things/kcl-tekton-pr). The KCL module wraps the `PipelineRun` in a namespaced `kubernetes.m.crossplane.io/v1alpha1` Object, so `provider-kubernetes` applies it on the cluster identified by `spec.crossplaneProviderConfig`. `function-auto-ready` then bubbles the Object's readiness up to the XR.
 
 The actual playbook execution lives in the upstream Tekton pipeline (`spec.gitRepoUrl` + `spec.gitPath`, defaults to [`stage-time`](https://github.com/stuttgart-things/stage-time) → `pipelines/execute-ansible-playbooks-from-collections.yaml`); this Configuration just owns the wrapper.
 
 ## Features
 
-- **PipelineRun rendering via KCL** — the [`kcl-tekton-pr`](https://github.com/stuttgart-things/kcl-tekton-pr) module is pinned in the Composition (`oci://ghcr.io/stuttgart-things/kcl-tekton-pr:0.4.6`) and consumes the XR spec verbatim.
+- **PipelineRun rendering via KCL** — the [`kcl-tekton-pr`](https://github.com/stuttgart-things/kcl-tekton-pr) module is pinned in the Composition (`oci://ghcr.io/stuttgart-things/kcl-tekton-pr:0.5.0`) and consumes the XR spec verbatim.
+- **Shared defaults via EnvironmentConfig** — `spec.environmentConfig` (default `default`) selects a Crossplane `EnvironmentConfig` (matched by the label `resources.stuttgart-things.com/environment`) whose `data` supplies per-environment defaults for `gitRepoUrl`, `gitRevision`, `gitPath`, `storageClass`, `ansibleWorkingImage`, `namespace`, `ansibleExtraCollections` and `ansibleCredentialsSecretName`. Anything set explicitly on the XR spec wins; if no EnvironmentConfig matches, XR spec / built-in defaults apply. See [`examples/environmentconfig.yaml`](examples/environmentconfig.yaml).
 - **Playbooks + extra roles/collections** — `ansiblePlaybooks`, `ansibleExtraRoles`, `ansibleExtraCollections` are passed straight through to the pipeline.
 - **Per-host vars + inventory** — `ansibleVarsFile` and `ansibleVarsInventory` use the upstream pipeline's `key+-value` / `host+[...]` syntax.
 - **Credentials from a Secret** — `ansibleCredentialsSecretName` / `…UserKey` / `…PasswordKey` reference a Secret pre-created in `spec.namespace`.
