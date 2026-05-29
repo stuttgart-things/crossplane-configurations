@@ -14,10 +14,14 @@ spec:
     # Load shared per-environment defaults from an EnvironmentConfig into
     # the pipeline context. The EnvironmentConfig is selected by the label
     # `resources.stuttgart-things.com/environment`, whose value is taken
-    # from the XR's `spec.environmentConfig` field (default "default").
-    # If no EnvironmentConfig matches, the context stays empty and the KCL
-    # module falls back to the XR spec / its own defaults — so this step is
-    # safe even when no EnvironmentConfig exists on the cluster.
+    # from the XR's `spec.environmentConfig` field.
+    # When `spec.environmentConfig` is ABSENT the matcher is skipped
+    # (fromFieldPathPolicy: Optional), the selector matches nothing and the
+    # step is a no-op — the KCL module then falls back to XR spec / its own
+    # defaults. When the field IS set, the Selector requires exactly one
+    # matching EnvironmentConfig: if none exists the step fails. Offline
+    # `crossplane render` therefore needs the EnvironmentConfig supplied via
+    # --extra-resources (the verify harness does this from examples/).
     - step: load-environment
       functionRef:
         name: function-environment-configs
