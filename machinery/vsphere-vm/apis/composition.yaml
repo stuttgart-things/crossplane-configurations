@@ -1,0 +1,276 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: vsphere-vm
+  labels:
+    crossplane.io/xrd: vspherevms.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: VsphereVM
+  mode: Pipeline
+  pipeline:
+    # Load shared per-environment infrastructure defaults from an
+    # EnvironmentConfig into the pipeline environment. The EnvironmentConfig
+    # is selected by the label `resources.stuttgart-things.com/environment`,
+    # whose value comes from the XR's `spec.environmentConfig`.
+    # When `spec.environmentConfig` is ABSENT the matcher is skipped
+    # (fromFieldPathPolicy: Optional), the selector matches nothing and the
+    # step is a no-op — the patch step then falls back to XR spec / the
+    # Workspace base values. When the field IS set, the Selector requires
+    # exactly one matching EnvironmentConfig: if none exists the step fails.
+    # Offline `crossplane render` therefore needs the EnvironmentConfig
+    # supplied via --extra-resources (the verify harness does this from
+    # examples/).
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    # Optional: when spec.environmentConfig is absent (e.g. a
+                    # minimal XR before XRD defaulting) skip this matcher
+                    # instead of erroring; the step then becomes a no-op.
+                    fromFieldPathPolicy: Optional
+    - step: patch-and-transform
+      functionRef:
+        name: function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        resources:
+          - name: vsphere-vm
+            base:
+              kind: Workspace
+              apiVersion: opentofu.m.upbound.io/v1beta1
+              metadata:
+                annotations:
+                  crossplane.io/external-name: vspherevm
+              spec:
+                providerConfigRef:
+                  name: default
+                  kind: ClusterProviderConfig
+                writeConnectionSecretToRef:
+                  name: vsphere-vm
+                forProvider:
+                  source: Remote
+                  module: git::https://github.com/stuttgart-things/vsphere-vm.git?ref=v2.12.0-1.0.0
+                  vars:
+                    - key: vm_count
+                      value: "1"
+                    - key: vsphere_vm_name
+                    - key: vm_memory
+                      value: "4096"
+                    - key: vm_disk_size
+                      value: "64"
+                    - key: vm_num_cpus
+                      value: "4"
+                    - key: firmware
+                      value: bios
+                    - key: vsphere_vm_folder_path
+                    - key: vsphere_datacenter
+                    - key: vsphere_datastore
+                    - key: vsphere_resource_pool
+                    - key: vsphere_network
+                    - key: vsphere_vm_template
+                    - key: bootstrap
+                      value: '["echo STUTTGART-THINGS"]'
+                    - key: annotation
+                      value: VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+                    - key: unverified_ssl
+                      value: "true"
+                  varFiles:
+                    - source: SecretKey
+                      secretKeyRef:
+                        name: vsphere-tfvars
+                        key: terraform.tfvars
+            patches:
+              # External name = "vspherevm-<vm.name>"
+              - type: CombineFromComposite
+                combine:
+                  variables:
+                    - fromFieldPath: spec.vm.name
+                  strategy: string
+                  string:
+                    fmt: "vspherevm-%s"
+                toFieldPath: "metadata.annotations[crossplane.io/external-name]"
+
+              # --- per-VM vars (from the XR spec) ---
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.count
+                toFieldPath: spec.forProvider.vars[0].value
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.name
+                toFieldPath: spec.forProvider.vars[1].value
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.ram
+                toFieldPath: spec.forProvider.vars[2].value
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.disk
+                toFieldPath: spec.forProvider.vars[3].value
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.cpu
+                toFieldPath: spec.forProvider.vars[4].value
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.firmware
+                toFieldPath: spec.forProvider.vars[5].value
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.bootstrap
+                toFieldPath: spec.forProvider.vars[12].value
+
+              # --- shared infra vars: EnvironmentConfig default, then XR
+              #     override. The env patch sets the value from the loaded
+              #     EnvironmentConfig; the XR patch (Optional) overrides it
+              #     only when the field is set on the XR. ---
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: folderPath
+                toFieldPath: spec.forProvider.vars[6].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.folderPath
+                toFieldPath: spec.forProvider.vars[6].value
+                policy:
+                  fromFieldPath: Optional
+
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: datacenter
+                toFieldPath: spec.forProvider.vars[7].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.datacenter
+                toFieldPath: spec.forProvider.vars[7].value
+                policy:
+                  fromFieldPath: Optional
+
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: datastore
+                toFieldPath: spec.forProvider.vars[8].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.datastore
+                toFieldPath: spec.forProvider.vars[8].value
+                policy:
+                  fromFieldPath: Optional
+
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: resourcePool
+                toFieldPath: spec.forProvider.vars[9].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.resourcePool
+                toFieldPath: spec.forProvider.vars[9].value
+                policy:
+                  fromFieldPath: Optional
+
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: network
+                toFieldPath: spec.forProvider.vars[10].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.network
+                toFieldPath: spec.forProvider.vars[10].value
+                policy:
+                  fromFieldPath: Optional
+
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: template
+                toFieldPath: spec.forProvider.vars[11].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.template
+                toFieldPath: spec.forProvider.vars[11].value
+                policy:
+                  fromFieldPath: Optional
+
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: annotation
+                toFieldPath: spec.forProvider.vars[13].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.annotation
+                toFieldPath: spec.forProvider.vars[13].value
+                policy:
+                  fromFieldPath: Optional
+
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: unverifiedSsl
+                toFieldPath: spec.forProvider.vars[14].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.unverifiedSsl
+                toFieldPath: spec.forProvider.vars[14].value
+                policy:
+                  fromFieldPath: Optional
+
+              # --- tfvars Secret: EnvironmentConfig default, XR override ---
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: tfvarsSecretName
+                toFieldPath: spec.forProvider.varFiles[0].secretKeyRef.name
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.tfvars.secretName
+                toFieldPath: spec.forProvider.varFiles[0].secretKeyRef.name
+                policy:
+                  fromFieldPath: Optional
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: tfvarsSecretKey
+                toFieldPath: spec.forProvider.varFiles[0].secretKeyRef.key
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.tfvars.secretKey
+                toFieldPath: spec.forProvider.varFiles[0].secretKeyRef.key
+                policy:
+                  fromFieldPath: Optional
+
+              # --- connection Secret (per-VM) ---
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.connectionSecret.name
+                toFieldPath: spec.writeConnectionSecretToRef.name
+
+              # --- provider config: EnvironmentConfig default, XR override ---
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: providerConfigName
+                toFieldPath: spec.providerConfigRef.name
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.providerRef.name
+                toFieldPath: spec.providerConfigRef.name
+                policy:
+                  fromFieldPath: Optional
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: providerConfigKind
+                toFieldPath: spec.providerConfigRef.kind
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.providerRef.kind
+                toFieldPath: spec.providerConfigRef.kind
+                policy:
+                  fromFieldPath: Optional
+
+              # --- surface the VM IP onto the XR status ---
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.outputs.ip
+                toFieldPath: status.share.ip
+                policy:
+                  fromFieldPath: Optional

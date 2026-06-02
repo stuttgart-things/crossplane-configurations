@@ -1,0 +1,37 @@
+---
+# Maximum example: every spec field set explicitly, overriding all
+# EnvironmentConfig defaults. Useful for catching templating breakage when
+# the Workspace vars / patches change.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VsphereVM
+metadata:
+  name: opentofu-test-max
+  namespace: default
+spec:
+  # Selects the EnvironmentConfig, though every field below is overridden.
+  environmentConfig: default
+  vm:
+    count: "1"
+    name: opentofu-test-max
+    cpu: "8"
+    ram: "8192"
+    disk: "128"
+    firmware: efi
+    bootstrap: '["echo STUTTGART-THINGS"]'
+    # Infra fields overriding the EnvironmentConfig
+    folderPath: stuttgart-things/testing
+    datacenter: /LabUL
+    datastore: /LabUL/datastore/UL-ESX-SAS-01
+    resourcePool: /LabUL/host/Cluster-V6.5/Resources
+    network: /LabUL/network/LAB-10.31.103
+    template: sthings-u24
+    annotation: VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+    unverifiedSsl: "true"
+  tfvars:
+    secretName: vsphere-tfvars # pragma: allowlist secret
+    secretKey: terraform.tfvars # pragma: allowlist secret
+  connectionSecret:
+    name: opentofu-test-max
+  providerRef:
+    name: default
+    kind: ClusterProviderConfig

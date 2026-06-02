@@ -1,0 +1,133 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: vspherevms.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: VsphereVM
+    plural: vspherevms
+    singular: vspherevm
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                vm:
+                  type: object
+                  description: |
+                    Per-VM settings. Infrastructure-location fields
+                    (folderPath, datacenter, datastore, resourcePool,
+                    network, template) and `unverifiedSsl`/`annotation`
+                    default from the selected EnvironmentConfig when unset
+                    here; set them explicitly to override per VM.
+                  properties:
+                    count:
+                      type: string
+                      default: "1"
+                    name:
+                      type: string
+                    ram:
+                      type: string
+                      default: "4096"
+                    disk:
+                      type: string
+                      default: "64"
+                    cpu:
+                      type: string
+                      default: "4"
+                    firmware:
+                      type: string
+                      default: "bios"
+                    bootstrap:
+                      type: string
+                      default: '["echo STUTTGART-THINGS"]'
+                    # --- fields below default from the EnvironmentConfig ---
+                    # No XRD default: leaving them unset lets the
+                    # EnvironmentConfig value win; setting them overrides it.
+                    folderPath:
+                      type: string
+                    datacenter:
+                      type: string
+                    datastore:
+                      type: string
+                    resourcePool:
+                      type: string
+                    network:
+                      type: string
+                    template:
+                      type: string
+                    annotation:
+                      type: string
+                    unverifiedSsl:
+                      type: string
+                  required:
+                    - name
+                tfvars:
+                  type: object
+                  description: |
+                    Source Secret holding the vSphere `terraform.tfvars`.
+                    Defaults from the EnvironmentConfig
+                    (tfvarsSecretName / tfvarsSecretKey) when unset.
+                  properties:
+                    secretName:
+                      type: string
+                    secretKey:
+                      type: string
+                connectionSecret:
+                  type: object
+                  description: Connection Secret the Workspace writes VM outputs to.
+                  properties:
+                    name:
+                      type: string
+                  required:
+                    - name
+                providerRef:
+                  type: object
+                  description: |
+                    OpenTofu provider config the Workspace runs through.
+                    Defaults from the EnvironmentConfig
+                    (providerConfigName / providerConfigKind) when unset.
+                  properties:
+                    name:
+                      type: string
+                    kind:
+                      type: string
+                      enum:
+                        - ProviderConfig
+                        - ClusterProviderConfig
+                environmentConfig:
+                  type: string
+                  description: |
+                    Selects the Crossplane EnvironmentConfig that provides
+                    shared per-environment infrastructure defaults. The
+                    Composition matches an EnvironmentConfig carrying the
+                    label `resources.stuttgart-things.com/environment=<value>`.
+                    Supported `data` keys: folderPath, datacenter, datastore,
+                    resourcePool, network, template, annotation, unverifiedSsl,
+                    tfvarsSecretName, tfvarsSecretKey, providerConfigName,
+                    providerConfigKind. Any value set explicitly on this XR's
+                    spec overrides the EnvironmentConfig. When no
+                    EnvironmentConfig matches, the XR spec / built-in
+                    Workspace defaults are used.
+                  default: default
+              required:
+                - vm
+                - connectionSecret
+            status:
+              description: A Status represents the observed state
+              properties:
+                share:
+                  description: Freeform field containing status information
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+              type: object

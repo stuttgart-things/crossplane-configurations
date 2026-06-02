@@ -1,0 +1,37 @@
+---
+# Shared per-environment infrastructure defaults for VsphereVM XRs.
+#
+# The `vsphere-vm` Composition selects this EnvironmentConfig via the label
+# `resources.stuttgart-things.com/environment`, matched against the XR's
+# `spec.environmentConfig` (default "default"). The `data` values are loaded
+# into the pipeline environment and used by `function-patch-and-transform`
+# as defaults for the OpenTofu Workspace vars. Anything set explicitly on the
+# XR spec wins over the values here.
+#
+# Values below describe the LabUL vSphere environment.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: vsphere-vm-defaults
+  labels:
+    resources.stuttgart-things.com/environment: default
+data:
+  # vSphere placement
+  folderPath: stuttgart-things/testing
+  datacenter: /LabUL
+  datastore: /LabUL/datastore/UL-ESX-SAS-01
+  resourcePool: /LabUL/host/Cluster-V6.5/Resources
+  network: /LabUL/network/LAB-10.31.103
+  template: sthings-u24
+
+  # VM metadata / TLS
+  annotation: VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+  unverifiedSsl: "true"
+
+  # tfvars Secret (pre-created in the XR's namespace; holds vSphere creds)
+  tfvarsSecretName: vsphere-tfvars # pragma: allowlist secret
+  tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
+
+  # OpenTofu provider config the Workspace runs through
+  providerConfigName: default
+  providerConfigKind: ClusterProviderConfig
