@@ -147,8 +147,8 @@ spec:
                   description: |
                     Selects the Crossplane EnvironmentConfig that provides
                     shared per-environment defaults. The Composition matches
-                    an EnvironmentConfig carrying the label
-                    `resources.stuttgart-things.com/environment=<value>`.
+                    an EnvironmentConfig carrying the config-scoped label
+                    `ansible-run.resources.stuttgart-things.com/environment=<value>`.
                     Supported `data` keys: gitRepoUrl, gitRevision, gitPath,
                     storageClass, ansibleWorkingImage, namespace,
                     ansibleExtraCollections, ansibleCredentialsSecretName.

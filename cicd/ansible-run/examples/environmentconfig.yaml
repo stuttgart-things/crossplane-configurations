@@ -2,8 +2,11 @@
 # Shared per-environment defaults for AnsibleRun XRs.
 #
 # The `ansible-run` Composition selects this EnvironmentConfig via the
-# label `resources.stuttgart-things.com/environment`, matched against the
-# XR's `spec.environmentConfig` (default "default"). The `data` values are
+# config-scoped label `ansible-run.resources.stuttgart-things.com/environment`,
+# matched against the XR's `spec.environmentConfig` (default "default"). The
+# key is namespaced to this Configuration so it never collides with another
+# Configuration's EnvironmentConfig (function-environment-configs requires
+# exactly one Selector match). The `data` values are
 # merged into the pipeline context and consumed by the `kcl-tekton-pr` KCL
 # module as defaults. Anything set explicitly on the XR spec wins over the
 # values here.
@@ -12,7 +15,7 @@ kind: EnvironmentConfig
 metadata:
   name: ansible-run-defaults
   labels:
-    resources.stuttgart-things.com/environment: default
+    ansible-run.resources.stuttgart-things.com/environment: default
 data:
   # Git source of the pipeline definition
   gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
