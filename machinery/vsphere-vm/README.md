@@ -86,6 +86,14 @@ EOF
 )"
 ```
 
+#### Or: source it from Vault via External Secrets Operator
+
+If the cluster runs [ESO](https://external-secrets.io/) and the vSphere creds live in Vault, use [`examples/external-secret.yaml`](examples/external-secret.yaml) instead of `kubectl create secret`. It defines a `ClusterSecretStore` (Vault KV v2, Kubernetes auth) and an `ExternalSecret` that templates the `terraform.tfvars` key from the Vault keys into `vsphere-tfvars`. Adjust the Vault address, KV mount/path, auth role and CA bundle for your environment (see the comments in the file). The Vault role must bind the ESO ServiceAccount and grant read on the KV path; the listener CA is fetched with `curl -sk "$VAULT_ADDR/v1/pki/ca/pem" | base64 -w0`.
+
+```bash
+kubectl apply -f examples/external-secret.yaml
+```
+
 ### 3. RBAC for the provider-opentofu ServiceAccount
 
 The provider ServiceAccount needs permission to read the tfvars Secret. Find the SA name with `kubectl get sa -n crossplane-system | grep opentofu` and substitute below.
@@ -168,6 +176,7 @@ crossplane beta trace vspherevm.resources.stuttgart-things.com opentofu-test1 -n
 - `examples/functions.yaml` — required Crossplane Functions
 - `examples/configuration.yaml` — install manifest (OCI ref)
 - `examples/provider.yaml` — provider-opentofu install
+- `examples/external-secret.yaml` — optional ESO `ClusterSecretStore` + `ExternalSecret` sourcing `vsphere-tfvars` from Vault
 - `examples/cluster-provider-config.yaml` — OpenTofu ClusterProviderConfig (Terraform K8s backend)
 - `examples/deployment-runtime-config.yaml` — optional provider poll/reconcile tuning
 
