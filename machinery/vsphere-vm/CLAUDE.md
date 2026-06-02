@@ -13,9 +13,20 @@ VM IP is surfaced on `status.share.ip`.
 
 ## Composition pipeline (`apis/composition.yaml`)
 1. **`load-environment`** (`function-environment-configs`) — selects an
-   `EnvironmentConfig` by label `resources.stuttgart-things.com/environment`
-   (value from `spec.environmentConfig`, `fromFieldPathPolicy: Optional`) and
-   loads its `data` into the pipeline environment.
+   `EnvironmentConfig` by the **config-scoped** label
+   `vsphere-vm.resources.stuttgart-things.com/environment` (value from
+   `spec.environmentConfig`, `fromFieldPathPolicy: Optional`) and loads its
+   `data` into the pipeline environment.
+
+   The label key is intentionally namespaced to this Configuration. A
+   generic shared key (`resources.stuttgart-things.com/environment`, as used
+   by `ansible-run`) collides across Configurations: if two configs'
+   EnvironmentConfigs share `environment=default`, the Selector matches both
+   and the step fails with `expected exactly one required resource, got 2`.
+   NOTE: `ansible-run` still uses the generic key — the two only coexist
+   safely because vsphere-vm uses its own key. If a third config reuses the
+   generic key, `ansible-run` will hit this collision; the fleet-wide fix is
+   to config-scope every config's label.
 2. **`patch-and-transform`** (`function-patch-and-transform`) — renders the
    `Workspace`, patching its `forProvider.vars[]` from the XR + environment.
 

@@ -111,7 +111,8 @@ spec:
                     Selects the Crossplane EnvironmentConfig that provides
                     shared per-environment infrastructure defaults. The
                     Composition matches an EnvironmentConfig carrying the
-                    label `resources.stuttgart-things.com/environment=<value>`.
+                    config-scoped label
+                    `vsphere-vm.resources.stuttgart-things.com/environment=<value>`.
                     Supported `data` keys: folderPath, datacenter, datastore,
                     resourcePool, network, template, annotation, unverifiedSsl,
                     tfvarsSecretName, tfvarsSecretKey, providerConfigName,

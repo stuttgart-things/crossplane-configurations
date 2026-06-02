@@ -28,9 +28,9 @@ metadata:
 
       - `function-environment-configs` loads shared per-environment
         infrastructure defaults from the `EnvironmentConfig` selected by
-        the XR's `spec.environmentConfig` (label
-        `resources.stuttgart-things.com/environment`) into the pipeline
-        environment.
+        the XR's `spec.environmentConfig` (config-scoped label
+        `vsphere-vm.resources.stuttgart-things.com/environment`) into the
+        pipeline environment.
       - `function-patch-and-transform` renders an OpenTofu `Workspace`
         (`opentofu.m.upbound.io/v1beta1`) that runs the
         `github.com/stuttgart-things/vsphere-vm` Terraform module. Per-VM

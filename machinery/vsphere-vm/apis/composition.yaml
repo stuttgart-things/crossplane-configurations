@@ -13,8 +13,14 @@ spec:
   pipeline:
     # Load shared per-environment infrastructure defaults from an
     # EnvironmentConfig into the pipeline environment. The EnvironmentConfig
-    # is selected by the label `resources.stuttgart-things.com/environment`,
-    # whose value comes from the XR's `spec.environmentConfig`.
+    # is selected by the CONFIG-SCOPED label
+    # `vsphere-vm.resources.stuttgart-things.com/environment`, whose value
+    # comes from the XR's `spec.environmentConfig`. The key is namespaced to
+    # this Configuration on purpose: a generic shared key (e.g.
+    # `resources.stuttgart-things.com/environment`) collides with other
+    # Configurations' EnvironmentConfigs carrying the same value, and
+    # function-environment-configs requires EXACTLY ONE Selector match
+    # (otherwise: "expected exactly one required resource, got 2").
     # When `spec.environmentConfig` is ABSENT the matcher is skipped
     # (fromFieldPathPolicy: Optional), the selector matches nothing and the
     # step is a no-op — the patch step then falls back to XR spec / the
@@ -34,7 +40,7 @@ spec:
             - type: Selector
               selector:
                 matchLabels:
-                  - key: resources.stuttgart-things.com/environment
+                  - key: vsphere-vm.resources.stuttgart-things.com/environment
                     type: FromCompositeFieldPath
                     valueFromFieldPath: spec.environmentConfig
                     # Optional: when spec.environmentConfig is absent (e.g. a

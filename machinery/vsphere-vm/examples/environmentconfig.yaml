@@ -1,9 +1,12 @@
 ---
 # Shared per-environment infrastructure defaults for VsphereVM XRs.
 #
-# The `vsphere-vm` Composition selects this EnvironmentConfig via the label
-# `resources.stuttgart-things.com/environment`, matched against the XR's
-# `spec.environmentConfig` (default "default"). The `data` values are loaded
+# The `vsphere-vm` Composition selects this EnvironmentConfig via the
+# config-scoped label `vsphere-vm.resources.stuttgart-things.com/environment`,
+# matched against the XR's `spec.environmentConfig` (default "default"). The
+# key is namespaced to this Configuration so it never collides with another
+# Configuration's EnvironmentConfig (function-environment-configs requires
+# exactly one Selector match). The `data` values are loaded
 # into the pipeline environment and used by `function-patch-and-transform`
 # as defaults for the OpenTofu Workspace vars. Anything set explicitly on the
 # XR spec wins over the values here.
@@ -14,7 +17,7 @@ kind: EnvironmentConfig
 metadata:
   name: vsphere-vm-defaults
   labels:
-    resources.stuttgart-things.com/environment: default
+    vsphere-vm.resources.stuttgart-things.com/environment: default
 data:
   # vSphere placement
   folderPath: stuttgart-things/testing
