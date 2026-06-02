@@ -12,9 +12,14 @@ spec:
   mode: Pipeline
   pipeline:
     # Load shared per-environment defaults from an EnvironmentConfig into
-    # the pipeline context. The EnvironmentConfig is selected by the label
-    # `resources.stuttgart-things.com/environment`, whose value is taken
-    # from the XR's `spec.environmentConfig` field.
+    # the pipeline context. The EnvironmentConfig is selected by the
+    # CONFIG-SCOPED label `ansible-run.resources.stuttgart-things.com/environment`,
+    # whose value is taken from the XR's `spec.environmentConfig` field. The
+    # key is namespaced to this Configuration on purpose: a generic shared key
+    # (e.g. `resources.stuttgart-things.com/environment`) collides with other
+    # Configurations' EnvironmentConfigs carrying the same value, and
+    # function-environment-configs requires EXACTLY ONE Selector match
+    # (otherwise: "expected exactly one required resource, got 2").
     # When `spec.environmentConfig` is ABSENT the matcher is skipped
     # (fromFieldPathPolicy: Optional), the selector matches nothing and the
     # step is a no-op — the KCL module then falls back to XR spec / its own
@@ -33,7 +38,7 @@ spec:
             - type: Selector
               selector:
                 matchLabels:
-                  - key: resources.stuttgart-things.com/environment
+                  - key: ansible-run.resources.stuttgart-things.com/environment
                     type: FromCompositeFieldPath
                     valueFromFieldPath: spec.environmentConfig
                     # Optional: when spec.environmentConfig is absent (e.g. a

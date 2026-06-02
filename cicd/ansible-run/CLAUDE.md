@@ -13,10 +13,14 @@ is rendered by the external KCL module
 
 ## Composition pipeline (`apis/composition.yaml`)
 1. **`load-environment`** (`function-environment-configs`) — selects an
-   `EnvironmentConfig` by label `resources.stuttgart-things.com/environment`
-   (value from `spec.environmentConfig`, `fromFieldPathPolicy: Optional`) and
-   merges its `data` into the pipeline context. Shared per-environment
-   defaults; XR spec always wins.
+   `EnvironmentConfig` by the **config-scoped** label
+   `ansible-run.resources.stuttgart-things.com/environment` (value from
+   `spec.environmentConfig`, `fromFieldPathPolicy: Optional`) and merges its
+   `data` into the pipeline context. Shared per-environment defaults; XR spec
+   always wins. The label key is namespaced to this Configuration on purpose:
+   a generic shared key collides across Configurations (the Selector then
+   matches >1 EnvironmentConfig and the step fails with "expected exactly one
+   required resource, got 2").
 2. **`render-pipelinerun`** (`function-kcl`, OCI `kcl-tekton-pr:<pin>`) —
    renders the PipelineRun + wrapping Object.
 3. **`derive-status`** (`function-kcl`, **inline** KCL) — reads the observed

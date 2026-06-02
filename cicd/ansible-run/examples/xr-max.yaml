@@ -62,8 +62,8 @@ spec:
     - 'all+["10.31.102.107","10.31.102.108"]'
     - 'webservers+["10.31.102.107"]'
 
-  # Shared per-environment defaults (selects the EnvironmentConfig
-  # labelled resources.stuttgart-things.com/environment=default)
+  # Shared per-environment defaults (selects the EnvironmentConfig labelled
+  # ansible-run.resources.stuttgart-things.com/environment=default)
   environmentConfig: default
 
   # Become Ready only once the PipelineRun's Succeeded condition is True

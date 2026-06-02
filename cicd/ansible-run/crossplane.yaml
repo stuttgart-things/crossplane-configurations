@@ -27,9 +27,9 @@ metadata:
 
       - `function-environment-configs` loads shared per-environment
         defaults from the `EnvironmentConfig` selected by the XR's
-        `spec.environmentConfig` (label
-        `resources.stuttgart-things.com/environment`) into the pipeline
-        context.
+        `spec.environmentConfig` (config-scoped label
+        `ansible-run.resources.stuttgart-things.com/environment`) into the
+        pipeline context.
       - `function-kcl` renders a Tekton `PipelineRun` from the KCL
         module `oci://ghcr.io/stuttgart-things/kcl-tekton-pr` using the
         XR spec (with EnvironmentConfig values as defaults) as input. The
