@@ -19,13 +19,15 @@ metadata:
   labels:
     vsphere-vm.resources.stuttgart-things.com/environment: default
 data:
-  # vSphere placement
+  # vSphere placement (LabUL — matches the working platform-sthings Terraform:
+  # Cluster-V6.7 + sthings-u25; the older Cluster-V6.5/sthings-u24 host is too
+  # old for the template's VM hardware version).
   folderPath: stuttgart-things/testing
   datacenter: /LabUL
-  datastore: /LabUL/datastore/UL-ESX-SAS-01
-  resourcePool: /LabUL/host/Cluster-V6.5/Resources
-  network: /LabUL/network/LAB-10.31.103
-  template: sthings-u24
+  datastore: /LabUL/datastore/UL-ESX-SAS-02
+  resourcePool: /LabUL/host/Cluster-V6.7/Resources
+  network: /LabUL/network/LAB-10.31.102
+  template: sthings-u25
 
   # VM metadata / TLS
   annotation: VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
