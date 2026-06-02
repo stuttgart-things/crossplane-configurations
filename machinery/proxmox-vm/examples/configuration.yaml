@@ -1,0 +1,7 @@
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: proxmox-vm
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/proxmox-vm:v0.1.0

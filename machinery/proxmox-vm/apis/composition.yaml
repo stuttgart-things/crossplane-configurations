@@ -1,0 +1,252 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: proxmox-vm
+  labels:
+    crossplane.io/xrd: proxmoxvms.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: ProxmoxVM
+  mode: Pipeline
+  pipeline:
+    # Load shared per-environment infrastructure defaults from an
+    # EnvironmentConfig into the pipeline environment. The EnvironmentConfig
+    # is selected by the CONFIG-SCOPED label
+    # `proxmox-vm.resources.stuttgart-things.com/environment`, whose value
+    # comes from the XR's `spec.environmentConfig`. The key is namespaced to
+    # this Configuration on purpose: a generic shared key (e.g.
+    # `resources.stuttgart-things.com/environment`) collides with other
+    # Configurations' EnvironmentConfigs carrying the same value, and
+    # function-environment-configs requires EXACTLY ONE Selector match
+    # (otherwise: "expected exactly one required resource, got 2").
+    # When `spec.environmentConfig` is ABSENT the matcher is skipped
+    # (fromFieldPathPolicy: Optional), the selector matches nothing and the
+    # step is a no-op — the patch step then falls back to XR spec / the
+    # Workspace base values. When the field IS set, the Selector requires
+    # exactly one matching EnvironmentConfig: if none exists the step fails.
+    # Offline `crossplane render` therefore needs the EnvironmentConfig
+    # supplied via --extra-resources (the verify harness does this from
+    # examples/).
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: proxmox-vm.resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    # Optional: when spec.environmentConfig is absent (e.g. a
+                    # minimal XR before XRD defaulting) skip this matcher
+                    # instead of erroring; the step then becomes a no-op.
+                    fromFieldPathPolicy: Optional
+    - step: patch-and-transform
+      functionRef:
+        name: function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        resources:
+          - name: proxmox-vm
+            base:
+              kind: Workspace
+              apiVersion: opentofu.m.upbound.io/v1beta1
+              metadata:
+                annotations:
+                  crossplane.io/external-name: proxmoxvm
+              spec:
+                providerConfigRef:
+                  name: default
+                  kind: ClusterProviderConfig
+                writeConnectionSecretToRef:
+                  name: proxmox-vm
+                forProvider:
+                  source: Remote
+                  module: git::https://github.com/stuttgart-things/proxmox-vm.git?ref=3.0.2-rc08-20260407
+                  vars:
+                    - key: vm_count
+                      value: "1"
+                    - key: vm_name
+                    - key: vm_num_cpus
+                      value: "4"
+                    - key: vm_memory
+                      value: "4096"
+                    - key: vm_disk_size
+                      value: "32G"
+                    - key: vm_firmware
+                      value: "seabios"
+                    - key: vm_notes
+                      value: PROXMOX-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+                    - key: vm_template
+                    - key: pve_cluster_node
+                    - key: pve_datastore
+                    - key: pve_folder_path
+                    - key: pve_network
+                  varFiles:
+                    - source: SecretKey
+                      secretKeyRef:
+                        name: proxmox-tfvars
+                        key: terraform.tfvars
+            patches:
+              # External name = "proxmoxvm-<vm.name>"
+              - type: CombineFromComposite
+                combine:
+                  variables:
+                    - fromFieldPath: spec.vm.name
+                  strategy: string
+                  string:
+                    fmt: "proxmoxvm-%s"
+                toFieldPath: "metadata.annotations[crossplane.io/external-name]"
+
+              # --- per-VM vars (from the XR spec) ---
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.count
+                toFieldPath: spec.forProvider.vars[0].value
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.name
+                toFieldPath: spec.forProvider.vars[1].value
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.cpu
+                toFieldPath: spec.forProvider.vars[2].value
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.ram
+                toFieldPath: spec.forProvider.vars[3].value
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.disk
+                toFieldPath: spec.forProvider.vars[4].value
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.firmware
+                toFieldPath: spec.forProvider.vars[5].value
+
+              # --- shared infra vars: EnvironmentConfig default, then XR
+              #     override. The env patch sets the value from the loaded
+              #     EnvironmentConfig; the XR patch (Optional) overrides it
+              #     only when the field is set on the XR. ---
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: annotation
+                toFieldPath: spec.forProvider.vars[6].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.annotation
+                toFieldPath: spec.forProvider.vars[6].value
+                policy:
+                  fromFieldPath: Optional
+
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: template
+                toFieldPath: spec.forProvider.vars[7].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.template
+                toFieldPath: spec.forProvider.vars[7].value
+                policy:
+                  fromFieldPath: Optional
+
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: node
+                toFieldPath: spec.forProvider.vars[8].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.proxmox.node
+                toFieldPath: spec.forProvider.vars[8].value
+                policy:
+                  fromFieldPath: Optional
+
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: datastore
+                toFieldPath: spec.forProvider.vars[9].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.proxmox.datastore
+                toFieldPath: spec.forProvider.vars[9].value
+                policy:
+                  fromFieldPath: Optional
+
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: folderPath
+                toFieldPath: spec.forProvider.vars[10].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.proxmox.folderPath
+                toFieldPath: spec.forProvider.vars[10].value
+                policy:
+                  fromFieldPath: Optional
+
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: network
+                toFieldPath: spec.forProvider.vars[11].value
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.proxmox.network
+                toFieldPath: spec.forProvider.vars[11].value
+                policy:
+                  fromFieldPath: Optional
+
+              # --- tfvars Secret: EnvironmentConfig default, XR override ---
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: tfvarsSecretName
+                toFieldPath: spec.forProvider.varFiles[0].secretKeyRef.name
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.tfvars.secretName
+                toFieldPath: spec.forProvider.varFiles[0].secretKeyRef.name
+                policy:
+                  fromFieldPath: Optional
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: tfvarsSecretKey
+                toFieldPath: spec.forProvider.varFiles[0].secretKeyRef.key
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.tfvars.secretKey
+                toFieldPath: spec.forProvider.varFiles[0].secretKeyRef.key
+                policy:
+                  fromFieldPath: Optional
+
+              # --- connection Secret (per-VM) ---
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.connectionSecret.name
+                toFieldPath: spec.writeConnectionSecretToRef.name
+
+              # --- provider config: EnvironmentConfig default, XR override ---
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: providerConfigName
+                toFieldPath: spec.providerConfigRef.name
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.providerRef.name
+                toFieldPath: spec.providerConfigRef.name
+                policy:
+                  fromFieldPath: Optional
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: providerConfigKind
+                toFieldPath: spec.providerConfigRef.kind
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.providerRef.kind
+                toFieldPath: spec.providerConfigRef.kind
+                policy:
+                  fromFieldPath: Optional
+
+              # --- surface the VM IP onto the XR status ---
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.outputs.ip
+                toFieldPath: status.share.ip
+                policy:
+                  fromFieldPath: Optional
