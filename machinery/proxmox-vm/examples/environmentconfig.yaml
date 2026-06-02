@@ -1,0 +1,39 @@
+---
+# Shared per-environment infrastructure defaults for ProxmoxVM XRs.
+#
+# The `proxmox-vm` Composition selects this EnvironmentConfig via the
+# config-scoped label `proxmox-vm.resources.stuttgart-things.com/environment`,
+# matched against the XR's `spec.environmentConfig` (default "default"). The
+# key is namespaced to this Configuration so it never collides with another
+# Configuration's EnvironmentConfig (function-environment-configs requires
+# exactly one Selector match). The `data` values are loaded
+# into the pipeline environment and used by `function-patch-and-transform`
+# as defaults for the OpenTofu Workspace vars. Anything set explicitly on the
+# XR spec wins over the values here.
+#
+# Values below describe the LabUL Proxmox environment.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: proxmox-vm-defaults
+  labels:
+    proxmox-vm.resources.stuttgart-things.com/environment: default
+data:
+  # Proxmox placement (LabUL — matches the working homerun2-dev Terraform:
+  # github.com/stuttgart-things/terraform/proxmox/labul/homerun2-dev).
+  node: ul-pve01
+  datastore: DD-sthings
+  folderPath: stuttgart-things
+  network: vmbr0
+
+  # VM template / metadata
+  template: sthings-u26
+  annotation: PROXMOX-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+
+  # tfvars Secret (pre-created in the XR's namespace; holds Proxmox creds)
+  tfvarsSecretName: proxmox-tfvars # pragma: allowlist secret
+  tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
+
+  # OpenTofu provider config the Workspace runs through
+  providerConfigName: default
+  providerConfigKind: ClusterProviderConfig

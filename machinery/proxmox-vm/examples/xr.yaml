@@ -1,0 +1,20 @@
+---
+# Realistic "standard" usage: a single VM sized per spec, with Proxmox
+# placement, tfvars Secret, template and provider config inherited from the
+# EnvironmentConfig (proxmox-vm.resources.stuttgart-things.com/environment=default).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ProxmoxVM
+metadata:
+  name: opentofu-test1
+  namespace: default
+spec:
+  environmentConfig: default
+  vm:
+    count: "1"
+    name: opentofu-test1
+    cpu: "4"
+    ram: "8192"
+    disk: "64G"
+    firmware: seabios
+  connectionSecret:
+    name: opentofu-test1

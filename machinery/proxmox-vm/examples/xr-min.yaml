@@ -1,0 +1,23 @@
+---
+# Minimum example: only XRD-required fields (vm.name + connectionSecret.name)
+# plus the EnvironmentConfig selector. All Proxmox placement, the tfvars
+# Secret, the VM template and the provider config come from the
+# EnvironmentConfig labelled
+# `proxmox-vm.resources.stuttgart-things.com/environment=default`
+# (see examples/environmentconfig.yaml). VM sizing falls through to the XRD
+# defaults (cpu=4, ram=4096, disk=32G, count=1, firmware=seabios).
+#
+# `crossplane render` does not apply XRD-level defaults or resolve
+# EnvironmentConfigs from the cluster, so the verify harness supplies
+# examples/environmentconfig.yaml via --extra-resources.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ProxmoxVM
+metadata:
+  name: proxmox-vm-min
+  namespace: default
+spec:
+  environmentConfig: default
+  vm:
+    name: proxmox-vm-min
+  connectionSecret:
+    name: proxmox-vm-min
