@@ -1,0 +1,21 @@
+---
+# Realistic "standard" usage: a single VM sized per spec, with vSphere
+# placement, tfvars Secret and provider config inherited from the
+# EnvironmentConfig (resources.stuttgart-things.com/environment=default).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VsphereVM
+metadata:
+  name: opentofu-test1
+  namespace: default
+spec:
+  environmentConfig: default
+  vm:
+    count: "1"
+    name: opentofu-test1
+    cpu: "8"
+    ram: "4096"
+    disk: "64"
+    firmware: bios
+    bootstrap: '["echo STUTTGART-THINGS"]'
+  connectionSecret:
+    name: opentofu-test1

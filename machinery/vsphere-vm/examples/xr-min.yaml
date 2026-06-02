@@ -1,0 +1,22 @@
+---
+# Minimum example: only XRD-required fields (vm.name + connectionSecret.name)
+# plus the EnvironmentConfig selector. All vSphere placement, the tfvars
+# Secret and the provider config come from the EnvironmentConfig labelled
+# `resources.stuttgart-things.com/environment=default`
+# (see examples/environmentconfig.yaml). VM sizing falls through to the XRD
+# defaults (cpu=4, ram=4096, disk=64, count=1, firmware=bios).
+#
+# `crossplane render` does not apply XRD-level defaults or resolve
+# EnvironmentConfigs from the cluster, so the verify harness supplies
+# examples/environmentconfig.yaml via --extra-resources.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VsphereVM
+metadata:
+  name: vsphere-vm-min
+  namespace: default
+spec:
+  environmentConfig: default
+  vm:
+    name: vsphere-vm-min
+  connectionSecret:
+    name: vsphere-vm-min
