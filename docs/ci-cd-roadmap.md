@@ -52,6 +52,8 @@ manual/static install target.
 
 ## Phase 1 — PR-level ttl.sh previews
 
+**Tracking: [#11](https://github.com/stuttgart-things/crossplane-configurations/issues/11)**
+
 Build a preview OCI package per changed Configuration on each PR and surface a
 copy-paste install manifest, so reviewers can try a package on any cluster
 without a canonical release.
@@ -72,6 +74,8 @@ manifest; unchanged configs are skipped.
 ---
 
 ## Phase 2 — Automated per-package releases
+
+**Tracking: [#12](https://github.com/stuttgart-things/crossplane-configurations/issues/12)**
 
 Automate version bump + git tag + changelog from Conventional Commits,
 retiring the manual `meta.crossplane.io/version` bump.
@@ -100,6 +104,8 @@ updates a release PR for that package; merging the release PR creates the
 
 ## Phase 3 — Release → ghcr propagation
 
+**Tracking: [#13](https://github.com/stuttgart-things/crossplane-configurations/issues/13)**
+
 On a package release tag, build that one Configuration and push it to ghcr via
 the existing `dagger/crossplane` module (same path as `task push`, minus the
 bump — Phase 2 owns versioning).
@@ -125,6 +131,8 @@ a no-op; a private package emits a clear warning with the flip URL.
 ---
 
 ## Phase 4 — kind install testing
+
+**Tracking: [#14](https://github.com/stuttgart-things/crossplane-configurations/issues/14)**
 
 Prove a package **installs + reconciles** on a real Crossplane control plane —
 the gap `verify` (render-only) can't cover.
