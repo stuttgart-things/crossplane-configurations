@@ -1,0 +1,37 @@
+---
+# Shared per-environment infrastructure defaults for HarvesterVM XRs.
+#
+# The `harvester-vm` Composition selects this EnvironmentConfig via the
+# config-scoped label `harvester-vm.resources.stuttgart-things.com/environment`,
+# matched against the XR's `spec.environmentConfig` (default "default"). The
+# key is namespaced to this Configuration so it never collides with another
+# Configuration's EnvironmentConfig (function-environment-configs requires
+# exactly one Selector match). The `data` values are loaded into the pipeline
+# environment and used as defaults for the VolumeClaim, CloudInit and KubeVirt
+# VirtualMachine. Anything set explicitly on the XR spec wins over the values
+# here.
+#
+# NOTE: the values below are PLACEHOLDERS derived from the source claim
+# examples — replace them with your real Harvester environment.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: harvester-vm-defaults
+  labels:
+    harvester-vm.resources.stuttgart-things.com/environment: default
+data:
+  # provider-kubernetes ClusterProviderConfig targeting the Harvester cluster
+  providerConfigRef: default
+
+  # Harvester storage class for the root disk PVC
+  storageClassName: harvester-longhorn
+
+  # Target namespace for the PVC, cloud-init Secret and VirtualMachine
+  namespace: vms
+
+  # Multus network the VM attaches to (NAD namespace/name)
+  networkName: default/vms
+
+  # Harvester base image id, rendered into the PVC annotation
+  # `harvesterhci.io/imageId`
+  imageId: default/image-ubuntu
