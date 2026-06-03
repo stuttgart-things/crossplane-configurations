@@ -89,73 +89,69 @@ jobs:
       matrix:
         config: ${{ fromJson(needs.discover.outputs.configs) }}
     runs-on: ubuntu-latest
+    env:
+      # 24h is ttl.sh's maximum TTL — long enough to outlive a review cycle.
+      TTL: "24h"
+      # v0.116.0: the crossplane module's push-preview function builds a
+      # Configuration, pushes it anonymously to ttl.sh, and returns the
+      # install manifest — replacing the task/gum/curl bootstrap below.
+      CROSSPLANE_MODULE_VERSION: v0.116.0
     steps:
       - uses: actions/checkout@v6.0.2
 
-      - name: Install tooling (task, gum, dagger)
-        env:
-          DAGGER_VERSION: "0.20.8"
-          GUM_VERSION: "0.14.5"
+      - id: meta
+        name: Compute preview prefix
         run: |
           set -euo pipefail
-          BIN="$HOME/.local/bin"
-          mkdir -p "$BIN"
-          # task
-          sh -c "$(curl --fail --silent --show-error --location https://taskfile.dev/install.sh)" -- -b "$BIN"
-          # gum (task push-dev styles its output with gum)
-          curl --fail --silent --show-error --location \
-            "https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_Linux_x86_64.tar.gz" \
-            | tar -xz -C /tmp
-          mv "/tmp/gum_${GUM_VERSION}_Linux_x86_64/gum" "$BIN/gum"
-          # dagger CLI (task push-dev calls the dagger/crossplane module)
-          curl --fail --silent --show-error --location https://dl.dagger.io/dagger/install.sh \
-            | BIN_DIR="$BIN" DAGGER_VERSION="$DAGGER_VERSION" sh
-          echo "$BIN" >> "$GITHUB_PATH"
+          pr='${{ github.event.pull_request.number }}'
+          sha='${{ github.event.pull_request.head.sha }}'
+          config='${{ matrix.config }}'
+          # Encode PR# + short SHA in the ttl.sh path so each commit publishes a
+          # fresh, traceable preview that never collides with another PR's.
+          echo "prefix=stuttgart-things/crossplane-configurations-pr${pr}-${sha:0:7}" >> "$GITHUB_OUTPUT"
+          # Flatten the config path for a unique, filesystem-safe artifact name.
+          echo "safe=$(printf '%s' "$config" | tr '/' '-')" >> "$GITHUB_OUTPUT"
 
       - name: Build & push ttl.sh preview
         id: push
+        uses: dagger/dagger-for-github@27b130bf0f79a7f6fbbbe0fbca6760dc9bb40a77 # v8.4.1
+        with:
+          version: "0.20.8"
+          verb: call
+          module: github.com/stuttgart-things/dagger/crossplane@${{ env.CROSSPLANE_MODULE_VERSION }}
+          # push-preview reads the package name from crossplane.yaml and pushes
+          # anonymously (ttl.sh needs no creds). Its stdout is the install
+          # manifest, exposed as steps.push.outputs.output.
+          args: >-
+            push-preview
+            --src ${{ matrix.config }}
+            --prefix ${{ steps.meta.outputs.prefix }}
+            --ttl ${{ env.TTL }}
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+      - name: Compose preview snippet
         env:
-          # Pin the dagger module to the same release the verify job uses.
-          DAGGER_MOD: github.com/stuttgart-things/dagger/crossplane@v0.115.2
-          # 24h is ttl.sh's maximum TTL — long enough to outlive a review cycle.
-          TTL: "24h"
+          MANIFEST: ${{ steps.push.outputs.output }}
+          CONFIG: ${{ matrix.config }}
+          SAFE: ${{ steps.meta.outputs.safe }}
         run: |
           set -euo pipefail
-          config='${{ matrix.config }}'
-          pr='${{ github.event.pull_request.number }}'
-          sha='${{ github.event.pull_request.head.sha }}'
-          short="${sha:0:7}"
-          pkg=$(yq -r '.metadata.name' "$config/crossplane.yaml")
-
-          # Encode PR# + short SHA in the ttl.sh path so each commit publishes a
-          # fresh, traceable preview that never collides with another PR's.
-          prefix="stuttgart-things/crossplane-configurations-pr${pr}-${short}"
-          dest="ttl.sh/${prefix}/${pkg}:${TTL}"
-
-          CONFIG="$config" TTL="$TTL" TTL_PREFIX="$prefix" task push-dev
-
-          # Per-config snippet for the aggregated sticky comment.
-          safe=$(printf '%s' "$config" | tr '/' '-')
+          # spec.package holds the pushed ttl.sh ref; surface it in the summary.
+          dest=$(printf '%s\n' "$MANIFEST" | awk '/^  package:/{print $2}')
           {
             echo "<details>"
-            echo "<summary>📦 <code>${config}</code> → <code>${dest}</code></summary>"
+            echo "<summary>📦 <code>${CONFIG}</code> → <code>${dest}</code></summary>"
             echo
             echo '```yaml'
-            echo "apiVersion: pkg.crossplane.io/v1"
-            echo "kind: Configuration"
-            echo "metadata:"
-            echo "  name: ${pkg}-preview"
-            echo "spec:"
-            echo "  package: ${dest}"
+            printf '%s\n' "$MANIFEST"
             echo '```'
             echo
             echo "</details>"
-          } > "preview-${safe}.md"
-          echo "safe=${safe}" >> "$GITHUB_OUTPUT"
+          } > "preview-${SAFE}.md"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: preview-${{ steps.push.outputs.safe }}
+          name: preview-${{ steps.meta.outputs.safe }}
           path: preview-*.md
           if-no-files-found: error
 
