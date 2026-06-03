@@ -1,0 +1,15 @@
+---
+# Realistic "standard" usage: a medium vSphere VM in LabUL on Ubuntu 24,
+# with base-OS Ansible provisioning. Size maps to cpu/ram/disk; the datacenter
+# topology and tfvars Secret come from the labul EnvironmentConfig.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: XVirtualMachine
+metadata:
+  name: vm-standard
+  namespace: default
+spec:
+  size: medium
+  provider: vsphere
+  environment: labul
+  os: ubuntu24
+  ansible: true

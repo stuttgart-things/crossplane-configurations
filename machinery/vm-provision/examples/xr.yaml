@@ -1,0 +1,41 @@
+---
+# Realistic "standard" usage: a vSphere VM with Ansible base-OS provisioning.
+# The AnsibleRun is emitted only after the VsphereVM is Ready and its IP is
+# known (the IP auto-populates the Ansible inventory).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VMProvision
+metadata:
+  name: test-vsphere-vm
+  namespace: default
+spec:
+  provider: vsphere
+  providerRef:
+    name: default
+    kind: ClusterProviderConfig
+  vm:
+    name: test-vsphere-vm
+    cpu: "4"
+    ram: "4096"
+    disk: "64"
+    firmware: bios
+    template: sthings-u24
+  vsphere:
+    folderPath: stuttgart-things/testing
+    datacenter: /LabUL
+    datastore: /LabUL/datastore/UL-ESX-SAS-02
+    resourcePool: /LabUL/host/Cluster-V6.7/Resources
+    network: /LabUL/network/LAB-10.31.103
+  tfvars:
+    secretName: vsphere-tfvars # pragma: allowlist secret
+    secretKey: terraform.tfvars # pragma: allowlist secret
+  connectionSecret:
+    name: test-vsphere-vm
+  ansible:
+    enabled: true
+    playbooks:
+      - sthings.baseos.setup
+    varsFile:
+      - manage_filesystem+-true
+      - update_packages+-true
+      - ansible_become+-true
+      - ansible_become_method+-sudo

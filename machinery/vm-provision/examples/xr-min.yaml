@@ -1,0 +1,26 @@
+---
+# Minimum example: only XRD-required fields. proxmox provider, VM sizing
+# falls through to the XRD defaults (cpu=4, ram=4096, disk=64→64G, count=1).
+# No Ansible (ansible.enabled defaults to false).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VMProvision
+metadata:
+  name: vm-provision-min
+  namespace: default
+spec:
+  provider: proxmox
+  providerRef:
+    name: default
+    kind: ClusterProviderConfig
+  vm:
+    name: vm-provision-min
+    template: ubuntu24
+  proxmox:
+    node: ul-pve01
+    datastore: V5010-01-1
+    folderPath: stuttgart-things
+    network: vmbr0
+  tfvars:
+    secretName: proxmox-tfvars # pragma: allowlist secret
+  connectionSecret:
+    name: vm-provision-min

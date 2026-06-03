@@ -1,0 +1,60 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: vm-provision
+  annotations:
+    # Local convention used by `task push` to bump and re-publish.
+    # Not a Crossplane-standard field — the true package version is the OCI tag.
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Unified VM provisioning from a namespaced `VMProvision` XR. A single
+      API routes to either a `VsphereVM` or a `ProxmoxVM` (OpenTofu
+      Workspace) depending on `spec.provider`, and optionally chains an
+      `AnsibleRun` (Tekton PipelineRun) for post-create base-OS provisioning,
+      gated on VM readiness and the resolved VM IP.
+    meta.crossplane.io/readme: |
+      # vm-provision
+
+      A Crossplane v2 Configuration that composes the `vsphere-vm`,
+      `proxmox-vm` and `ansible-run` Configurations into a single
+      `VMProvision` XR (group `resources.stuttgart-things.com`).
+
+      The Composition is a `function-kcl` router:
+
+      - `spec.provider: vsphere` emits a `VsphereVM`; `proxmox` emits a
+        `ProxmoxVM`. Per-VM fields (cpu/ram/disk/template/…) and the
+        provider-specific placement block come from the XR spec.
+      - When `spec.ansible.enabled` is true, an `AnsibleRun` is emitted
+        **after** the VM is Ready and its IP is known; the IP auto-populates
+        the Ansible inventory.
+      - VM / Ansible readiness and the VM IP are surfaced on the XR status.
+
+      ## Preconditions
+
+      The composed Configurations must be installed on the cluster
+      (declared as `dependsOn`, so the package manager pulls them):
+      `vsphere-vm`, `proxmox-vm`, `ansible-run`. Plus their own
+      preconditions — an OpenTofu `ClusterProviderConfig`, the tfvars
+      Secret(s), and (for Ansible) the Tekton stack + credentials Secret.
+      See the per-Configuration README.
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    # Pipeline Functions used by this Configuration's Composition.
+    - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
+      version: ">=v0.12.0,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"
+    # Building-block Configurations this module composes. Installing
+    # vm-provision pulls these (and transitively their providers/functions).
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/vsphere-vm
+      version: ">=v0.1.0"
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/proxmox-vm
+      version: ">=v0.1.0"
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/ansible-run
+      version: ">=v0.1.2"

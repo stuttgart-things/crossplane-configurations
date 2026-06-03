@@ -1,0 +1,252 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: vm-provision
+  labels:
+    crossplane.io/xrd: vmprovisions.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: VMProvision
+  mode: Pipeline
+  pipeline:
+    - step: render
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: render
+        spec:
+          source: | # pragma: allowlist secret
+            import regex
+
+            oxr = option("params").oxr
+            ocds = option("params").ocds
+
+            _spec = oxr.spec
+            _name = oxr.metadata.name
+            _namespace = oxr.metadata.namespace or "default"
+            _provider = _spec.provider
+            _vm = _spec.vm
+            _tfvars = _spec.tfvars
+            _connSecret = _spec.connectionSecret
+            _providerRef = _spec.providerRef
+            _ansible = _spec?.ansible or {}
+            _ansibleEnabled = _ansible?.enabled or False
+
+            _resources = []
+
+            # --- VM Resource ---
+
+            if _provider == "vsphere":
+                _vs = _spec?.vsphere or {}
+                _vsVm = {
+                    name = _vm.name
+                    count = _vm?.count or "1"
+                    cpu = _vm?.cpu or "4"
+                    ram = _vm?.ram or "4096"
+                    disk = _vm?.disk or "64"
+                    firmware = _vm?.firmware or "bios"
+                    template = _vm.template
+                    bootstrap = '["echo STUTTGART-THINGS"]'
+                    annotation = _vm?.annotation or "VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS"
+                    unverifiedSsl = _vs?.unverifiedSsl or "true"
+                }
+                if _vs?.folderPath:
+                    _vsVm |= {folderPath = _vs.folderPath}
+                if _vs?.datacenter:
+                    _vsVm |= {datacenter = _vs.datacenter}
+                if _vs?.datastore:
+                    _vsVm |= {datastore = _vs.datastore}
+                if _vs?.resourcePool:
+                    _vsVm |= {resourcePool = _vs.resourcePool}
+                if _vs?.network:
+                    _vsVm |= {network = _vs.network}
+
+                _vsphereVM = {
+                    apiVersion = "resources.stuttgart-things.com/v1alpha1"
+                    kind = "VsphereVM"
+                    metadata = {
+                        name = "{}-vsphere-vm".format(_name)
+                        namespace = _namespace
+                        annotations = {
+                            "crossplane.io/composition-resource-name" = "vsphere-vm"
+                        }
+                    }
+                    spec = {
+                        providerRef = {
+                            name = _providerRef.name
+                            kind = _providerRef?.kind or "ClusterProviderConfig"
+                        }
+                        vm = _vsVm
+                        tfvars = {
+                            secretName = _tfvars.secretName
+                            secretKey = _tfvars?.secretKey or "terraform.tfvars"
+                        }
+                        connectionSecret = {
+                            name = _connSecret.name
+                        }
+                    }
+                }
+                _resources += [_vsphereVM]
+
+            if _provider == "proxmox":
+                _px = _spec?.proxmox or {}
+                _diskVal = _vm?.disk or "32G"
+                # Ensure proxmox disk has G suffix
+                _diskStr = _diskVal if _diskVal[-1] == "G" else "{}G".format(_diskVal)
+                _proxmoxVM = {
+                    apiVersion = "resources.stuttgart-things.com/v1alpha1"
+                    kind = "ProxmoxVM"
+                    metadata = {
+                        name = "{}-proxmox-vm".format(_name)
+                        namespace = _namespace
+                        annotations = {
+                            "crossplane.io/composition-resource-name" = "proxmox-vm"
+                        }
+                    }
+                    spec = {
+                        providerRef = {
+                            name = _providerRef.name
+                            kind = _providerRef?.kind or "ClusterProviderConfig"
+                        }
+                        vm = {
+                            name = _vm.name
+                            count = _vm?.count or "1"
+                            cpu = _vm?.cpu or "4"
+                            ram = _vm?.ram or "4096"
+                            disk = _diskStr
+                            firmware = _vm?.firmware or "seabios"
+                            template = _vm.template
+                            annotation = _vm?.annotation or "VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS"
+                        }
+                        proxmox = {
+                            node = _px.node
+                            datastore = _px.datastore
+                            if _px?.folderPath:
+                                folderPath = _px.folderPath
+                            network = _px.network
+                        }
+                        tfvars = {
+                            secretName = _tfvars.secretName
+                            secretKey = _tfvars?.secretKey or "terraform.tfvars"
+                        }
+                        connectionSecret = {
+                            name = _connSecret.name
+                        }
+                    }
+                }
+                _resources += [_proxmoxVM]
+
+            # --- Read VM IP from sub-XR status ---
+
+            _vmKey = "{}-vsphere-vm".format(_name) if _provider == "vsphere" else "{}-proxmox-vm".format(_name)
+            _vmFound = _vmKey in ocds
+            _vmStatus = ocds[_vmKey].Resource?.status or {} if _vmFound else {}
+            _vmIPs = _vmStatus?.share?.ip or []
+            _vmIP = _vmIPs[0] if len(_vmIPs) > 0 else ""
+            _vmConds = _vmStatus?.conditions or [] if _vmFound else []
+            _vmReady = len([c for c in _vmConds if c.type == "Ready" and c.status == "True"]) > 0
+
+            # --- Ansible Provisioning (gated on VM readiness) ---
+
+            if _ansibleEnabled and _vmReady and _vmIP != "":
+                _playbooks = _ansible?.playbooks or ["sthings.baseos.setup"]
+                _varsFile = _ansible?.varsFile or []
+                # Auto-populate inventory with VM IP if not specified
+                _varsInventory = _ansible?.varsInventory or ['all+["{}"]'.format(_vmIP)]
+                _pipelineRunName = "{}-ansible".format(_name)
+
+                _ansibleRun = {
+                    apiVersion = "resources.stuttgart-things.com/v1alpha1"
+                    kind = "AnsibleRun"
+                    metadata = {
+                        name = "{}-ansible-run".format(_name)
+                        namespace = _namespace
+                        annotations = {
+                            "crossplane.io/composition-resource-name" = "ansible-run"
+                        }
+                    }
+                    spec = {
+                        pipelineRunName = _pipelineRunName
+                        namespace = _ansible?.pipelineNamespace or "tekton-ci"
+                        gitRepoUrl = _ansible?.gitRepoUrl or "https://github.com/stuttgart-things/stage-time.git"
+                        ansibleWorkingImage = _ansible?.ansibleWorkingImage or "ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test"
+                        ansibleCredentialsSecretName = _ansible?.credentialsSecretName or "ansible-credentials"
+                        ansiblePlaybooks = _playbooks
+                        if len(_varsFile) > 0:
+                            ansibleVarsFile = _varsFile
+                        ansibleVarsInventory = _varsInventory
+                        wrapInCrossplane = _ansible?.wrapInCrossplane or True
+                        crossplaneObjectName = _pipelineRunName
+                        crossplaneNamespace = _namespace
+                        crossplaneProviderConfig = _ansible?.crossplaneProviderConfig or "dev"
+                        if _ansible?.extraCollections and len(_ansible.extraCollections) > 0:
+                            installExtraCollections = "true"
+                            ansibleExtraCollections = _ansible.extraCollections
+                        if _ansible?.extraRoles and len(_ansible.extraRoles) > 0:
+                            installExtraRoles = "true"
+                            ansibleExtraRoles = _ansible.extraRoles
+                    }
+                }
+                _resources += [_ansibleRun]
+
+            # --- Ansible readiness check ---
+
+            _ansibleKey = "{}-ansible-run".format(_name)
+            _ansibleFound = _ansibleKey in ocds
+            _ansibleConds = ocds[_ansibleKey].Resource?.status?.conditions or [] if _ansibleFound else []
+            _ansibleReady = len([c for c in _ansibleConds if c.type == "Ready" and c.status == "True"]) > 0
+
+            items = _resources
+
+    - step: patch-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: patch-status
+        spec:
+          source: |
+            oxr = option("params").oxr
+            ocds = option("params").ocds
+
+            _name = oxr.metadata.name
+            _provider = oxr.spec.provider
+            _ansibleEnabled = oxr.spec?.ansible?.enabled or False
+
+            # Read VM status
+            _vmKey = "{}-vsphere-vm".format(_name) if _provider == "vsphere" else "{}-proxmox-vm".format(_name)
+            _vmFound = _vmKey in ocds
+            _vmStatus = ocds[_vmKey].Resource?.status or {} if _vmFound else {}
+            _vmIPs = _vmStatus?.share?.ip or []
+            _vmConds = _vmStatus?.conditions or [] if _vmFound else []
+            _vmReady = len([c for c in _vmConds if c.type == "Ready" and c.status == "True"]) > 0
+
+            # Read Ansible status
+            _ansibleKey = "{}-ansible-run".format(_name)
+            _ansibleFound = _ansibleKey in ocds
+            _ansibleConds = ocds[_ansibleKey].Resource?.status?.conditions or [] if _ansibleFound else []
+            _ansibleReady = len([c for c in _ansibleConds if c.type == "Ready" and c.status == "True"]) > 0
+
+            _oxr = oxr | {
+                status = {
+                    share = {
+                        ip = _vmIPs
+                        provider = _provider
+                    }
+                    vmReady = _vmReady
+                    ansibleReady = _ansibleReady if _ansibleEnabled else True
+                }
+            }
+
+            items = [_oxr]
+
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

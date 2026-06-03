@@ -1,0 +1,52 @@
+---
+# Maximum example: a Proxmox VM with every spec field set, including the full
+# Ansible block. Useful for catching KCL templating breakage when the router
+# or the emitted sub-XR shapes change.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VMProvision
+metadata:
+  name: vm-provision-max
+  namespace: default
+spec:
+  provider: proxmox
+  providerRef:
+    name: default
+    kind: ClusterProviderConfig
+  vm:
+    name: vm-provision-max
+    count: "1"
+    cpu: "8"
+    ram: "16384"
+    disk: "128G"
+    firmware: seabios
+    template: ubuntu24
+    annotation: VM-PROVISION MAX BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+  proxmox:
+    node: ul-pve01
+    datastore: V5010-01-1
+    folderPath: stuttgart-things
+    network: vmbr0
+  tfvars:
+    secretName: proxmox-tfvars # pragma: allowlist secret
+    secretKey: terraform.tfvars # pragma: allowlist secret
+  connectionSecret:
+    name: vm-provision-max
+  ansible:
+    enabled: true
+    pipelineNamespace: tekton-ci
+    ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test
+    credentialsSecretName: ansible-credentials # pragma: allowlist secret
+    gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+    crossplaneProviderConfig: dev
+    wrapInCrossplane: true
+    playbooks:
+      - sthings.baseos.setup
+    varsFile:
+      - manage_filesystem+-true
+      - update_packages+-true
+      - ansible_become+-true
+      - ansible_become_method+-sudo
+    extraCollections:
+      - sthings.baseos
+    extraRoles:
+      - sthings.storage

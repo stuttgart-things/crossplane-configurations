@@ -1,0 +1,20 @@
+---
+# Maximum example: every spec field set. A large Proxmox VM in LabUL on
+# Ubuntu 22, Ansible disabled, with an explicit providerRef override. Exercises
+# the proxmox branch of the render step (disk gets a G suffix, firmware/template
+# from the proxmox sub-block of the EnvironmentConfig).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: XVirtualMachine
+metadata:
+  name: vm-max
+  namespace: default
+spec:
+  size: large
+  provider: proxmox
+  environment: labul
+  os: ubuntu22
+  count: "1"
+  ansible: false
+  providerRef:
+    name: default
+    kind: ClusterProviderConfig

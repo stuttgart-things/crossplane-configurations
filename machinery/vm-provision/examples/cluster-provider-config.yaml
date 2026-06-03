@@ -1,0 +1,17 @@
+---
+# OpenTofu ClusterProviderConfig consumed by the composed VsphereVM /
+# ProxmoxVM Workspaces (Terraform Kubernetes backend). The name must match
+# the VMProvision `spec.providerRef.name` (default `default`).
+apiVersion: opentofu.m.upbound.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  configuration: |
+    terraform {
+      backend "kubernetes" {
+        secret_suffix     = "providerconfig-default"
+        namespace         = "crossplane-system"
+        in_cluster_config = true
+      }
+    }

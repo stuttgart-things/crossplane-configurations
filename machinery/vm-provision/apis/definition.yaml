@@ -1,0 +1,219 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: vmprovisions.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: VMProvision
+    plural: vmprovisions
+    singular: vmprovision
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                # Provider Selection
+                provider:
+                  type: string
+                  description: Infrastructure provider for VM creation
+                  enum:
+                    - vsphere
+                    - proxmox
+
+                # Generalized VM Configuration
+                vm:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: VM name
+                    count:
+                      type: string
+                      description: Number of VMs to create
+                      default: "1"
+                    cpu:
+                      type: string
+                      description: Number of vCPUs
+                      default: "4"
+                    ram:
+                      type: string
+                      description: Memory in MB
+                      default: "4096"
+                    disk:
+                      type: string
+                      description: Disk size (e.g. 64 for vSphere, 64G for Proxmox)
+                      default: "64"
+                    firmware:
+                      type: string
+                      description: Firmware type (bios/efi for vSphere, seabios for Proxmox)
+                      default: "bios"
+                    template:
+                      type: string
+                      description: VM template name
+                    annotation:
+                      type: string
+                      description: VM annotation/notes
+                      default: "VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS"
+                  required:
+                    - name
+                    - template
+
+                # vSphere-specific Configuration
+                vsphere:
+                  type: object
+                  description: vSphere-specific parameters (required when provider=vsphere)
+                  properties:
+                    folderPath:
+                      type: string
+                    datacenter:
+                      type: string
+                    datastore:
+                      type: string
+                    resourcePool:
+                      type: string
+                    network:
+                      type: string
+                    unverifiedSsl:
+                      type: string
+                      default: "true"
+
+                # Proxmox-specific Configuration
+                proxmox:
+                  type: object
+                  description: Proxmox-specific parameters (required when provider=proxmox)
+                  properties:
+                    node:
+                      type: string
+                    datastore:
+                      type: string
+                    folderPath:
+                      type: string
+                    network:
+                      type: string
+
+                # Terraform/OpenTofu Configuration
+                tfvars:
+                  type: object
+                  properties:
+                    secretName:
+                      type: string
+                      description: Name of the tfvars secret
+                    secretKey:
+                      type: string
+                      description: Key in the tfvars secret
+                      default: terraform.tfvars
+                  required:
+                    - secretName
+
+                connectionSecret:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                  required:
+                    - name
+
+                providerRef:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      default: default
+                    kind:
+                      type: string
+                      default: ClusterProviderConfig
+                      enum:
+                        - ProviderConfig
+                        - ClusterProviderConfig
+                  required:
+                    - name
+
+                # Ansible Provisioning (optional)
+                ansible:
+                  type: object
+                  description: Ansible provisioning configuration (optional)
+                  properties:
+                    enabled:
+                      type: boolean
+                      description: Enable Ansible provisioning after VM creation
+                      default: false
+                    pipelineNamespace:
+                      type: string
+                      description: Namespace for Tekton PipelineRun
+                      default: tekton-ci
+                    ansibleWorkingImage:
+                      type: string
+                      description: Ansible container image
+                      default: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test
+                    credentialsSecretName:
+                      type: string
+                      description: Name of the secret containing Ansible credentials
+                      default: ansible-credentials
+                    gitRepoUrl:
+                      type: string
+                      description: Git repository URL for pipeline
+                      default: https://github.com/stuttgart-things/stage-time.git
+                    playbooks:
+                      type: array
+                      description: List of Ansible playbooks to execute
+                      items:
+                        type: string
+                    varsFile:
+                      type: array
+                      description: Ansible variables
+                      items:
+                        type: string
+                    varsInventory:
+                      type: array
+                      description: Ansible inventory variables (auto-populated with VM IP if empty)
+                      items:
+                        type: string
+                    extraCollections:
+                      type: array
+                      description: Extra Ansible collections to install
+                      items:
+                        type: string
+                    extraRoles:
+                      type: array
+                      description: Extra Ansible roles to install
+                      items:
+                        type: string
+                    crossplaneProviderConfig:
+                      type: string
+                      description: Kubernetes ProviderConfig for wrapping PipelineRun
+                      default: dev
+                    wrapInCrossplane:
+                      type: boolean
+                      description: Wrap PipelineRun in Crossplane Object
+                      default: true
+
+              required:
+                - provider
+                - vm
+                - tfvars
+                - connectionSecret
+                - providerRef
+
+            status:
+              type: object
+              properties:
+                share:
+                  description: Freeform field containing status information
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                vmReady:
+                  type: boolean
+                  description: Whether the VM has been created
+                ansibleReady:
+                  type: boolean
+                  description: Whether ansible provisioning completed
