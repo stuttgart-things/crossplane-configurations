@@ -36,18 +36,22 @@ spec:
                     - xlarge
                 provider:
                   type: string
-                  description: "Infrastructure provider to use"
+                  description: |
+                    Infrastructure provider. `vsphere`/`proxmox` emit a
+                    `VMProvision` (OpenTofu Workspace); `harvester` emits a
+                    `HarvesterVM` (KubeVirt) directly.
                   enum:
                     - vsphere
                     - proxmox
+                    - harvester
                 environment:
                   type: string
                   description: |
                     Target environment. Selects the EnvironmentConfig carrying
                     the config-scoped label
                     `virtual-machine.resources.stuttgart-things.com/environment=<value>`,
-                    whose `data` holds the per-provider datacenter topology
-                    (nested `vsphere` / `proxmox` blocks). The provider
+                    whose `data` holds the per-provider topology (nested
+                    `vsphere` / `proxmox` / `harvester` blocks). The provider
                     sub-block is picked inside the Composition by `spec.provider`.
                   enum:
                     - labul

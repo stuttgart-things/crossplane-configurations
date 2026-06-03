@@ -1,0 +1,18 @@
+---
+# Harvester usage: a medium Harvester / KubeVirt VM in LabUL on Ubuntu 24.
+# `provider: harvester` routes to a HarvesterVM (not a VMProvision): the size
+# maps to cpu/ram/disk, `os` maps to the Harvester imageId, and placement
+# (storage class, namespace, Multus network, provider config) plus the default
+# cloud-init user/ssh key come from the labul EnvironmentConfig `harvester`
+# sub-block. `ansible: true` runs base-OS provisioning once the VM reports an IP.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: XVirtualMachine
+metadata:
+  name: vm-harvester
+  namespace: default
+spec:
+  size: medium
+  provider: harvester
+  environment: labul
+  os: ubuntu24
+  ansible: true
