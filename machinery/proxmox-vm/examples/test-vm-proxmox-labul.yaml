@@ -1,0 +1,63 @@
+---
+# Self-contained test deployment: a `proxmox-labul` namespace holding the ESO
+# sync (proxmox-tfvars, fed from Vault) and a single ProxmoxVM XR.
+#
+# Cluster-scoped preconditions that must already exist (NOT in this file):
+#   - the proxmox-vm Configuration (examples/configuration.yaml)
+#   - provider-opentofu + its ClusterProviderConfig (examples/provider.yaml,
+#     examples/cluster-provider-config.yaml)
+#   - the EnvironmentConfig `proxmox-vm-defaults` (examples/environmentconfig.yaml)
+#   - the ClusterSecretStore `vault-cicd-proxmox-labul`
+#     (examples/external-secret.yaml — only the ClusterSecretStore part)
+#   - RBAC letting provider-opentofu read Secrets (see README)
+#
+# Apply:  kubectl apply -f examples/test-vm-proxmox-labul.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: proxmox-labul
+---
+# ESO sync: materialize `proxmox-tfvars` in the proxmox-labul namespace from
+# the cluster-scoped ClusterSecretStore `vault-cicd-proxmox-labul`.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: proxmox-tfvars
+  namespace: proxmox-labul
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault-cicd-proxmox-labul
+  target:
+    name: proxmox-tfvars
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        terraform.tfvars: |
+          pve_api_url = "{{ .pve_api_url }}"
+          pve_api_user = "{{ .pve_api_user }}"
+          pve_api_password = "{{ .pve_api_password }}"
+          vm_ssh_user = "{{ .vm_ssh_user }}"
+          vm_ssh_password = "{{ .vm_ssh_password }}"
+  dataFrom:
+    - extract:
+        key: default
+---
+# The test VM. Placement, template and provider config come from the
+# `proxmox-vm-defaults` EnvironmentConfig (LabUL); only sizing is set here.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ProxmoxVM
+metadata:
+  name: proxmox-test
+  namespace: proxmox-labul
+spec:
+  environmentConfig: default
+  vm:
+    name: proxmox-test
+    cpu: "4"
+    ram: "4096"
+    disk: "32G"
+  connectionSecret:
+    name: proxmox-test

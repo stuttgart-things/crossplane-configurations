@@ -174,6 +174,7 @@ crossplane beta trace proxmoxvm.resources.stuttgart-things.com opentofu-test1 -n
 - `examples/configuration.yaml` — install manifest (OCI ref)
 - `examples/provider.yaml` — provider-opentofu install
 - `examples/external-secret.yaml` — optional ESO `ClusterSecretStore` + `ExternalSecret` sourcing `proxmox-tfvars` from Vault
+- `examples/test-vm-proxmox-labul.yaml` — self-contained LabUL live-test (a `proxmox-labul` Namespace + ESO `proxmox-tfvars` sync + a sized `ProxmoxVM`)
 - `examples/cluster-provider-config.yaml` — OpenTofu ClusterProviderConfig (Terraform K8s backend)
 - `examples/deployment-runtime-config.yaml` — optional provider poll/reconcile tuning
 
