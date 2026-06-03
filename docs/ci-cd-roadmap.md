@@ -8,7 +8,7 @@ maps to a tracking GitHub issue and is independently shippable.
 
 | Phase | Status | Tracking |
 |---|---|---|
-| 1 — PR-level ttl.sh previews | ✅ **Implemented** | [#11](https://github.com/stuttgart-things/crossplane-configurations/issues/11) (closed) |
+| 1 — PR-level ttl.sh previews | ✅ **Done** | [#11](https://github.com/stuttgart-things/crossplane-configurations/issues/11) (closed), [dagger#289](https://github.com/stuttgart-things/dagger/issues/289) (closed) |
 | 2 — Automated per-package releases | 📋 Planned — not started | [#12](https://github.com/stuttgart-things/crossplane-configurations/issues/12) (open) |
 | 3 — Release → ghcr propagation | 📋 Planned — not started | [#13](https://github.com/stuttgart-things/crossplane-configurations/issues/13) (open) |
 | 4 — kind install testing | 📋 Planned — not started | [#14](https://github.com/stuttgart-things/crossplane-configurations/issues/14) (open) |
@@ -37,7 +37,7 @@ maps to a tracking GitHub issue and is independently shippable.
 ```
 PR open/sync ──► discover (exists)
              ──► verify  offline render+kubeconform+xpkg build (exists)
-             ──► push-dev → ttl.sh         [Phase 1]  preview package per changed config
+             ──► push-preview → ttl.sh     [Phase 1]  preview package per changed config
              ──► kind smoke-install         [Phase 4]  (gated/optional)
              ──► PR comment: install manifest
 
@@ -62,15 +62,17 @@ manual/static install target.
 
 ---
 
-## Phase 1 — PR-level ttl.sh previews ✅ implemented
+## Phase 1 — PR-level ttl.sh previews ✅ done
 
-**Tracking: [#11](https://github.com/stuttgart-things/crossplane-configurations/issues/11)**
+**Tracking: [#11](https://github.com/stuttgart-things/crossplane-configurations/issues/11)**,
+[dagger#289](https://github.com/stuttgart-things/dagger/issues/289)
 
 Build a preview OCI package per changed Configuration on each PR and surface a
 copy-paste install manifest, so reviewers can try a package on any cluster
 without a canonical release.
 
-- Reuse the `discover` matrix → run `task push-dev` per changed config.
+- Reuse the `discover` matrix → call the `dagger/crossplane` module's
+  `push-preview` per changed config.
 - ttl.sh is anonymous / public / ephemeral (tag = TTL, auto-expiry) → **no
   secrets in CI**, safe for fork PRs.
 - Post a sticky PR comment with the `kind: Configuration` manifest pointing at
@@ -89,16 +91,23 @@ without a canonical release.
   `<details>` block per changed config — not append, not one comment per config.
 
 Implemented as the `preview` + `preview-comment` jobs in
-[`.github/workflows/verify.yaml`](../.github/workflows/verify.yaml). The matrix
-`preview` job is secret-free (fork-safe); a single write-scoped `preview-comment`
-job aggregates the per-config snippets so matrix legs never race on the comment.
-Posting the comment still needs `pull-requests: write`, which the default token
-lacks on fork PRs — the preview *images* publish regardless; only the comment is
-skipped there (a future `workflow_run` hand-off can close that gap).
+[`.github/workflows/verify.yaml`](../.github/workflows/verify.yaml). The `preview`
+job runs `dagger/crossplane@v0.116.0 push-preview` via `dagger-for-github` (a single
+step, mirroring `verify`) — the module reads the package name from
+`crossplane.yaml`, pushes anonymously to ttl.sh, and returns the install manifest
+on stdout. This replaced the original `task push-dev` wrapper and its
+`task`/`gum`/`curl` CI bootstrap ([dagger#289](https://github.com/stuttgart-things/dagger/issues/289),
+shipped in `dagger/crossplane@v0.116.0`); `task push-dev` remains for local dev.
+The matrix `preview` job is secret-free (fork-safe); a single write-scoped
+`preview-comment` job aggregates the per-config snippets so matrix legs never race
+on the comment. Posting the comment still needs `pull-requests: write`, which the
+default token lacks on fork PRs — the preview *images* publish regardless; only the
+comment is skipped there (a future `workflow_run` hand-off can close that gap).
 
 **Acceptance:** opening/updating a PR that changes a config publishes
-`ttl.sh/<scope>/crossplane-configurations/<name>:<ttl>` and comments the install
-manifest; unchanged configs are skipped. ✅
+`ttl.sh/<scope>/crossplane-configurations-pr<PR>-<sha7>/<name>:<ttl>` and comments
+the install manifest; unchanged configs are skipped. ✅ Verified end-to-end on
+`k8s/namespace` (PR #22).
 
 ---
 
