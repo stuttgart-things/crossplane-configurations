@@ -1,0 +1,7 @@
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: virtual-machine
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.0

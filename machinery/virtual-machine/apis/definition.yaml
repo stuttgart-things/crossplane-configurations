@@ -1,0 +1,95 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: xvirtualmachines.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: XVirtualMachine
+    plural: xvirtualmachines
+    singular: xvirtualmachine
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - size
+                - provider
+                - environment
+              properties:
+                size:
+                  type: string
+                  description: "T-shirt size for the VM (maps to cpu/ram/disk)"
+                  enum:
+                    - small
+                    - medium
+                    - large
+                    - xlarge
+                provider:
+                  type: string
+                  description: "Infrastructure provider to use"
+                  enum:
+                    - vsphere
+                    - proxmox
+                environment:
+                  type: string
+                  description: |
+                    Target environment. Selects the EnvironmentConfig carrying
+                    the config-scoped label
+                    `virtual-machine.resources.stuttgart-things.com/environment=<value>`,
+                    whose `data` holds the per-provider datacenter topology
+                    (nested `vsphere` / `proxmox` blocks). The provider
+                    sub-block is picked inside the Composition by `spec.provider`.
+                  enum:
+                    - labul
+                    - labda
+                os:
+                  type: string
+                  description: "OS template to use"
+                  default: ubuntu24
+                  enum:
+                    - ubuntu24
+                    - ubuntu22
+                count:
+                  type: string
+                  description: "Number of VMs to create"
+                  default: "1"
+                ansible:
+                  type: boolean
+                  description: "Run baseos Ansible provisioning after VM creation"
+                  default: true
+                providerRef:
+                  type: object
+                  description: "Override the ProviderConfig reference"
+                  properties:
+                    name:
+                      type: string
+                      default: default
+                    kind:
+                      type: string
+                      default: ClusterProviderConfig
+                      enum:
+                        - ProviderConfig
+                        - ClusterProviderConfig
+            status:
+              type: object
+              properties:
+                share:
+                  description: Freeform field containing status information
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                vmReady:
+                  type: boolean
+                  description: Whether the VM has been created
+                ansibleReady:
+                  type: boolean
+                  description: Whether ansible provisioning completed

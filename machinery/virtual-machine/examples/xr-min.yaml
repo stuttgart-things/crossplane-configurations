@@ -1,0 +1,13 @@
+---
+# Minimum example: only the XRD-required fields (size, provider, environment).
+# os defaults to ubuntu24, count to "1", ansible to true; all placement and
+# credentials come from the labul EnvironmentConfig (vsphere sub-block).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: XVirtualMachine
+metadata:
+  name: vm-min
+  namespace: default
+spec:
+  size: small
+  provider: vsphere
+  environment: labul

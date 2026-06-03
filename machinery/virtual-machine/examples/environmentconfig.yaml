@@ -1,0 +1,72 @@
+---
+# Per-environment datacenter topology for XVirtualMachine XRs.
+#
+# The `virtual-machine` Composition selects this EnvironmentConfig via the
+# CONFIG-SCOPED label `virtual-machine.resources.stuttgart-things.com/
+# environment`, matched against the XR's `spec.environment` (labul/labda). The
+# key is namespaced to this Configuration so it never collides with another
+# Configuration's EnvironmentConfig (function-environment-configs requires
+# EXACTLY ONE Selector match).
+#
+# Unlike the leaf Configurations, the `data` here is NOT flat: it holds BOTH a
+# `vsphere` and a `proxmox` sub-block. The render step picks one by the XR's
+# `spec.provider` — the provider dimension is therefore NOT part of the
+# selector. `templates` maps the XR's `spec.os` (ubuntu24/ubuntu22) to the
+# provider-specific template name.
+#
+# Values below describe the LabUL environment.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: virtual-machine-labul
+  labels:
+    virtual-machine.resources.stuttgart-things.com/environment: labul
+data:
+  vsphere:
+    templates:
+      ubuntu24: sthings-u24
+      ubuntu22: sthings-u22
+    firmware: bios
+    folderPath: stuttgart-things/testing
+    datacenter: /LabUL
+    datastore: /LabUL/datastore/UL-ESX-SAS-02
+    resourcePool: /LabUL/host/Cluster-V6.7/Resources
+    network: /LabUL/network/LAB-10.31.103
+    tfvarsSecretName: vsphere-tfvars # pragma: allowlist secret
+    tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
+  proxmox:
+    templates:
+      ubuntu24: sthings-u26
+      ubuntu22: sthings-u22
+    firmware: seabios
+    node: ul-pve01
+    datastore: DD-sthings
+    folderPath: stuttgart-things
+    network: vmbr0
+    tfvarsSecretName: proxmox-tfvars # pragma: allowlist secret
+    tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
+---
+# LabDA is a vSphere-only environment (no Proxmox node) — only a `vsphere`
+# sub-block is defined here. The placement paths below are EXAMPLE values;
+# substitute your LabDA datacenter/datastore/network for real use. An XR with
+# `provider: proxmox, environment: labda` would resolve an empty topology, so
+# keep Proxmox XRs on `environment: labul`.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: virtual-machine-labda
+  labels:
+    virtual-machine.resources.stuttgart-things.com/environment: labda
+data:
+  vsphere:
+    templates:
+      ubuntu24: sthings-u24
+      ubuntu22: sthings-u22
+    firmware: bios
+    folderPath: stuttgart-things/testing
+    datacenter: /LabDA
+    datastore: /LabDA/datastore/DatastoreCluster/labda-datastore-01
+    resourcePool: Resources
+    network: /LabDA/network/labda-prod
+    tfvarsSecretName: vsphere-tfvars # pragma: allowlist secret
+    tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret

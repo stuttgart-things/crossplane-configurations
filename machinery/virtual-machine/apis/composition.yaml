@@ -1,0 +1,212 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: virtual-machine
+  labels:
+    crossplane.io/xrd: xvirtualmachines.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: XVirtualMachine
+  mode: Pipeline
+  pipeline:
+    # -------------------------------------------------------------------------
+    # Step 0: load the per-environment datacenter topology from an
+    # EnvironmentConfig into the pipeline context. Selected by the
+    # CONFIG-SCOPED label `virtual-machine.resources.stuttgart-things.com/
+    # environment`, value from the XR's `spec.environment` (labul/labda). The
+    # key is namespaced to this Configuration so it never collides with another
+    # Configuration's EnvironmentConfig (function-environment-configs requires
+    # EXACTLY ONE Selector match). The provider dimension (vsphere/proxmox) is
+    # NOT part of the selector — each EnvironmentConfig holds BOTH provider
+    # sub-blocks under `data` and the KCL render step picks the right one by
+    # `spec.provider`. Offline `crossplane render` needs the EnvironmentConfig
+    # supplied via --extra-resources (the verify harness does this).
+    # -------------------------------------------------------------------------
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: virtual-machine.resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environment
+                    fromFieldPathPolicy: Optional
+
+    # -------------------------------------------------------------------------
+    # Step 1: map the t-shirt size + the loaded topology to a full VMProvision.
+    # -------------------------------------------------------------------------
+    - step: render
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: render
+        spec:
+          source: | # pragma: allowlist secret
+            oxr = option("params").oxr
+            _ctx = option("params").ctx or {}
+
+            _spec = oxr.spec
+            _name = oxr.metadata.name
+            _namespace = oxr.metadata.namespace or "default"
+            _provider = _spec.provider
+            _environment = _spec.environment
+            _os = _spec?.os or "ubuntu24"
+            _count = _spec?.count or "1"
+            _ansibleEnabled = False if _spec?.ansible == False else True
+
+            # --- T-shirt size map (inline; not environment-specific) ---
+            _sizes = {
+                small:  {cpu: "2",  ram: "2048",  disk: "32"}
+                medium: {cpu: "4",  ram: "4096",  disk: "64"}
+                large:  {cpu: "8",  ram: "8192",  disk: "128"}
+                xlarge: {cpu: "16", ram: "16384", disk: "256"}
+            }
+            _size = _sizes[_spec.size]
+
+            # --- Topology from the loaded EnvironmentConfig (ctx) ---
+            # function-environment-configs merges the EnvironmentConfig data
+            # into the context under this well-known key. Each environment
+            # holds both provider sub-blocks; pick by spec.provider.
+            _envData = _ctx["apiextensions.crossplane.io/environment"] or {}
+            _env = _envData[_provider] if _provider in _envData else {}
+
+            _templates = _env?.templates or {}
+            _template = _templates[_os] if _os in _templates else ""
+            _firmware = _env?.firmware or ("bios" if _provider == "vsphere" else "seabios")
+            _tfvarsSecretName = _env?.tfvarsSecretName or ("vsphere-tfvars" if _provider == "vsphere" else "proxmox-tfvars") # pragma: allowlist secret
+            _tfvarsSecretKey = _env?.tfvarsSecretKey or "terraform.tfvars" # pragma: allowlist secret
+
+            # --- Disk formatting (Proxmox needs G suffix) ---
+            _diskVal = _size.disk
+            _disk = _diskVal if _provider == "vsphere" else "{}G".format(_diskVal)
+
+            # --- Provider-specific topology ---
+            _vsphereBlock = {
+                folderPath: _env?.folderPath
+                datacenter: _env?.datacenter
+                datastore: _env?.datastore
+                resourcePool: _env?.resourcePool
+                network: _env?.network
+            } if _provider == "vsphere" else {}
+
+            _proxmoxBlock = {
+                node: _env?.node
+                datastore: _env?.datastore
+                folderPath: _env?.folderPath
+                network: _env?.network
+            } if _provider == "proxmox" else {}
+
+            # --- Ansible spec ---
+            _ansibleSpec = {
+                enabled: True
+                playbooks: ["sthings.baseos.setup"]
+                varsFile: [
+                    "manage_filesystem+-true"
+                    "update_packages+-true"
+                    "ansible_become+-true"
+                    "ansible_become_method+-sudo"
+                ]
+            } if _ansibleEnabled else {enabled: False}
+
+            # --- ProviderRef ---
+            _providerRefName = _spec?.providerRef?.name or "default"
+            _providerRefKind = _spec?.providerRef?.kind or "ClusterProviderConfig"
+
+            # --- Compose VMProvision ---
+            _vmProvision = {
+                apiVersion = "resources.stuttgart-things.com/v1alpha1"
+                kind = "VMProvision"
+                metadata = {
+                    name = _name
+                    namespace = _namespace
+                    annotations = {
+                        "crossplane.io/composition-resource-name" = "vm-provision"
+                    }
+                }
+                spec = {
+                    provider = _provider
+                    providerRef = {
+                        name = _providerRefName
+                        kind = _providerRefKind
+                    }
+                    vm = {
+                        name = _name
+                        count = _count
+                        cpu = _size.cpu
+                        ram = _size.ram
+                        disk = _disk
+                        firmware = _firmware
+                        template = _template
+                    }
+                    if _provider == "vsphere":
+                        vsphere = _vsphereBlock
+                    if _provider == "proxmox":
+                        proxmox = _proxmoxBlock
+                    tfvars = {
+                        secretName = _tfvarsSecretName
+                        secretKey = _tfvarsSecretKey
+                    }
+                    connectionSecret = {
+                        name = _name
+                    }
+                    ansible = _ansibleSpec
+                }
+            }
+
+            items = [_vmProvision]
+
+    # -------------------------------------------------------------------------
+    # Step 2: surface VMProvision status onto the XVirtualMachine.
+    # -------------------------------------------------------------------------
+    - step: patch-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: patch-status
+        spec:
+          source: |
+            oxr = option("params").oxr
+            ocds = option("params").ocds
+
+            # Find VMProvision status from any ocds entry
+            _vmStatus = {}
+            _entries = [v.Resource?.status or {} for _, v in ocds if v.Resource?.kind == "VMProvision"]
+            if len(_entries) > 0:
+                _vmStatus = _entries[0]
+
+            _vmIPs = _vmStatus?.share?.ip or []
+            _vmReady = _vmStatus?.vmReady or False
+            _ansibleReady = _vmStatus?.ansibleReady or False
+
+            _oxr = oxr | {
+                status = {
+                    share = {
+                        ip = _vmIPs
+                        provider = oxr.spec.provider
+                        size = oxr.spec.size
+                        environment = oxr.spec.environment
+                    }
+                    vmReady = _vmReady
+                    ansibleReady = _ansibleReady
+                }
+            }
+
+            items = [_oxr]
+
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

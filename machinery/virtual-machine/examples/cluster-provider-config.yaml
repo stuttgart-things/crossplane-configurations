@@ -1,0 +1,17 @@
+---
+# OpenTofu ClusterProviderConfig consumed (transitively) by the VsphereVM /
+# ProxmoxVM Workspaces that the emitted VMProvision routes to. The name must
+# match the XR's `spec.providerRef.name` (default `default`).
+apiVersion: opentofu.m.upbound.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  configuration: |
+    terraform {
+      backend "kubernetes" {
+        secret_suffix     = "providerconfig-default"
+        namespace         = "crossplane-system"
+        in_cluster_config = true
+      }
+    }
