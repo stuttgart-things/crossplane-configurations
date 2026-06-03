@@ -243,6 +243,19 @@ The task sniffs the `provider-kubernetes` floor from the Configuration's `depend
 
 </details>
 
+<details>
+<summary><b>PR preview packages (ttl.sh)</b></summary>
+
+On every pull request, the `preview` job in [`.github/workflows/verify.yaml`](.github/workflows/verify.yaml) reuses the same `discover` matrix to build each **changed** Configuration and `task push-dev` it to the public, ephemeral [ttl.sh](https://ttl.sh) registry. ttl.sh is anonymous, so the job runs **without secrets** and is safe for fork PRs.
+
+The preview is published to `ttl.sh/stuttgart-things/crossplane-configurations-pr<PR>-<sha7>/<name>:24h` — `24h` is ttl.sh's maximum TTL (long enough to outlive a review cycle), and the PR-number/short-SHA path segment keeps each commit's preview distinct and traceable.
+
+A second `preview-comment` job aggregates every changed config's install manifest into one sticky PR comment (updated in place via a hidden marker), so a reviewer can copy-paste a `kind: Configuration` pointing at the preview and try it on any Crossplane v2 cluster. Unchanged configs are skipped; the image auto-expires 24 h after the last push.
+
+This is **Phase 1** of the [CI/CD roadmap](docs/ci-cd-roadmap.md).
+
+</details>
+
 ## License
 
 [Apache-2.0](LICENSE)

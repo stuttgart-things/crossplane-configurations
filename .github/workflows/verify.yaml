@@ -74,3 +74,143 @@ jobs:
     with:
       src: ${{ matrix.config }}
     secrets: inherit
+
+  # Phase 1 of the CI/CD roadmap (docs/ci-cd-roadmap.md): per-changed-Configuration
+  # preview packages. Build each changed config and push it to the public,
+  # ephemeral ttl.sh registry, then surface a copy-paste install manifest as a
+  # sticky PR comment. ttl.sh is anonymous → no secrets, safe for fork PRs.
+  preview:
+    needs: discover
+    if: github.event_name == 'pull_request' && needs.discover.outputs.configs != '[]'
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJson(needs.discover.outputs.configs) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install tooling (task, gum, dagger)
+        env:
+          DAGGER_VERSION: "0.20.8"
+          GUM_VERSION: "0.14.5"
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.local/bin"
+          mkdir -p "$BIN"
+          # task
+          sh -c "$(curl --fail --silent --show-error --location https://taskfile.dev/install.sh)" -- -b "$BIN"
+          # gum (task push-dev styles its output with gum)
+          curl --fail --silent --show-error --location \
+            "https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_Linux_x86_64.tar.gz" \
+            | tar -xz -C /tmp
+          mv "/tmp/gum_${GUM_VERSION}_Linux_x86_64/gum" "$BIN/gum"
+          # dagger CLI (task push-dev calls the dagger/crossplane module)
+          curl --fail --silent --show-error --location https://dl.dagger.io/dagger/install.sh \
+            | BIN_DIR="$BIN" DAGGER_VERSION="$DAGGER_VERSION" sh
+          echo "$BIN" >> "$GITHUB_PATH"
+
+      - name: Build & push ttl.sh preview
+        id: push
+        env:
+          # Pin the dagger module to the same release the verify job uses.
+          DAGGER_MOD: github.com/stuttgart-things/dagger/crossplane@v0.115.2
+          # 24h is ttl.sh's maximum TTL — long enough to outlive a review cycle.
+          TTL: "24h"
+        run: |
+          set -euo pipefail
+          config='${{ matrix.config }}'
+          pr='${{ github.event.pull_request.number }}'
+          sha='${{ github.event.pull_request.head.sha }}'
+          short="${sha:0:7}"
+          pkg=$(yq -r '.metadata.name' "$config/crossplane.yaml")
+
+          # Encode PR# + short SHA in the ttl.sh path so each commit publishes a
+          # fresh, traceable preview that never collides with another PR's.
+          prefix="stuttgart-things/crossplane-configurations-pr${pr}-${short}"
+          dest="ttl.sh/${prefix}/${pkg}:${TTL}"
+
+          CONFIG="$config" TTL="$TTL" TTL_PREFIX="$prefix" task push-dev
+
+          # Per-config snippet for the aggregated sticky comment.
+          safe=$(printf '%s' "$config" | tr '/' '-')
+          {
+            echo "<details>"
+            echo "<summary>📦 <code>${config}</code> → <code>${dest}</code></summary>"
+            echo
+            echo '```yaml'
+            echo "apiVersion: pkg.crossplane.io/v1"
+            echo "kind: Configuration"
+            echo "metadata:"
+            echo "  name: ${pkg}-preview"
+            echo "spec:"
+            echo "  package: ${dest}"
+            echo '```'
+            echo
+            echo "</details>"
+          } > "preview-${safe}.md"
+          echo "safe=${safe}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preview-${{ steps.push.outputs.safe }}
+          path: preview-*.md
+          if-no-files-found: error
+
+  # Aggregate every changed config's snippet into one sticky PR comment. Split
+  # from `preview` so the matrix stays secret-free (fork-safe) and the single
+  # write-scoped step runs once instead of racing across matrix legs.
+  preview-comment:
+    needs: [discover, preview]
+    if: ${{ always() && github.event_name == 'pull_request' && needs.discover.outputs.configs != '[]' }}
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: previews
+          pattern: preview-*
+          merge-multiple: true
+
+      - name: Compose comment body
+        run: |
+          set -euo pipefail
+          marker='<!-- crossplane-ttl-preview -->'
+          {
+            echo "$marker"
+            echo "## 📦 ttl.sh preview packages"
+            echo
+            echo "Preview OCI packages for the Configurations changed in this PR, pushed to the public, ephemeral [ttl.sh](https://ttl.sh) registry. No auth required — install on any Crossplane v2 cluster:"
+            echo
+            if ls previews/preview-*.md >/dev/null 2>&1; then
+              cat previews/preview-*.md
+            else
+              echo "_No preview packages were produced (the push step failed for every changed config — see the \`preview\` job logs)._"
+            fi
+            echo
+            echo "> [!NOTE]"
+            echo "> Images expire **24h** after the last push (ttl.sh's maximum TTL); push a new commit to refresh them. The Configuration name is suffixed \`-preview\` so it won't clash with a canonical install."
+          } > body.md
+          cat body.md
+
+      - name: Post or update sticky comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          marker='<!-- crossplane-ttl-preview -->'
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq "map(select(.body | contains(\"$marker\"))) | .[0].id // empty")
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@body.md >/dev/null
+            echo "Updated sticky comment $id"
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@body.md >/dev/null
+            echo "Created sticky comment"
+          fi

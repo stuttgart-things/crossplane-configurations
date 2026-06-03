@@ -50,7 +50,7 @@ manual/static install target.
 
 ---
 
-## Phase 1 — PR-level ttl.sh previews
+## Phase 1 — PR-level ttl.sh previews ✅ implemented
 
 **Tracking: [#11](https://github.com/stuttgart-things/crossplane-configurations/issues/11)**
 
@@ -64,12 +64,29 @@ without a canonical release.
 - Post a sticky PR comment with the `kind: Configuration` manifest pointing at
   the ttl.sh ref.
 
-**Decisions:** TTL length (≥24h to outlive a review cycle); whether the preview
-name encodes PR#/SHA for traceability; sticky-comment update vs append.
+**Decisions (resolved):**
+
+- **TTL = `24h`** — ttl.sh's maximum, the longest single window we can give a
+  review cycle.
+- **Preview path encodes PR# + short SHA**:
+  `ttl.sh/stuttgart-things/crossplane-configurations-pr<PR>-<sha7>/<name>:24h`.
+  The tag *is* the TTL, so traceability lives in the repo path; a fresh SHA
+  segment per commit also avoids reusing a previous commit's image.
+- **Sticky comment, updated in place** (one comment for the whole PR, keyed by a
+  hidden `<!-- crossplane-ttl-preview -->` marker), aggregating one
+  `<details>` block per changed config — not append, not one comment per config.
+
+Implemented as the `preview` + `preview-comment` jobs in
+[`.github/workflows/verify.yaml`](../.github/workflows/verify.yaml). The matrix
+`preview` job is secret-free (fork-safe); a single write-scoped `preview-comment`
+job aggregates the per-config snippets so matrix legs never race on the comment.
+Posting the comment still needs `pull-requests: write`, which the default token
+lacks on fork PRs — the preview *images* publish regardless; only the comment is
+skipped there (a future `workflow_run` hand-off can close that gap).
 
 **Acceptance:** opening/updating a PR that changes a config publishes
 `ttl.sh/<scope>/crossplane-configurations/<name>:<ttl>` and comments the install
-manifest; unchanged configs are skipped.
+manifest; unchanged configs are skipped. ✅
 
 ---
 
