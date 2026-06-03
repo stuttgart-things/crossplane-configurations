@@ -301,7 +301,10 @@ spec:
             {{- $vmiKey := print $vmName "-vmi" }}
             {{- $ip := "" }}
             {{- $phase := "" }}
-            {{- $observedVMI := index .observed.resources $vmiKey }}
+            {{- /* .observed.resources is nil under `crossplane render` (no
+                   observed state) — default to an empty dict before indexing,
+                   or `index` fails with "index of untyped nil". */}}
+            {{- $observedVMI := index (.observed.resources | default dict) $vmiKey }}
             {{- if $observedVMI }}
             {{-   $manifest := dig "status" "atProvider" "manifest" dict $observedVMI.resource }}
             {{-   $vmiStatus := dig "status" dict $manifest }}
