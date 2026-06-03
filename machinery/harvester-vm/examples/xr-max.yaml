@@ -72,3 +72,19 @@ spec:
     networks:
       - name: default
         networkName: default/vms
+  # Optional base-OS provisioning. Emits an AnsibleRun (Tekton PipelineRun)
+  # once the VM is Running and its IP is on status.share.ip; the inventory
+  # auto-populates with that IP. Requires the ansible-run Configuration and
+  # its preconditions (Tekton stack + credentials Secret) on the cluster.
+  ansible:
+    enabled: true
+    pipelineNamespace: tekton-ci
+    credentialsSecretName: ansible-credentials # pragma: allowlist secret
+    crossplaneProviderConfig: dev
+    playbooks:
+      - sthings.baseos.setup
+    varsFile:
+      - "update_packages+-true"
+      - "ansible_become+-true"
+    extraCollections:
+      - sthings.baseos

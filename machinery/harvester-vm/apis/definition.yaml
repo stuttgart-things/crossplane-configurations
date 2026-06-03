@@ -259,6 +259,79 @@ spec:
                   required:
                     - cpu
                     - resources
+
+                #################################
+                # Ansible base-OS provisioning (optional, opt-in)
+                #################################
+                ansible:
+                  type: object
+                  description: |
+                    Optional Ansible base-OS provisioning, run AFTER the VM is
+                    up and the QEMU guest agent has reported an IP onto
+                    `status.share.ip`. Emits an `AnsibleRun` (Tekton
+                    PipelineRun) whose inventory auto-populates with the VM IP.
+                    Disabled by default — a plain `HarvesterVM` creates only the
+                    VM. Enabling it requires the `ansible-run` Configuration and
+                    its preconditions (Tekton stack + credentials Secret) on the
+                    cluster.
+                  properties:
+                    enabled:
+                      type: boolean
+                      description: Enable Ansible provisioning after VM creation.
+                      default: false
+                    pipelineNamespace:
+                      type: string
+                      description: Namespace for the Tekton PipelineRun.
+                      default: tekton-ci
+                    ansibleWorkingImage:
+                      type: string
+                      description: Ansible working container image.
+                      default: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test
+                    credentialsSecretName:
+                      type: string
+                      description: Secret holding Ansible credentials.
+                      default: ansible-credentials
+                    gitRepoUrl:
+                      type: string
+                      description: Git repository URL for the pipeline.
+                      default: https://github.com/stuttgart-things/stage-time.git
+                    playbooks:
+                      type: array
+                      description: Ansible playbooks to run.
+                      items:
+                        type: string
+                      default:
+                        - sthings.baseos.setup
+                    varsFile:
+                      type: array
+                      description: Ansible vars (`key+-value` form).
+                      items:
+                        type: string
+                    varsInventory:
+                      type: array
+                      description: |
+                        Ansible inventory entries. Auto-populated with the VM IP
+                        (`all+["<ip>"]`) when omitted.
+                      items:
+                        type: string
+                    extraCollections:
+                      type: array
+                      description: Extra Ansible collections to install.
+                      items:
+                        type: string
+                    extraRoles:
+                      type: array
+                      description: Extra Ansible roles to install.
+                      items:
+                        type: string
+                    crossplaneProviderConfig:
+                      type: string
+                      description: provider-kubernetes config used to wrap the PipelineRun.
+                      default: dev
+                    wrapInCrossplane:
+                      type: boolean
+                      description: Wrap the PipelineRun in a Crossplane Object.
+                      default: true
               required:
                 - volume
                 - cloudInit
@@ -301,3 +374,9 @@ spec:
                     Ansible layer.
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
+                ansibleReady:
+                  type: boolean
+                  description: |
+                    Whether Ansible provisioning has completed (the emitted
+                    AnsibleRun's PipelineRun `Succeeded` == True). Always `true`
+                    when Ansible is disabled.
