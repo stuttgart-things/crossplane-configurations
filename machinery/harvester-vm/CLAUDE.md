@@ -35,6 +35,15 @@ it creates a `VolumeClaim` and a `CloudInit` composite (from this repo's
    name/namespace as the VM) and reads its agent-reported IP back onto
    `status.share.ip` (+ VMI `phase` → `status.vm.ready`).
 
+5. **Optional Ansible (same `create-vm` step)** — when `spec.ansible.enabled`
+   is true (default false) AND the VMI `phase == Running` with a resolved IP,
+   the step also emits an `AnsibleRun` (`<vmName>-ansible-run`, from the
+   `ansible-run` Configuration) whose `ansibleVarsInventory` auto-populates with
+   the VM IP (`all+["<ip>"]`). `status.ansibleReady` reads the AnsibleRun's
+   `status.succeeded == "True"` back from observed; it is `true` outright when
+   Ansible is disabled. The gate (Running + IP) means the AnsibleRun never
+   appears in offline `crossplane render` — same as vm-provision's tofu path.
+
 ## VM IP surfacing (`status.share.ip`)
 The IP lives on the **VMI**, not the VM, at `status.interfaces[].ipAddress`,
 and is only populated by the **in-guest QEMU guest agent**. So:

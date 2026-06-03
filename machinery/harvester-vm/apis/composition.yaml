@@ -314,6 +314,20 @@ spec:
             {{-     $ip = dig "ipAddress" "" (index $ifaces 0) }}
             {{-   end }}
             {{- end }}
+            {{- /* Optional Ansible: opt-in (enabled defaults false). The
+                   AnsibleRun is emitted further down, gated on the VM being
+                   Running with a known IP. ansibleReady is true when Ansible is
+                   disabled; otherwise it reflects the emitted AnsibleRun's
+                   PipelineRun Succeeded condition (read back from observed). */}}
+            {{- $ans := $xr.spec.ansible | default dict }}
+            {{- $ansEnabled := dig "enabled" false $ans }}
+            {{- $ansibleReady := not $ansEnabled }}
+            {{- if $ansEnabled }}
+            {{-   $observedAns := index (.observed.resources | default dict) (print $vmName "-ansible-run") }}
+            {{-   if $observedAns }}
+            {{-     $ansibleReady = eq (dig "status" "succeeded" "" $observedAns.resource) "True" }}
+            {{-   end }}
+            {{- end }}
             ---
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
@@ -437,6 +451,67 @@ spec:
                   metadata:
                     name: {{ $vmName }}
                     namespace: {{ $ns }}
+            {{- /* Optional AnsibleRun (Tekton PipelineRun), gated on the VM
+                   being Running with a resolved IP — so it never appears under
+                   offline render. Inventory auto-populates with the VM IP. */}}
+            {{- if and $ansEnabled (eq $phase "Running") (ne $ip "") }}
+            ---
+            apiVersion: resources.stuttgart-things.com/v1alpha1
+            kind: AnsibleRun
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $vmName "-ansible-run") }}
+              labels:
+                app.kubernetes.io/name: harvester-vm
+                app.kubernetes.io/instance: {{ $vmName }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              pipelineRunName: {{ $vmName }}-ansible
+              namespace: {{ dig "pipelineNamespace" "tekton-ci" $ans }}
+              gitRepoUrl: {{ dig "gitRepoUrl" "https://github.com/stuttgart-things/stage-time.git" $ans }}
+              ansibleWorkingImage: {{ dig "ansibleWorkingImage" "ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test" $ans }}
+              ansibleCredentialsSecretName: {{ dig "credentialsSecretName" "ansible-credentials" $ans }}
+              wrapInCrossplane: {{ dig "wrapInCrossplane" true $ans }}
+              crossplaneObjectName: {{ $vmName }}-ansible
+              crossplaneNamespace: {{ $ns }}
+              crossplaneProviderConfig: {{ dig "crossplaneProviderConfig" "dev" $ans }}
+              ansiblePlaybooks:
+              {{- range (dig "playbooks" (list "sthings.baseos.setup") $ans) }}
+                - {{ . }}
+              {{- end }}
+              ansibleVarsInventory:
+              {{- $inv := dig "varsInventory" list $ans }}
+              {{- if $inv }}
+              {{-   range $inv }}
+                - {{ . | quote }}
+              {{-   end }}
+              {{- else }}
+                - {{ printf "all+[\"%s\"]" $ip | quote }}
+              {{- end }}
+              {{- $vf := dig "varsFile" list $ans }}
+              {{- if $vf }}
+              ansibleVarsFile:
+              {{-   range $vf }}
+                - {{ . | quote }}
+              {{-   end }}
+              {{- end }}
+              {{- $ec := dig "extraCollections" list $ans }}
+              {{- if $ec }}
+              installExtraCollections: "true"
+              ansibleExtraCollections:
+              {{-   range $ec }}
+                - {{ . | quote }}
+              {{-   end }}
+              {{- end }}
+              {{- $er := dig "extraRoles" list $ans }}
+              {{- if $er }}
+              installExtraRoles: "true"
+              ansibleExtraRoles:
+              {{-   range $er }}
+                - {{ . | quote }}
+              {{-   end }}
+              {{- end }}
+            {{- end }}
             ---
             apiVersion: resources.stuttgart-things.com/v1alpha1
             kind: HarvesterVM
@@ -446,3 +521,4 @@ spec:
                 ready: {{ eq $phase "Running" }}
               share:
                 ip: {{ if $ip }}["{{ $ip }}"]{{ else }}[]{{ end }}
+              ansibleReady: {{ $ansibleReady }}
