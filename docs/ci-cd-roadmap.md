@@ -1,16 +1,28 @@
 # CI/CD Roadmap
 
 Plan for evolving this repo's automation from "renders offline" to "installs
-and reconciles for real," plus automated, per-package releases. **Design doc —
-not yet implemented.** Each phase below maps to a tracking GitHub issue and is
-independently shippable.
+and reconciles for real," plus automated, per-package releases. Each phase below
+maps to a tracking GitHub issue and is independently shippable.
+
+## Status at a glance
+
+| Phase | Status | Tracking |
+|---|---|---|
+| 1 — PR-level ttl.sh previews | ✅ **Implemented** | [#11](https://github.com/stuttgart-things/crossplane-configurations/issues/11) (closed) |
+| 2 — Automated per-package releases | 📋 Planned — not started | [#12](https://github.com/stuttgart-things/crossplane-configurations/issues/12) (open) |
+| 3 — Release → ghcr propagation | 📋 Planned — not started | [#13](https://github.com/stuttgart-things/crossplane-configurations/issues/13) (open) |
+| 4 — kind install testing | 📋 Planned — not started | [#14](https://github.com/stuttgart-things/crossplane-configurations/issues/14) (open) |
 
 ## What already exists (build on, don't duplicate)
 
 - **`discover`** job — computes the matrix of changed Configurations (dirs with
   a `crossplane.yaml`) on a PR.
-- **`verify.yaml`** workflow — offline `crossplane render` + `kubeconform` +
-  `xpkg build` per changed config, via the `dagger/crossplane` module.
+- **`verify.yaml`** workflow — per changed config, via the `dagger/crossplane`
+  module: `xpkg build`, XR↔XRD (`kubeconform`), offline `crossplane render`, plus
+  Object-wrapper and embedded-`manifest` validation against provider-kubernetes /
+  built-in schemas. Render auto-passes any `examples/*` `EnvironmentConfig` via
+  `--extra-resources`, so EnvironmentConfig-based configs render (and a `got 2`
+  selector collision is caught) offline.
 - **Taskfile** — `verify` (offline), `push` (→ ghcr, bumps
   `meta.crossplane.io/version`), `push-dev` (→ ttl.sh, ephemeral, no bump),
   `apply-dev`, `render`, `check`.
@@ -90,9 +102,9 @@ manifest; unchanged configs are skipped. ✅
 
 ---
 
-## Phase 2 — Automated per-package releases
+## Phase 2 — Automated per-package releases 📋 planned
 
-**Tracking: [#12](https://github.com/stuttgart-things/crossplane-configurations/issues/12)**
+**Tracking: [#12](https://github.com/stuttgart-things/crossplane-configurations/issues/12) (open, not started)**
 
 Automate version bump + git tag + changelog from Conventional Commits,
 retiring the manual `meta.crossplane.io/version` bump.
@@ -119,9 +131,9 @@ updates a release PR for that package; merging the release PR creates the
 
 ---
 
-## Phase 3 — Release → ghcr propagation
+## Phase 3 — Release → ghcr propagation 📋 planned
 
-**Tracking: [#13](https://github.com/stuttgart-things/crossplane-configurations/issues/13)**
+**Tracking: [#13](https://github.com/stuttgart-things/crossplane-configurations/issues/13) (open, not started)**
 
 On a package release tag, build that one Configuration and push it to ghcr via
 the existing `dagger/crossplane` module (same path as `task push`, minus the
@@ -147,9 +159,9 @@ a no-op; a private package emits a clear warning with the flip URL.
 
 ---
 
-## Phase 4 — kind install testing
+## Phase 4 — kind install testing 📋 planned
 
-**Tracking: [#14](https://github.com/stuttgart-things/crossplane-configurations/issues/14)**
+**Tracking: [#14](https://github.com/stuttgart-things/crossplane-configurations/issues/14) (open, not started)**
 
 Prove a package **installs + reconciles** on a real Crossplane control plane —
 the gap `verify` (render-only) can't cover.
@@ -168,9 +180,11 @@ the gap `verify` (render-only) can't cover.
   same dependency that has produced transient `502`s) → add retries/backoff and
   gate behind a label (`needs-kind`) or release-only, not every PR push.
 
-This layer would automatically catch two classes of bug we hit by hand:
-short-function-name package-lock collisions, and EnvironmentConfig label
-collisions (`expected exactly one required resource, got 2`).
+This layer would automatically catch short-function-name package-lock
+collisions — a class only a live control plane surfaces. (The other class we hit
+by hand, EnvironmentConfig label collisions / `expected exactly one required
+resource, got 2`, is now caught offline by `verify`'s `--extra-resources` render,
+so Phase 4 no longer needs to own it.)
 
 **Decisions:** depth (install-only → compose-assert → mocked-backends); trigger
 gating (every PR vs labeled vs release-only); per-config skip/mock matrix.
