@@ -138,8 +138,20 @@ spec:
                             type: boolean
                     packages:
                       type: array
+                      description: |
+                        Packages installed via cloud-init. Defaults to
+                        `[qemu-guest-agent]`: the QEMU guest agent is what
+                        reports the VM's IP into the VirtualMachineInstance
+                        status (`status.interfaces[].ipAddress`), which this
+                        Configuration observes and surfaces on
+                        `status.share.ip`. If you override this list, keep
+                        `qemu-guest-agent` in it — without the agent the VMI
+                        never reports an IP on a bridge/Multus network and
+                        `status.share.ip` stays empty.
                       items:
                         type: string
+                      default:
+                        - qemu-guest-agent
                     writeFiles:
                       type: array
                       items:
@@ -279,3 +291,13 @@ spec:
                       type: string
                     ready:
                       type: boolean
+                share:
+                  description: |
+                    Freeform status surface. `share.ip` holds the VM's IP
+                    address(es) as reported by the QEMU guest agent on the
+                    VirtualMachineInstance. This matches the `status.share.ip`
+                    convention used by the OpenTofu-backed VM Configurations,
+                    so a `HarvesterVM` can feed the same shared provisioning /
+                    Ansible layer.
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true

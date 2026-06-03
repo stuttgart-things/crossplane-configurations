@@ -4,7 +4,9 @@
 # Multus network and the base image id all come from the EnvironmentConfig
 # labelled `harvester-vm.resources.stuttgart-things.com/environment=default`
 # (see examples/environmentconfig.yaml). Volume sizing and cloud-init options
-# fall through to the XRD defaults.
+# fall through to the XRD defaults — including `cloudInit.packages`, which
+# defaults to [qemu-guest-agent] so the VMI reports an IP onto
+# `status.share.ip` without the XR having to set packages explicitly.
 #
 # `crossplane render` does not apply XRD-level defaults or resolve
 # EnvironmentConfigs from the cluster, so the verify harness supplies

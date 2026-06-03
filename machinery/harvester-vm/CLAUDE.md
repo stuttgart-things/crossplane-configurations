@@ -29,7 +29,23 @@ it creates a `VolumeClaim` and a `CloudInit` composite (from this repo's
    `<vmName>-cloud-init`, which step 4's VM mounts as the cloudinit disk.
 4. **`create-vm`** (`function-go-templating`) — renders the KubeVirt
    `VirtualMachine` as a `kubernetes.m.crossplane.io/v1alpha1` `Object`
-   (`managementPolicies: ['*']`, ClusterProviderConfig).
+   (`managementPolicies: ['*']`, ClusterProviderConfig). The same step also
+   emits an **Observe-only** `Object` (`managementPolicies: ['Observe']`) on the
+   resulting `VirtualMachineInstance` (resource name `<vmName>-vmi`, same
+   name/namespace as the VM) and reads its agent-reported IP back onto
+   `status.share.ip` (+ VMI `phase` → `status.vm.ready`).
+
+## VM IP surfacing (`status.share.ip`)
+The IP lives on the **VMI**, not the VM, at `status.interfaces[].ipAddress`,
+and is only populated by the **in-guest QEMU guest agent**. So:
+- `cloudInit.packages` defaults to `[qemu-guest-agent]` in the XRD. Overriding
+  the list without the agent ⇒ no IP on a bridge/Multus network.
+- The IP is read from the observed VMI `Object`'s
+  `status.atProvider.manifest.status.interfaces[0].ipAddress` via Sprig `dig`
+  (nil-safe). It stays `[]` on the first reconcile, offline `render`, and until
+  the guest boots + the agent reports — by design, no template error.
+- `status.share.ip` deliberately mirrors the OpenTofu leaves' convention so a
+  `HarvesterVM` can later feed the shared `vm-provision` / Ansible layer.
 
 ## Override semantics (the important bit)
 Same pattern as `proxmox-vm`: each env-sourced field has **two** patches in

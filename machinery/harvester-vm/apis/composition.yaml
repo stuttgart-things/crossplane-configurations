@@ -264,7 +264,9 @@ spec:
                 toFieldPath: status.cloudInit.ready
 
     # -------------------------------------------------------------------------
-    # Step 3: KubeVirt VirtualMachine (provider-kubernetes Object).
+    # Step 3: KubeVirt VirtualMachine (provider-kubernetes Object), plus an
+    # Observe-only Object on the resulting VirtualMachineInstance whose reported
+    # IP is surfaced onto status.share.ip (and VMI phase onto status.vm.ready).
     # Reads the EnvironmentConfig values from the pipeline environment
     # (.context["apiextensions.crossplane.io/environment"]). Precedence for
     # env-sourced fields is XR spec -> EnvironmentConfig -> built-in default.
@@ -284,6 +286,34 @@ spec:
             {{- $ns := $xr.spec.cloudInit.namespace | default $env.namespace | default "vms" }}
             {{- $pc := $xr.spec.providerConfigRef | default $env.providerConfigRef | default "default" }}
             {{- $netName := $env.networkName | default "default/vms" }}
+            {{- /*
+              Read the VM IP back from the observed VirtualMachineInstance.
+              The IP lives on the VMI (not the VirtualMachine) at
+              status.interfaces[].ipAddress, populated by the in-guest QEMU
+              guest agent. We observe the VMI via a second provider-kubernetes
+              Object (resource name "<vmName>-vmi"); provider-kubernetes copies
+              the live VMI — including runtime status — into that Object's
+              status.atProvider.manifest. Until the guest boots, gets a lease
+              and the agent reports, the manifest / interfaces are absent, so
+              $ip stays "" and share.ip renders []. Offline `crossplane render`
+              has no observed VMI, so it also renders [] — expected.
+            */}}
+            {{- $vmiKey := print $vmName "-vmi" }}
+            {{- $ip := "" }}
+            {{- $phase := "" }}
+            {{- /* .observed.resources is nil under `crossplane render` (no
+                   observed state) — default to an empty dict before indexing,
+                   or `index` fails with "index of untyped nil". */}}
+            {{- $observedVMI := index (.observed.resources | default dict) $vmiKey }}
+            {{- if $observedVMI }}
+            {{-   $manifest := dig "status" "atProvider" "manifest" dict $observedVMI.resource }}
+            {{-   $vmiStatus := dig "status" dict $manifest }}
+            {{-   $phase = dig "phase" "" $vmiStatus }}
+            {{-   $ifaces := dig "interfaces" list $vmiStatus }}
+            {{-   if gt (len $ifaces) 0 }}
+            {{-     $ip = dig "ipAddress" "" (index $ifaces 0) }}
+            {{-   end }}
+            {{- end }}
             ---
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
@@ -379,8 +409,40 @@ spec:
                               networkDataSecretRef:
                                 name: {{ $vmName }}-cloud-init
             ---
+            # Observe-only Object: read the VirtualMachineInstance the VM above
+            # spawns, so the in-guest agent's reported IP lands on this Object's
+            # status.atProvider.manifest (consumed by the status patch below).
+            # managementPolicies: [Observe] => provider-kubernetes only reads
+            # the VMI; it never creates/updates/deletes it (the VM owns its
+            # lifecycle). Same name/namespace as the VM.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $vmName "-vmi") }}
+              labels:
+                app.kubernetes.io/name: harvester-vm
+                app.kubernetes.io/instance: {{ $vmName }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $pc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+              forProvider:
+                manifest:
+                  apiVersion: kubevirt.io/v1
+                  kind: VirtualMachineInstance
+                  metadata:
+                    name: {{ $vmName }}
+                    namespace: {{ $ns }}
+            ---
             apiVersion: resources.stuttgart-things.com/v1alpha1
             kind: HarvesterVM
             status:
               vm:
                 name: {{ $vmName }}
+                ready: {{ eq $phase "Running" }}
+              share:
+                ip: {{ if $ip }}["{{ $ip }}"]{{ else }}[]{{ end }}
