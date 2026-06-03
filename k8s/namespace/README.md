@@ -108,3 +108,5 @@ kubectl tree ManagedNamespace team-alpha
 - `examples/xr-max.yaml` — every spec field exercised
 - `examples/functions.yaml` — required Crossplane Functions
 - `examples/configuration.yaml` — install manifest (OCI ref)
+
+<!-- ci: smoke-test the push-preview preview job (#289) -->
