@@ -1,0 +1,74 @@
+---
+# Maximum example: every spec field set explicitly, overriding all
+# EnvironmentConfig defaults. Useful for catching templating breakage when the
+# patches / VM template change.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: HarvesterVM
+metadata:
+  name: harvester-vm-max
+  namespace: default
+spec:
+  # Selects the EnvironmentConfig, though every field below is overridden.
+  environmentConfig: default
+  # Provider config override (EnvironmentConfig provides this otherwise).
+  providerConfigRef: default
+  volume:
+    pvcName: harvester-vm-max-disk-0
+    # Infra fields overriding the EnvironmentConfig
+    namespace: vms
+    storageClassName: harvester-longhorn
+    imageId: default/image-ubuntu
+    storage: "64G"
+    accessModes:
+      - ReadWriteMany
+    volumeMode: Block
+    labels:
+      app: harvester-vm-max
+    annotations:
+      example.com/owner: platform
+  cloudInit:
+    vmName: harvester-vm-max
+    hostname: harvester-vm-max
+    namespace: vms
+    domain: local
+    timezone: Europe/Berlin
+    sshPasswordAuth: true
+    disableRoot: false
+    packageUpdate: true
+    packageUpgrade: true
+    users:
+      - name: sthings
+        sudo: "ALL=(ALL) NOPASSWD:ALL" # pragma: allowlist secret
+        lockPasswd: false
+        shell: /bin/bash
+        groups: sudo
+        sshAuthorizedKeys:
+          - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC..."
+    packages:
+      - qemu-guest-agent
+    writeFiles:
+      - path: /etc/motd
+        permissions: "0644"
+        content: |
+          Provisioned by Crossplane harvester-vm
+    runcmd:
+      - "systemctl enable --now qemu-guest-agent.service"
+    bootcmd:
+      - "echo booting"
+  vm:
+    description: "harvester-vm-max complete VM setup"
+    runStrategy: RerunOnFailure
+    evictionStrategy: LiveMigrateIfPossible
+    terminationGracePeriodSeconds: 120
+    os: linux
+    machineType: q35
+    cpu:
+      cores: 8
+      sockets: 1
+      threads: 1
+    resources:
+      memory: "16Gi"
+      cpu: "8"
+    networks:
+      - name: default
+        networkName: default/vms

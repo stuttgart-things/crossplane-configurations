@@ -1,0 +1,386 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: harvester-vm
+  labels:
+    crossplane.io/xrd: harvestervms.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: HarvesterVM
+  mode: Pipeline
+  pipeline:
+    # -------------------------------------------------------------------------
+    # Step 0: load shared per-environment infrastructure defaults from an
+    # EnvironmentConfig into the pipeline environment. The EnvironmentConfig is
+    # selected by the CONFIG-SCOPED label
+    # `harvester-vm.resources.stuttgart-things.com/environment`, whose value
+    # comes from the XR's `spec.environmentConfig`. The key is namespaced to
+    # this Configuration on purpose: a generic shared key collides with other
+    # Configurations' EnvironmentConfigs carrying the same value, and
+    # function-environment-configs requires EXACTLY ONE Selector match
+    # (otherwise: "expected exactly one required resource, got 2").
+    # When `spec.environmentConfig` is ABSENT the matcher is skipped
+    # (fromFieldPathPolicy: Optional), the selector matches nothing and the
+    # step is a no-op — the patch/template steps then fall back to XR spec /
+    # built-in defaults. Offline `crossplane render` needs the EnvironmentConfig
+    # supplied via --extra-resources.
+    # -------------------------------------------------------------------------
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: harvester-vm.resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    fromFieldPathPolicy: Optional
+
+    # -------------------------------------------------------------------------
+    # Step 1: VolumeClaim composite (root disk PVC).
+    # providerConfigRef, namespace, storageClassName and the imageId PVC
+    # annotation default from the EnvironmentConfig and are overridable per XR.
+    # -------------------------------------------------------------------------
+    - step: create-volume-claim
+      functionRef:
+        name: function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        resources:
+          - name: volume-claim
+            base:
+              apiVersion: resources.stuttgart-things.com/v1alpha1
+              kind: VolumeClaim
+            patches:
+              # Metadata
+              - type: FromCompositeFieldPath
+                fromFieldPath: metadata.name
+                toFieldPath: metadata.name
+              - type: FromCompositeFieldPath
+                fromFieldPath: metadata.namespace
+                toFieldPath: metadata.namespace
+
+              # Provider config: EnvironmentConfig default, XR override
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: providerConfigRef
+                toFieldPath: spec.providerConfigRef
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.providerConfigRef
+                toFieldPath: spec.providerConfigRef
+                policy:
+                  fromFieldPath: Optional
+
+              # Target namespace: EnvironmentConfig default, XR override
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: namespace
+                toFieldPath: spec.namespace
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.volume.namespace
+                toFieldPath: spec.namespace
+                policy:
+                  fromFieldPath: Optional
+
+              # Storage class: EnvironmentConfig default, XR override
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: storageClassName
+                toFieldPath: spec.storageClassName
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.volume.storageClassName
+                toFieldPath: spec.storageClassName
+                policy:
+                  fromFieldPath: Optional
+
+              # Per-VM volume fields (XR spec, with XRD defaults)
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.volume.pvcName
+                toFieldPath: spec.pvcName
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.volume.storage
+                toFieldPath: spec.storage
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.volume.accessModes
+                toFieldPath: spec.accessModes
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.volume.volumeMode
+                toFieldPath: spec.volumeMode
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.volume.labels
+                toFieldPath: spec.labels
+                policy:
+                  fromFieldPath: Optional
+
+              # Annotations: passthrough map, then the harvesterhci.io/imageId
+              # annotation merged in (EnvironmentConfig default, XR override).
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.volume.annotations
+                toFieldPath: spec.annotations
+                policy:
+                  fromFieldPath: Optional
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: imageId
+                toFieldPath: spec.annotations[harvesterhci.io/imageId]
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.volume.imageId
+                toFieldPath: spec.annotations[harvesterhci.io/imageId]
+                policy:
+                  fromFieldPath: Optional
+
+              # Status back-propagation
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.pvcName
+                toFieldPath: status.volume.pvcName
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.ready
+                toFieldPath: status.volume.ready
+
+    # -------------------------------------------------------------------------
+    # Step 2: CloudInit composite (bootstrap Secret named <vmName>-cloud-init).
+    # providerConfigRef and namespace default from the EnvironmentConfig.
+    # -------------------------------------------------------------------------
+    - step: create-cloud-init
+      functionRef:
+        name: function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        resources:
+          - name: cloud-init
+            base:
+              apiVersion: resources.stuttgart-things.com/v1alpha1
+              kind: CloudInit
+            patches:
+              # Metadata
+              - type: FromCompositeFieldPath
+                fromFieldPath: metadata.name
+                toFieldPath: metadata.name
+              - type: FromCompositeFieldPath
+                fromFieldPath: metadata.namespace
+                toFieldPath: metadata.namespace
+
+              # Provider config: EnvironmentConfig default, XR override
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: providerConfigRef
+                toFieldPath: spec.providerConfigRef
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.providerConfigRef
+                toFieldPath: spec.providerConfigRef
+                policy:
+                  fromFieldPath: Optional
+
+              # Target namespace: EnvironmentConfig default, XR override
+              - type: FromEnvironmentFieldPath
+                fromFieldPath: namespace
+                toFieldPath: spec.namespace
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.namespace
+                toFieldPath: spec.namespace
+                policy:
+                  fromFieldPath: Optional
+
+              # Cloud-init fields (XR spec)
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.vmName
+                toFieldPath: spec.vmName
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.hostname
+                toFieldPath: spec.hostname
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.domain
+                toFieldPath: spec.domain
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.timezone
+                toFieldPath: spec.timezone
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.users
+                toFieldPath: spec.users
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.packages
+                toFieldPath: spec.packages
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.writeFiles
+                toFieldPath: spec.writeFiles
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.runcmd
+                toFieldPath: spec.runcmd
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.bootcmd
+                toFieldPath: spec.bootcmd
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.packageUpdate
+                toFieldPath: spec.packageUpdate
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.packageUpgrade
+                toFieldPath: spec.packageUpgrade
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.sshPasswordAuth
+                toFieldPath: spec.sshPasswordAuth
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.disableRoot
+                toFieldPath: spec.disableRoot
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.cloudInit.networkConfig
+                toFieldPath: spec.networkConfig
+                policy:
+                  fromFieldPath: Optional
+
+              # Status back-propagation
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.secretName
+                toFieldPath: status.cloudInit.secretName
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.ready
+                toFieldPath: status.cloudInit.ready
+
+    # -------------------------------------------------------------------------
+    # Step 3: KubeVirt VirtualMachine (provider-kubernetes Object).
+    # Reads the EnvironmentConfig values from the pipeline environment
+    # (.context["apiextensions.crossplane.io/environment"]). Precedence for
+    # env-sourced fields is XR spec -> EnvironmentConfig -> built-in default.
+    # -------------------------------------------------------------------------
+    - step: create-vm
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: | # pragma: allowlist secret
+            {{- $xr := .observed.composite.resource }}
+            {{- $env := index .context "apiextensions.crossplane.io/environment" | default dict }}
+            {{- $vmName := $xr.spec.cloudInit.vmName }}
+            {{- $ns := $xr.spec.cloudInit.namespace | default $env.namespace | default "vms" }}
+            {{- $pc := $xr.spec.providerConfigRef | default $env.providerConfigRef | default "default" }}
+            {{- $netName := $env.networkName | default "default/vms" }}
+            ---
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $vmName "-vm") }}
+              labels:
+                app.kubernetes.io/name: harvester-vm
+                app.kubernetes.io/instance: {{ $vmName }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $pc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: kubevirt.io/v1
+                  kind: VirtualMachine
+                  metadata:
+                    name: {{ $vmName }}
+                    namespace: {{ $ns }}
+                    labels:
+                      os: {{ $xr.spec.vm.os | default "ubuntu" }}
+                    annotations:
+                      description: {{ $xr.spec.vm.description | default "VM managed by Crossplane" }}
+                  spec:
+                    runStrategy: {{ $xr.spec.vm.runStrategy | default "RerunOnFailure" }}
+                    template:
+                      metadata:
+                        labels:
+                          vmName: {{ $vmName }}
+                      spec:
+                        hostname: {{ $xr.spec.cloudInit.hostname }}
+                        terminationGracePeriodSeconds: {{ $xr.spec.vm.terminationGracePeriodSeconds | default 120 }}
+                        evictionStrategy: {{ $xr.spec.vm.evictionStrategy | default "LiveMigrateIfPossible" }}
+                        domain:
+                          machine:
+                            type: {{ $xr.spec.vm.machineType | default "q35" }}
+                          cpu:
+                            cores: {{ $xr.spec.vm.cpu.cores }}
+                            sockets: {{ $xr.spec.vm.cpu.sockets | default 1 }}
+                            threads: {{ $xr.spec.vm.cpu.threads | default 1 }}
+                          resources:
+                            limits:
+                              memory: {{ $xr.spec.vm.resources.memory }}
+                              cpu: {{ $xr.spec.vm.resources.cpu }}
+                          devices:
+                            disks:
+                              - name: rootdisk
+                                disk:
+                                  bus: virtio
+                                bootOrder: 1
+                              - name: cloudinitdisk
+                                disk:
+                                  bus: virtio
+                            interfaces:
+                            {{- if $xr.spec.vm.networks }}
+                            {{- range $xr.spec.vm.networks }}
+                              - name: {{ .name }}
+                                bridge: {}
+                                model: virtio
+                            {{- end }}
+                            {{- else }}
+                              - name: default
+                                bridge: {}
+                                model: virtio
+                            {{- end }}
+                          features:
+                            acpi:
+                              enabled: true
+                        networks:
+                        {{- if $xr.spec.vm.networks }}
+                        {{- range $xr.spec.vm.networks }}
+                          - name: {{ .name }}
+                            multus:
+                              networkName: {{ .networkName }}
+                        {{- end }}
+                        {{- else }}
+                          - name: default
+                            multus:
+                              networkName: {{ $netName }}
+                        {{- end }}
+                        volumes:
+                          - name: rootdisk
+                            persistentVolumeClaim:
+                              claimName: {{ $xr.spec.volume.pvcName }}
+                          - name: cloudinitdisk
+                            cloudInitNoCloud:
+                              secretRef:
+                                name: {{ $vmName }}-cloud-init
+                              networkDataSecretRef:
+                                name: {{ $vmName }}-cloud-init
+            ---
+            apiVersion: resources.stuttgart-things.com/v1alpha1
+            kind: HarvesterVM
+            status:
+              vm:
+                name: {{ $vmName }}

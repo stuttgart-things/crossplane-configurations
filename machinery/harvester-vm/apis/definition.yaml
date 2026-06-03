@@ -1,0 +1,281 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: harvestervms.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: HarvesterVM
+    plural: harvestervms
+    singular: harvestervm
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                # --- EnvironmentConfig selector ---
+                environmentConfig:
+                  type: string
+                  description: |
+                    Selects the Crossplane EnvironmentConfig that provides
+                    shared per-environment infrastructure defaults. The
+                    Composition matches an EnvironmentConfig carrying the
+                    config-scoped label
+                    `harvester-vm.resources.stuttgart-things.com/environment=<value>`.
+                    Supported `data` keys: providerConfigRef, storageClassName,
+                    namespace, networkName, imageId. Any value set explicitly
+                    on this XR's spec overrides the EnvironmentConfig. When no
+                    EnvironmentConfig matches, the XR spec / built-in defaults
+                    are used.
+                  default: default
+
+                # --- provider config (env-sourced, XR override) ---
+                # No XRD default: leaving it unset lets the EnvironmentConfig
+                # value win; setting it overrides. The VolumeClaim and
+                # CloudInit composites both REQUIRE it, so the EnvironmentConfig
+                # must supply it when the XR does not.
+                providerConfigRef:
+                  type: string
+                  description: |
+                    Name of the provider-kubernetes ClusterProviderConfig used
+                    for all managed resources. Defaults from the
+                    EnvironmentConfig (`providerConfigRef`) when unset.
+
+                #################################
+                # Volume (root disk PVC)
+                #################################
+                volume:
+                  type: object
+                  properties:
+                    pvcName:
+                      type: string
+                    # --- env-sourced (no XRD default) ---
+                    storageClassName:
+                      type: string
+                      description: Defaults from the EnvironmentConfig (`storageClassName`) when unset.
+                    namespace:
+                      type: string
+                      description: Defaults from the EnvironmentConfig (`namespace`) when unset.
+                    imageId:
+                      type: string
+                      description: |
+                        Harvester image id, rendered into the PVC annotation
+                        `harvesterhci.io/imageId`. Defaults from the
+                        EnvironmentConfig (`imageId`) when unset.
+                    # --- per-VM (XRD defaults) ---
+                    storage:
+                      type: string
+                      default: "10Gi"
+                    accessModes:
+                      type: array
+                      items:
+                        type: string
+                      default:
+                        - "ReadWriteOnce"
+                    volumeMode:
+                      type: string
+                      default: "Filesystem"
+                    annotations:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    labels:
+                      type: object
+                      additionalProperties:
+                        type: string
+                  required:
+                    - pvcName
+
+                #################################
+                # Cloud-Init (bootstrap Secret)
+                #################################
+                cloudInit:
+                  type: object
+                  properties:
+                    vmName:
+                      type: string
+                    hostname:
+                      type: string
+                    # --- env-sourced (no XRD default) ---
+                    namespace:
+                      type: string
+                      description: Defaults from the EnvironmentConfig (`namespace`) when unset.
+                    # --- per-VM ---
+                    domain:
+                      type: string
+                      default: "local"
+                    timezone:
+                      type: string
+                    users:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          sshAuthorizedKeys:
+                            type: array
+                            items:
+                              type: string
+                          sudo:
+                            type: string
+                          groups:
+                            type: string
+                          shell:
+                            type: string
+                          password:
+                            type: string
+                          lockPasswd:
+                            type: boolean
+                    packages:
+                      type: array
+                      items:
+                        type: string
+                    writeFiles:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          path:
+                            type: string
+                          content:
+                            type: string
+                          owner:
+                            type: string
+                          permissions:
+                            type: string
+                          encoding:
+                            type: string
+                    runcmd:
+                      type: array
+                      items:
+                        type: string
+                    bootcmd:
+                      type: array
+                      items:
+                        type: string
+                    packageUpdate:
+                      type: boolean
+                      default: true
+                    packageUpgrade:
+                      type: boolean
+                      default: false
+                    sshPasswordAuth:
+                      type: boolean
+                      default: false
+                    disableRoot:
+                      type: boolean
+                      default: true
+                    networkConfig:
+                      type: string
+                  required:
+                    - vmName
+                    - hostname
+
+                #################################
+                # VirtualMachine (KubeVirt / Harvester)
+                #################################
+                vm:
+                  type: object
+                  description: "KubeVirt / Harvester VirtualMachine configuration"
+                  properties:
+                    description:
+                      type: string
+                    runStrategy:
+                      type: string
+                      default: "RerunOnFailure"
+                    evictionStrategy:
+                      type: string
+                      default: "LiveMigrateIfPossible"
+                    terminationGracePeriodSeconds:
+                      type: integer
+                      default: 120
+                    os:
+                      type: string
+                      default: "ubuntu"
+                    machineType:
+                      type: string
+                      default: "q35"
+                    cpu:
+                      type: object
+                      properties:
+                        cores:
+                          type: integer
+                        sockets:
+                          type: integer
+                          default: 1
+                        threads:
+                          type: integer
+                          default: 1
+                      required:
+                        - cores
+                    resources:
+                      type: object
+                      properties:
+                        memory:
+                          type: string
+                        cpu:
+                          type: string
+                      required:
+                        - memory
+                        - cpu
+                    networks:
+                      type: array
+                      description: |
+                        Multus networks the VM attaches to. When omitted, a
+                        single `default` interface is attached to the
+                        EnvironmentConfig `networkName`.
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          networkName:
+                            type: string
+                        required:
+                          - name
+                          - networkName
+                  required:
+                    - cpu
+                    - resources
+              required:
+                - volume
+                - cloudInit
+                - vm
+
+            #################################
+            # Status
+            #################################
+            status:
+              type: object
+              properties:
+                volume:
+                  type: object
+                  properties:
+                    pvcName:
+                      type: string
+                    ready:
+                      type: boolean
+                cloudInit:
+                  type: object
+                  properties:
+                    secretName:
+                      type: string
+                    ready:
+                      type: boolean
+                vm:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    ready:
+                      type: boolean

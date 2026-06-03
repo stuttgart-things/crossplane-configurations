@@ -1,0 +1,17 @@
+---
+# provider-kubernetes ClusterProviderConfig (namespaced "managed" variant,
+# kubernetes.m.crossplane.io). `InjectedIdentity` uses the provider's
+# in-cluster ServiceAccount — appropriate when Crossplane runs on the same
+# Harvester / KubeVirt cluster the VMs are created on. To target a remote
+# cluster instead, switch `credentials.source` to `Secret` and reference a
+# kubeconfig Secret.
+#
+# The name must match `providerConfigRef` / EnvironmentConfig `providerConfigRef`
+# (default `default`).
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: InjectedIdentity
