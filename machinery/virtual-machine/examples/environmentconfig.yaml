@@ -45,6 +45,21 @@ data:
     network: vmbr0
     tfvarsSecretName: proxmox-tfvars # pragma: allowlist secret
     tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
+  # Harvester / KubeVirt sub-block. Unlike vsphere/proxmox (OpenTofu), an
+  # `provider: harvester` XR is rendered into a `HarvesterVM` directly. `images`
+  # maps spec.os -> Harvester imageId (mirrors `templates`); the rest is
+  # placement + a default cloud-init user/ssh key for Ansible access. EXAMPLE
+  # values — substitute your Harvester environment.
+  harvester:
+    images:
+      ubuntu24: default/image-ubuntu-24
+      ubuntu22: default/image-ubuntu-22
+    providerConfigRef: harvester
+    storageClassName: harvester-longhorn
+    namespace: vms
+    networkName: default/vms
+    user: sthings
+    sshKey: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC..."
 ---
 # LabDA is a vSphere-only environment (no Proxmox node) — only a `vsphere`
 # sub-block is defined here. The placement paths below are EXAMPLE values;

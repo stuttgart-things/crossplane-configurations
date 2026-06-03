@@ -164,7 +164,75 @@ spec:
                 }
             }
 
-            items = [_vmProvision]
+            # --- Harvester topology (from the EnvironmentConfig `harvester` sub-block) ---
+            # `images` maps spec.os -> Harvester imageId (mirrors `templates`).
+            # Placement (providerConfigRef/storageClassName/namespace/networkName)
+            # and a default cloud-init user + ssh key come from the sub-block.
+            _hvImages = _env?.images or {}
+            _imageId = _hvImages[_os] if _os in _hvImages else ""
+            _hvNamespace = _env?.namespace or "vms"
+            _hvUser = _env?.user or "sthings"
+            _hvSshKey = _env?.sshKey or ""
+
+            # --- Compose HarvesterVM (provider == harvester) ---
+            # cpu/ram/disk come from the t-shirt size map; memory is MiB. The
+            # qemu-guest-agent package (needed for the VM to report its IP) is
+            # supplied by the HarvesterVM XRD default, so it is not set here.
+            # `count` is not modelled by HarvesterVM — harvester XRs are single VMs.
+            _harvesterVM = {
+                apiVersion = "resources.stuttgart-things.com/v1alpha1"
+                kind = "HarvesterVM"
+                metadata = {
+                    name = _name
+                    namespace = _namespace
+                    annotations = {
+                        "crossplane.io/composition-resource-name" = "harvester-vm"
+                    }
+                }
+                spec = {
+                    providerConfigRef = _env?.providerConfigRef or "default"
+                    volume = {
+                        pvcName = "{}-disk".format(_name)
+                        storage = "{}Gi".format(_size.disk)
+                        storageClassName = _env?.storageClassName or ""
+                        namespace = _hvNamespace
+                        imageId = _imageId
+                    }
+                    cloudInit = {
+                        vmName = _name
+                        hostname = _name
+                        namespace = _hvNamespace
+                        users = [
+                            {
+                                name = _hvUser
+                                sudo = "ALL=(ALL) NOPASSWD:ALL" # pragma: allowlist secret
+                                lockPasswd = False
+                                shell = "/bin/bash"
+                                sshAuthorizedKeys = [_hvSshKey] if _hvSshKey else []
+                            }
+                        ]
+                    }
+                    vm = {
+                        cpu = {
+                            cores = int(_size.cpu)
+                        }
+                        resources = {
+                            memory = "{}Mi".format(_size.ram)
+                            cpu = _size.cpu
+                        }
+                        networks = [
+                            {
+                                name = "default"
+                                networkName = _env?.networkName or "default/vms"
+                            }
+                        ]
+                    }
+                    ansible = _ansibleSpec
+                }
+            }
+
+            # --- Route: harvester -> HarvesterVM; vsphere/proxmox -> VMProvision ---
+            items = [_harvesterVM] if _provider == "harvester" else [_vmProvision]
 
     # -------------------------------------------------------------------------
     # Step 2: surface VMProvision status onto the XVirtualMachine.
@@ -182,14 +250,17 @@ spec:
             oxr = option("params").oxr
             ocds = option("params").ocds
 
-            # Find VMProvision status from any ocds entry
+            # Find the composed VM status from any ocds entry. vsphere/proxmox
+            # emit a VMProvision; harvester emits a HarvesterVM. Both surface
+            # `share.ip` and `ansibleReady`, but VM readiness differs:
+            # VMProvision -> `vmReady`, HarvesterVM -> `vm.ready`.
             _vmStatus = {}
-            _entries = [v.Resource?.status or {} for _, v in ocds if v.Resource?.kind == "VMProvision"]
+            _entries = [v.Resource?.status or {} for _, v in ocds if v.Resource?.kind in ["VMProvision", "HarvesterVM"]]
             if len(_entries) > 0:
                 _vmStatus = _entries[0]
 
             _vmIPs = _vmStatus?.share?.ip or []
-            _vmReady = _vmStatus?.vmReady or False
+            _vmReady = _vmStatus?.vmReady or (_vmStatus?.vm?.ready or False)
             _ansibleReady = _vmStatus?.ansibleReady or False
 
             _oxr = oxr | {
