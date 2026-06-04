@@ -183,7 +183,7 @@ spec:
                         wrapInCrossplane = _ansible?.wrapInCrossplane or True
                         crossplaneObjectName = _pipelineRunName
                         crossplaneNamespace = _namespace
-                        crossplaneProviderConfig = _ansible?.crossplaneProviderConfig or "dev"
+                        crossplaneProviderConfig = _ansible?.crossplaneProviderConfig or "in-cluster"
                         if _ansible?.extraCollections and len(_ansible.extraCollections) > 0:
                             installExtraCollections = "true"
                             ansibleExtraCollections = _ansible.extraCollections

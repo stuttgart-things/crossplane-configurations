@@ -1,0 +1,41 @@
+---
+# EnvironmentConfig — LabUL topology (Harvester-only slice for this bundle).
+# Selected by the config-scoped label
+# `virtual-machine.resources.stuttgart-things.com/environment: labul`, matched
+# against the XR's spec.environment. function-environment-configs requires
+# EXACTLY ONE match, so keep the label unique per environment.
+# (The full repo example, examples/environmentconfig.yaml, also carries
+# vsphere/proxmox sub-blocks; omitted here since spec.provider: harvester only
+# reads the harvester block + the cross-provider ansible block.)
+#
+# EXAMPLE values — there is no live Harvester environment baked into this repo;
+# substitute your Harvester images/placement before a real apply.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: virtual-machine-labul
+  labels:
+    virtual-machine.resources.stuttgart-things.com/environment: labul
+data:
+  # Cross-provider: the provider-kubernetes (Cluster)ProviderConfig that runs
+  # the Ansible Tekton PipelineRun. Name must match a CPC on the cluster
+  # (file 3 creates `in-cluster`). Replaces the old hardcoded `dev`.
+  ansible:
+    crossplaneProviderConfig: in-cluster
+    # Ansible runner image (collections baked in at build time). Bump this to
+    # pick up newer collections without touching the Composition.
+    ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test
+  # Harvester / KubeVirt placement. `images` maps spec.os -> Harvester imageId
+  # (mirrors vsphere/proxmox `templates`); `providerConfigRef` selects the VM
+  # provider-kubernetes config (file 2). `user`/`sshKey` seed the cloud-init
+  # login Ansible then connects over.
+  harvester:
+    images:
+      ubuntu24: default/image-ubuntu-24
+      ubuntu22: default/image-ubuntu-22
+    providerConfigRef: harvester
+    storageClassName: harvester-longhorn
+    namespace: vms
+    networkName: default/vms
+    user: sthings
+    sshKey: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC..."

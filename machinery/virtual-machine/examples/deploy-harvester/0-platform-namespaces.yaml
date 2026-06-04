@@ -1,0 +1,23 @@
+---
+# Dedicated namespace for the VM request. The XVirtualMachine XR and the routed
+# HarvesterVM (plus its VolumeClaim/CloudInit composites) live here on the
+# MANAGEMENT cluster — Crossplane v2 is namespaced, so the composed resources
+# inherit this namespace. The KubeVirt VirtualMachine itself is created on the
+# HARVESTER target cluster in the namespace from the EnvironmentConfig
+# `harvester.namespace` (file 4, default `vms`) via the provider-kubernetes
+# config in file 2 — that target namespace is Harvester-side infra, NOT created
+# here (see the folder README "Adjust before a real apply").
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: harvester-vms
+---
+# Namespace where the Ansible Tekton PipelineRun runs (AnsibleRun.spec.namespace
+# defaults to `tekton-ci`). Holds the `ansible-credentials` Secret. The Tekton
+# stack itself (controller + the referenced Pipeline) is EXTERNAL infra — see
+# the folder README "Ansible prerequisites". Applying this bare Namespace is
+# idempotent if Tekton already created it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tekton-ci

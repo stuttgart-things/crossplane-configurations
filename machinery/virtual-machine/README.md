@@ -104,6 +104,8 @@ placeholders — substitute your Harvester environment).
 
 > **Shortcut (vSphere + ESO):** [`examples/deploy-vsphere/`](examples/deploy-vsphere/) is an apply-ordered folder covering all of the above — a dedicated `vsphere-vms` namespace, the Configuration install, ClusterProviderConfig, a vSphere-only LabUL EnvironmentConfig, an ESO `ClusterSecretStore` + `ExternalSecret` for `vsphere-tfvars` (no `kubectl create secret`), and the XR. Files are numbered `0-platform-*` … `8-user-xr.yaml` (incl. the Ansible provider-kubernetes config + credentials), so `kubectl apply -f examples/deploy-vsphere/` runs them in dependency order. See its [README](examples/deploy-vsphere/README.md).
 
+> **Shortcut (Harvester + ESO):** [`examples/deploy-harvester/`](examples/deploy-harvester/) is the Harvester sibling — a dedicated `harvester-vms` namespace, the Configuration install, a provider-kubernetes ClusterProviderConfig for the VM (`harvester`, with a remote-cluster `2b` alternative), a Harvester-only LabUL EnvironmentConfig, the Ansible provider-kubernetes config + an ESO `ClusterSecretStore`/`ExternalSecret` for `ansible-credentials`, and the XR. No tfvars (KubeVirt, not OpenTofu). Files are numbered `0-platform-*` … `7-user-xr.yaml`, so `kubectl apply -f examples/deploy-harvester/` runs them in dependency order. See its [README](examples/deploy-harvester/README.md).
+
 ## Install
 
 ```bash
@@ -155,6 +157,7 @@ crossplane beta trace xvirtualmachine.resources.stuttgart-things.com vm-standard
 - `examples/configuration.yaml` — install manifest (OCI ref)
 - `examples/cluster-provider-config.yaml` — OpenTofu ClusterProviderConfig (Terraform K8s backend)
 - `examples/deploy-vsphere/` — apply-ordered folder (`0-platform-*` … `8-user-xr.yaml`): dedicated namespaces + install + OpenTofu & provider-kubernetes provider configs + EnvironmentConfig + ESO (ClusterSecretStore/ExternalSecrets for tfvars & ansible-credentials) + XR for a vSphere VM with provisioning
+- `examples/deploy-harvester/` — Harvester sibling (`0-platform-*` … `7-user-xr.yaml`): dedicated namespaces + install + provider-kubernetes provider configs (VM `harvester` + Ansible `in-cluster`) + Harvester EnvironmentConfig + ESO (ClusterSecretStore/ExternalSecret for ansible-credentials) + XR for a Harvester/KubeVirt VM with provisioning
 
 ## License
 
