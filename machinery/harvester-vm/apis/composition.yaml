@@ -474,7 +474,7 @@ spec:
               wrapInCrossplane: {{ dig "wrapInCrossplane" true $ans }}
               crossplaneObjectName: {{ $vmName }}-ansible
               crossplaneNamespace: {{ $ns }}
-              crossplaneProviderConfig: {{ dig "crossplaneProviderConfig" "dev" $ans }}
+              crossplaneProviderConfig: {{ dig "crossplaneProviderConfig" "in-cluster" $ans }}
               ansiblePlaybooks:
               {{- range (dig "playbooks" (list "sthings.baseos.setup") $ans) }}
                 - {{ . }}

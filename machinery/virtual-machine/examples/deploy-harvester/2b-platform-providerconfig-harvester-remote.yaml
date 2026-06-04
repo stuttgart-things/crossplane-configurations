@@ -1,0 +1,31 @@
+---
+# =============================================================================
+# ALTERNATIVE to 2-platform-providerconfig-harvester.yaml — a REMOTE Harvester
+# cluster target. Use ONE of the two, not both.
+#
+# The default (file 2) uses InjectedIdentity: Crossplane runs ON the Harvester
+# cluster. This variant points the SAME `harvester` ClusterProviderConfig at a
+# SEPARATE Harvester cluster via a kubeconfig Secret — for a management cluster
+# that provisions VMs onto a remote Harvester.
+#
+# TO ACTIVATE:
+#   1. Delete (or don't apply) 2-platform-providerconfig-harvester.yaml.
+#   2. Materialize a kubeconfig Secret `harvester-kubeconfig` in `harvester-vms`
+#      with key `kubeconfig` (e.g. via an ESO ExternalSecret from Vault — mirror
+#      file 6 — so the Harvester kubeconfig is never committed).
+#   3. Uncomment the manifest below.
+#
+# Left commented so `kubectl apply -f deploy-harvester/` stays clean by default.
+# =============================================================================
+# ---
+# apiVersion: kubernetes.m.crossplane.io/v1alpha1
+# kind: ClusterProviderConfig
+# metadata:
+#   name: harvester
+# spec:
+#   credentials:
+#     source: Secret
+#     secretRef:
+#       namespace: harvester-vms
+#       name: harvester-kubeconfig
+#       key: kubeconfig

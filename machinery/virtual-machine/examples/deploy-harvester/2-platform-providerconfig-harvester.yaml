@@ -1,0 +1,23 @@
+---
+# provider-kubernetes ClusterProviderConfig for the VM path (Harvester /
+# KubeVirt). `provider: harvester` routes to a HarvesterVM, which creates the
+# root-disk PVC (VolumeClaim), the cloud-init Secret (CloudInit) and the
+# KubeVirt VirtualMachine as provider-kubernetes `Object`s — all against THIS
+# config.
+#
+# The name is NOT hardcoded — it comes from the EnvironmentConfig
+# `harvester.providerConfigRef` (file 4), so it must match the name here. This
+# bundle uses `harvester`. To use a different name, change BOTH this file's
+# metadata.name and file 4's harvester.providerConfigRef.
+#
+# `InjectedIdentity` = the provider-kubernetes pod's own ServiceAccount creates
+# the KubeVirt resources IN-CLUSTER — correct when Crossplane runs ON the
+# Harvester cluster the VMs land on. To target a SEPARATE Harvester cluster,
+# use the Secret/kubeconfig variant in 2b instead (apply one or the other).
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: harvester
+spec:
+  credentials:
+    source: InjectedIdentity

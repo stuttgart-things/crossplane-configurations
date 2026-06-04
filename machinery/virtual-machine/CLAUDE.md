@@ -74,15 +74,17 @@ EnvironmentConfig `data` is **flat**, this one's `data` holds a `vsphere`, a
   `HarvesterVM` branch:
   - `crossplaneProviderConfig` — the provider-kubernetes config name that runs
     the Ansible Tekton PipelineRun. Falls back to `in-cluster`. Replaced a value
-    formerly hardcoded to `dev` in vm-provision/harvester-vm.
+    formerly hardcoded to `dev` in vm-provision/harvester-vm (those leaf
+    fallbacks/XRD defaults were since realigned to `in-cluster` too, so a
+    directly-driven sub-XR matches this path).
   - `ansibleWorkingImage` — the Ansible runner image (collections are baked into
     it at image-build time via the Dockerfile's `ansible-galaxy install`, so the
     image tag *is* the collection set). Falls back to
     `ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test`. Bump this to pick up
     newer collections without a Composition change.
   Both replaced values formerly hardcoded in vm-provision/harvester-vm (whose
-  `or "dev"` / `dig "ansibleWorkingImage" "…"` fallbacks are now only reachable
-  when those sub-XRs are driven directly, not via virtual-machine.)
+  `or "in-cluster"` / `dig "ansibleWorkingImage" "…"` fallbacks are now only
+  reachable when those sub-XRs are driven directly, not via virtual-machine.)
 
 ## Sub-XR shape coupling
 The emitted `VMProvision` spec must match the **current** XRD of

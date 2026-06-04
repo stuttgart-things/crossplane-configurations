@@ -60,7 +60,7 @@ Per-VM settings (vm name, cpu, memory, disk, cloud-init users/packages, …) com
 | `ansible.varsFile` | XR | - | Ansible vars (`key+-value` form) |
 | `ansible.credentialsSecretName` | XR | `ansible-credentials` | Ansible credentials Secret |
 | `ansible.pipelineNamespace` | XR | `tekton-ci` | Tekton namespace |
-| `ansible.crossplaneProviderConfig` | XR | `dev` | provider-kubernetes config wrapping the PipelineRun |
+| `ansible.crossplaneProviderConfig` | XR | `in-cluster` | provider-kubernetes config wrapping the PipelineRun |
 | `ansible.*` | XR | various | extraCollections, extraRoles, wrapInCrossplane, … (see XRD) |
 
 > Override precedence: **XR spec → EnvironmentConfig → built-in default.**

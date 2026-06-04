@@ -37,7 +37,7 @@ spec:
     ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test
     credentialsSecretName: ansible-credentials # pragma: allowlist secret
     gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
-    crossplaneProviderConfig: dev
+    crossplaneProviderConfig: in-cluster
     wrapInCrossplane: true
     playbooks:
       - sthings.baseos.setup

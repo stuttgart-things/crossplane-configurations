@@ -80,7 +80,7 @@ spec:
     enabled: true
     pipelineNamespace: tekton-ci
     credentialsSecretName: ansible-credentials # pragma: allowlist secret
-    crossplaneProviderConfig: dev
+    crossplaneProviderConfig: in-cluster
     playbooks:
       - sthings.baseos.setup
     varsFile:

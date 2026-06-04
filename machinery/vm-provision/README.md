@@ -49,7 +49,7 @@ The Composition is a [`function-kcl`](https://github.com/crossplane-contrib/func
 | `varsInventory` | auto (VM IP) | Inventory; auto-populated with the VM IP when omitted |
 | `credentialsSecretName` | `ansible-credentials` | Ansible credentials Secret |
 | `pipelineNamespace` | `tekton-ci` | Tekton namespace |
-| `crossplaneProviderConfig` | `dev` | provider-kubernetes config used to wrap the PipelineRun |
+| `crossplaneProviderConfig` | `in-cluster` | provider-kubernetes config used to wrap the PipelineRun |
 | `wrapInCrossplane` | `true` | Wrap the PipelineRun in a Crossplane Object |
 | `extraCollections` / `extraRoles` | - | Extra Ansible collections / roles |
 

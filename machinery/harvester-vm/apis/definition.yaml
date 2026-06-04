@@ -327,7 +327,7 @@ spec:
                     crossplaneProviderConfig:
                       type: string
                       description: provider-kubernetes config used to wrap the PipelineRun.
-                      default: dev
+                      default: in-cluster
                     wrapInCrossplane:
                       type: boolean
                       description: Wrap the PipelineRun in a Crossplane Object.
