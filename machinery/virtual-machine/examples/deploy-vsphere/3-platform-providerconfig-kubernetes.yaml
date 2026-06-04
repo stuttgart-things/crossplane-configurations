@@ -1,0 +1,26 @@
+---
+# provider-kubernetes ClusterProviderConfig for the ANSIBLE path.
+#
+# `ansible: true` makes vm-provision emit an AnsibleRun, which wraps a Tekton
+# PipelineRun in a provider-kubernetes `Object`. That Object references this
+# config BY NAME via AnsibleRun.spec.crossplaneProviderConfig.
+#
+# The name is NOT hardcoded — it comes from the EnvironmentConfig top-level
+# `ansible.crossplaneProviderConfig` (file 4), so it must match the name here.
+# This bundle uses `in-cluster` (the repo convention; also what the standalone
+# ansible-run README uses). To use a different name, change BOTH this file's
+# metadata.name and file 4's ansible.crossplaneProviderConfig.
+#
+# InjectedIdentity = the provider-kubernetes pod's own ServiceAccount manages
+# the Tekton resources in-cluster (see RBAC under the README "Ansible
+# prerequisites"; on clusters where that SA is cluster-admin, no extra RBAC is
+# needed). provider-kubernetes is already installed (pulled transitively via
+# ansible-run's dependsOn) — only this config is needed. Applying it is
+# idempotent if the cluster already has an `in-cluster` CPC.
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: in-cluster
+spec:
+  credentials:
+    source: InjectedIdentity

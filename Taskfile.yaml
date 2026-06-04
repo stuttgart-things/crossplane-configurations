@@ -50,8 +50,20 @@ tasks:
           fi
         done
 
+        # --- extra-resources (env: EXTRA=<path>; default: $CONFIG/examples/environmentconfig.yaml) ---
+        # Compositions with a load-environment step (function-environment-configs)
+        # need their EnvironmentConfig(s) passed in, else the selector matches 0
+        # and the render fails with "expected exactly one required resource, got 0".
+        EXTRA="${EXTRA:-$CONFIG/examples/environmentconfig.yaml}"
+        EXTRA_ARG=""
+        if [ -f "$EXTRA" ]; then
+          EXTRA_ARG="--extra-resources $EXTRA"
+        elif [ -n "${EXTRA:-}" ] && [ "$EXTRA" != "$CONFIG/examples/environmentconfig.yaml" ]; then
+          gum style --foreground 1 "EXTRA=$EXTRA not found"; exit 1
+        fi
+
         gum style --foreground 4 "→ rendering $CONFIG"
-        CMD="crossplane render $XR $COMPOSITION $FUNCTIONS --include-function-results"
+        CMD="crossplane render $XR $COMPOSITION $FUNCTIONS --include-function-results $EXTRA_ARG"
         gum style --foreground 8 "\$ $CMD"
         eval "$CMD"
 

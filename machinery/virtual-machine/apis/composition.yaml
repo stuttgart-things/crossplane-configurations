@@ -108,8 +108,21 @@ spec:
             } if _provider == "proxmox" else {}
 
             # --- Ansible spec ---
+            # The provider-kubernetes (Cluster)ProviderConfig that runs the
+            # AnsibleRun's Tekton PipelineRun is per-cluster infra, not a VM
+            # property — so its NAME comes from the EnvironmentConfig top-level
+            # `ansible` block (cross-provider: same value for vsphere/proxmox/
+            # harvester). Flows to VMProvision/HarvesterVM .spec.ansible, which
+            # vm-provision/harvester-vm pass to AnsibleRun.crossplaneProviderConfig.
+            # Falls back to "in-cluster" only if the EnvironmentConfig omits it.
+            _ansibleEnv = _envData?.ansible or {}
             _ansibleSpec = {
                 enabled: True
+                crossplaneProviderConfig: _ansibleEnv?.crossplaneProviderConfig or "in-cluster"
+                # The Ansible runner image (collections are baked in at image
+                # build time), env-overridable to pin a rebuilt image per
+                # environment. Falls back to the shared default.
+                ansibleWorkingImage: _ansibleEnv?.ansibleWorkingImage or "ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test"
                 playbooks: ["sthings.baseos.setup"]
                 varsFile: [
                     "manage_filesystem+-true"

@@ -22,6 +22,13 @@ metadata:
   labels:
     virtual-machine.resources.stuttgart-things.com/environment: labul
 data:
+  # Cross-provider: the provider-kubernetes (Cluster)ProviderConfig name that
+  # runs the Ansible Tekton PipelineRun (used for any provider when
+  # `ansible: true`). Must match a CPC on the cluster. Replaces what used to be
+  # hardcoded to `dev` in the Composition.
+  ansible:
+    crossplaneProviderConfig: in-cluster
+    ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test
   vsphere:
     templates:
       ubuntu24: sthings-u24
@@ -73,6 +80,9 @@ metadata:
   labels:
     virtual-machine.resources.stuttgart-things.com/environment: labda
 data:
+  ansible:
+    crossplaneProviderConfig: in-cluster
+    ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test
   vsphere:
     templates:
       ubuntu24: sthings-u24

@@ -1,0 +1,36 @@
+---
+# EnvironmentConfig — LabUL datacenter topology (vSphere-only slice for this
+# bundle). Selected by the config-scoped label
+# `virtual-machine.resources.stuttgart-things.com/environment: labul`, matched
+# against the XR's spec.environment. function-environment-configs requires
+# EXACTLY ONE match, so keep the label unique per environment.
+# (The full repo example, examples/environmentconfig.yaml, also carries
+# proxmox/harvester sub-blocks; omitted here since spec.provider: vsphere only
+# reads the vsphere block.)
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: virtual-machine-labul
+  labels:
+    virtual-machine.resources.stuttgart-things.com/environment: labul
+data:
+  # Cross-provider: the provider-kubernetes (Cluster)ProviderConfig that runs
+  # the Ansible Tekton PipelineRun. Name must match a CPC on the cluster
+  # (file 3 creates `in-cluster`). Replaces the old hardcoded `dev`.
+  ansible:
+    crossplaneProviderConfig: in-cluster
+    # Ansible runner image (collections baked in at build time). Bump this to
+    # pick up newer collections without touching the Composition.
+    ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test
+  vsphere:
+    templates:
+      ubuntu24: sthings-u24
+      ubuntu22: sthings-u22
+    firmware: bios
+    folderPath: stuttgart-things/testing
+    datacenter: /LabUL
+    datastore: /LabUL/datastore/UL-ESX-SAS-02
+    resourcePool: /LabUL/host/Cluster-V6.7/Resources
+    network: /LabUL/network/LAB-10.31.103
+    tfvarsSecretName: vsphere-tfvars # pragma: allowlist secret
+    tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
