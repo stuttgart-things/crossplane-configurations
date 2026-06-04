@@ -18,7 +18,7 @@ XVirtualMachine  (this) ──┤                                               
 
 The Composition pipeline:
 
-1. **`load-environment`** ([`function-environment-configs`](https://github.com/crossplane-contrib/function-environment-configs)) — loads the per-environment topology, selected by the config-scoped label `virtual-machine.resources.stuttgart-things.com/environment` (value from `spec.environment`). Each `EnvironmentConfig` holds a `vsphere`, a `proxmox` and a `harvester` sub-block under `data`.
+1. **`load-environment`** ([`function-environment-configs`](https://github.com/crossplane-contrib/function-environment-configs)) — loads the per-environment topology, selected by the config-scoped label `virtual-machine.resources.stuttgart-things.com/environment` (value from `spec.environment`). Each `EnvironmentConfig` holds a `vsphere`, a `proxmox` and a `harvester` sub-block under `data`, plus a cross-provider `data.ansible` block: `crossplaneProviderConfig` (the provider-kubernetes config that runs the Ansible PipelineRun, falls back to `in-cluster`) and `ansibleWorkingImage` (the runner image whose baked-in collections define the playbook set, falls back to `…/sthings-ansible:13.5.0-test`).
 2. **`render`** ([`function-kcl`](https://github.com/crossplane-contrib/function-kcl)) — maps the t-shirt `size` to cpu/ram/disk and picks the sub-block by `spec.provider`. For `vsphere`/`proxmox` it maps `spec.os` to a template name and emits a `VMProvision`; for `harvester` it maps `spec.os` to a Harvester `imageId` and emits a `HarvesterVM` directly.
 3. **`patch-status`** (`function-kcl`) — surfaces VM IP / provider / size / environment and VM/Ansible readiness onto the XR status (reads either a `VMProvision` or a `HarvesterVM`).
 4. **`automatically-detect-ready-composed-resources`** ([`function-auto-ready`](https://github.com/crossplane-contrib/function-auto-ready)).
@@ -102,6 +102,8 @@ One `EnvironmentConfig` per environment, holding the `vsphere`, `proxmox` and
 `harvester` sub-blocks. The example describes LabUL (the `harvester` values are
 placeholders — substitute your Harvester environment).
 
+> **Shortcut (vSphere + ESO):** [`examples/deploy-vsphere/`](examples/deploy-vsphere/) is an apply-ordered folder covering all of the above — a dedicated `vsphere-vms` namespace, the Configuration install, ClusterProviderConfig, a vSphere-only LabUL EnvironmentConfig, an ESO `ClusterSecretStore` + `ExternalSecret` for `vsphere-tfvars` (no `kubectl create secret`), and the XR. Files are numbered `0-platform-*` … `8-user-xr.yaml` (incl. the Ansible provider-kubernetes config + credentials), so `kubectl apply -f examples/deploy-vsphere/` runs them in dependency order. See its [README](examples/deploy-vsphere/README.md).
+
 ## Install
 
 ```bash
@@ -152,6 +154,7 @@ crossplane beta trace xvirtualmachine.resources.stuttgart-things.com vm-standard
 - `examples/functions.yaml` — required Crossplane Functions
 - `examples/configuration.yaml` — install manifest (OCI ref)
 - `examples/cluster-provider-config.yaml` — OpenTofu ClusterProviderConfig (Terraform K8s backend)
+- `examples/deploy-vsphere/` — apply-ordered folder (`0-platform-*` … `8-user-xr.yaml`): dedicated namespaces + install + OpenTofu & provider-kubernetes provider configs + EnvironmentConfig + ESO (ClusterSecretStore/ExternalSecrets for tfvars & ansible-credentials) + XR for a vSphere VM with provisioning
 
 ## License
 

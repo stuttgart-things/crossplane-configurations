@@ -1,0 +1,42 @@
+# =============================================================================
+# ALTERNATIVE to 2-platform-providerconfig.yaml — a NAMESPACED OpenTofu
+# ProviderConfig scoped to the `vsphere-vms` namespace, instead of the
+# cluster-scoped ClusterProviderConfig.
+#
+# Use ONE of the two, not both. The cluster-scoped default suits a backend
+# shared across namespaces; this namespaced variant suits per-namespace
+# tenancy — the Terraform state Secret lives in `vsphere-vms` (separate blast
+# radius), and the config is only visible to Workspaces in that namespace.
+#
+# The composed Workspace is itself namespaced (opentofu.m.upbound.io) and lands
+# in the XR's namespace, so providerConfigRef resolves WITHIN `vsphere-vms` —
+# no namespace field on the ref. Confirmed available on-cluster:
+#   providerconfigs.opentofu.m.upbound.io
+#
+# TO ACTIVATE:
+#   1. Delete (or don't apply) 2-platform-providerconfig.yaml.
+#   2. Uncomment the manifest below.
+#   3. In 8-user-xr.yaml, set:
+#        providerRef:
+#          name: default
+#          kind: ProviderConfig
+#   4. Ensure the provider-opentofu runtime ServiceAccount can read/write
+#      Secrets in `vsphere-vms` (the backend state Secret lands there).
+#
+# Left commented so `kubectl apply -f deploy-vsphere/` stays clean by default.
+# =============================================================================
+# ---
+# apiVersion: opentofu.m.upbound.io/v1beta1
+# kind: ProviderConfig
+# metadata:
+#   name: default
+#   namespace: vsphere-vms
+# spec:
+#   configuration: |
+#     terraform {
+#       backend "kubernetes" {
+#         secret_suffix     = "providerconfig-default"
+#         namespace         = "vsphere-vms"
+#         in_cluster_config = true
+#       }
+#     }

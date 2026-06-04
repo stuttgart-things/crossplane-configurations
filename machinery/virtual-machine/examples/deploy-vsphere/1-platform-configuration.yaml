@@ -1,0 +1,12 @@
+---
+# Configuration install. Pulls the three pipeline Functions
+# (function-environment-configs, function-kcl, function-auto-ready) AND the
+# vm-provision Configuration (→ transitively vsphere-vm, proxmox-vm,
+# ansible-run and their providers) via dependsOn — no separate functions.yaml
+# needed on a fleet cluster.
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: virtual-machine
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.0

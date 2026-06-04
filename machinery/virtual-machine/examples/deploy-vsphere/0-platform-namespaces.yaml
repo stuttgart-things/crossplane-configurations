@@ -1,0 +1,19 @@
+---
+# Dedicated namespace for the VM request. The XR object and the
+# ESO-materialized `vsphere-tfvars` Secret live here; the composed
+# VMProvision/Workspace inherit it (Crossplane v2, scope: Namespaced), so the
+# Workspace reads the tfvars Secret from this same namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vsphere-vms
+---
+# Namespace where the Ansible Tekton PipelineRun runs (AnsibleRun.spec.namespace
+# defaults to `tekton-ci`). Holds the `ansible-credentials` Secret. The Tekton
+# stack itself (controller + the referenced Pipeline) is EXTERNAL infra — see
+# the folder README "Ansible prerequisites". Applying this bare Namespace is
+# idempotent if Tekton already created it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tekton-ci

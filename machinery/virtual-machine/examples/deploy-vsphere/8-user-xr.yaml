@@ -1,0 +1,23 @@
+---
+# The request: a medium vSphere VM in LabUL on Ubuntu 24, with Ansible base-OS
+# provisioning (ansible: true → VMProvision.spec.ansible.enabled). Size maps to
+# cpu/ram/disk; topology + tfvars Secret come from the EnvironmentConfig.
+# This is the only file a VM consumer edits — everything 0–7 is platform setup.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: XVirtualMachine
+metadata:
+  name: vm-standard
+  namespace: vsphere-vms
+spec:
+  size: medium
+  provider: vsphere
+  environment: labul
+  os: ubuntu24
+  ansible: true
+  # OpenTofu provider config for the VM. Defaults to the cluster-scoped
+  # ClusterProviderConfig `default` (2-platform-providerconfig-opentofu.yaml).
+  # To use the namespaced ProviderConfig instead
+  # (2b-platform-providerconfig-opentofu-namespaced.yaml), uncomment:
+  # providerRef:
+  #   name: default
+  #   kind: ProviderConfig
