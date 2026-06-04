@@ -1,3 +1,4 @@
+---
 # =============================================================================
 # ALTERNATIVE to 2-platform-providerconfig.yaml — a NAMESPACED OpenTofu
 # ProviderConfig scoped to the `vsphere-vms` namespace, instead of the
@@ -35,7 +36,7 @@
 #   configuration: |
 #     terraform {
 #       backend "kubernetes" {
-#         secret_suffix     = "providerconfig-default"
+#         secret_suffix     = "providerconfig-default" # pragma: allowlist secret
 #         namespace         = "vsphere-vms"
 #         in_cluster_config = true
 #       }
