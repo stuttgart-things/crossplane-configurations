@@ -1,20 +1,24 @@
 ---
-# The request: a medium Harvester / KubeVirt VM in LabUL on Ubuntu 24, with
-# Ansible base-OS provisioning (ansible: true → HarvesterVM.spec.ansible.enabled,
-# gated on the VM reporting an IP). `provider: harvester` routes to a HarvesterVM
-# (not a VMProvision): size maps to cpu/ram/disk, `os` maps to the Harvester
-# imageId, and placement (storage class, namespace, Multus network, provider
-# config) + the cloud-init user/ssh key come from the EnvironmentConfig
-# `harvester` sub-block. This is the only file a VM consumer edits — everything
-# 0–6 is platform setup.
+# The request: a small Harvester / KubeVirt VM in LabUL on Ubuntu 24, no Ansible.
+# Mirrors the proven harvester/tests/vm-u26.yaml bare VM: `size: small` maps to
+# cpu 2 / 2Gi RAM (matching vm-u26's domain), `os: ubuntu24` resolves to the
+# `default/u26-dev` imageId, and placement (storage class, namespace, Multus
+# network, provider config) comes from the EnvironmentConfig `harvester`
+# sub-block (file 4). `provider: harvester` routes to a HarvesterVM (not a
+# VMProvision). `ansible: false` keeps it a plain VM — only files 2 + 4 + 7
+# matter; the Tekton/Vault/ESO pieces (3/5/6) are unused. This is the only file
+# a VM consumer edits — everything 0–6 is platform setup.
+#
+# Note: the t-shirt size table fixes the root disk at 32Gi for `small` (vm-u26
+# used 10Gi); the XVirtualMachine entrypoint has no per-VM disk override.
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: XVirtualMachine
 metadata:
   name: vm-harvester
   namespace: harvester-vms
 spec:
-  size: medium
+  size: small
   provider: harvester
   environment: labul
   os: ubuntu24
-  ansible: true
+  ansible: false
