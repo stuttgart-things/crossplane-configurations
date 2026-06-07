@@ -13,8 +13,11 @@ spec:
   volume:
     pvcName: dev9-disk-0
     storage: "20Gi"
+    # Single-VM boot disk: ReadWriteOnce. RWX on a Block boot volume invites a
+    # second instance attaching the same disk (corruption risk with
+    # RerunOnFailure). Only use RWX if you need multi-node live-migration.
     accessModes:
-      - ReadWriteMany
+      - ReadWriteOnce
     volumeMode: Block
   cloudInit:
     vmName: dev9

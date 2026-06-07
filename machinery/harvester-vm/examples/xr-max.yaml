@@ -19,8 +19,10 @@ spec:
     storageClassName: harvester-longhorn
     imageId: default/image-ubuntu
     storage: "64G"
+    # Single-VM boot disk: ReadWriteOnce (RWX Block boot volume = corruption
+    # risk with RerunOnFailure). Use RWX only for multi-node live-migration.
     accessModes:
-      - ReadWriteMany
+      - ReadWriteOnce
     volumeMode: Block
     labels:
       app: harvester-vm-max
