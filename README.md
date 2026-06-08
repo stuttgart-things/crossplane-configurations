@@ -8,6 +8,8 @@ Each subdirectory is a self-contained Crossplane Configuration package — an XR
 
 | Category | Name | Version | Description | OCI |
 |---|---|---|---|---|
+| bootstrap | [vault-auth](bootstrap/vault-auth/) | v0.1.0 | Bootstraps Vault Kubernetes auth backends (and optional `backend_config`) from a namespaced `VaultK8sAuth` XR. One OpenTofu `Workspace` (`provider-opentofu`) per `k8sAuths` entry runs the Vault Terraform provider, rendered by `function-kcl` (KCL module [`xplane-vault-auth`](https://github.com/stuttgart-things/kcl/tree/main/crossplane/xplane-vault-auth)). | [`ghcr.io/stuttgart-things/crossplane-configurations/vault-auth`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fvault-auth) |
+| bootstrap | [vault-config](bootstrap/vault-config/) | v0.1.0 | Deploys Vault secret-tooling (Secrets Store CSI Driver, Vault Secrets Operator, External Secrets Operator) plus the ServiceAccount/token/RBAC bootstrap for Vault Kubernetes auth from a namespaced `VaultConfig` XR, via namespaced `provider-helm`/`provider-kubernetes` (KCL module [`xplane-vault-config`](https://github.com/stuttgart-things/kcl/tree/main/crossplane/xplane-vault-config)). | [`ghcr.io/stuttgart-things/crossplane-configurations/vault-config`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fvault-config) |
 | cicd | [ansible-run](cicd/ansible-run/) | v0.1.2 | Triggers an Ansible playbook on a target cluster by emitting a Tekton `PipelineRun` from a namespaced `AnsibleRun` XR. The PipelineRun is rendered by `function-kcl` (KCL module [`kcl-tekton-pr`](https://github.com/stuttgart-things/kcl-tekton-pr)) and applied via `provider-kubernetes`. | [`ghcr.io/stuttgart-things/crossplane-configurations/ansible-run`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fansible-run) |
 | k8s | [cloud-config](k8s/cloud-config/) | v0.5.4 | Renders cloud-init userdata as a Kubernetes Secret from a namespaced `CloudInit` XR, and manages the target namespace. | [`ghcr.io/stuttgart-things/crossplane-configurations/cloud-config`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fcloud-config) |
 | k8s | [namespace](k8s/namespace/) | v0.1.1 | Manages a Kubernetes Namespace from a namespaced `ManagedNamespace` XR, with optional labels/annotations, `ResourceQuota`, `LimitRange`, default-deny `NetworkPolicy` and `RoleBindings`. | [`ghcr.io/stuttgart-things/crossplane-configurations/namespace`](https://github.com/stuttgart-things/crossplane-configurations/pkgs/container/crossplane-configurations%2Fnamespace) |
@@ -114,6 +116,9 @@ Configurations are grouped by the kind of resource they manage:
 
 ```
 crossplane-configurations/
+├── bootstrap/                    # cluster bootstrap (secrets/auth tooling)
+│   ├── vault-auth/               # Vault Kubernetes auth backends (OpenTofu)
+│   └── vault-config/             # Vault secret-tooling (CSI/VSO/ESO) + auth bootstrap (Helm/Kubernetes)
 ├── cicd/                         # CI/CD workflow resources
 │   └── ansible-run/              # Tekton PipelineRun wrapping an Ansible playbook
 ├── k8s/                          # Kubernetes-native resources

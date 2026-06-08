@@ -1,0 +1,7 @@
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: vault-auth
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/vault-auth:v0.1.0

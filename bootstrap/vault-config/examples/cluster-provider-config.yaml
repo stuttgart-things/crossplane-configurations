@@ -1,0 +1,20 @@
+---
+# In-cluster ClusterProviderConfig for the namespaced helm provider. The
+# composed Releases reference this via spec.providerConfigRef
+# (kind ClusterProviderConfig, name = the XR's providerConfigName).
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: in-cluster
+spec:
+  credentials:
+    source: InjectedIdentity
+---
+# In-cluster ClusterProviderConfig for the namespaced kubernetes provider.
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: in-cluster
+spec:
+  credentials:
+    source: InjectedIdentity

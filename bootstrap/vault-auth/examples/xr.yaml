@@ -1,0 +1,36 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultK8sAuth
+metadata:
+  name: vault-auth
+  namespace: default
+spec:
+  clusterName: vcluster-tink2
+  vaultAddr: https://vault.example.com
+  skipTlsVerify: true
+
+  providerConfigName: default
+  providerConfigKind: ClusterProviderConfig
+
+  # Secret (same namespace as this XR) containing `terraform.tfvars` with
+  #   vault_token = "hvs...."
+  vaultTokenSecret: vault
+  vaultTokenSecretKey: terraform.tfvars
+
+  # Only used when any k8sAuths entry has `backendConfig` set (see xr-max).
+  # - In-cluster Vault: leave unset (defaults to https://kubernetes.default.svc:443)
+  # - External Vault: set to a URL reachable from Vault's network
+  #   (what `kubectl cluster-info` prints for the cluster you're wiring up)
+  # kubernetesHost: https://kubernetes.default.svc:443
+
+  k8sAuths:
+    - name: dev
+      tokenPolicies: ["read-all-s3-kvv2", "read-write-all-s3-kvv2"]
+      tokenTtl: 3600
+      boundServiceAccountNames: ["default"]
+      boundServiceAccountNamespaces: ["default"]
+    - name: cicd
+      tokenPolicies: ["read-all-tektoncd-kvv2"]
+      tokenTtl: 3600
+      boundServiceAccountNames: ["default"]
+      boundServiceAccountNamespaces: ["default"]

@@ -1,0 +1,39 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultConfig
+metadata:
+  name: vault-config
+  namespace: default
+spec:
+  name: vault-config
+  clusterName: vcluster-tink2
+
+  # Name of the helm / kubernetes (Cluster)ProviderConfig on the target
+  # cluster. Defaults to clusterName if unset.
+  providerConfigName: in-cluster
+  providerConfigKind: ClusterProviderConfig
+
+  # Service enablement
+  csiEnabled: true
+  vsoEnabled: true
+  esoEnabled: true
+  # isVcluster: true  # disable ESO probes if running inside a vcluster
+
+  # Chart versions
+  csiChartVersion: "1.5.4"
+  vsoChartVersion: "1.0.1"
+  esoChartVersion: "0.11.3"
+
+  # Chart install namespaces
+  namespaceCsi: secrets-store-csi
+  namespaceVso: vault-secrets-operator
+  namespaceEso: external-secrets
+
+  # ServiceAccount + token Secret + auth-delegator CRB bootstrap
+  # (one per k8sAuth entry — the name here should match the role/auth path
+  # created by vault-auth for this cluster)
+  k8sAuths:
+    - name: dev
+      namespace: default
+    - name: cicd
+      namespace: default

@@ -1,0 +1,58 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: vault-config
+  annotations:
+    # Local convention used by `task push` to bump and re-publish.
+    # Not a Crossplane-standard field — the true package version is the OCI tag.
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Deploys Vault-adjacent secret tooling (Secrets Store CSI Driver,
+      Vault Secrets Operator, External Secrets Operator) plus the
+      ServiceAccount/token/RBAC bootstrap for Vault Kubernetes auth, from a
+      namespaced `VaultConfig` XR. Services are toggled independently.
+    meta.crossplane.io/readme: |
+      # vault-config
+
+      A Crossplane v2 Configuration that deploys Vault secret-tooling from a
+      namespaced `VaultConfig` XR (group `config.stuttgart-things.com`).
+
+      The Composition is a `function-kcl` wrapper around the
+      `xplane-vault-config` KCL module (pulled from OCI at render time). It
+      emits, via the **namespaced** provider-helm / provider-kubernetes
+      APIs (`helm.m.crossplane.io/v1beta1`,
+      `kubernetes.m.crossplane.io/v1alpha1`):
+
+      - Helm Releases for the enabled services: Secrets Store CSI Driver
+        (`csiEnabled`), Vault Secrets Operator (`vsoEnabled`), External
+        Secrets Operator (`esoEnabled`).
+      - Per `k8sAuths` entry: a ServiceAccount, a SA-token Secret, an
+        `system:auth-delegator` ClusterRoleBinding, and a token-reader
+        Object (Observe-only) to surface the JWT.
+
+      ## Cluster preconditions
+
+      A `ClusterProviderConfig` for both provider-helm
+      (`helm.m.crossplane.io`) and provider-kubernetes
+      (`kubernetes.m.crossplane.io`) whose name matches the XR's
+      `spec.providerConfigName` (examples reference `in-cluster`).
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    # Composed Releases use the namespaced helm.m.crossplane.io API,
+    # introduced in provider-helm v1.0.0.
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-helm
+      version: ">=v1.0.0,<v2.0.0"
+    # Composed Objects use the namespaced kubernetes.m.crossplane.io API.
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+      version: ">=v1.2.0,<v2.0.0"
+    # Functions used by this Configuration's Composition pipeline.
+    - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
+      version: ">=v0.12.0,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"

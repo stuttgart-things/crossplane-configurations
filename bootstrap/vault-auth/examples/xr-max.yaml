@@ -1,0 +1,43 @@
+---
+# Maximal VaultK8sAuth — every spec field set, including a `backendConfig`
+# entry. Exercises full templating of the xplane-vault-auth KCL module.
+#
+# NOTE: the `backendConfig` Secret (here `vault-dev`) MUST already exist in
+# the cluster before this XR is applied — it's typically a ServiceAccount
+# token Secret with `ca.crt` + `token` keys. If missing, `tofu plan` fails
+# with "Attempt to index null value". See README "backendConfig prerequisites".
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultK8sAuth
+metadata:
+  name: vault-auth-max
+  namespace: default
+spec:
+  clusterName: vcluster-tink2
+  vaultAddr: https://vault.example.com
+  skipTlsVerify: true
+  kubernetesHost: https://kubernetes.default.svc:443
+
+  providerConfigName: default
+  providerConfigKind: ClusterProviderConfig
+
+  vaultTokenSecret: vault
+  vaultTokenSecretKey: terraform.tfvars
+
+  k8sAuths:
+    - name: dev
+      tokenPolicies: ["read-all-s3-kvv2", "read-write-all-s3-kvv2"]
+      tokenTtl: 7200
+      boundServiceAccountNames: ["default", "vault-auth"]
+      boundServiceAccountNamespaces: ["default", "applications"]
+      backendConfig:
+        secretName: vault-dev
+        secretNamespace: default
+        caCertKey: ca.crt
+        tokenKey: token
+        disableIssValidation: true
+        disableLocalCaJwt: true
+    - name: cicd
+      tokenPolicies: ["read-all-tektoncd-kvv2"]
+      tokenTtl: 3600
+      boundServiceAccountNames: ["default"]
+      boundServiceAccountNamespaces: ["tekton-ci"]
