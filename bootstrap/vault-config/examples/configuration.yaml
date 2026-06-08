@@ -1,0 +1,7 @@
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: vault-config
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/vault-config:v0.1.0

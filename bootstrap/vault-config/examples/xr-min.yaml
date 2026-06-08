@@ -1,0 +1,12 @@
+---
+# Minimal VaultConfig — only XRD-required fields (name, clusterName). With
+# every service flag defaulting to false, this exercises the k8sAuths
+# default (a single auto-named auth) and chart-version/namespace defaults.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultConfig
+metadata:
+  name: vault-config-min
+  namespace: default
+spec:
+  name: vault-config-min
+  clusterName: vcluster-tink2

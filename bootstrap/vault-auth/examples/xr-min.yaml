@@ -1,0 +1,15 @@
+---
+# Minimal VaultK8sAuth — only XRD-required fields set. Exercises every
+# default (skipTlsVerify, vaultTokenSecret, providerConfigName, tokenTtl,
+# boundServiceAccount*, …).
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultK8sAuth
+metadata:
+  name: vault-auth-min
+  namespace: default
+spec:
+  clusterName: vcluster-tink2
+  vaultAddr: https://vault.example.com
+  k8sAuths:
+    - name: dev
+      tokenPolicies: ["read-all-s3-kvv2"]

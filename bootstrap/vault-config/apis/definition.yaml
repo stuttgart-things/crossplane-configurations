@@ -1,0 +1,128 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: vaultconfigs.config.stuttgart-things.com
+spec:
+  group: config.stuttgart-things.com
+  scope: Namespaced
+  defaultCompositeDeletePolicy: Foreground
+  names:
+    kind: VaultConfig
+    plural: vaultconfigs
+    singular: vaultconfig
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: "Name of the vault configuration"
+                  pattern: "^[a-z0-9-]+$"
+                  minLength: 1
+                  maxLength: 63
+                clusterName:
+                  type: string
+                  description: "Target cluster name (used for resource naming suffixes)"
+                  default: "default"
+                providerConfigName:
+                  type: string
+                  description: "Name of the provider-helm / provider-kubernetes (Cluster)ProviderConfig. Defaults to clusterName."
+                providerConfigKind:
+                  type: string
+                  description: "Kind of the provider config referenced by composed Release/Object resources."
+                  enum:
+                    - ClusterProviderConfig
+                    - ProviderConfig
+                  default: ClusterProviderConfig
+                namespace:
+                  type: string
+                  description: "Namespace that composed Release/Object resources are created in. Defaults to the VaultConfig's own metadata.namespace."
+
+                # Service Enablement Flags
+                csiEnabled:
+                  type: boolean
+                  description: "Enable Secrets Store CSI Driver"
+                  default: false
+                vsoEnabled:
+                  type: boolean
+                  description: "Enable Vault Secrets Operator"
+                  default: false
+                esoEnabled:
+                  type: boolean
+                  description: "Enable External Secrets Operator"
+                  default: false
+                isVcluster:
+                  type: boolean
+                  description: "Disable liveness/readiness probes on ESO (vcluster-friendly)"
+                  default: false
+
+                # Chart Versions
+                csiChartVersion:
+                  type: string
+                  description: "Chart version for Secrets Store CSI Driver"
+                  default: "1.5.4"
+                  pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+                vsoChartVersion:
+                  type: string
+                  description: "Chart version for Vault Secrets Operator"
+                  default: "1.0.1"
+                  pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+                esoChartVersion:
+                  type: string
+                  description: "Chart version for External Secrets Operator"
+                  default: "0.11.3"
+                  pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+
+                # Chart install namespaces (forProvider.namespace on each Helm Release)
+                namespaceCsi:
+                  type: string
+                  description: "Chart install namespace for Secrets Store CSI Driver"
+                  default: "secrets-store-csi"
+                  pattern: "^[a-z0-9-]+$"
+                namespaceVso:
+                  type: string
+                  description: "Chart install namespace for Vault Secrets Operator"
+                  default: "vault-secrets-operator"
+                  pattern: "^[a-z0-9-]+$"
+                namespaceEso:
+                  type: string
+                  description: "Chart install namespace for External Secrets Operator"
+                  default: "external-secrets"
+                  pattern: "^[a-z0-9-]+$"
+
+                # Kubernetes Auth Configuration
+                k8sAuths:
+                  type: array
+                  description: "Kubernetes ServiceAccount + token Secret + auth-delegator binding to bootstrap per Vault Kubernetes auth backend"
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: "Name of the auth configuration"
+                        pattern: "^[a-z0-9-]+$"
+                      namespace:
+                        type: string
+                        description: "Namespace of the ServiceAccount + Secret + CRB target"
+                        default: "default"
+                        pattern: "^[a-z0-9-]+$"
+                    required:
+                      - name
+              required:
+                - name
+                - clusterName
+            status:
+              type: object
+              description: "Observed state of the VaultConfig."
+              properties:
+                share:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true

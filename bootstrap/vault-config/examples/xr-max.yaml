@@ -1,0 +1,43 @@
+---
+# Maximal VaultConfig — every spec field set, all services enabled, multiple
+# auth configurations. Exercises full templating of the xplane-vault-config
+# KCL module.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultConfig
+metadata:
+  name: vault-config-max
+  namespace: default
+spec:
+  name: vault-config-production
+  clusterName: k8s-prod-cluster
+
+  providerConfigName: in-cluster
+  providerConfigKind: ClusterProviderConfig
+  namespace: default
+
+  # Enable all services
+  csiEnabled: true
+  vsoEnabled: true
+  esoEnabled: true
+  isVcluster: false
+
+  # Pinned chart versions
+  csiChartVersion: "1.5.4"
+  vsoChartVersion: "1.0.1"
+  esoChartVersion: "0.11.3"
+
+  # Chart install namespaces
+  namespaceCsi: vault-csi-system
+  namespaceVso: vault-operator-system
+  namespaceEso: external-secrets-system
+
+  # Multiple auth configurations for different workloads
+  k8sAuths:
+    - name: apps
+      namespace: applications
+    - name: platform
+      namespace: platform-system
+    - name: monitoring
+      namespace: monitoring-system
+    - name: security
+      namespace: security-system

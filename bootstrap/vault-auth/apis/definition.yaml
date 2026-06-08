@@ -1,0 +1,116 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: vaultk8sauths.config.stuttgart-things.com
+spec:
+  group: config.stuttgart-things.com
+  scope: Namespaced
+  defaultCompositeDeletePolicy: Foreground
+  names:
+    kind: VaultK8sAuth
+    plural: vaultk8sauths
+    singular: vaultk8sauth
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                clusterName:
+                  type: string
+                  description: "Name of the target Kubernetes cluster (used as a prefix for Vault auth backend paths)."
+                vaultAddr:
+                  type: string
+                  description: "Address of the Vault server."
+                skipTlsVerify:
+                  type: boolean
+                  default: true
+                kubernetesHost:
+                  type: string
+                  description: "Kubernetes API host to use when any k8sAuth entry configures a backend_config. Typically https://kubernetes.default.svc:443."
+                  default: "https://kubernetes.default.svc:443"
+                vaultTokenSecret:
+                  type: string
+                  description: "Name of the Secret (co-located with the Workspace) holding terraform.tfvars with vault_token."
+                  default: "vault"
+                vaultTokenSecretKey:
+                  type: string
+                  default: "terraform.tfvars"
+                providerConfigName:
+                  type: string
+                  description: "Name of the opentofu ProviderConfig / ClusterProviderConfig."
+                  default: "default"
+                providerConfigKind:
+                  type: string
+                  enum:
+                    - ClusterProviderConfig
+                    - ProviderConfig
+                  default: ClusterProviderConfig
+                k8sAuths:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      tokenPolicies:
+                        type: array
+                        items:
+                          type: string
+                      tokenTtl:
+                        type: integer
+                        default: 3600
+                      boundServiceAccountNames:
+                        type: array
+                        items:
+                          type: string
+                        default: ["default"]
+                      boundServiceAccountNamespaces:
+                        type: array
+                        items:
+                          type: string
+                        default: ["default"]
+                      backendConfig:
+                        type: object
+                        description: "If set, the generated Workspace additionally renders a vault_kubernetes_auth_backend_config, reading CA cert and token reviewer JWT from a Kubernetes Secret."
+                        properties:
+                          secretName:
+                            type: string
+                            description: "Name of the Secret containing ca.crt and token (typically a ServiceAccount token secret)."
+                          secretNamespace:
+                            type: string
+                            description: "Namespace of the Secret. Defaults to the Workspace namespace."
+                          caCertKey:
+                            type: string
+                            default: "ca.crt"
+                          tokenKey:
+                            type: string
+                            default: "token"
+                          disableIssValidation:
+                            type: boolean
+                            default: true
+                          disableLocalCaJwt:
+                            type: boolean
+                            default: true
+                        required:
+                          - secretName
+                    required:
+                      - name
+                      - tokenPolicies
+              required:
+                - clusterName
+                - vaultAddr
+                - k8sAuths
+            status:
+              type: object
+              description: "Observed state of the VaultK8sAuth."
+              properties:
+                share:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true

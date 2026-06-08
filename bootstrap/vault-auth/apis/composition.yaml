@@ -1,0 +1,28 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: vault-auth
+  labels:
+    crossplane.io/xrd: vaultk8sauths.config.stuttgart-things.com
+    provider-opentofu: "true"
+    service: vault-auth
+spec:
+  compositeTypeRef:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: VaultK8sAuth
+  mode: Pipeline
+  pipeline:
+    - step: vault-auth
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: vault-auth
+        spec:
+          source: oci://ghcr.io/stuttgart-things/xplane-vault-auth:0.4.1
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready
