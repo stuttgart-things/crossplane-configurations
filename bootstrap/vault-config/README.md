@@ -56,6 +56,22 @@ kubectl get releases.helm.m.crossplane.io -A
 kubectl get objects.kubernetes.m.crossplane.io -A
 ```
 
+## Development
+
+### Render the Composition
+
+```bash
+crossplane render examples/xr.yaml apis/composition.yaml examples/functions.yaml --include-function-results
+```
+
+Or via the repo Taskfile:
+
+```bash
+task render
+# or non-interactive:
+CONFIG=bootstrap/vault-config XR=xr.yaml task render
+```
+
 ## Spec
 
 | Field | Required | Default | Notes |

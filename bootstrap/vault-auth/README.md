@@ -61,6 +61,22 @@ kubectl apply -f apis/composition.yaml
    kubectl get workspaces.opentofu.m.upbound.io -A
    ```
 
+## Development
+
+### Render the Composition
+
+```bash
+crossplane render examples/xr.yaml apis/composition.yaml examples/functions.yaml --include-function-results
+```
+
+Or via the repo Taskfile:
+
+```bash
+task render
+# or non-interactive:
+CONFIG=bootstrap/vault-auth XR=xr.yaml task render
+```
+
 ## Spec
 
 | Field | Required | Default | Notes |
