@@ -44,3 +44,16 @@ data:
   # Harvester VM image id, rendered into the PVC annotation
   # `harvesterhci.io/imageId`, as <namespace>/<name>. PLACEHOLDER.
   imageId: default/image-ubuntu
+
+  # --- Ansible base-OS provisioning (only used when an XR sets
+  #     spec.ansible.enabled: true — inert otherwise) ---------------------------
+  # The provider-kubernetes ClusterProviderConfig that runs the Ansible Tekton
+  # PipelineRun. This ALWAYS runs on the MANAGEMENT cluster (in-cluster), even
+  # though the VM itself is created on the remote Harvester via `harvester`
+  # above — the two configs do two different jobs. Must match the CPC name in
+  # ansible/2-clusterproviderconfig-in-cluster.yaml.
+  ansible:
+    crossplaneProviderConfig: in-cluster
+    # Ansible runner image (collections baked in). Bump to pick up newer
+    # collections without touching the Composition.
+    ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test

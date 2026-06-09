@@ -7,6 +7,10 @@ the remote sibling of the in-tree
 bundle, but scoped to the standalone `harvester-vm` Configuration and wired for
 the two-cluster (kubeconfig-Secret) topology instead of `InjectedIdentity`.
 
+> **Want the step-by-step?** [`HOWTO.md`](HOWTO.md) is the copy-paste runbook
+> (clone → branch → secret → platform → VM → optional Ansible). This README is
+> the reference/file-index.
+
 The two clusters:
 
 | Cluster | KUBECONFIG | Role |
@@ -59,6 +63,7 @@ kubectl apply -f machinery/harvester-vm/examples/deploy-remote/
 | `3-clusterproviderconfig-harvester.yaml`| cluster    | **(b)** provider-kubernetes `ClusterProviderConfig` `harvester` → REMOTE Harvester via the kubeconfig Secret from (a) |
 | `4-environmentconfig.yaml`              | cluster    | **(c)** shared Harvester placement defaults (provider config, storage class, namespace, network, image) |
 | `5-xr.yaml`                             | namespaced | the VM request — the only file you edit per VM |
+| `ansible/`                              | —          | **opt-in** Ansible base-OS provisioning (subfolder, not picked up by the non-recursive `apply -f .` above). See [`HOWTO.md`](HOWTO.md) §7 |
 
 > Apply order matters only in that the **Secret (a) must exist before file 3**
 > can become usable, and files 3 + 4 should exist before the XR (5) reconciles.

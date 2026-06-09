@@ -1,0 +1,9 @@
+---
+# The namespace the Ansible Tekton PipelineRun runs in, ON THE MANAGEMENT
+# cluster (= AnsibleRun.spec.pipelineNamespace, default `tekton-ci`). The
+# `ansible-credentials` Secret also lives here. Not auto-created — apply this
+# (or let your GitOps create it) before enabling Ansible.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tekton-ci
