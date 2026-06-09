@@ -254,6 +254,14 @@ spec:
                 kind: ClusterProviderConfig
               managementPolicies:
                 - '*'
+              # A ClusterProviderConfig is a static config resource with no
+              # status conditions, so the default SuccessfulCreate/DeriveFromObject
+              # policies never latch Ready (leaving the XR stuck NotReady). Derive
+              # readiness from existence instead — once the object has a uid it is
+              # created and usable.
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
               forProvider:
                 manifest:
                   apiVersion: kubernetes.m.crossplane.io/v1alpha1
