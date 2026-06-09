@@ -531,3 +531,15 @@ spec:
               share:
                 ip: {{ if $ip }}["{{ $ip }}"]{{ else }}[]{{ end }}
               ansibleReady: {{ $ansibleReady }}
+
+    # -------------------------------------------------------------------------
+    # Mark composed resources ready from their observed Ready conditions. The
+    # create-vm step emits the VM/VMI Objects without explicit readiness, so
+    # without this step they stay Unspecified and the HarvesterVM never reports
+    # Ready even when the VM is Running. Paired with the VM Object's
+    # readiness.policy: DeriveFromObject (so its Object-level Ready tracks the
+    # KubeVirt VM rather than the stuck SuccessfulCreate heuristic).
+    # -------------------------------------------------------------------------
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready
