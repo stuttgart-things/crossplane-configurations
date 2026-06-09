@@ -97,7 +97,10 @@ jobs:
       # install manifest — replacing the task/gum/curl bootstrap below.
       # v0.118.0 pins crank to v2.2.2 + tolerates the release bucket's
       # mismatched crank.sha256 (stuttgart-things/dagger#295).
-      CROSSPLANE_MODULE_VERSION: v0.118.0
+      # v0.118.1 runs render Functions as Dagger services instead of nested
+      # Docker containers, fixing the function-kcl render-sandbox failure
+      # (DeadlineExceeded / connection refused) — stuttgart-things/dagger#300.
+      CROSSPLANE_MODULE_VERSION: v0.118.1
     steps:
       - uses: actions/checkout@v6.0.2
 
