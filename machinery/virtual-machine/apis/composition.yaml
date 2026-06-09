@@ -178,11 +178,17 @@ spec:
             }
 
             # --- Harvester topology (from the EnvironmentConfig `harvester` sub-block) ---
-            # `images` maps spec.os -> Harvester imageId (mirrors `templates`).
-            # Placement (providerConfigRef/storageClassName/namespace/networkName)
-            # and a default cloud-init user + ssh key come from the sub-block.
+            # `images` maps spec.os -> a {imageId, storageClassName} pair: each
+            # Harvester image has its OWN per-image Longhorn storage class (the
+            # backing-image class), so the storage class is selected per image,
+            # not shared. `storageClassName` at the sub-block level (if present)
+            # is only a fallback when an image entry omits its own.
+            # Placement (providerConfigRef/namespace/networkName) and a default
+            # cloud-init user + ssh key come from the sub-block.
             _hvImages = _env?.images or {}
-            _imageId = _hvImages[_os] if _os in _hvImages else ""
+            _imgEntry = _hvImages[_os] if _os in _hvImages else {}
+            _imageId = _imgEntry?.imageId or ""
+            _imageSC = _imgEntry?.storageClassName or (_env?.storageClassName or "")
             _hvNamespace = _env?.namespace or "vms"
             _hvUser = _env?.user or "sthings"
             _hvSshKey = _env?.sshKey or ""
@@ -207,7 +213,7 @@ spec:
                     volume = {
                         pvcName = "{}-disk".format(_name)
                         storage = "{}Gi".format(_size.disk)
-                        storageClassName = _env?.storageClassName or ""
+                        storageClassName = _imageSC
                         namespace = _hvNamespace
                         imageId = _imageId
                         # Harvester image-backed boot disks must be Block (the

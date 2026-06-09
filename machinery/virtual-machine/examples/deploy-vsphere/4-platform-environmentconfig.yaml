@@ -25,7 +25,6 @@ data:
   vsphere:
     templates:
       ubuntu24: sthings-u24
-      ubuntu22: sthings-u22
     firmware: bios
     folderPath: stuttgart-things/testing
     datacenter: /LabUL

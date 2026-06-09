@@ -33,11 +33,12 @@ data:
     # Proven LabUL values (verified working via harvester/tests/vm-u26.yaml):
     # imageId default/u26-dev + Longhorn storage class + default/vms Multus net,
     # all in the `default` namespace on the same (InjectedIdentity) cluster.
+    # Each image carries its own per-image Longhorn (backing-image) storage class.
     images:
-      ubuntu24: default/u26-dev
-      ubuntu22: default/image-ubuntu-22
+      ubuntu24:
+        imageId: default/u26-dev
+        storageClassName: lh-7f7c570a-a326-4232-b291-3f2a946aeadf
     providerConfigRef: harvester
-    storageClassName: lh-7f7c570a-a326-4232-b291-3f2a946aeadf
     namespace: default
     networkName: default/vms
     user: sthings

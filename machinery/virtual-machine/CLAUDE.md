@@ -58,9 +58,16 @@ EnvironmentConfig `data` is **flat**, this one's `data` holds a `vsphere`, a
 - The **provider dimension is NOT in the selector** — one EnvironmentConfig per
   environment serves all providers. The selector matches on `environment`
   only, so there is still exactly one match (the rule that bit proxmox-vm).
-- `templates` (vsphere/proxmox) / `images` (harvester) is a map keyed by
-  `spec.os` (`ubuntu24`/`ubuntu22`) → provider template / Harvester imageId.
-  Adding an OS enum value means adding an entry in every sub-block.
+- `templates` (vsphere/proxmox) is a map keyed by `spec.os` → provider template
+  (a string). `images` (harvester) is keyed by `spec.os` → a
+  `{imageId, storageClassName}` pair: each Harvester image has its OWN per-image
+  Longhorn backing-image storage class, so the class is selected per image (a
+  sub-block-level `storageClassName`, if present, is only a fallback). The os
+  enum is `ubuntu24` (alias for the `u26-dev` image) plus the Harvester image
+  names `sthings-u26`, `sthings-u26-k3s`, `rocky9-dev`, `sthings-rocky9`,
+  `sthings-leap`. Adding an OS enum value means adding an entry in the relevant
+  sub-block(s); the image-named values are harvester-only (vsphere/proxmox
+  `templates` need only carry the values those providers actually offer).
 - Per-sub-block keys consumed by the KCL: vsphere → `templates, firmware,
   folderPath, datacenter, datastore, resourcePool, network, tfvarsSecretName,
   tfvarsSecretKey`; proxmox → `templates, firmware, node, datastore,

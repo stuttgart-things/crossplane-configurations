@@ -11,8 +11,9 @@
 # Unlike the leaf Configurations, the `data` here is NOT flat: it holds BOTH a
 # `vsphere` and a `proxmox` sub-block. The render step picks one by the XR's
 # `spec.provider` — the provider dimension is therefore NOT part of the
-# selector. `templates` maps the XR's `spec.os` (ubuntu24/ubuntu22) to the
-# provider-specific template name.
+# selector. `templates` maps the XR's `spec.os` to the provider-specific
+# template name; the harvester `images` map keys the same `spec.os` to a
+# {imageId, storageClassName} pair.
 #
 # Values below describe the LabUL environment.
 apiVersion: apiextensions.crossplane.io/v1beta1
@@ -32,7 +33,6 @@ data:
   vsphere:
     templates:
       ubuntu24: sthings-u24
-      ubuntu22: sthings-u22
     firmware: bios
     folderPath: stuttgart-things/testing
     datacenter: /LabUL
@@ -44,7 +44,6 @@ data:
   proxmox:
     templates:
       ubuntu24: sthings-u26
-      ubuntu22: sthings-u22
     firmware: seabios
     node: ul-pve01
     datastore: DD-sthings
@@ -54,15 +53,19 @@ data:
     tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
   # Harvester / KubeVirt sub-block. Unlike vsphere/proxmox (OpenTofu), an
   # `provider: harvester` XR is rendered into a `HarvesterVM` directly. `images`
-  # maps spec.os -> Harvester imageId (mirrors `templates`); the rest is
-  # placement + a default cloud-init user/ssh key for Ansible access. EXAMPLE
-  # values — substitute your Harvester environment.
+  # maps spec.os -> a {imageId, storageClassName} pair — each Harvester image
+  # has its OWN per-image Longhorn storage class (the wrong class yields a blank
+  # disk). The rest is placement + a default cloud-init user/ssh key for Ansible
+  # access. EXAMPLE values — substitute your Harvester images/classes.
   harvester:
     images:
-      ubuntu24: default/image-ubuntu-24
-      ubuntu22: default/image-ubuntu-22
+      ubuntu24:
+        imageId: default/image-ubuntu-24
+        storageClassName: lh-00000000-ubuntu24-backingimage-class
+      sthings-rocky9:
+        imageId: default/sthings-rocky9
+        storageClassName: lh-00000000-rocky9-backingimage-class
     providerConfigRef: harvester
-    storageClassName: harvester-longhorn
     namespace: vms
     networkName: default/vms
     user: sthings
@@ -86,7 +89,6 @@ data:
   vsphere:
     templates:
       ubuntu24: sthings-u24
-      ubuntu22: sthings-u22
     firmware: bios
     folderPath: stuttgart-things/testing
     datacenter: /LabDA

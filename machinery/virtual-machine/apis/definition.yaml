@@ -59,11 +59,21 @@ spec:
                     - harvester
                 os:
                   type: string
-                  description: "OS template to use"
+                  description: |
+                    OS / image to use. For harvester it keys the env `images`
+                    map to a `{imageId, storageClassName}` pair (each Harvester
+                    image has its own per-image Longhorn storage class). For
+                    vsphere/proxmox it keys the `templates` map. `ubuntu24` is
+                    the default alias for the Harvester `u26-dev` image; the
+                    other values name the Harvester image directly.
                   default: ubuntu24
                   enum:
                     - ubuntu24
-                    - ubuntu22
+                    - sthings-u26
+                    - sthings-u26-k3s
+                    - rocky9-dev
+                    - sthings-rocky9
+                    - sthings-leap
                 count:
                   type: string
                   description: "Number of VMs to create"

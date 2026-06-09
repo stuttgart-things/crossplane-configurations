@@ -22,14 +22,33 @@ data:
   ansible:
     crossplaneProviderConfig: in-cluster
     ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test
-  # Harvester / KubeVirt placement. `images` maps spec.os -> Harvester imageId.
+  # Harvester / KubeVirt placement. `images` maps spec.os -> a
+  # {imageId, storageClassName} pair. Each Harvester image carries its OWN
+  # per-image Longhorn storage class (the backing-image class) — using the
+  # wrong class yields a blank disk. These are the images actually present on
+  # this Harvester (kubectl -n default get virtualmachineimage).
   harvester:
     images:
-      ubuntu24: default/u26-dev
-      # Unverified on this Harvester — replace before using os: ubuntu22.
-      ubuntu22: default/image-ubuntu-22
+      # ubuntu24 is the default alias for the u26-dev image.
+      ubuntu24:
+        imageId: default/u26-dev
+        storageClassName: lh-7f7c570a-a326-4232-b291-3f2a946aeadf
+      sthings-u26:
+        imageId: default/sthings-u26
+        storageClassName: lh-d3f0ed68-ecca-4c6f-82dc-1aed26247089
+      sthings-u26-k3s:
+        imageId: default/sthings-u26-k3s
+        storageClassName: lh-103a0ea1-2403-4370-9c01-f5bd45077375
+      rocky9-dev:
+        imageId: default/rocky9-dev
+        storageClassName: lh-3d211dc0-a298-4277-9d5a-fe2c5bcec053
+      sthings-rocky9:
+        imageId: default/sthings-rocky9
+        storageClassName: lh-e2195584-f1fe-489c-9d93-f7289f1dec82
+      sthings-leap:
+        imageId: default/sthings-leap
+        storageClassName: lh-dea93717-4bbb-4b36-9e13-aa4893ff7227
     providerConfigRef: harvester
-    storageClassName: lh-7f7c570a-a326-4232-b291-3f2a946aeadf
     # Target namespace for PVC / cloud-init Secret / VM ON THE HARVESTER cluster.
     namespace: vms
     networkName: default/vms

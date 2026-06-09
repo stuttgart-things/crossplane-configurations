@@ -29,8 +29,8 @@ The Composition pipeline:
 |---|---|---|---|
 | `size` | XR (required) | - | T-shirt size: `small`/`medium`/`large`/`xlarge` → cpu/ram/disk |
 | `provider` | XR (required) | - | `vsphere`/`proxmox` (→ `VMProvision`) or `harvester` (→ `HarvesterVM`) — picks the EnvironmentConfig sub-block |
-| `environment` | XR (required) | - | `labul`/`labda` — selects the EnvironmentConfig |
-| `os` | XR | `ubuntu24` | `ubuntu24`/`ubuntu22` — keys the per-provider `templates` map (vsphere/proxmox) or `images` map (harvester) |
+| `environment` | XR (required) | - | `labul`/`labda`/`harvester` — selects the EnvironmentConfig |
+| `os` | XR | `ubuntu24` | `ubuntu24` (alias for the `u26-dev` image) / `sthings-u26` / `sthings-u26-k3s` / `rocky9-dev` / `sthings-rocky9` / `sthings-leap` — keys the per-provider `templates` map (vsphere/proxmox) or the `images` map → `{imageId, storageClassName}` (harvester) |
 | `count` | XR | `"1"` | Number of VMs (vsphere/proxmox only; `harvester` is always a single VM) |
 | `ansible` | XR | `true` | Run base-OS Ansible provisioning after VM creation |
 | `providerRef.name` | XR | `default` | OpenTofu provider config name (vsphere/proxmox; `harvester` uses the sub-block's `providerConfigRef`) |
