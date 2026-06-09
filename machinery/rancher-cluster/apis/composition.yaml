@@ -32,6 +32,8 @@ spec:
             {{- $kcfgSecretName := ternary $bridgedSecret (print $name "-kubeconfig") $split }}
             {{- $kcfgSecretNs := ternary $xrNs $rancherNs $split }}
             {{- $version := $spec.kubernetesVersion }}
+            {{- $infra := $spec.infrastructure | default "generic" }}
+            {{- $harvester := $spec.harvester | default dict }}
             {{- $bootstrap := $spec.bootstrap | default dict }}
             {{- $bootstrapNs := $bootstrap.namespace | default "crossplane-bootstrap" }}
             {{- $argocd := $spec.argocd | default dict }}
@@ -39,6 +41,112 @@ spec:
             {{- $argocdNs := $argocd.namespace | default "argocd" }}
             {{- $tokenRef := $argocd.tokenSecretRef | default dict }}
             {{- $tokenKey := $tokenRef.key | default "token" }}
+            {{- if eq $infra "harvester" }}
+            {{- /* Harvester VM nodes: a HarvesterConfig (the VM template) plus a
+                   provisioning Cluster whose single machine pool references it. */}}
+            {{- $hcfgName := print $name "-pool1" }}
+            {{- $hImage := $harvester.imageName }}
+            {{- $hNetwork := $harvester.networkName }}
+            {{- $hVmNs := $harvester.vmNamespace | default "default" }}
+            {{- $hCpu := $harvester.cpuCount | default 2 }}
+            {{- $hMem := $harvester.memorySize | default 4 }}
+            {{- $hDisk := $harvester.diskSize | default 40 }}
+            {{- $hSshUser := $harvester.sshUser | default "ubuntu" }}
+            {{- $hQuantity := $harvester.quantity | default 1 }}
+            {{- $defaultUserData := "#cloud-config\npackage_update: true\npackages:\n  - qemu-guest-agent\nruncmd:\n  - - systemctl\n    - enable\n    - '--now'\n    - qemu-guest-agent.service\n" }}
+            {{- $userData := $harvester.userData | default $defaultUserData }}
+            {{- $diskInfo := dict "disks" (list (dict "imageName" $hImage "bootOrder" 1 "size" $hDisk)) | toJson }}
+            {{- $networkInfo := dict "interfaces" (list (dict "networkName" $hNetwork "macAddress" "")) | toJson }}
+            ---
+            # (1a) MACHINE CONFIG — the Harvester VM template the machine pool
+            # references. HarvesterConfig is a flat CRD (fields at the top level,
+            # no spec). diskInfo/networkInfo are JSON strings Rancher expects.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-harvesterconfig") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-harvesterconfig
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $rancherCpc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: rke-machine-config.cattle.io/v1
+                  kind: HarvesterConfig
+                  metadata:
+                    name: {{ $hcfgName }}
+                    namespace: {{ $rancherNs }}
+                  cpuCount: {{ $hCpu | quote }}
+                  memorySize: {{ $hMem | quote }}
+                  diskSize: "0"
+                  diskInfo: {{ $diskInfo | quote }}
+                  imageName: ""
+                  networkInfo: {{ $networkInfo | quote }}
+                  networkName: ""
+                  vmNamespace: {{ $hVmNs }}
+                  sshUser: {{ $hSshUser }}
+                  sshPort: "22"
+                  reservedMemorySize: "-1"
+                  userData: {{ $userData | b64enc }}
+            ---
+            # (1b) PROVISION (Harvester) — provisioning Cluster with one machine
+            # pool backed by the HarvesterConfig above and a Harvester cloud
+            # credential. Rancher creates the VMs and registers them as nodes.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-cluster") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-cluster
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $rancherCpc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: provisioning.cattle.io/v1
+                  kind: Cluster
+                  metadata:
+                    name: {{ $name }}
+                    namespace: {{ $rancherNs }}
+                    {{- if $spec.clusterLabels }}
+                    labels:
+                      {{- range $k, $v := $spec.clusterLabels }}
+                      {{ $k }}: {{ $v | quote }}
+                      {{- end }}
+                    {{- end }}
+                  spec:
+                    kubernetesVersion: {{ $version }}
+                    cloudCredentialSecretName: {{ $harvester.cloudCredentialSecretName }}
+                    rkeConfig:
+                      machinePools:
+                        - name: pool1
+                          etcdRole: true
+                          controlPlaneRole: true
+                          workerRole: true
+                          quantity: {{ $hQuantity }}
+                          machineConfigRef:
+                            kind: HarvesterConfig
+                            name: {{ $hcfgName }}
+                      {{- if $spec.machineGlobalConfig }}
+                      machineGlobalConfig:
+                        {{- $spec.machineGlobalConfig | toYaml | nindent 12 }}
+                      {{- else }}
+                      machineGlobalConfig: {}
+                      {{- end }}
+            {{- else }}
             ---
             # (1) PROVISION — the generic (custom-node) Rancher cluster on the
             # Rancher management cluster (rancherProviderConfigRef; = the control
@@ -82,6 +190,7 @@ spec:
                       {{- else }}
                       machineGlobalConfig: {}
                       {{- end }}
+            {{- end }}
             {{- if $split }}
             ---
             # (1b) BRIDGE — only when Crossplane and Rancher are on DIFFERENT

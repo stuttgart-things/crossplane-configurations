@@ -54,11 +54,24 @@ spec:
                     the name of the emitted downstream ClusterProviderConfig.
                 distro:
                   type: string
-                  description: "Kubernetes distribution for the generic cluster."
+                  description: "Kubernetes distribution for the cluster."
                   enum:
                     - k3s
                     - rke2
                   default: k3s
+                infrastructure:
+                  type: string
+                  description: >-
+                    How the cluster's nodes are provisioned. `generic`
+                    (default) creates a custom-node cluster with no machine
+                    pools — nodes are registered manually via Rancher's
+                    registration command. `harvester` provisions VM nodes on a
+                    Harvester cluster via a machine pool backed by a
+                    HarvesterConfig; requires the `harvester` block.
+                  enum:
+                    - generic
+                    - harvester
+                  default: generic
                 kubernetesVersion:
                   type: string
                   description: >-
@@ -83,6 +96,68 @@ spec:
                     Free-form rkeConfig.machineGlobalConfig passthrough
                     (e.g. cni, disable, kube-apiserver-arg).
                   x-kubernetes-preserve-unknown-fields: true
+                harvester:
+                  type: object
+                  description: >-
+                    VM node sizing for `infrastructure: harvester`. The
+                    Composition renders a HarvesterConfig (the VM template) and
+                    a single machine pool referencing it. Ignored when
+                    infrastructure is generic.
+                  properties:
+                    cloudCredentialSecretName:
+                      type: string
+                      description: >-
+                        Rancher Harvester cloud credential, in
+                        `<namespace>:<name>` form (e.g.
+                        `cattle-global-data:cc-xxxxx`). Must already exist on
+                        the Rancher cluster — created once via the Rancher UI /
+                        API, referenced here by name.
+                    imageName:
+                      type: string
+                      description: >-
+                        Harvester VM image, `<namespace>/<name>`
+                        (e.g. `default/sthings-u26-k3s`).
+                    networkName:
+                      type: string
+                      description: >-
+                        Harvester network, `<namespace>/<name>`
+                        (e.g. `default/vms`).
+                    vmNamespace:
+                      type: string
+                      description: "Harvester namespace the VMs are created in."
+                      default: default
+                    cpuCount:
+                      type: integer
+                      description: "vCPUs per node."
+                      default: 2
+                    memorySize:
+                      type: integer
+                      description: "Memory per node, in GiB."
+                      default: 4
+                    diskSize:
+                      type: integer
+                      description: "Root disk per node, in GiB."
+                      default: 40
+                    sshUser:
+                      type: string
+                      description: >-
+                        SSH user baked into the image (e.g. `ubuntu`, `sthings`).
+                      default: ubuntu
+                    quantity:
+                      type: integer
+                      description: "Number of nodes in the pool."
+                      default: 1
+                    userData:
+                      type: string
+                      description: >-
+                        cloud-init userData for the nodes (plain YAML; the
+                        Composition base64-encodes it for HarvesterConfig).
+                        Defaults to installing + enabling qemu-guest-agent,
+                        which Harvester needs for IP reporting.
+                  required:
+                    - cloudCredentialSecretName
+                    - imageName
+                    - networkName
                 bootstrap:
                   type: object
                   description: >-
@@ -153,6 +228,9 @@ spec:
                 - providerConfigRef
                 - name
                 - kubernetesVersion
+              x-kubernetes-validations:
+                - rule: "self.infrastructure != 'harvester' || has(self.harvester)"
+                  message: "spec.harvester is required when spec.infrastructure is 'harvester'"
             status:
               type: object
               properties:
