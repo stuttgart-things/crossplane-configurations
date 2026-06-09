@@ -1,0 +1,38 @@
+---
+# EnvironmentConfig for the high-level `virtual-machine` Configuration
+# (XVirtualMachine). Selected by the config-scoped label
+# `virtual-machine.resources.stuttgart-things.com/environment` matched against
+# the XR's spec.environment (here: labul). function-environment-configs requires
+# EXACTLY ONE match per environment, so this label is distinct from the
+# harvester-vm one in env-config-harvestervm.yaml (different Configuration,
+# different selector) — both can live in this synced dir without colliding.
+#
+# Unlike the leaf harvester-vm env config (flat data), virtual-machine's data is
+# nested per provider; spec.provider: harvester reads the `harvester` sub-block
+# plus the cross-provider `ansible` block. Values are the proven LabUL placement
+# (same storage class / image / Multus net as env-config-harvestervm.yaml).
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: virtualmachine-labul
+  labels:
+    virtual-machine.resources.stuttgart-things.com/environment: labul
+data:
+  # Cross-provider Ansible defaults (inert unless an XR sets ansible: true).
+  ansible:
+    crossplaneProviderConfig: in-cluster
+    ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test
+  # Harvester / KubeVirt placement. `images` maps spec.os -> Harvester imageId.
+  harvester:
+    images:
+      ubuntu24: default/u26-dev
+      # Unverified on this Harvester — replace before using os: ubuntu22.
+      ubuntu22: default/image-ubuntu-22
+    providerConfigRef: harvester
+    storageClassName: lh-7f7c570a-a326-4232-b291-3f2a946aeadf
+    # Target namespace for PVC / cloud-init Secret / VM ON THE HARVESTER cluster.
+    namespace: vms
+    networkName: default/vms
+    user: sthings
+    # Reused from deploy-remote/5-xr.yaml (public key — safe to commit).
+    sshKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOoe/pqEulMLsJRxBqgbDtdOftsCHq9K2hU1Xr99FQZA sthings@sthings-air12"
