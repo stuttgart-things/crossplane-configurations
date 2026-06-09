@@ -189,6 +189,17 @@ spec:
                       default: true
                     networkConfig:
                       type: string
+                      description: |
+                        cloud-init network-config (netplan v2). Defaults to DHCP
+                        on eth0. REQUIRED on a bridge/Multus network: without an
+                        explicit network-config the guest NIC gets no DHCP lease,
+                        so the VM never gets an IP and status.share.ip stays empty.
+                        Override only for static addressing or a non-eth0 NIC.
+                      default: |
+                        version: 2
+                        ethernets:
+                          eth0:
+                            dhcp4: true
                   required:
                     - vmName
                     - hostname

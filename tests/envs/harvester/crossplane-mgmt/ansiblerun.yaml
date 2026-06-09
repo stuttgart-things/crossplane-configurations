@@ -1,0 +1,46 @@
+---
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: ansible-run-defaults
+  labels:
+    ansible-run.resources.stuttgart-things.com/environment: default
+data:
+  # Git source of the pipeline definition
+  gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  gitRevision: main
+  gitPath: pipelines/execute-ansible-playbooks.yaml
+  # Infra defaults
+  storageClass: openebs-hostpath
+  ansibleWorkingImage: "ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test"
+  namespace: tekton-ci
+  # Credentials Secret (pre-created in the pipeline namespace)
+  ansibleCredentialsSecretName: ansible-credentials # pragma: allowlist secret
+  # Default Ansible collections (JSON list — overridable per XR)
+  ansibleExtraCollections:
+    - "community.general:10.1.0"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-25.4.118.tar.gz/sthings-baseos-25.4.118.tar.gz"
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: AnsibleRun
+metadata:
+  name: ansible-run-min
+  namespace: default
+spec:
+  pipelineRunName: run-ansible
+  namespace: tekton-ci
+  gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  ansiblePlaybooks:
+    - sthings.baseos.setup
+  wrapInCrossplane: true
+  ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test
+  crossplaneObjectName: run-ansible
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
+  ansibleVarsFile:
+    - manage_filesystem+-true
+    - update_packages+-true
+    - ansible_become+-true
+    - ansible_become_method+-sudo
+  ansibleVarsInventory:
+    - 'all+["192.168.10.149"]'

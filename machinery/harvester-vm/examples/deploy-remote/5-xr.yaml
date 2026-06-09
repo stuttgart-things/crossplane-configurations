@@ -37,7 +37,7 @@ spec:
         shell: /bin/bash
         sshAuthorizedKeys:
           # >>> replace with your public key <<<
-          - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC..."
+          - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOoe/pqEulMLsJRxBqgbDtdOftsCHq9K2hU1Xr99FQZA sthings@sthings-air12"
     packages:
       - qemu-guest-agent
     runcmd:

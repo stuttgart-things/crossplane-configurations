@@ -1,0 +1,18 @@
+---
+# virtual-machine Configuration package — the high-level VM entrypoint
+# (XVirtualMachine: size/provider/environment/os). For provider: harvester it
+# emits a HarvesterVM into the harvester-vm Configuration above. v0.1.1 emits
+# volume.volumeMode: Block on that HarvesterVM, matching the proven Harvester
+# image-backed boot disk (a Filesystem PVC yields a non-booting disk).
+#
+# Driving an XVirtualMachine also needs an EnvironmentConfig labelled
+# `virtual-machine.resources.stuttgart-things.com/environment=<env>` carrying a
+# nested `harvester` sub-block (+ cross-provider `ansible` block) — not added
+# here yet (the existing env-config-harvestervm.yaml is for the harvester-vm
+# label, a different selector).
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: virtual-machine
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.1

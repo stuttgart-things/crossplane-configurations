@@ -210,6 +210,11 @@ spec:
                         storageClassName = _env?.storageClassName or ""
                         namespace = _hvNamespace
                         imageId = _imageId
+                        # Harvester image-backed boot disks must be Block (the
+                        # proven vm-u26.yaml / harvester-vm 5-xr.yaml use Block);
+                        # the harvester-vm XRD defaults volumeMode to Filesystem,
+                        # which yields a non-booting disk. Env-overridable.
+                        volumeMode = _env?.volumeMode or "Block"
                     }
                     cloudInit = {
                         vmName = _name
