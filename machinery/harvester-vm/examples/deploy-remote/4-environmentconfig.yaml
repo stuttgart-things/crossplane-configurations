@@ -28,9 +28,14 @@ data:
   # target). This is what makes the VMs land on the Harvester cluster.
   providerConfigRef: harvester
 
-  # Harvester storage class for the root-disk PVC. (Default class on this
-  # Harvester; `kubectl get sc` shows it marked (default).)
-  storageClassName: harvester-longhorn
+  # Harvester storage class for the root-disk PVC. MUST be the per-image
+  # Longhorn class (`lh-<uuid>`) that carries the `backingImage` for `imageId`
+  # below — NOT the generic `harvester-longhorn` default class. The generic
+  # class yields a BLANK disk (no OS boots, VM gets no IP). Find the right one:
+  #   kubectl --kubeconfig ~/.kube/harvester -n default get virtualmachineimage \
+  #     u26-dev -o jsonpath='{.status.storageClassName}{"\n"}'
+  # (here: lh-7f7c570a-... is the class for image default/u26-dev)
+  storageClassName: lh-7f7c570a-a326-4232-b291-3f2a946aeadf
 
   # Target namespace for the PVC, cloud-init Secret and VirtualMachine ON THE
   # HARVESTER CLUSTER. Created via `kubectl --kubeconfig ~/.kube/harvester

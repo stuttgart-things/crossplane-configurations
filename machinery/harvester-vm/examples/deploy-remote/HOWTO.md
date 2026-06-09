@@ -70,10 +70,13 @@ Open `4-environmentconfig.yaml` and replace the `PLACEHOLDER` values. Discover
 the real ones on the **Harvester** cluster:
 
 ```bash
-kubectl --kubeconfig ~/.kube/harvester get storageclass
 kubectl --kubeconfig ~/.kube/harvester get net-attach-def -A          # networkName = <ns>/<name>
 kubectl --kubeconfig ~/.kube/harvester get virtualmachineimages -A \
   -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name        # imageId = <ns>/<name>
+# storageClassName: use the IMAGE'S class (lh-<uuid>), NOT the generic
+# `harvester-longhorn` default — the generic class makes a blank disk with no OS:
+kubectl --kubeconfig ~/.kube/harvester -n <img-ns> get virtualmachineimage <img-name> \
+  -o jsonpath='{.status.storageClassName}{"\n"}'
 ```
 
 Keep `providerConfigRef: harvester` (it must match the ClusterProviderConfig in
