@@ -2,7 +2,10 @@
 # harvester-vm Configuration package — installed/upgraded on the crossplane-mgmt
 # cluster via the Argo `crossplane-resources` Application (which syncs this dir,
 # recurse=true). v0.1.1 adds the cloudInit.networkConfig DHCP default required
-# for the VM to get an IP on a bridge/Multus network. Its dependsOn pulls
+# for the VM to get an IP on a bridge/Multus network. v0.1.2 sets the VM
+# Object's readiness.policy to DeriveFromObject so the XR reports Ready from the
+# KubeVirt VM's own Ready condition (SuccessfulCreate kept it Unready forever).
+# Its dependsOn pulls
 # provider-kubernetes, the pipeline Functions, and the cloud-config / volume-claim
 # / ansible-run building-block Configurations automatically.
 apiVersion: pkg.crossplane.io/v1
@@ -10,4 +13,4 @@ kind: Configuration
 metadata:
   name: harvester-vm
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/harvester-vm:v0.1.1
+  package: ghcr.io/stuttgart-things/crossplane-configurations/harvester-vm:v0.1.2

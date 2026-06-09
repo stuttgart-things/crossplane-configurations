@@ -344,6 +344,15 @@ spec:
                 kind: ClusterProviderConfig
               managementPolicies:
                 - '*'
+              # Derive Ready from the remote KubeVirt VM's own `Ready` condition
+              # rather than the default `SuccessfulCreate`. KubeVirt heavily
+              # defaults/mutates the VM spec (and churns RestartRequired /
+              # LiveMigratable status), so the managed Object never reaches a
+              # settled "created" state and stays Ready=False forever under
+              # SuccessfulCreate — leaving the XR perpetually Unready even though
+              # the VM is Running. DeriveFromObject reflects the actual VM state.
+              readiness:
+                policy: DeriveFromObject
               forProvider:
                 manifest:
                   apiVersion: kubevirt.io/v1
