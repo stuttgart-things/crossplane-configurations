@@ -2,7 +2,7 @@
 apiVersion: apiextensions.crossplane.io/v1beta1
 kind: EnvironmentConfig
 metadata:
-  name: harvester-vm-remote-defaults
+  name: harvestervm-defaults
   labels:
     harvester-vm.resources.stuttgart-things.com/environment: default
 data:
