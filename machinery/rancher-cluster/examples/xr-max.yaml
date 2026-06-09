@@ -1,0 +1,43 @@
+---
+# Every spec field set — catches templating breakage. A generic rke2 cluster
+# with cluster labels, an rkeConfig.machineGlobalConfig passthrough and a
+# labelled downstream bootstrap namespace.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: rke2-prod
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  name: rke2-prod
+  distro: rke2
+  kubernetesVersion: v1.31.5+rke2r1
+  rancherNamespace: fleet-default
+  clusterLabels:
+    env: prod
+    team: platform
+    app.kubernetes.io/part-of: stuttgart-things
+  machineGlobalConfig:
+    cni: calico
+    disable:
+      - rke2-ingress-nginx
+    kube-apiserver-arg:
+      - audit-log-maxage=30
+  bootstrap:
+    namespace: platform-system
+    labels:
+      managed-by: crossplane
+      app.kubernetes.io/part-of: stuttgart-things
+  # Register the new cluster in Argo CD via clusterbook-operator. Keeps the
+  # Rancher auth-proxy server, but swaps in a dedicated non-expiring token from
+  # the referenced Secret (see examples/argocd-token.yaml).
+  argocd:
+    register: true
+    namespace: argocd
+    tokenSecretRef:
+      name: rancher-argocd-token
+      namespace: crossplane-system
+      key: token
+    labels:
+      env: prod
+      region: eu-central-1

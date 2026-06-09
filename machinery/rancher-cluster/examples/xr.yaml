@@ -1,0 +1,16 @@
+---
+# Realistic "standard" usage: a generic k3s cluster, explicit provisioning
+# namespace, and a named bootstrap namespace applied to the new cluster.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: k3s-test
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  name: k3s-test
+  distro: k3s
+  kubernetesVersion: v1.34.7+k3s1
+  rancherNamespace: fleet-default
+  bootstrap:
+    namespace: crossplane-bootstrap

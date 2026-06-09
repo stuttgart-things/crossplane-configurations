@@ -1,0 +1,275 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: rancher-cluster
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: RancherCluster
+  mode: Pipeline
+  pipeline:
+    - step: render-rancher-cluster
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $spec := .observed.composite.resource.spec }}
+            {{- $name := $spec.name }}
+            {{- $cpc := $spec.providerConfigRef }}
+            {{- $rancherNs := $spec.rancherNamespace | default "fleet-default" }}
+            {{- $version := $spec.kubernetesVersion }}
+            {{- $bootstrap := $spec.bootstrap | default dict }}
+            {{- $bootstrapNs := $bootstrap.namespace | default "crossplane-bootstrap" }}
+            {{- $argocd := $spec.argocd | default dict }}
+            {{- $argocdRegister := $argocd.register | default false }}
+            {{- $argocdNs := $argocd.namespace | default "argocd" }}
+            {{- $tokenRef := $argocd.tokenSecretRef | default dict }}
+            {{- $tokenKey := $tokenRef.key | default "token" }}
+            ---
+            # (1) PROVISION — the generic (custom-node) Rancher cluster on the
+            # management cluster. No machinePools: nodes are registered manually
+            # via the Rancher registration command. The +k3s/+rke2 suffix on
+            # kubernetesVersion selects the distribution.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-cluster") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-cluster
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $cpc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: provisioning.cattle.io/v1
+                  kind: Cluster
+                  metadata:
+                    name: {{ $name }}
+                    namespace: {{ $rancherNs }}
+                    {{- if $spec.clusterLabels }}
+                    labels:
+                      {{- range $k, $v := $spec.clusterLabels }}
+                      {{ $k }}: {{ $v | quote }}
+                      {{- end }}
+                    {{- end }}
+                  spec:
+                    kubernetesVersion: {{ $version }}
+                    rkeConfig:
+                      {{- if $spec.machineGlobalConfig }}
+                      machineGlobalConfig:
+                        {{- $spec.machineGlobalConfig | toYaml | nindent 12 }}
+                      {{- else }}
+                      machineGlobalConfig: {}
+                      {{- end }}
+            ---
+            # (2) WIRE — a ClusterProviderConfig pointing straight at the
+            # kubeconfig Secret Rancher publishes for the downstream cluster.
+            # No copy/transform: provider-kubernetes retries until Rancher
+            # creates `<name>-kubeconfig` (key `value`) in the provisioning ns.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-providerconfig") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-providerconfig
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $cpc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: kubernetes.m.crossplane.io/v1alpha1
+                  kind: ClusterProviderConfig
+                  metadata:
+                    name: {{ $name }}
+                  spec:
+                    credentials:
+                      source: Secret
+                      secretRef:
+                        namespace: {{ $rancherNs }}
+                        name: {{ $name }}-kubeconfig
+                        key: value
+            ---
+            # (3) USE — bootstrap a Namespace on the DOWNSTREAM cluster through
+            # the ClusterProviderConfig wired in step (2). Observe+Create adopts
+            # a pre-existing namespace and never modifies/deletes it. This is the
+            # proof that the extracted kubeconfig is usable by Crossplane.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-bootstrap-namespace") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-bootstrap-namespace
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+                - Create
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Namespace
+                  metadata:
+                    name: {{ $bootstrapNs }}
+                    {{- if $bootstrap.labels }}
+                    labels:
+                      {{- range $k, $v := $bootstrap.labels }}
+                      {{ $k }}: {{ $v | quote }}
+                      {{- end }}
+                    {{- end }}
+            ---
+            apiVersion: resources.stuttgart-things.com/v1alpha1
+            kind: RancherCluster
+            status:
+              kubeconfigSecret: {{ $name }}-kubeconfig
+              clusterProviderConfig: {{ $name }}
+              {{- if $argocdRegister }}
+              argocdClusterSecret: cluster-{{ $name }}
+              {{- end }}
+            {{- if $argocdRegister }}
+            ---
+            # (4) ARGO CD REGISTRATION (optional, spec.argocd.register=true).
+            # Ask Crossplane to fetch the Rancher-managed kubeconfig Secret and
+            # the dedicated-token Secret into the pipeline so we can read their
+            # contents (extra-resources is native to function-go-templating).
+            apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
+            kind: ExtraResources
+            requirements:
+              rancher-kubeconfig:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $name }}-kubeconfig
+                namespace: {{ $rancherNs }}
+              dedicated-token:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $tokenRef.name }}
+                namespace: {{ $tokenRef.namespace }}
+            {{- with .extraResources }}
+            {{- $rkObj := index . "rancher-kubeconfig" }}
+            {{- $dtObj := index . "dedicated-token" }}
+            {{- if and $rkObj $dtObj }}
+            {{- $rk := $rkObj.items }}
+            {{- $dt := $dtObj.items }}
+            {{- if and $rk $dt }}
+            {{- $kcfg := (index $rk 0).resource.data.value | b64dec | fromYaml }}
+            {{- $cluster := (index $kcfg.clusters 0).cluster }}
+            {{- $server := $cluster.server }}
+            {{- $ca := index $cluster "certificate-authority-data" }}
+            {{- $token := index (index $dt 0).resource.data $tokenKey | b64dec }}
+            ---
+            # Assembled kubeconfig: Rancher's auth-proxy server + CA, but our
+            # dedicated non-expiring token (not the kubeconfig's own token).
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-argocd-kubeconfig") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-argocd-kubeconfig
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $cpc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: {{ $name }}-argocd-kubeconfig
+                    namespace: {{ $argocdNs }}
+                  type: Opaque
+                  stringData:
+                    kubeconfig: |
+                      apiVersion: v1
+                      kind: Config
+                      clusters:
+                      - name: {{ $name }}
+                        cluster:
+                          server: {{ $server }}
+                          certificate-authority-data: {{ $ca }}
+                      contexts:
+                      - name: {{ $name }}
+                        context:
+                          cluster: {{ $name }}
+                          user: {{ $name }}
+                      current-context: {{ $name }}
+                      users:
+                      - name: {{ $name }}
+                        user:
+                          token: {{ $token | quote }}
+            ---
+            # ClusterbookCluster: clusterbook-operator reads the kubeconfig
+            # above and creates the Argo CD cluster Secret. skipReservation +
+            # preserveKubeconfigServer keep the Rancher proxy server verbatim
+            # (no clusterbook IP/DNS rewrite).
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-clusterbookcluster") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-clusterbookcluster
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $cpc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: clusterbook.stuttgart-things.com/v1alpha1
+                  kind: ClusterbookCluster
+                  metadata:
+                    name: {{ $name }}
+                  spec:
+                    clusterName: {{ $name }}
+                    skipReservation: true
+                    preserveKubeconfigServer: true
+                    argocdNamespace: {{ $argocdNs }}
+                    kubeconfigSecretRef:
+                      name: {{ $name }}-argocd-kubeconfig
+                      namespace: {{ $argocdNs }}
+                      key: kubeconfig
+                    {{- if $argocd.labels }}
+                    labels:
+                      {{- range $k, $v := $argocd.labels }}
+                      {{ $k }}: {{ $v | quote }}
+                      {{- end }}
+                    {{- end }}
+                    releaseOnDelete: false
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+
+    - step: ready
+      functionRef:
+        name: function-auto-ready
