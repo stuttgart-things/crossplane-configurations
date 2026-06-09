@@ -25,10 +25,27 @@ spec:
                 providerConfigRef:
                   type: string
                   description: >-
-                    Name of the provider-kubernetes ClusterProviderConfig that
-                    targets the Rancher MANAGEMENT cluster (where the
-                    provisioning.cattle.io Cluster and the downstream
-                    ClusterProviderConfig are created).
+                    Name of the provider-kubernetes ClusterProviderConfig for
+                    the CONTROL-PLANE cluster where Crossplane runs. The wired
+                    downstream ClusterProviderConfig, the bridged kubeconfig
+                    Secret and (optional) Argo CD objects are created here. When
+                    co-located with Rancher (the default, see
+                    rancherProviderConfigRef) this is also where the
+                    provisioning.cattle.io Cluster lands.
+                rancherProviderConfigRef:
+                  type: string
+                  description: >-
+                    Optional. Name of the provider-kubernetes
+                    ClusterProviderConfig that targets the Rancher MANAGEMENT
+                    cluster (where the provisioning.cattle.io Cluster is created
+                    and Rancher publishes <name>-kubeconfig). Defaults to
+                    providerConfigRef — i.e. Crossplane and Rancher co-located
+                    on one cluster. Set this to a DIFFERENT
+                    ClusterProviderConfig to split them: the Composition then
+                    bridges Rancher's published kubeconfig to the control-plane
+                    cluster via an Observe Object + connection Secret, and wires
+                    the downstream ClusterProviderConfig against the bridged
+                    copy.
                 name:
                   type: string
                   description: >-
