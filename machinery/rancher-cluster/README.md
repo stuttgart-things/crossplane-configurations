@@ -46,7 +46,8 @@ spec:
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `providerConfigRef` | ✅ | — | `ClusterProviderConfig` targeting the Rancher **management** cluster |
+| `providerConfigRef` | ✅ | — | `ClusterProviderConfig` for the **control-plane** cluster where Crossplane runs (wired CPC, bridged Secret, Argo CD objects land here). Co-located default: also the Rancher cluster. |
+| `rancherProviderConfigRef` | | = `providerConfigRef` | `ClusterProviderConfig` for the Rancher **management** cluster. Set it different from `providerConfigRef` to split the control plane from Rancher — see [Split control plane](#split-control-plane-rancherproviderconfigref). |
 | `name` | ✅ | — | Cluster name; also the `<name>-kubeconfig` Secret prefix and the downstream CPC name |
 | `kubernetesVersion` | ✅ | — | e.g. `v1.34.7+k3s1` / `v1.31.5+rke2r1` (the suffix selects the distro) |
 | `distro` | | `k3s` | `k3s` or `rke2` |
@@ -100,6 +101,44 @@ A dedicated least-privilege, **ttl=0** Rancher token for a service user
   extra-resources (their contents transit the pipeline into the assembled
   kubeconfig Secret).
 
+## Split control plane (`rancherProviderConfigRef`)
+
+By default Crossplane and Rancher are **co-located** on one cluster
+(`rancherProviderConfigRef` defaults to `providerConfigRef`), and the flow is
+exactly the table above. To run Crossplane on a **separate control-plane
+cluster** from Rancher, set `rancherProviderConfigRef` to a second
+`ClusterProviderConfig` that targets the Rancher cluster
+(see [`examples/xr-split.yaml`](examples/xr-split.yaml)).
+
+The catch: every `Object` is reconciled by the **one** `provider-kubernetes` on
+the control-plane cluster, and an `Object`'s `providerConfigRef` only selects
+*where it is applied* — it does not move Secrets. So the wired CPC (which must
+live on the control plane, because the bootstrap `Object` resolves it there)
+needs Rancher's `<name>-kubeconfig`, but Rancher only publishes that on the
+Rancher cluster. The Composition closes that gap with an extra step:
+
+| Step | Object | `providerConfigRef` |
+|------|--------|---------------------|
+| 1 Provision | `provisioning.cattle.io/v1` Cluster | `rancherProviderConfigRef` (Rancher) |
+| **1b Bridge** *(split only)* | `Object` that **Observes** `<name>-kubeconfig` on the Rancher cluster and surfaces its `value` as a connection Secret `<name>-kubeconfig-bridged` (in the XR namespace) on the control plane | `rancherProviderConfigRef` (Rancher) |
+| 2 Wire | `ClusterProviderConfig` → `secretRef` at the **bridged** Secret | `providerConfigRef` (control plane) |
+| 3 Use | bootstrap `Namespace` | the wired CPC (downstream) |
+| 4 Register *(optional)* | reads the **bridged** Secret via extra-resources; emits the Argo CD objects | `providerConfigRef` (control plane) |
+
+The bridge uses `provider-kubernetes`'s native `connectionDetails` +
+`writeConnectionSecretToRef` — no external secret-sync, no new dependency. When
+co-located, step 1b is not emitted and step 2 reads `<name>-kubeconfig` directly,
+so rendered output is **byte-identical** to a spec without `rancherProviderConfigRef`.
+
+> [!IMPORTANT]
+> **Encoding — verify on a live split.** The bridge copies the Secret field at
+> `data.value` (base64) into a connection Secret via `connectionDetails`. Whether
+> `provider-kubernetes` re-encodes that when materializing the connection Secret
+> (potential double-base64) has not yet been confirmed against a real Rancher +
+> two-cluster setup. Render output is correct; confirm the wired CPC actually
+> authenticates with the bridged Secret on first live use, and adjust the
+> `fieldPath`/decode if needed.
+
 ## Cluster preconditions
 
 On the Rancher **management** cluster (where Crossplane runs):
@@ -111,6 +150,14 @@ On the Rancher **management** cluster (where Crossplane runs):
 - `provider-kubernetes`'s ServiceAccount must be able to **read Secrets** in
   `spec.rancherNamespace` (default `fleet-default`) — that is where Rancher
   writes `<name>-kubeconfig`.
+
+For a **split control plane** (`rancherProviderConfigRef` set), additionally:
+
+- A second `ClusterProviderConfig` on the control-plane cluster whose kubeconfig
+  targets the Rancher cluster (referenced by `rancherProviderConfigRef`).
+- That kubeconfig's identity must be able to read Secrets in
+  `spec.rancherNamespace` on the Rancher cluster (the bridge `Object` Observes
+  `<name>-kubeconfig` there).
 
 ## Caveats
 

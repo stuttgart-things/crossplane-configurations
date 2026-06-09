@@ -1,0 +1,18 @@
+---
+# Split control plane: Crossplane runs on the CONTROL-PLANE cluster
+# (providerConfigRef), Rancher runs on a SEPARATE management cluster
+# (rancherProviderConfigRef). The Composition provisions the Cluster on the
+# Rancher cluster, observe-bridges its published `<name>-kubeconfig` back to the
+# control-plane cluster (as `<name>-kubeconfig-bridged`), and wires the
+# downstream ClusterProviderConfig there. Render with --extra-resources to
+# exercise the (optional) Argo CD path; the base split needs none.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: k3s-split
+  namespace: default
+spec:
+  providerConfigRef: in-cluster          # control-plane cluster (Crossplane / provider-kubernetes)
+  rancherProviderConfigRef: rancher-mgmt # Rancher management cluster (provisioning.cattle.io)
+  name: k3s-split
+  kubernetesVersion: v1.34.7+k3s1

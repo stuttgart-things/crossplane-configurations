@@ -20,8 +20,17 @@ spec:
           template: |
             {{- $spec := .observed.composite.resource.spec }}
             {{- $name := $spec.name }}
+            {{- $xrNs := .observed.composite.resource.metadata.namespace }}
             {{- $cpc := $spec.providerConfigRef }}
+            {{- $rancherCpc := $spec.rancherProviderConfigRef | default $cpc }}
+            {{- $split := ne $rancherCpc $cpc }}
             {{- $rancherNs := $spec.rancherNamespace | default "fleet-default" }}
+            {{- $bridgedSecret := print $name "-kubeconfig-bridged" }}
+            {{- /* Where the wired CPC + Argo CD path read the kubeconfig from:
+                   co-located → Rancher's published Secret on the (shared) cluster;
+                   split      → the bridged connection Secret on the control plane. */}}
+            {{- $kcfgSecretName := ternary $bridgedSecret (print $name "-kubeconfig") $split }}
+            {{- $kcfgSecretNs := ternary $xrNs $rancherNs $split }}
             {{- $version := $spec.kubernetesVersion }}
             {{- $bootstrap := $spec.bootstrap | default dict }}
             {{- $bootstrapNs := $bootstrap.namespace | default "crossplane-bootstrap" }}
@@ -32,9 +41,10 @@ spec:
             {{- $tokenKey := $tokenRef.key | default "token" }}
             ---
             # (1) PROVISION — the generic (custom-node) Rancher cluster on the
-            # management cluster. No machinePools: nodes are registered manually
-            # via the Rancher registration command. The +k3s/+rke2 suffix on
-            # kubernetesVersion selects the distribution.
+            # Rancher management cluster (rancherProviderConfigRef; = the control
+            # plane when co-located). No machinePools: nodes are registered
+            # manually via the Rancher registration command. The +k3s/+rke2
+            # suffix on kubernetesVersion selects the distribution.
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
             metadata:
@@ -46,7 +56,7 @@ spec:
                 app.kubernetes.io/managed-by: crossplane
             spec:
               providerConfigRef:
-                name: {{ $cpc }}
+                name: {{ $rancherCpc }}
                 kind: ClusterProviderConfig
               managementPolicies:
                 - '*'
@@ -72,11 +82,54 @@ spec:
                       {{- else }}
                       machineGlobalConfig: {}
                       {{- end }}
+            {{- if $split }}
             ---
-            # (2) WIRE — a ClusterProviderConfig pointing straight at the
-            # kubeconfig Secret Rancher publishes for the downstream cluster.
-            # No copy/transform: provider-kubernetes retries until Rancher
-            # creates `<name>-kubeconfig` (key `value`) in the provisioning ns.
+            # (1b) BRIDGE — only when Crossplane and Rancher are on DIFFERENT
+            # clusters. Rancher publishes <name>-kubeconfig on the Rancher
+            # cluster (rancherProviderConfigRef), but the wired CPC below must
+            # read it from the control-plane cluster where provider-kubernetes
+            # runs. Observe the published Secret on the Rancher cluster and
+            # surface its `value` as a connection Secret on the control plane
+            # (<name>-kubeconfig-bridged, in the XR namespace) for the wired CPC
+            # — and the Argo CD path — to consume.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-kubeconfig-bridge") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-kubeconfig-bridge
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $rancherCpc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+              writeConnectionSecretToRef:
+                name: {{ $bridgedSecret }}
+              connectionDetails:
+                - apiVersion: v1
+                  kind: Secret
+                  name: {{ $name }}-kubeconfig
+                  namespace: {{ $rancherNs }}
+                  fieldPath: data.value
+                  toConnectionSecretKey: value
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: {{ $name }}-kubeconfig
+                    namespace: {{ $rancherNs }}
+            {{- end }}
+            ---
+            # (2) WIRE — a ClusterProviderConfig on the control-plane cluster
+            # pointing at the kubeconfig Secret for the downstream cluster.
+            # Co-located: Rancher's published `<name>-kubeconfig` (key `value`)
+            # directly. Split: the bridged Secret from step (1b). No
+            # copy/transform; provider-kubernetes retries until the Secret lands.
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
             metadata:
@@ -102,8 +155,8 @@ spec:
                     credentials:
                       source: Secret
                       secretRef:
-                        namespace: {{ $rancherNs }}
-                        name: {{ $name }}-kubeconfig
+                        namespace: {{ $kcfgSecretNs }}
+                        name: {{ $kcfgSecretName }}
                         key: value
             ---
             # (3) USE — bootstrap a Namespace on the DOWNSTREAM cluster through
@@ -159,8 +212,8 @@ spec:
               rancher-kubeconfig:
                 apiVersion: v1
                 kind: Secret
-                matchName: {{ $name }}-kubeconfig
-                namespace: {{ $rancherNs }}
+                matchName: {{ $kcfgSecretName }}
+                namespace: {{ $kcfgSecretNs }}
               dedicated-token:
                 apiVersion: v1
                 kind: Secret
