@@ -92,10 +92,12 @@ jobs:
     env:
       # 24h is ttl.sh's maximum TTL — long enough to outlive a review cycle.
       TTL: "24h"
-      # v0.116.0: the crossplane module's push-preview function builds a
+      # v0.118.0: the crossplane module's push-preview function builds a
       # Configuration, pushes it anonymously to ttl.sh, and returns the
       # install manifest — replacing the task/gum/curl bootstrap below.
-      CROSSPLANE_MODULE_VERSION: v0.116.0
+      # v0.118.0 pins crank to v2.2.2 + tolerates the release bucket's
+      # mismatched crank.sha256 (stuttgart-things/dagger#295).
+      CROSSPLANE_MODULE_VERSION: v0.118.0
     steps:
       - uses: actions/checkout@v6.0.2
 

@@ -20,8 +20,8 @@ spec:
   providerConfigName: default
   providerConfigKind: ClusterProviderConfig
 
-  vaultTokenSecret: vault
-  vaultTokenSecretKey: terraform.tfvars
+  vaultTokenSecret: vault # pragma: allowlist secret
+  vaultTokenSecretKey: terraform.tfvars # pragma: allowlist secret
 
   k8sAuths:
     - name: dev
@@ -30,8 +30,8 @@ spec:
       boundServiceAccountNames: ["default", "vault-auth"]
       boundServiceAccountNamespaces: ["default", "applications"]
       backendConfig:
-        secretName: vault-dev
-        secretNamespace: default
+        secretName: vault-dev # pragma: allowlist secret
+        secretNamespace: default # pragma: allowlist secret
         caCertKey: ca.crt
         tokenKey: token
         disableIssValidation: true
