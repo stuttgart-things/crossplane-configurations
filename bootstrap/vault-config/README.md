@@ -107,3 +107,5 @@ old package:
   `ghcr.io/stuttgart-things` builds.
 - **Short Function names** (`function-kcl`, not `crossplane-contrib-function-kcl`).
 - `examples/claim.yaml` → `examples/xr.yaml` (+ `xr-min` / `xr-max`).
+
+<!-- ci-smoke: verify on v0.118.1 (dagger#300) — close PR, do not merge -->

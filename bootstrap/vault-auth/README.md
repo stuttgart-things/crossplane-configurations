@@ -148,3 +148,5 @@ at `tofu apply` time. This means:
 
 For a minimal smoke test, leave `backendConfig` unset on every entry — the
 Workspace still creates the Vault auth backend and the role.
+
+<!-- ci-smoke: verify on v0.118.1 (dagger#300) — close PR, do not merge -->
