@@ -43,6 +43,27 @@ it creates a `VolumeClaim` and a `CloudInit` composite (from this repo's
    `status.succeeded == "True"` back from observed; it is `true` outright when
    Ansible is disabled. The gate (Running + IP) means the AnsibleRun never
    appears in offline `crossplane render` — same as vm-provision's tofu path.
+6. **`automatically-detect-ready-composed-resources`** (`function-auto-ready`,
+   added v0.1.3) — without it the directly-composed VM/VMI Objects are never
+   marked ready and the XR (and any XR composing it) reports Unready forever
+   even with the VM Running. Pairs with the VM Object's
+   `readiness.policy: DeriveFromObject` (so its Object-level Ready tracks the
+   KubeVirt VM, not the stuck `SuccessfulCreate` heuristic). Both are required.
+
+### Usage deletion-ordering safeguard (v0.1.4)
+The `create-vm` step also emits two namespaced `protection.crossplane.io/v1beta1`
+`Usage` resources: `of: VolumeClaim` (boot disk) and `of: CloudInit` (cloud-init
+Secret), each `by:` the VM `Object` (selected via the `app.kubernetes.io/component:
+virtualmachine` label — the VM and VMI Objects otherwise share labels, so the VMI
+carries `component: virtualmachineinstance` to disambiguate). This blocks deleting
+the disk/secret out from under a running VM; teardown removes the VM first.
+`replayDeletion: true` lets the protected resource's own delete proceed once the
+Usage is gone, so it never wedges teardown; the `gotemplating.fn.crossplane.io/ready:
+"True"` annotation keeps the Usages from gating XR readiness. `Usage` is core
+Crossplane (no `dependsOn` entry needed). NOTE: this protects intra-composition
+deletion ordering — it does **not** protect against deleting the whole `harvester-vm`
+package/XRD (that cascade is avoided by NOT explicitly installing harvester-vm
+alongside virtual-machine's `dependsOn`; see virtual-machine's CLAUDE.md).
 
 ## VM IP surfacing (`status.share.ip`)
 The IP lives on the **VMI**, not the VM, at `status.interfaces[].ipAddress`,

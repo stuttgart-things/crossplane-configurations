@@ -338,6 +338,9 @@ spec:
                 app.kubernetes.io/name: harvester-vm
                 app.kubernetes.io/instance: {{ $vmName }}
                 app.kubernetes.io/managed-by: crossplane
+                # Distinguishes this Object from the VMI Object (same instance
+                # label) so a Usage `by` selector can target the VM specifically.
+                app.kubernetes.io/component: virtualmachine
             spec:
               providerConfigRef:
                 name: {{ $pc }}
@@ -447,6 +450,7 @@ spec:
                 app.kubernetes.io/name: harvester-vm
                 app.kubernetes.io/instance: {{ $vmName }}
                 app.kubernetes.io/managed-by: crossplane
+                app.kubernetes.io/component: virtualmachineinstance
             spec:
               providerConfigRef:
                 name: {{ $pc }}
@@ -521,6 +525,69 @@ spec:
               {{-   end }}
               {{- end }}
             {{- end }}
+            {{- /* Usage (deletion-ordering safeguard): block deletion of the
+                   boot-disk VolumeClaim and the cloud-init CloudInit while the
+                   VirtualMachine Object still exists, so a teardown removes the
+                   VM BEFORE the resources it depends on (never yanks the disk /
+                   cloud-init out from under a running VM). `by` selects the VM
+                   Object via its component label (not the VMI). replayDeletion
+                   lets the protected resource's own delete proceed once the
+                   Usage is removed, so this never wedges teardown. The ready
+                   annotation keeps these Usages from gating XR readiness. */}}
+            ---
+            apiVersion: protection.crossplane.io/v1beta1
+            kind: Usage
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $vmName "-usage-volumeclaim") }}
+                gotemplating.fn.crossplane.io/ready: "True"
+              namespace: {{ $xr.metadata.namespace }}
+              labels:
+                app.kubernetes.io/name: harvester-vm
+                app.kubernetes.io/instance: {{ $vmName }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              reason: "Boot-disk VolumeClaim is in use by the VirtualMachine"
+              replayDeletion: true
+              of:
+                apiVersion: resources.stuttgart-things.com/v1alpha1
+                kind: VolumeClaim
+                resourceRef:
+                  name: {{ $xr.metadata.name }}
+              by:
+                apiVersion: kubernetes.m.crossplane.io/v1alpha1
+                kind: Object
+                resourceSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: {{ $vmName }}
+                    app.kubernetes.io/component: virtualmachine
+            ---
+            apiVersion: protection.crossplane.io/v1beta1
+            kind: Usage
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $vmName "-usage-cloudinit") }}
+                gotemplating.fn.crossplane.io/ready: "True"
+              namespace: {{ $xr.metadata.namespace }}
+              labels:
+                app.kubernetes.io/name: harvester-vm
+                app.kubernetes.io/instance: {{ $vmName }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              reason: "Cloud-init CloudInit is in use by the VirtualMachine"
+              replayDeletion: true
+              of:
+                apiVersion: resources.stuttgart-things.com/v1alpha1
+                kind: CloudInit
+                resourceRef:
+                  name: {{ $xr.metadata.name }}
+              by:
+                apiVersion: kubernetes.m.crossplane.io/v1alpha1
+                kind: Object
+                resourceSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: {{ $vmName }}
+                    app.kubernetes.io/component: virtualmachine
             ---
             apiVersion: resources.stuttgart-things.com/v1alpha1
             kind: HarvesterVM

@@ -6,7 +6,10 @@
 # image-backed boot disk (a Filesystem PVC yields a non-booting disk). v0.1.2
 # adds `harvester` to the spec.environment enum. v0.1.3 drops ubuntu22, exposes
 # all available Harvester images as os values, and selects the per-image
-# storage class from the env `images` {imageId, storageClassName} map.
+# storage class from the env `images` {imageId, storageClassName} map. v0.1.4
+# pins dependsOn harvester-vm >=v0.1.4 (single place harvester-vm's version is
+# managed, since there's no explicit harvester-vm install); harvester-vm v0.1.4
+# adds Usage deletion-ordering protection for the boot disk + cloud-init.
 #
 # Driving an XVirtualMachine also needs an EnvironmentConfig labelled
 # `virtual-machine.resources.stuttgart-things.com/environment=<env>` carrying a
@@ -18,4 +21,4 @@ kind: Configuration
 metadata:
   name: virtual-machine
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.3
+  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.4
