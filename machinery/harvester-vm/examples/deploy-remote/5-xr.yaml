@@ -42,9 +42,23 @@ spec:
       - qemu-guest-agent
     runcmd:
       - "systemctl enable --now qemu-guest-agent.service"
+    # REQUIRED on a bridge/Multus network: without an explicit network-config
+    # the guest NIC gets no DHCP lease (empty `networkdata`), so the VM never
+    # gets an IP, can't reach the apt mirror to install qemu-guest-agent, and
+    # `status.share.ip` stays empty. Matches the proven Harvester VM. The guest
+    # NIC is `eth0` on this image.
+    networkConfig: |
+      version: 2
+      ethernets:
+        eth0:
+          dhcp4: true
   vm:
     description: "dev1 VM provisioned by Crossplane on remote Harvester"
     runStrategy: RerunOnFailure
+    # Single-instance Block boot disk (RWO) is NOT live-migratable; leaving the
+    # default (LiveMigrateIfPossible) makes KubeVirt flag DisksNotLiveMigratable
+    # and churn RestartRequired. None is correct for a non-shared boot disk.
+    evictionStrategy: None
     os: linux
     cpu:
       cores: 4

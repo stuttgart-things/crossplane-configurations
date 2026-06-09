@@ -45,9 +45,18 @@ spec:
       - qemu-guest-agent
     runcmd:
       - "systemctl enable --now qemu-guest-agent.service"
+    # REQUIRED on a bridge/Multus network — see deploy-remote/5-xr.yaml. Without
+    # it the guest gets no DHCP lease and the AnsibleRun (gated on the VM IP)
+    # never fires.
+    networkConfig: |
+      version: 2
+      ethernets:
+        eth0:
+          dhcp4: true
   vm:
     description: "dev1 VM with Ansible provisioning (remote Harvester)"
     runStrategy: RerunOnFailure
+    evictionStrategy: None
     os: linux
     cpu:
       cores: 4

@@ -215,7 +215,8 @@ non-empty `status.share.ip`). XR `READY=True` once the PipelineRun succeeds.
 |---------|-------------|
 | `clusterproviderconfig harvester` not usable / auth errors | Secret key not `kubeconfig`, wrong namespace, or multi-context kubeconfig — redo step 2 with `--minify --flatten` |
 | VM Object stuck: `namespaces "..." not found` | target namespace missing on the Harvester cluster — create it there (step 3) |
-| `status.share.ip` stays empty | `qemu-guest-agent` removed from `cloudInit.packages`, or no guest agent in the image |
+| `status.share.ip` stays empty / no `AgentConnected` | **most common:** no `cloudInit.networkConfig`, so the guest gets an empty network-config and no DHCP lease on the Multus/bridge NIC → no internet → `qemu-guest-agent` can't install → no IP. Set the DHCP `networkConfig` (see `5-xr.yaml`). Also keep `qemu-guest-agent` in `cloudInit.packages`. |
+| VM stuck `Stopping`/`RestartRequired`, `DisksNotLiveMigratable` | `evictionStrategy: LiveMigrateIfPossible` on a non-shared RWO/Block boot disk — set `vm.evictionStrategy: None` |
 | `cannot resolve package dependencies: ... node ... already exists` | a long-named Function CR duplicates a short-named one — use short names only, delete the duplicate |
 | AnsibleRun never appears | expected until the VM has an IP; also check Tekton stack + RBAC (step 7c/7d) |
 
