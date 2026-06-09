@@ -14,8 +14,8 @@ spec:
 
   # Secret (same namespace as this XR) containing `terraform.tfvars` with
   #   vault_token = "hvs...."
-  vaultTokenSecret: vault
-  vaultTokenSecretKey: terraform.tfvars
+  vaultTokenSecret: vault # pragma: allowlist secret
+  vaultTokenSecretKey: terraform.tfvars # pragma: allowlist secret
 
   # Only used when any k8sAuths entry has `backendConfig` set (see xr-max).
   # - In-cluster Vault: leave unset (defaults to https://kubernetes.default.svc:443)
