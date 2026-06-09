@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# (b) provider-kubernetes ClusterProviderConfig for the REMOTE Harvester cluster
+# =============================================================================
+# Crossplane runs on the management cluster (crossplane-mgmt); the VMs land on a
+# SEPARATE Harvester cluster. So this config uses `source: Secret` and points at
+# a kubeconfig Secret on the MANAGEMENT cluster (created by the kubectl command
+# in the README — deliverable (a)) rather than `InjectedIdentity`.
+#
+# The name `harvester` must match the EnvironmentConfig `providerConfigRef`
+# (file 4) and is what the Composition threads onto every Object it creates
+# (the VolumeClaim PVC, the CloudInit Secret and the KubeVirt VirtualMachine).
+#
+# `kubernetes.m.crossplane.io/v1alpha1` is the namespaced "managed" variant
+# required by Crossplane v2 — it has NO `deletionPolicy` field; lifecycle is
+# governed by managementPolicies on the Objects, not here.
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: harvester
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      # Namespace + name + key of the Secret created from ~/.kube/harvester.
+      namespace: crossplane-system
+      name: harvester-kubeconfig
+      key: kubeconfig

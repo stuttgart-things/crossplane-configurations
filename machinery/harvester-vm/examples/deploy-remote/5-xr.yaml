@@ -1,0 +1,69 @@
+---
+# The VM request — the only file a consumer edits per VM. Lives on the
+# MANAGEMENT cluster (metadata.namespace), targets the REMOTE Harvester via the
+# EnvironmentConfig selected by spec.environmentConfig.
+#
+# Per-VM fields (name, cpu, memory, disk, users) come from here; the shared
+# infra fields (providerConfigRef=harvester, storageClassName, namespace,
+# networkName, imageId) are inherited from file 4 — so this XR carries no
+# cluster-specific placement.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: HarvesterVM
+metadata:
+  name: dev1
+  namespace: default
+spec:
+  environmentConfig: default
+  volume:
+    pvcName: dev1-disk-0
+    storage: "20Gi"
+    accessModes:
+      - ReadWriteOnce
+    volumeMode: Block
+  cloudInit:
+    vmName: dev1
+    hostname: dev1
+    domain: local
+    sshPasswordAuth: true
+    disableRoot: false
+    packageUpdate: true
+    users:
+      - name: sthings
+        sudo: "ALL=(ALL) NOPASSWD:ALL" # pragma: allowlist secret
+        lockPasswd: false
+        # >>> set a password so the Harvester web console / password SSH works.
+        #     Plaintext is fine (cloud-init chpasswd); change before applying. <<<
+        password: "ChangeMe123!" # pragma: allowlist secret
+        shell: /bin/bash
+        sshAuthorizedKeys:
+          # >>> replace with your public key <<<
+          - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC..."
+    packages:
+      - qemu-guest-agent
+    runcmd:
+      - "systemctl enable --now qemu-guest-agent.service"
+    # REQUIRED on a bridge/Multus network: without an explicit network-config
+    # the guest NIC gets no DHCP lease (empty `networkdata`), so the VM never
+    # gets an IP, can't reach the apt mirror to install qemu-guest-agent, and
+    # `status.share.ip` stays empty. Matches the proven Harvester VM. The guest
+    # NIC is `eth0` on this image.
+    networkConfig: |
+      version: 2
+      ethernets:
+        eth0:
+          dhcp4: true
+  vm:
+    description: "dev1 VM provisioned by Crossplane on remote Harvester"
+    runStrategy: RerunOnFailure
+    # Single-instance Block boot disk (RWO) is NOT live-migratable; leaving the
+    # default (LiveMigrateIfPossible) makes KubeVirt flag DisksNotLiveMigratable
+    # and churn RestartRequired. None is correct for a non-shared boot disk.
+    evictionStrategy: None
+    os: linux
+    cpu:
+      cores: 4
+      sockets: 1
+      threads: 1
+    resources:
+      memory: "8Gi"
+      cpu: "4"
