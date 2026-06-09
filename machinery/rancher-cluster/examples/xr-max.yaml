@@ -28,3 +28,16 @@ spec:
     labels:
       managed-by: crossplane
       app.kubernetes.io/part-of: stuttgart-things
+  # Register the new cluster in Argo CD via clusterbook-operator. Keeps the
+  # Rancher auth-proxy server, but swaps in a dedicated non-expiring token from
+  # the referenced Secret (see examples/argocd-token.yaml).
+  argocd:
+    register: true
+    namespace: argocd
+    tokenSecretRef:
+      name: rancher-argocd-token
+      namespace: crossplane-system
+      key: token
+    labels:
+      env: prod
+      region: eu-central-1

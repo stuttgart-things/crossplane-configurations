@@ -13,6 +13,7 @@ A namespaced `RancherCluster` XR (group `resources.stuttgart-things.com`) drives
 | 1 | **Provision** | `provisioning.cattle.io/v1` `Cluster` (k3s or rke2, no machine pools — nodes registered manually) | management |
 | 2 | **Wire** | `kubernetes.m.crossplane.io/v1alpha1` `ClusterProviderConfig` named after the cluster | management |
 | 3 | **Use** | a bootstrap `Namespace` | **downstream** (the new cluster) |
+| 4 | **Register** *(optional)* | an assembled kubeconfig `Secret` + a `ClusterbookCluster` (→ Argo CD cluster Secret) | management |
 
 ## How the kubeconfig is obtained
 
@@ -54,8 +55,50 @@ spec:
 | `machineGlobalConfig` | | — | Free-form `rkeConfig.machineGlobalConfig` passthrough |
 | `bootstrap.namespace` | | `crossplane-bootstrap` | Namespace created on the downstream cluster |
 | `bootstrap.labels` | | — | Labels for that downstream namespace |
+| `argocd.register` | | `false` | Register the cluster in Argo CD via clusterbook-operator |
+| `argocd.namespace` | | `argocd` | Argo CD namespace (kubeconfig + cluster Secret) |
+| `argocd.tokenSecretRef` | when `register` | — | Pre-existing Secret with a dedicated **non-expiring** Rancher token (`{name, namespace, key}`, key default `token`) |
+| `argocd.labels` | | — | Labels on the `ClusterbookCluster` / Argo cluster Secret (for ApplicationSet selectors) |
 
-Status: `kubeconfigSecret`, `clusterProviderConfig`.
+Status: `kubeconfigSecret`, `clusterProviderConfig`, `argocdClusterSecret`.
+
+## Optional: Argo CD registration (`spec.argocd.register: true`)
+
+Rancher's downstream kubeconfig authenticates against the **auth-proxy** endpoint
+with a Rancher API token — `argocd cluster add` can't consume that (it wants a
+ServiceAccount token), so registration is done by assembling a kubeconfig Secret
+and handing it to [`clusterbook-operator`](https://github.com/stuttgart-things/clusterbook-operator),
+which creates the Argo CD `cluster-<name>` Secret.
+
+When enabled, the Composition (step 4):
+
+1. Uses `function-go-templating`'s **extra-resources** to read the
+   Rancher-managed `<name>-kubeconfig` Secret (for `server` + `certificate-authority-data`)
+   and the **dedicated-token** Secret (`spec.argocd.tokenSecretRef`).
+2. Emits a `Secret` (`<name>-argocd-kubeconfig`, key `kubeconfig`) in the Argo CD
+   namespace — Rancher's proxy `server` + CA, but with the **dedicated
+   non-expiring token** swapped in (not the kubeconfig's own token).
+3. Emits a `ClusterbookCluster` with `skipReservation: true` and
+   `preserveKubeconfigServer: true`, so clusterbook keeps the Rancher proxy
+   `server` verbatim (no IP/DNS rewrite) and just builds the Argo cluster Secret.
+
+### Why a dedicated token
+
+The token Rancher bakes into `<name>-kubeconfig` is broad and may carry a TTL.
+A dedicated least-privilege, **ttl=0** Rancher token for a service user
+(e.g. `service-argo`) avoids both problems. Provide it via `tokenSecretRef`
+(ideally sourced from Vault/ESO) — see
+[`examples/argocd-token.yaml`](examples/argocd-token.yaml).
+
+### Additional preconditions (only when `register: true`)
+
+- [`clusterbook-operator`](https://github.com/stuttgart-things/clusterbook-operator)
+  installed on the management cluster (provides the `ClusterbookCluster` CRD).
+- The Argo CD namespace (`spec.argocd.namespace`, default `argocd`) exists.
+- The dedicated-token Secret referenced by `spec.argocd.tokenSecretRef` exists.
+- Crossplane's function pipeline must be able to read the two source Secrets via
+  extra-resources (their contents transit the pipeline into the assembled
+  kubeconfig Secret).
 
 ## Cluster preconditions
 

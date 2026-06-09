@@ -34,6 +34,11 @@ metadata:
       3. **Use** — a bootstrap `Namespace` applied to the **downstream**
          cluster through that new `ClusterProviderConfig`, proving the
          kubeconfig works end-to-end.
+      4. **Register (optional, `spec.argocd.register`)** — assemble a
+         kubeconfig (Rancher proxy server + CA, with a dedicated
+         non-expiring token from `tokenSecretRef`) and emit a
+         `ClusterbookCluster` so clusterbook-operator creates the Argo CD
+         cluster Secret.
 
       ## Cluster preconditions
 
@@ -52,7 +57,13 @@ metadata:
       Optional: `distro` (k3s|rke2, default k3s), `rancherNamespace`
       (default `fleet-default`), `clusterLabels`, `machineGlobalConfig`
       (free-form rkeConfig passthrough), `bootstrap.namespace` (default
-      `crossplane-bootstrap`), `bootstrap.labels`.
+      `crossplane-bootstrap`), `bootstrap.labels`, `argocd.register`
+      (default false; when true requires `argocd.tokenSecretRef`),
+      `argocd.namespace` (default `argocd`), `argocd.labels`.
+
+      When `argocd.register` is true the clusterbook-operator
+      (`ClusterbookCluster` CRD) must be installed on the management
+      cluster, and the `argocd.tokenSecretRef` Secret must exist.
 
       ## Caveats
 
