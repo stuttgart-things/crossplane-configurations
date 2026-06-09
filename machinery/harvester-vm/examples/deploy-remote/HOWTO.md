@@ -93,9 +93,7 @@ kubectl --kubeconfig ~/.kube/harvester create namespace vms
 
 ## 4. Install the platform (deliverables b + c)
 
-Apply the bundle against the management cluster. `kubectl apply -f <dir>` is
-**non-recursive**, so this installs the plain-VM platform only — the `ansible/`
-subfolder is opt-in (step 7):
+Apply the bundle against the management cluster:
 
 ```bash
 export KUBECONFIG=~/.kube/crossplane-mgmt
@@ -152,63 +150,10 @@ reports the IP onto `status.share.ip`. Keep `qemu-guest-agent` in
 
 ## 7. (Optional) Ansible base-OS provisioning
 
-Runs a playbook against the VM after it gets an IP. The Tekton PipelineRun runs
-on the **management** cluster (via the `in-cluster` provider config), even though
-the VM is remote. Files live in `ansible/`.
-
-**a. Apply the Ansible platform (management cluster):**
-
-```bash
-kubectl apply -f ansible/1-namespace-tekton-ci.yaml
-kubectl apply -f ansible/2-clusterproviderconfig-in-cluster.yaml
-```
-
-**b. Create the `ansible-credentials` Secret** the PipelineRun logs in with.
-Keep `ANSIBLE_USER` in sync with the cloud-init user in your XR (`sthings`):
-
-```bash
-kubectl create secret generic ansible-credentials \
-  --namespace tekton-ci \
-  --from-literal=ANSIBLE_USER=sthings \
-  --from-literal=ANSIBLE_PASSWORD='<vm-password>'        # pragma: allowlist secret
-```
-
-> Prefer not to type the password? Use External Secrets Operator instead — mirror
-> `../../../virtual-machine/examples/deploy-harvester/6-platform-externalsecret-ansible-credentials.yaml`.
-
-**c. Ansible RBAC** — the provider-kubernetes ServiceAccount must be allowed to
-manage Tekton resources in `tekton-ci`:
-
-```bash
-SA=$(kubectl -n crossplane-system get sa -o name | grep provider-kubernetes | head -1 | cut -d/ -f2)
-kubectl create clusterrolebinding provider-kubernetes-tekton \
-  --clusterrole=cluster-admin \
-  --serviceaccount=crossplane-system:$SA
-```
-
-> `cluster-admin` is the quick path; scope it down to the Tekton API groups for
-> production (see `cicd/ansible-run/README.md`, precondition #3).
-
-**d. The Tekton stack** (Pipelines controller + the `stage-time` Ansible
-pipeline) must be installed on the management cluster — this bundle does not ship
-it.
-
-**e. Request a VM with Ansible enabled** (instead of `5-xr.yaml`):
-
-```bash
-kubectl apply -f ansible/3-xr-with-ansible.yaml
-```
-
-**Watch the Ansible side:**
-
-```bash
-kubectl -n default get harvestervm dev1 -o jsonpath='{.status.ansibleReady}{"\n"}'
-kubectl -n default get ansiblerun
-kubectl -n tekton-ci get pipelinerun -w
-```
-
-The `AnsibleRun` only appears **after** the VM reports an IP (it's gated on a
-non-empty `status.share.ip`). XR `READY=True` once the PipelineRun succeeds.
+Running a playbook against the VM after it boots (`spec.ansible.enabled: true`)
+is shipped as a **separate** example bundle — `../deploy-remote-ansible/` — so
+this VM bundle stays minimal. It reuses this bundle's EnvironmentConfig and adds
+the Tekton / `in-cluster` provider-config / credentials manifests it needs.
 
 ---
 
@@ -221,7 +166,6 @@ non-empty `status.share.ip`). XR `READY=True` once the PipelineRun succeeds.
 | `status.share.ip` stays empty / no `AgentConnected` | **most common:** no `cloudInit.networkConfig`, so the guest gets an empty network-config and no DHCP lease on the Multus/bridge NIC → no internet → `qemu-guest-agent` can't install → no IP. Set the DHCP `networkConfig` (see `5-xr.yaml`). Also keep `qemu-guest-agent` in `cloudInit.packages`. |
 | VM stuck `Stopping`/`RestartRequired`, `DisksNotLiveMigratable` | `evictionStrategy: LiveMigrateIfPossible` on a non-shared RWO/Block boot disk — set `vm.evictionStrategy: None` |
 | `cannot resolve package dependencies: ... node ... already exists` | a long-named Function CR duplicates a short-named one — use short names only, delete the duplicate |
-| AnsibleRun never appears | expected until the VM has an IP; also check Tekton stack + RBAC (step 7c/7d) |
 
 ---
 
@@ -229,7 +173,7 @@ non-empty `status.share.ip`). XR `READY=True` once the PipelineRun succeeds.
 
 ```bash
 export KUBECONFIG=~/.kube/crossplane-mgmt
-kubectl delete -f 5-xr.yaml                    # or ansible/3-xr-with-ansible.yaml
+kubectl delete -f 5-xr.yaml
 # platform teardown (optional):
 kubectl delete -f 4-environmentconfig.yaml -f 3-clusterproviderconfig-harvester.yaml
 kubectl -n crossplane-system delete secret harvester-kubeconfig

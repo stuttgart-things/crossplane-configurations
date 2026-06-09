@@ -8,8 +8,8 @@ bundle, but scoped to the standalone `harvester-vm` Configuration and wired for
 the two-cluster (kubeconfig-Secret) topology instead of `InjectedIdentity`.
 
 > **Want the step-by-step?** [`HOWTO.md`](HOWTO.md) is the copy-paste runbook
-> (clone → branch → secret → platform → VM → optional Ansible). This README is
-> the reference/file-index.
+> (clone → branch → secret → platform → VM). This README is the
+> reference/file-index.
 
 The two clusters:
 
@@ -63,7 +63,6 @@ kubectl apply -f machinery/harvester-vm/examples/deploy-remote/
 | `3-clusterproviderconfig-harvester.yaml`| cluster    | **(b)** provider-kubernetes `ClusterProviderConfig` `harvester` → REMOTE Harvester via the kubeconfig Secret from (a) |
 | `4-environmentconfig.yaml`              | cluster    | **(c)** shared Harvester placement defaults (provider config, storage class, namespace, network, image) |
 | `5-xr.yaml`                             | namespaced | the VM request — the only file you edit per VM |
-| `ansible/`                              | —          | **opt-in** Ansible base-OS provisioning (subfolder, not picked up by the non-recursive `apply -f .` above). See [`HOWTO.md`](HOWTO.md) §7 |
 
 > Apply order matters only in that the **Secret (a) must exist before file 3**
 > can become usable, and files 3 + 4 should exist before the XR (5) reconciles.
@@ -112,11 +111,9 @@ IP on a bridge/Multus network and `status.share.ip` stays empty.
   long-named Function CR (e.g. `crossplane-contrib-function-go-templating`)
   duplicates a short-named one. Use the short names only; delete the duplicate.
 
-## Optional: Ansible base-OS provisioning
+## Ansible base-OS provisioning
 
-Set `spec.ansible.enabled: true` on the XR to run an Ansible playbook after the
-VM reports an IP. That path additionally needs a Tekton stack, an
-`ansible-credentials` Secret and an `in-cluster` ClusterProviderConfig **on the
-management cluster** (the PipelineRun runs there, not on Harvester). See
-[`../../../virtual-machine/examples/deploy-harvester/README.md`](../../../virtual-machine/examples/deploy-harvester/README.md)
-for the full Ansible bundle.
+Optional post-provisioning (`spec.ansible.enabled: true`) is shipped as a
+**separate** example bundle alongside this one — see `../deploy-remote-ansible/`
+once it lands. It reuses this bundle's EnvironmentConfig and adds the Tekton /
+`in-cluster` provider-config / credentials manifests it needs.

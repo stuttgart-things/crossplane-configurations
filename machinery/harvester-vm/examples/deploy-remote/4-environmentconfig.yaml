@@ -57,8 +57,9 @@ data:
   # The provider-kubernetes ClusterProviderConfig that runs the Ansible Tekton
   # PipelineRun. This ALWAYS runs on the MANAGEMENT cluster (in-cluster), even
   # though the VM itself is created on the remote Harvester via `harvester`
-  # above — the two configs do two different jobs. Must match the CPC name in
-  # ansible/2-clusterproviderconfig-in-cluster.yaml.
+  # above — the two configs do two different jobs. Must match the `in-cluster`
+  # ClusterProviderConfig shipped by the separate `deploy-remote-ansible` bundle.
+  # Kept here (inert) so that bundle reuses this EnvironmentConfig unchanged.
   ansible:
     crossplaneProviderConfig: in-cluster
     # Ansible runner image (collections baked in). Bump to pick up newer
