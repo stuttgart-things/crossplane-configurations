@@ -1,0 +1,17 @@
+---
+# Cluster precondition: the provider-kubernetes ClusterProviderConfig the XR's
+# spec.providerConfigRef points at. It targets the Rancher MANAGEMENT cluster,
+# where Crossplane runs and where the provisioning.cattle.io Cluster, the
+# Rancher-managed `<name>-kubeconfig` Secret and the downstream
+# ClusterProviderConfig all live. Crossplane runs in-cluster here, so use
+# InjectedIdentity (its own ServiceAccount).
+#
+# `kubernetes.m.crossplane.io/v1alpha1` is the namespaced "managed" variant
+# required by Crossplane v2 — no `deletionPolicy` field.
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: in-cluster
+spec:
+  credentials:
+    source: InjectedIdentity
