@@ -1,0 +1,23 @@
+---
+# provider-kubernetes ClusterProviderConfig for the ANSIBLE path.
+#
+# When an XR sets `spec.ansible.enabled: true`, harvester-vm emits an AnsibleRun
+# (once the VM reports an IP), which wraps a Tekton PipelineRun in a
+# provider-kubernetes `Object`. That Object uses THIS config, referenced by name
+# via the EnvironmentConfig `ansible.crossplaneProviderConfig` (in the
+# deploy-remote bundle's 4-environmentconfig.yaml) → `in-cluster`.
+#
+# This is ALWAYS `InjectedIdentity` (the management cluster's own
+# provider-kubernetes ServiceAccount) — the Tekton PipelineRun runs on the
+# MANAGEMENT cluster, NOT on the remote Harvester. The VM target config
+# (`harvester`, deploy-remote/3) is the Secret/kubeconfig one; this one is not.
+#
+# Precondition: the provider-kubernetes ServiceAccount must have RBAC to manage
+# Tekton resources in `tekton-ci`. See README.md "Ansible RBAC".
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: in-cluster
+spec:
+  credentials:
+    source: InjectedIdentity
