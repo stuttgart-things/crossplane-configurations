@@ -33,6 +33,9 @@ spec:
       - name: sthings
         sudo: "ALL=(ALL) NOPASSWD:ALL" # pragma: allowlist secret
         lockPasswd: false
+        # >>> set a password so the Harvester web console / password SSH works.
+        #     Plaintext is fine (cloud-init chpasswd); change before applying. <<<
+        password: "ChangeMe123!" # pragma: allowlist secret
         shell: /bin/bash
         sshAuthorizedKeys:
           # >>> replace with your public key <<<
