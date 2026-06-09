@@ -1,0 +1,46 @@
+---
+# =============================================================================
+# (c) EnvironmentConfig — shared per-environment defaults for HarvesterVM XRs
+# =============================================================================
+# The harvester-vm Composition selects this via the config-scoped label
+# `harvester-vm.resources.stuttgart-things.com/environment`, matched against the
+# XR's `spec.environmentConfig` (default "default"). function-environment-configs
+# requires EXACTLY ONE match, so keep this label value unique per environment.
+#
+# `data` values become defaults for the VolumeClaim, CloudInit and KubeVirt
+# VirtualMachine. Anything set explicitly on the XR spec overrides them.
+#
+# >>> EDIT the values marked PLACEHOLDER to match your Harvester cluster. <<<
+# Discover them on the Harvester cluster (KUBECONFIG=~/.kube/harvester):
+#   storageClassName : kubectl get storageclass
+#   networkName      : kubectl get net-attach-def -A      (NAD <namespace>/<name>)
+#   imageId          : kubectl get virtualmachineimages -A -o custom-columns=\
+#                      NS:.metadata.namespace,NAME:.metadata.name
+#   namespace        : must already exist on the Harvester cluster (see README)
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: harvester-vm-remote-defaults
+  labels:
+    harvester-vm.resources.stuttgart-things.com/environment: default
+data:
+  # Must equal the ClusterProviderConfig name in file 3 (the REMOTE Harvester
+  # target). This is what makes the VMs land on the Harvester cluster.
+  providerConfigRef: harvester
+
+  # Harvester storage class for the root-disk PVC. PLACEHOLDER.
+  storageClassName: harvester-longhorn
+
+  # Target namespace for the PVC, cloud-init Secret and VirtualMachine ON THE
+  # HARVESTER CLUSTER. Must already exist there — it is NOT auto-created.
+  # Your Harvester cluster already has `default`; change if you create a
+  # dedicated VM namespace. PLACEHOLDER.
+  namespace: default
+
+  # Multus NetworkAttachmentDefinition the VM attaches to, as <namespace>/<name>.
+  # PLACEHOLDER.
+  networkName: default/vms
+
+  # Harvester VM image id, rendered into the PVC annotation
+  # `harvesterhci.io/imageId`, as <namespace>/<name>. PLACEHOLDER.
+  imageId: default/image-ubuntu

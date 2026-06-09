@@ -1,0 +1,52 @@
+---
+# The VM request — the only file a consumer edits per VM. Lives on the
+# MANAGEMENT cluster (metadata.namespace), targets the REMOTE Harvester via the
+# EnvironmentConfig selected by spec.environmentConfig.
+#
+# Per-VM fields (name, cpu, memory, disk, users) come from here; the shared
+# infra fields (providerConfigRef=harvester, storageClassName, namespace,
+# networkName, imageId) are inherited from file 4 — so this XR carries no
+# cluster-specific placement.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: HarvesterVM
+metadata:
+  name: dev1
+  namespace: default
+spec:
+  environmentConfig: default
+  volume:
+    pvcName: dev1-disk-0
+    storage: "20Gi"
+    accessModes:
+      - ReadWriteOnce
+    volumeMode: Block
+  cloudInit:
+    vmName: dev1
+    hostname: dev1
+    domain: local
+    sshPasswordAuth: true
+    disableRoot: false
+    packageUpdate: true
+    users:
+      - name: sthings
+        sudo: "ALL=(ALL) NOPASSWD:ALL" # pragma: allowlist secret
+        lockPasswd: false
+        shell: /bin/bash
+        sshAuthorizedKeys:
+          # >>> replace with your public key <<<
+          - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC..."
+    packages:
+      - qemu-guest-agent
+    runcmd:
+      - "systemctl enable --now qemu-guest-agent.service"
+  vm:
+    description: "dev1 VM provisioned by Crossplane on remote Harvester"
+    runStrategy: RerunOnFailure
+    os: linux
+    cpu:
+      cores: 4
+      sockets: 1
+      threads: 1
+    resources:
+      memory: "8Gi"
+      cpu: "4"

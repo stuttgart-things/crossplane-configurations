@@ -1,0 +1,12 @@
+---
+# provider-kubernetes — the provider that creates the KubeVirt VirtualMachine,
+# root-disk PVC and cloud-init Secret as `Object`s on the REMOTE Harvester
+# cluster. Already running on the management cluster in your case (visible as
+# `provider-kubernetes-...` in `crossplane-system`); re-applying is idempotent.
+# Pinned to the floor declared in harvester-vm/crossplane.yaml dependsOn.
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-kubernetes
+spec:
+  package: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes:v1.2.0

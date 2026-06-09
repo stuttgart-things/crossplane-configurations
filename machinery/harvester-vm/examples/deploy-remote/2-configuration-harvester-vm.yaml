@@ -1,0 +1,19 @@
+---
+# Installs the harvester-vm Configuration package. Its `dependsOn`
+# (see harvester-vm/crossplane.yaml) pulls everything it needs onto the
+# management cluster automatically:
+#   - provider-kubernetes
+#   - function-patch-and-transform, function-go-templating,
+#     function-environment-configs
+#   - the cloud-config + volume-claim + ansible-run building-block Configurations
+#
+# So on a fresh management cluster this single Configuration is enough — you do
+# NOT need to apply the Functions or the child Configurations by hand. (Your
+# crossplane-mgmt cluster already has the Functions, namespace and volume-claim
+# installed; the package manager reconciles the rest.)
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: harvester-vm
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/harvester-vm:v0.1.0
