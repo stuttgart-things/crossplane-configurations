@@ -1,0 +1,7 @@
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: rancher-cluster
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/rancher-cluster:v0.1.0

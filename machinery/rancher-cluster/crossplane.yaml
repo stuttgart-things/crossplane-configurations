@@ -1,0 +1,74 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: rancher-cluster
+  annotations:
+    # Local convention used by `task push` to bump and re-publish.
+    # Not a Crossplane-standard field — the true package version is the OCI tag.
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Provisions a generic (custom-node) Rancher cluster from a namespaced
+      `RancherCluster` XR, then wires the downstream cluster's
+      Rancher-managed kubeconfig into a `provider-kubernetes`
+      `ClusterProviderConfig` so it can be driven by Crossplane — and proves
+      the wiring by bootstrapping a namespace on the new cluster.
+    meta.crossplane.io/readme: |
+      # rancher-cluster
+
+      A Crossplane v2 Configuration that turns a namespaced `RancherCluster`
+      XR (group `resources.stuttgart-things.com`) into three
+      `provider-kubernetes` `Object`s:
+
+      1. **Provision** — a `provisioning.cattle.io/v1` `Cluster` (generic /
+         custom-node, k3s or rke2) on the Rancher management cluster.
+      2. **Wire** — a `kubernetes.m.crossplane.io/v1alpha1`
+         `ClusterProviderConfig` named after the cluster, whose `secretRef`
+         points straight at the kubeconfig Secret Rancher publishes for the
+         downstream cluster (`<name>-kubeconfig` in the provisioning
+         namespace, key `value`). No copy/transform — Crossplane retries
+         until Rancher creates the Secret.
+      3. **Use** — a bootstrap `Namespace` applied to the **downstream**
+         cluster through that new `ClusterProviderConfig`, proving the
+         kubeconfig works end-to-end.
+
+      ## Cluster preconditions
+
+      On the Rancher management cluster (where Crossplane runs):
+
+      - `provider-kubernetes` installed with a `ClusterProviderConfig`
+        (referenced by the XR's `spec.providerConfigRef`, examples use
+        `in-cluster` with `source: InjectedIdentity`).
+      - `provider-kubernetes`'s ServiceAccount must be able to read Secrets
+        in the provisioning namespace (default `fleet-default`) — that is
+        where Rancher writes `<name>-kubeconfig`.
+
+      ## Spec fields
+
+      Required: `providerConfigRef`, `name`, `kubernetesVersion`.
+      Optional: `distro` (k3s|rke2, default k3s), `rancherNamespace`
+      (default `fleet-default`), `clusterLabels`, `machineGlobalConfig`
+      (free-form rkeConfig passthrough), `bootstrap.namespace` (default
+      `crossplane-bootstrap`), `bootstrap.labels`.
+
+      ## Caveats
+
+      - The Rancher kubeconfig token may carry a TTL
+        (`kubeconfig-default-token-ttl-minutes`). If non-zero, the wired
+        `ClusterProviderConfig` eventually goes stale.
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    # Creates the provisioning Cluster, the downstream ClusterProviderConfig
+    # and the downstream bootstrap Namespace as Objects.
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+      version: ">=v1.2.0,<v2.0.0"
+    # Functions used by this Configuration's Composition pipeline.
+    - function: xpkg.crossplane.io/crossplane-contrib/function-go-templating
+      version: ">=v0.12.1,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"

@@ -1,0 +1,30 @@
+---
+# Every spec field set — catches templating breakage. A generic rke2 cluster
+# with cluster labels, an rkeConfig.machineGlobalConfig passthrough and a
+# labelled downstream bootstrap namespace.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: rke2-prod
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  name: rke2-prod
+  distro: rke2
+  kubernetesVersion: v1.31.5+rke2r1
+  rancherNamespace: fleet-default
+  clusterLabels:
+    env: prod
+    team: platform
+    app.kubernetes.io/part-of: stuttgart-things
+  machineGlobalConfig:
+    cni: calico
+    disable:
+      - rke2-ingress-nginx
+    kube-apiserver-arg:
+      - audit-log-maxage=30
+  bootstrap:
+    namespace: platform-system
+    labels:
+      managed-by: crossplane
+      app.kubernetes.io/part-of: stuttgart-things

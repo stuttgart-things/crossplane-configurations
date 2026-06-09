@@ -1,0 +1,100 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: rancherclusters.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: RancherCluster
+    plural: rancherclusters
+    singular: ranchercluster
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                providerConfigRef:
+                  type: string
+                  description: >-
+                    Name of the provider-kubernetes ClusterProviderConfig that
+                    targets the Rancher MANAGEMENT cluster (where the
+                    provisioning.cattle.io Cluster and the downstream
+                    ClusterProviderConfig are created).
+                name:
+                  type: string
+                  description: >-
+                    Name of the Rancher cluster. Also the prefix of the
+                    Rancher-managed kubeconfig Secret (`<name>-kubeconfig`) and
+                    the name of the emitted downstream ClusterProviderConfig.
+                distro:
+                  type: string
+                  description: "Kubernetes distribution for the generic cluster."
+                  enum:
+                    - k3s
+                    - rke2
+                  default: k3s
+                kubernetesVersion:
+                  type: string
+                  description: >-
+                    Rancher Kubernetes version, e.g. `v1.34.7+k3s1` or
+                    `v1.31.5+rke2r1`. The `+k3s`/`+rke2` suffix selects the
+                    distribution; keep it consistent with `distro`.
+                rancherNamespace:
+                  type: string
+                  description: >-
+                    Namespace on the management cluster holding the
+                    provisioning Cluster and the Rancher-managed kubeconfig
+                    Secret.
+                  default: fleet-default
+                clusterLabels:
+                  type: object
+                  description: "Extra labels for the provisioning.cattle.io Cluster."
+                  additionalProperties:
+                    type: string
+                machineGlobalConfig:
+                  type: object
+                  description: >-
+                    Free-form rkeConfig.machineGlobalConfig passthrough
+                    (e.g. cni, disable, kube-apiserver-arg).
+                  x-kubernetes-preserve-unknown-fields: true
+                bootstrap:
+                  type: object
+                  description: >-
+                    Resources to apply to the DOWNSTREAM cluster via the
+                    wired ClusterProviderConfig — proves the kubeconfig works.
+                  properties:
+                    namespace:
+                      type: string
+                      description: "Namespace to bootstrap on the downstream cluster."
+                      default: crossplane-bootstrap
+                    labels:
+                      type: object
+                      description: "Labels for the downstream bootstrap namespace."
+                      additionalProperties:
+                        type: string
+                  default:
+                    namespace: crossplane-bootstrap
+              required:
+                - providerConfigRef
+                - name
+                - kubernetesVersion
+            status:
+              type: object
+              properties:
+                kubeconfigSecret:
+                  type: string
+                  description: "Name of the Rancher-managed kubeconfig Secret."
+                clusterProviderConfig:
+                  type: string
+                  description: "Name of the emitted downstream ClusterProviderConfig."
+                ready:
+                  type: boolean
