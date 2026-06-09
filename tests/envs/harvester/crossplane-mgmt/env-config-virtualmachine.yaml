@@ -2,7 +2,7 @@
 # EnvironmentConfig for the high-level `virtual-machine` Configuration
 # (XVirtualMachine). Selected by the config-scoped label
 # `virtual-machine.resources.stuttgart-things.com/environment` matched against
-# the XR's spec.environment (here: labul). function-environment-configs requires
+# the XR's spec.environment (here: harvester). function-environment-configs requires
 # EXACTLY ONE match per environment, so this label is distinct from the
 # harvester-vm one in env-config-harvestervm.yaml (different Configuration,
 # different selector) — both can live in this synced dir without colliding.
@@ -14,9 +14,9 @@
 apiVersion: apiextensions.crossplane.io/v1beta1
 kind: EnvironmentConfig
 metadata:
-  name: virtualmachine-labul
+  name: virtualmachine-harvester
   labels:
-    virtual-machine.resources.stuttgart-things.com/environment: labul
+    virtual-machine.resources.stuttgart-things.com/environment: harvester
 data:
   # Cross-provider Ansible defaults (inert unless an XR sets ansible: true).
   ansible:

@@ -1,7 +1,7 @@
 ---
 # Example XVirtualMachine driven through the high-level `virtual-machine`
 # Configuration. provider: harvester routes to a HarvesterVM (KubeVirt) on the
-# remote Harvester via the EnvironmentConfig `virtualmachine-labul` above.
+# remote Harvester via the EnvironmentConfig `virtualmachine-harvester` above.
 #
 # size: small -> cpu 2 / 2Gi RAM / 32Gi disk (inline size table in the
 # Composition). os: ubuntu24 -> imageId default/u26-dev. volume.volumeMode is
@@ -14,11 +14,11 @@
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: XVirtualMachine
 metadata:
-  name: vm-labul-1
+  name: vm-harvester-1
   namespace: default
 spec:
   size: small
   provider: harvester
-  environment: labul
+  environment: harvester
   os: ubuntu24
   ansible: false
