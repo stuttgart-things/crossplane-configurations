@@ -1,22 +1,4 @@
 ---
-# =============================================================================
-# (c) EnvironmentConfig — shared per-environment defaults for HarvesterVM XRs
-# =============================================================================
-# The harvester-vm Composition selects this via the config-scoped label
-# `harvester-vm.resources.stuttgart-things.com/environment`, matched against the
-# XR's `spec.environmentConfig` (default "default"). function-environment-configs
-# requires EXACTLY ONE match, so keep this label value unique per environment.
-#
-# `data` values become defaults for the VolumeClaim, CloudInit and KubeVirt
-# VirtualMachine. Anything set explicitly on the XR spec overrides them.
-#
-# >>> EDIT the values marked PLACEHOLDER to match your Harvester cluster. <<<
-# Discover them on the Harvester cluster (KUBECONFIG=~/.kube/harvester):
-#   storageClassName : kubectl get storageclass
-#   networkName      : kubectl get net-attach-def -A      (NAD <namespace>/<name>)
-#   imageId          : kubectl get virtualmachineimages -A -o custom-columns=\
-#                      NS:.metadata.namespace,NAME:.metadata.name
-#   namespace        : must already exist on the Harvester cluster (see README)
 apiVersion: apiextensions.crossplane.io/v1beta1
 kind: EnvironmentConfig
 metadata:
