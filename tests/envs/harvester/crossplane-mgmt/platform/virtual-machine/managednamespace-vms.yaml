@@ -1,0 +1,36 @@
+---
+# Declaratively manage the `vms` target namespace ON THE HARVESTER cluster via
+# the `namespace` Configuration (ManagedNamespace XR). The XR object itself
+# lives on crossplane-mgmt (ns default, alongside the XVirtualMachine XRs); the
+# Composition renders a kubernetes.m.crossplane.io Object that creates/adopts
+# the namespace on the REMOTE Harvester cluster through the `harvester`
+# kubernetes ClusterProviderConfig.
+#
+# Why this exists: namespaces created out-of-band (kubectl / manually) carry no
+# `field.cattle.io/projectId`, so Harvester's Rancher UI — which lists VMs by
+# project membership — hides every VM in them (the VMs run fine; only the UI
+# filters them out). The annotation below assigns `vms` to the Default project
+# (`c-cxgxd:p-sfgv4`, same project as the `default` namespace), and Rancher's
+# namespace controller then populates the RoleBindings / status so the VMs
+# (k3s-test-pool1-*, vm-harvester-1) show up.
+#
+# Adoption: the namespace Composition manages the Namespace with
+# managementPolicies: ['*'] (authoritative). provider-kubernetes adopts the
+# pre-existing `vms` namespace by name — no need to delete the test VMs first.
+# Note: because management is full, deleting THIS XR deletes the `vms`
+# namespace (XRD defaultCompositeDeletePolicy: Foreground) and all VMs in it.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ManagedNamespace
+metadata:
+  name: vms
+  namespace: default
+spec:
+  # kubernetes ClusterProviderConfig on crossplane-mgmt that targets the remote
+  # Harvester cluster (same one provider-kubernetes Objects use for Harvester).
+  providerConfigRef: harvester
+  # Namespace name created/adopted on the Harvester cluster.
+  name: vms
+  annotations:
+    # Assign to the Rancher "Default" project so the Harvester UI lists the VMs.
+    # Value = <clusterId>:<projectId>, matching the `default` namespace.
+    field.cattle.io/projectId: c-cxgxd:p-sfgv4
