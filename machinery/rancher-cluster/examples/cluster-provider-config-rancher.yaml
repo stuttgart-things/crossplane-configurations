@@ -1,0 +1,27 @@
+---
+# Split-control-plane precondition (rancherProviderConfigRef target).
+#
+# This ClusterProviderConfig lives on the CONTROL-PLANE cluster (crossplane-mgmt,
+# where provider-kubernetes runs) and points at the Rancher MANAGEMENT cluster,
+# so the Composition can create the provisioning.cattle.io Cluster /
+# HarvesterConfig there and Observe-bridge Rancher's <name>-kubeconfig back.
+#
+# It reads a Secret holding the Rancher cluster's kubeconfig. Create that Secret
+# first (see examples/MIXED-CLUSTER.md):
+#
+#   kubectl -n crossplane-system create secret generic rancher-mgmt-kubeconfig \
+#     --from-file=kubeconfig=$HOME/.kube/platform.sthings.lab
+#
+# `kubernetes.m.crossplane.io/v1alpha1` is the namespaced "managed" variant
+# required by Crossplane v2 — no `deletionPolicy` field.
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: rancher-mgmt
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: rancher-mgmt-kubeconfig
+      key: kubeconfig

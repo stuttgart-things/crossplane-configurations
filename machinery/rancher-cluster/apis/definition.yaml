@@ -54,11 +54,24 @@ spec:
                     the name of the emitted downstream ClusterProviderConfig.
                 distro:
                   type: string
-                  description: "Kubernetes distribution for the generic cluster."
+                  description: "Kubernetes distribution for the cluster."
                   enum:
                     - k3s
                     - rke2
                   default: k3s
+                infrastructure:
+                  type: string
+                  description: >-
+                    How the cluster's nodes are provisioned. `generic`
+                    (default) creates a custom-node cluster with no machine
+                    pools — nodes are registered manually via Rancher's
+                    registration command. `harvester` provisions VM nodes on a
+                    Harvester cluster via a machine pool backed by a
+                    HarvesterConfig; requires the `harvester` block.
+                  enum:
+                    - generic
+                    - harvester
+                  default: generic
                 kubernetesVersion:
                   type: string
                   description: >-
@@ -83,6 +96,68 @@ spec:
                     Free-form rkeConfig.machineGlobalConfig passthrough
                     (e.g. cni, disable, kube-apiserver-arg).
                   x-kubernetes-preserve-unknown-fields: true
+                harvester:
+                  type: object
+                  description: >-
+                    VM node sizing for `infrastructure: harvester`. The
+                    Composition renders a HarvesterConfig (the VM template) and
+                    a single machine pool referencing it. Ignored when
+                    infrastructure is generic.
+                  properties:
+                    cloudCredentialSecretName:
+                      type: string
+                      description: >-
+                        Rancher Harvester cloud credential, in
+                        `<namespace>:<name>` form (e.g.
+                        `cattle-global-data:cc-xxxxx`). Must already exist on
+                        the Rancher cluster — created once via the Rancher UI /
+                        API, referenced here by name.
+                    imageName:
+                      type: string
+                      description: >-
+                        Harvester VM image, `<namespace>/<name>`
+                        (e.g. `default/sthings-u26-k3s`).
+                    networkName:
+                      type: string
+                      description: >-
+                        Harvester network, `<namespace>/<name>`
+                        (e.g. `default/vms`).
+                    vmNamespace:
+                      type: string
+                      description: "Harvester namespace the VMs are created in."
+                      default: default
+                    cpuCount:
+                      type: integer
+                      description: "vCPUs per node."
+                      default: 2
+                    memorySize:
+                      type: integer
+                      description: "Memory per node, in GiB."
+                      default: 4
+                    diskSize:
+                      type: integer
+                      description: "Root disk per node, in GiB."
+                      default: 40
+                    sshUser:
+                      type: string
+                      description: >-
+                        SSH user baked into the image (e.g. `ubuntu`, `sthings`).
+                      default: ubuntu
+                    quantity:
+                      type: integer
+                      description: "Number of nodes in the pool."
+                      default: 1
+                    userData:
+                      type: string
+                      description: >-
+                        cloud-init userData for the nodes (plain YAML; the
+                        Composition base64-encodes it for HarvesterConfig).
+                        Defaults to installing + enabling qemu-guest-agent,
+                        which Harvester needs for IP reporting.
+                  required:
+                    - cloudCredentialSecretName
+                    - imageName
+                    - networkName
                 bootstrap:
                   type: object
                   description: >-
@@ -104,10 +179,13 @@ spec:
                   type: object
                   description: >-
                     Optional: register the provisioned cluster in Argo CD via
-                    the clusterbook-operator. Assembles a kubeconfig that keeps
-                    Rancher's auth-proxy server + CA but embeds a dedicated,
-                    non-expiring token (from tokenSecretRef), then emits a
-                    ClusterbookCluster that creates the Argo CD cluster Secret.
+                    the clusterbook-operator. Mints a non-expiring argocd-manager
+                    ServiceAccount token on the downstream cluster, extracts it +
+                    the downstream CA to the control plane, and assembles a
+                    direct-endpoint kubeconfig (spec.argocd.server + downstream
+                    CA + SA token — no Rancher proxy dependency). Emits the
+                    kubeconfig Secret + a ClusterbookCluster on the cluster that
+                    runs Argo CD + clusterbook-operator (providerConfigRef).
                   properties:
                     register:
                       type: boolean
@@ -119,24 +197,22 @@ spec:
                         Argo CD namespace — holds the assembled kubeconfig
                         Secret and the generated cluster Secret.
                       default: argocd
-                    tokenSecretRef:
-                      type: object
+                    providerConfigRef:
+                      type: string
                       description: >-
-                        Pre-existing Secret holding a dedicated, non-expiring
-                        Rancher API token for a least-privilege service user.
-                        Required when register is true.
-                      properties:
-                        name:
-                          type: string
-                        namespace:
-                          type: string
-                        key:
-                          type: string
-                          description: "Secret data key holding the token."
-                          default: token
-                      required:
-                        - name
-                        - namespace
+                        ClusterProviderConfig for the cluster running Argo CD +
+                        clusterbook-operator (where the kubeconfig Secret and
+                        ClusterbookCluster are created). Defaults to
+                        spec.rancherProviderConfigRef — in the stuttgart-things
+                        lab Argo CD + clusterbook run on the Rancher cluster, not
+                        the Crossplane control plane.
+                    server:
+                      type: string
+                      description: >-
+                        Direct API endpoint of the downstream cluster
+                        (https://<host>:6443) embedded verbatim in the assembled
+                        kubeconfig. Use a stable VIP/LB for HA clusters; a node IP
+                        is fine for single-node. Required when register is true.
                     labels:
                       type: object
                       description: >-
@@ -147,12 +223,15 @@ spec:
                   default:
                     register: false
                   x-kubernetes-validations:
-                    - rule: "self.register == false || has(self.tokenSecretRef)"
-                      message: "spec.argocd.tokenSecretRef is required when spec.argocd.register is true"
+                    - rule: "self.register == false || has(self.server)"
+                      message: "spec.argocd.server is required when spec.argocd.register is true"
               required:
                 - providerConfigRef
                 - name
                 - kubernetesVersion
+              x-kubernetes-validations:
+                - rule: "self.infrastructure != 'harvester' || has(self.harvester)"
+                  message: "spec.harvester is required when spec.infrastructure is 'harvester'"
             status:
               type: object
               properties:

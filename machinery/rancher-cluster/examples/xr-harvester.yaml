@@ -1,0 +1,44 @@
+---
+# Harvester cluster, split control plane. Crossplane (crossplane-mgmt) drives a
+# Rancher management cluster (rancherProviderConfigRef) which provisions VM nodes
+# on Harvester. The Composition renders a HarvesterConfig (VM template) + a
+# provisioning.cattle.io Cluster with one machine pool referencing it, then
+# extracts the kubeconfig (bridge -> wired ClusterProviderConfig) and bootstraps
+# a namespace on the new cluster.
+#
+# Precondition: the Harvester cloud credential named below must already exist on
+# the Rancher cluster (Rancher UI: Cluster Management -> Cloud Credentials).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: k3s-xp
+  namespace: default
+spec:
+  providerConfigRef: in-cluster          # control plane (crossplane-mgmt)
+  rancherProviderConfigRef: rancher-mgmt # Rancher mgmt cluster (provisioning.cattle.io + Harvester)
+  name: k3s-xp
+  distro: k3s
+  kubernetesVersion: v1.35.4+k3s1
+  rancherNamespace: fleet-default
+  infrastructure: harvester
+  harvester:
+    cloudCredentialSecretName: cattle-global-data:cc-cl944  # pragma: allowlist secret
+    imageName: default/sthings-u26-k3s
+    networkName: default/vms
+    vmNamespace: default
+    cpuCount: 6
+    memorySize: 6
+    diskSize: 40
+    sshUser: sthings
+    quantity: 1
+  bootstrap:
+    namespace: crossplane-bootstrap
+  # Optional: register in Argo CD (clusterbook-operator). Mints an argocd-manager
+  # SA on the downstream cluster and registers its direct endpoint — no Rancher
+  # proxy dependency. providerConfigRef = the cluster running Argo CD + clusterbook
+  # (the Rancher cluster in this split lab). See MIXED-CLUSTER.md step 5.
+  # argocd:
+  #   register: true
+  #   namespace: argocd
+  #   providerConfigRef: rancher-mgmt
+  #   server: https://192.168.10.135:6443
