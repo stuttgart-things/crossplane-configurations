@@ -17,7 +17,7 @@ metadata:
   name: vm-harvester-1
   namespace: default
 spec:
-  size: small
+  size: medium
   provider: harvester
   environment: harvester
   os: ubuntu24
