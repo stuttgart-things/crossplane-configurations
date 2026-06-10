@@ -1,0 +1,8 @@
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ManagedNamespace
+metadata:
+  name: demo-ns3
+  namespace: default
+spec:
+  providerConfigRef: in-cluster
+  name: demo-ns3
