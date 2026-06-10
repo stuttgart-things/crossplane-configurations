@@ -22,7 +22,7 @@ spec:
   rancherNamespace: fleet-default
   infrastructure: harvester
   harvester:
-    cloudCredentialSecretName: cattle-global-data:cc-cl944
+    cloudCredentialSecretName: cattle-global-data:cc-cl944  # pragma: allowlist secret
     imageName: default/sthings-u26-k3s
     networkName: default/vms
     vmNamespace: default
