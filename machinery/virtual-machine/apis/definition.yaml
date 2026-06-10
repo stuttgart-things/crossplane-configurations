@@ -66,6 +66,11 @@ spec:
                     vsphere/proxmox it keys the `templates` map. `ubuntu24` is
                     the default alias for the Harvester `u26-dev` image; the
                     other values name the Harvester image directly.
+                    NOTE: `ansible: true` requires a GOLDEN image (sthings-u26,
+                    sthings-u26-k3s, sthings-rocky9, sthings-leap) — only those
+                    bake the `sthings` user + password the Ansible runner logs in
+                    with. The vanilla images (`ubuntu24`/`u26-dev`, `rocky9-dev`)
+                    are key-only; use `ansible: false` for them.
                   default: ubuntu24
                   enum:
                     - ubuntu24
@@ -80,7 +85,13 @@ spec:
                   default: "1"
                 ansible:
                   type: boolean
-                  description: "Run baseos Ansible provisioning after VM creation"
+                  description: |
+                    Run baseos Ansible provisioning after VM creation. Requires a
+                    GOLDEN `sthings-*` image (see `os`): the runner SSHes in as
+                    `sthings` using the password from the `ansible-credentials`
+                    Secret, which only golden images bake in. On a vanilla image
+                    it fails with "Permission denied (publickey)" — set
+                    `ansible: false` there.
                   default: true
                 providerRef:
                   type: object
