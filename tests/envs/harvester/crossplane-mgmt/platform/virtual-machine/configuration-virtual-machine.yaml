@@ -21,4 +21,4 @@ kind: Configuration
 metadata:
   name: virtual-machine
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.4
+  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.5
