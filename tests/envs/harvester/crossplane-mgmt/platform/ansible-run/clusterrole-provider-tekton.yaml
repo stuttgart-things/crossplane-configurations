@@ -1,0 +1,44 @@
+---
+# Grant provider-kubernetes permission to manage Tekton resources via the
+# in-cluster ProviderConfig.
+#
+# The ansible-run Composition wraps a Tekton PipelineRun in a
+# provider-kubernetes Object (providerConfig: in-cluster), so the provider's
+# ServiceAccount must be allowed to manage tekton.dev/* on this cluster.
+#
+# This access previously came from the explicit provider-kubernetes install's
+# `rbac: clusterRole: cluster-admin` binding (stuttgart-things/argocd providers
+# appset). That explicit install was removed (argocd #235) because it collided
+# with the dependsOn-managed Provider in the package lock — and Argo pruned its
+# cluster-admin ClusterRoleBinding + DeploymentRuntimeConfig with it, leaving the
+# dependency-managed Provider on a revision-hashed ServiceAccount with only its
+# default :system permissions (its own CRD groups — no tekton.dev).
+#
+# Crossplane's rbac-manager only populates a provider's :system ClusterRole with
+# the provider's OWN CRD groups, not arbitrary third-party APIs, so tekton access
+# must be granted explicitly. We bind to the crossplane-system ServiceAccount
+# GROUP rather than the provider's ServiceAccount because that SA name is
+# revision-hashed (changes on every provider-kubernetes upgrade) and the
+# dependency Provider can't carry a runtimeConfigRef from git. The group binding
+# is revision-independent and far tighter than the old cluster-admin.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: crossplane-provider-tekton
+rules:
+  - apiGroups: ["tekton.dev"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: crossplane-provider-tekton
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: crossplane-provider-tekton
+subjects:
+  - kind: Group
+    name: system:serviceaccounts:crossplane-system
+    apiGroup: rbac.authorization.k8s.io
