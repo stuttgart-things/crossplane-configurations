@@ -20,6 +20,10 @@
 # from the ansible-credentials Secret, no SSH key) can log into the freshly
 # created VM. Without it cloud-init defaults ssh_pwauth: false and the run fails
 # with "Permission denied (publickey)".
+# v0.1.8 bumps the harvester-vm floor to >=v0.1.6, which pre-sets the VM
+# template's cpu.maxSockets + memory.guest so KubeVirt's LiveUpdate webhook
+# can't inject them post-launch (that injection latched a spurious "Restart
+# action required" / RestartRequired on the running VM).
 #
 # Driving an XVirtualMachine also needs an EnvironmentConfig labelled
 # `virtual-machine.resources.stuttgart-things.com/environment=<env>` carrying a
@@ -31,4 +35,4 @@ kind: Configuration
 metadata:
   name: virtual-machine
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.7
+  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.8

@@ -29,11 +29,12 @@
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: XVirtualMachine
 metadata:
-  # ansible-5: recreate against virtual-machine v0.1.7, which sets cloud-init
-  # ssh_pwauth: true when ansible is enabled. ansible-4 booted + ran the pipeline
-  # end-to-end but failed SSH auth ("Permission denied (publickey)") because the
-  # VM had password auth disabled while the runner only has a password.
-  name: vm-harvester-ansible-5
+  # ansible-6: recreate against virtual-machine v0.1.8 / harvester-vm v0.1.6,
+  # which pre-set the VM template's cpu.maxSockets + memory.guest so KubeVirt's
+  # LiveUpdate webhook can't inject them post-launch and latch RestartRequired.
+  # (ansible-5 proved the full VM->Ansible flow works end-to-end; this run also
+  # verifies the RestartRequired drift is gone.)
+  name: vm-harvester-ansible-6
   namespace: default
 spec:
   size: medium

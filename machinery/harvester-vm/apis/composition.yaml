@@ -384,10 +384,23 @@ spec:
                             cores: {{ $xr.spec.vm.cpu.cores }}
                             sockets: {{ $xr.spec.vm.cpu.sockets | default 1 }}
                             threads: {{ $xr.spec.vm.cpu.threads | default 1 }}
+                            # Pre-set maxSockets = sockets. With Harvester's default
+                            # LiveUpdate vmRolloutStrategy, KubeVirt's webhook injects
+                            # cpu.maxSockets (and memory.guest below) into the template
+                            # right after the VMI starts. Because those land on an
+                            # already-running VMI and are non-live-updatable, the VM
+                            # latches RestartRequired ("Restart action required" in the
+                            # Harvester UI). Emitting them at create time = post-webhook
+                            # state, so a fresh VM never drifts.
+                            maxSockets: {{ $xr.spec.vm.cpu.sockets | default 1 }}
                           resources:
                             limits:
                               memory: {{ $xr.spec.vm.resources.memory }}
                               cpu: {{ $xr.spec.vm.resources.cpu }}
+                          # guest memory pre-set = the limit (same LiveUpdate reason as
+                          # cpu.maxSockets above).
+                          memory:
+                            guest: {{ $xr.spec.vm.resources.memory }}
                           devices:
                             disks:
                               - name: rootdisk
