@@ -15,11 +15,13 @@
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: AnsibleRun
 metadata:
-  name: ansible-run-test
+  name: ansible-run-test-3
   namespace: default
 spec:
-  pipelineRunName: run-ansible-baseos
+  pipelineRunName: run-ansible-baseos-3
   namespace: tekton-ci
+  # gitRepoUrl + gitPath locate the TEKTON PIPELINE definition (git resolver),
+  # not the ansible content. The pipeline lives in stage-time.
   gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
   ansiblePlaybooks:
     - sthings.baseos.setup
@@ -38,8 +40,7 @@ spec:
     - vault_instances+-["https://vault.infra.sthings.lab"]
   ansibleVarsInventory:
     - 'all+["192.168.10.149"]'
-  wrapInCrossplane: true
-  crossplaneObjectName: run-ansible-test
+  crossplaneObjectName: run-ansible-test-3
   crossplaneNamespace: default
   crossplaneProviderConfig: in-cluster
   # ansibleWorkingImage / ansibleExtraCollections / gitRevision OMITTED on
