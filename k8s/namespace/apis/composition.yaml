@@ -40,6 +40,14 @@ spec:
                 kind: ClusterProviderConfig
               managementPolicies:
                 - '*'
+              # A Namespace has no conditions[] — only status.phase — so the
+              # default SuccessfulCreate policy lags (Object stays Ready=False
+              # /Creating until a reconcile poke, which stalls Argo health).
+              # DeriveFromObject would find no Ready condition and never go
+              # ready; derive readiness from phase == "Active" via CEL instead.
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.status.phase == "Active"
               forProvider:
                 manifest:
                   apiVersion: v1
