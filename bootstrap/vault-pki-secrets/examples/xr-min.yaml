@@ -1,0 +1,16 @@
+---
+# Minimal VaultPkiSecret — only the required source refs (by name). Every other
+# field resolves from the EnvironmentConfig (vault-pki-secrets-defaults), then
+# built-in defaults: ref namespaces=XR ns, token key=token, ca key=ca.crt,
+# providerConfigRef=in-cluster, namespace=cert-manager, target Secrets
+# vault-pki-ca / vault-pki-token (keys ca.crt / token).
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultPkiSecret
+metadata:
+  name: vault-pki
+  namespace: default
+spec:
+  tokenSecretRef:
+    name: vault-pki-source-token # pragma: allowlist secret
+  caBundleSecretRef:
+    name: vault-pki-source-ca

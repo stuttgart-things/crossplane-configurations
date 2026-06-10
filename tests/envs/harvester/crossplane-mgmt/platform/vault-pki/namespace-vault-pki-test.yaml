@@ -1,0 +1,11 @@
+---
+# Scratch target namespace for the vault-pki-secrets smoke test. The test XR
+# (xrs/vault-pki/) pushes the copied vault-pki-ca / token Secrets HERE instead
+# of cert-manager, so the run can never adopt or overwrite the live, Argo/
+# Terraform-managed issuer secrets in the cert-manager namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault-pki-test
+  labels:
+    app.kubernetes.io/part-of: vault-pki-secrets-test

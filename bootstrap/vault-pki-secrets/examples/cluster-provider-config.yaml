@@ -1,0 +1,15 @@
+---
+# In-cluster ClusterProviderConfig for the namespaced kubernetes provider —
+# pushes the Secrets onto the SAME cluster Crossplane runs on.
+#
+# To target a REMOTE/managed cluster instead, create a ClusterProviderConfig
+# whose credentials reference a kubeconfig Secret for that cluster (e.g. the
+# bridged kubeconfig produced by the rancher-cluster Configuration or the
+# clusterbook registration), and set spec.providerConfigRef to its name.
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: in-cluster
+spec:
+  credentials:
+    source: InjectedIdentity
