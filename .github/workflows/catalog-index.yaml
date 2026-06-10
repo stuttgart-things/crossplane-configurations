@@ -1,0 +1,58 @@
+---
+name: Catalog Index
+
+# Keeps the explicit Backstage catalog index (tests/.backstage/catalog-locations.yaml)
+# in sync because this repo does not use GitHub discovery. Runs AFTER merge to
+# main (so it never fights the scaffolder's auto-merged claim PR), regenerates
+# the index from every catalog-info.yaml under tests/, and opens a PR with the
+# refresh only if something actually changed (so it works even when main is
+# protected).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "tests/**/catalog-info.yaml"
+
+# Serialize so two quick merges can't race on the index PR.
+concurrency:
+  group: catalog-index
+  cancel-in-progress: false
+
+permissions:
+  contents: write          # create-pull-request pushes the branch
+  pull-requests: write     # ...and opens/updates the PR
+
+jobs:
+  reindex:
+    name: Regenerate catalog index
+    runs-on: ubuntu-latest
+    # Don't loop on our own commits (squash-merge of the bot PR carries the tag).
+    if: ${{ !contains(github.event.head_commit.message, '[catalog-bot]') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Regenerate index
+        run: ./tests/.backstage/catalog-index.sh index
+
+      # Opens (or updates) a single rolling PR from a fixed branch. The action
+      # no-ops when the working tree is clean, so a no-change run creates nothing
+      # and an already-open PR just gets force-updated to the latest refresh.
+      - name: Open PR if changed
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: catalog-bot/refresh
+          delete-branch: true
+          commit-message: "chore(catalog): refresh index [catalog-bot]"
+          title: "chore(catalog): refresh index [catalog-bot]"
+          body: |
+            Automated refresh by `tests/.backstage/catalog-index.sh`:
+
+            - Regenerated `tests/.backstage/catalog-locations.yaml` from a
+              `tests/**/catalog-info.yaml` scan (self-heals adds/deletes).
+
+            Triggered by ${{ github.sha }}. Safe to squash-merge.
+          labels: catalog
+          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
