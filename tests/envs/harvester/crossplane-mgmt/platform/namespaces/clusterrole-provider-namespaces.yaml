@@ -1,0 +1,41 @@
+---
+# Grant provider-kubernetes permission to manage core Namespaces via the
+# in-cluster ProviderConfig.
+#
+# The managed-namespace Composition wraps a core v1 Namespace in a
+# provider-kubernetes Object (providerConfig: in-cluster), so the provider's
+# ServiceAccount must be allowed to manage namespaces on this cluster.
+#
+# Crossplane's rbac-manager only populates a provider's :system ClusterRole with
+# the provider's OWN CRD groups, not core/arbitrary APIs, so namespace access
+# must be granted explicitly. Without it the composed Object fails at observe:
+#   namespaces "<x>" is forbidden: User "...provider-kubernetes-<hash>" cannot
+#   get resource "namespaces" in API group ""
+# leaving the XR stuck Ready=False / Creating.
+#
+# We bind to the crossplane-system ServiceAccount GROUP rather than the
+# provider's ServiceAccount because that SA name is revision-hashed (changes on
+# every provider-kubernetes upgrade) and the dependency-managed Provider can't
+# carry a runtimeConfigRef from git. The group binding is revision-independent.
+# Same rationale as platform/ansible-run/clusterrole-provider-tekton.yaml.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: crossplane-provider-namespaces
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: crossplane-provider-namespaces
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: crossplane-provider-namespaces
+subjects:
+  - kind: Group
+    name: system:serviceaccounts:crossplane-system
+    apiGroup: rbac.authorization.k8s.io
