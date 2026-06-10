@@ -29,10 +29,10 @@
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: XVirtualMachine
 metadata:
-  # ansible-7: first VM actually rendered by harvester-vm v0.1.6 (ansible-6 was
-  # created while the dependency was still pinned at v0.1.5, so it didn't get the
-  # maxSockets/memory.guest pre-set). Verifies the RestartRequired drift is gone.
-  name: vm-harvester-ansible-7
+  # ansible-8: rendered by harvester-vm v0.1.7, which pins cpu.model +
+  # memory.maxGuest (the actual RestartRequired latch) on top of maxSockets/guest.
+  # Definitive check that the template == launched VMI and RestartRequired is gone.
+  name: vm-harvester-ansible-8
   namespace: default
 spec:
   size: medium
