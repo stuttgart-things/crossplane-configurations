@@ -30,10 +30,15 @@ spec:
     # here — they override the defaults; the 'false' siblings (which the AppSet
     # NotIn-selectors need) come from the env, so no manual pinning.
     #
-    # FIRST TEST: storage-platform/openebs only.
+    # Enabled profiles: storage-platform (openebs) + security-platform
+    # (external-secrets + kyverno). All other toggles default 'false' from the
+    # EnvironmentConfig.
     labels:
       storage-platform: 'true'
       storage-platform/openebs: 'true'                  # openebs-hostpath = default SC + snapshot CRDs
+      security-platform: 'true'
+      security-platform/external-secrets: 'true'        # → external-secrets-install-security
+      security-platform/kyverno: 'true'                 # → kyverno-install-security
 
     # Component parameters (newly supported via spec.argocd.annotations).
     # Uncomment a block AND flip the matching label above to 'true' to enable.
