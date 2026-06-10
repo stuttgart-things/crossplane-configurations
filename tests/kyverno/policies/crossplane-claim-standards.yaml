@@ -19,9 +19,12 @@ spec:
   background: false
   rules:
     # ── 1. Allowed templates only ──────────────────────────────────────────
-    # Catch stray/unknown XR kinds in the resources.stuttgart-things.com group.
-    # Matches every loaded resource, then the precondition narrows to our group
-    # so catalog-info.yaml (Component) and kustomization.yaml are ignored.
+    # Catch stray/unknown XR kinds in the stuttgart-things XRD groups. Matches
+    # every loaded resource, then the precondition narrows to our two API groups
+    # (by group prefix, version-agnostic) so catalog-info.yaml (Component) and
+    # kustomization.yaml are ignored. The allowlist is every XR kind defined by
+    # a CompositeResourceDefinition in this repo — keep it in sync when adding a
+    # new Configuration.
     - name: only-known-xr-kinds
       match:
         any:
@@ -30,24 +33,36 @@ spec:
                 - "*"
       preconditions:
         all:
-          - key: "{{ request.object.apiVersion || '' }}"
-            operator: Equals
-            value: resources.stuttgart-things.com/v1alpha1
+          - key: "{{ split(request.object.apiVersion, '/')[0] }}"
+            operator: AnyIn
+            value:
+              - resources.stuttgart-things.com
+              - config.stuttgart-things.com
       validate:
         message: >-
-          Unknown XR kind '{{ request.object.kind }}' under tests/. Allowed claim
-          kinds are ManagedNamespace, AnsibleRun, RancherCluster, XVirtualMachine.
-          Add new kinds to the crossplane-claim-standards Kyverno policy.
+          Unknown XR kind '{{ request.object.kind }}' under tests/. Add new kinds
+          to the crossplane-claim-standards Kyverno policy allowlist.
         deny:
           conditions:
             all:
               - key: "{{ request.object.kind }}"
                 operator: AnyNotIn
                 value:
-                  - ManagedNamespace
+                  # resources.stuttgart-things.com
                   - AnsibleRun
+                  - CloudInit
+                  - HarvesterVM
+                  - ManagedNamespace
+                  - ProxmoxVM
                   - RancherCluster
+                  - VMProvision
+                  - VolumeClaim
+                  - VsphereVM
                   - XVirtualMachine
+                  # config.stuttgart-things.com
+                  - VaultConfig
+                  - VaultIssuer
+                  - VaultK8sAuth
 
     # ── 2. Naming convention ───────────────────────────────────────────────
     # metadata.name must be a lowercase RFC-1123 label.
@@ -59,9 +74,11 @@ spec:
                 - "*"
       preconditions:
         all:
-          - key: "{{ request.object.apiVersion || '' }}"
-            operator: Equals
-            value: resources.stuttgart-things.com/v1alpha1
+          - key: "{{ split(request.object.apiVersion, '/')[0] }}"
+            operator: AnyIn
+            value:
+              - resources.stuttgart-things.com
+              - config.stuttgart-things.com
       validate:
         message: >-
           Claim name '{{ request.object.metadata.name }}' must be a lowercase
