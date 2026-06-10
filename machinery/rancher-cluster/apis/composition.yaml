@@ -60,6 +60,15 @@ spec:
             {{- $bootstrapNs := $bootstrap.namespace | default "crossplane-bootstrap" }}
             {{- $argocd := $spec.argocd | default dict }}
             {{- $argocdRegister := $argocd.register | default false }}
+            {{- /* Platform profile labels/annotations on the ClusterbookCluster:
+                   EnvironmentConfig defaultLabels/defaultAnnotations are the base,
+                   spec.argocd.labels/annotations override per-cluster. Defaults
+                   typically carry auto-project: 'true' + every profile toggle at
+                   'false', so an XR only sets the toggles it flips to 'true' (the
+                   'false' siblings the AppSet NotIn-selectors need come from the
+                   defaults — no manual pinning). merge: earlier source wins. */}}
+            {{- $argocdLabels := merge (dict) ($argocd.labels | default dict) ($env.defaultLabels | default dict) }}
+            {{- $argocdAnnotations := merge (dict) ($argocd.annotations | default dict) ($env.defaultAnnotations | default dict) }}
             {{- $argocdNs := $argocd.namespace | default $env.argocdNamespace | default "argocd" }}
             {{- /* Argo CD + clusterbook-operator run on this cluster (the Rancher
                    cluster in the split lab, not the control plane). The kubeconfig
@@ -620,15 +629,15 @@ spec:
                       name: {{ $name }}-argocd-kubeconfig
                       namespace: {{ $argocdNs }}
                       key: kubeconfig
-                    {{- if $argocd.labels }}
+                    {{- if $argocdLabels }}
                     labels:
-                      {{- range $k, $v := $argocd.labels }}
+                      {{- range $k, $v := $argocdLabels }}
                       {{ $k }}: {{ $v | quote }}
                       {{- end }}
                     {{- end }}
-                    {{- if $argocd.annotations }}
+                    {{- if $argocdAnnotations }}
                     annotations:
-                      {{- range $k, $v := $argocd.annotations }}
+                      {{- range $k, $v := $argocdAnnotations }}
                       {{ $k }}: {{ $v | quote }}
                       {{- end }}
                     {{- end }}

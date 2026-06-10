@@ -22,57 +22,18 @@ spec:
     quantity: 1
   argocd:
     register: true                # target + server resolved automatically
-    # Platform profile toggles → copied onto the ClusterbookCluster /
-    # Argo CD cluster Secret; the platforms/<profile> AppSets select on them.
-    # Every toggle is explicit ('true'/'false') so this XR fully documents
-    # what gets deployed.
+    # Platform profile toggles → copied onto the ClusterbookCluster / Argo CD
+    # cluster Secret; the platforms/<profile> AppSets select on them.
     #
-    # FIRST TEST: storage-platform/openebs ONLY. All other umbrellas are
-    # 'false', and every storage sibling is explicitly 'false' — the AppSet
-    # component selectors are `<component> NotIn ['false']`, so an *omitted*
-    # label would still match and deploy. Under an enabled umbrella, pin
-    # siblings to 'false' or they fire too.
+    # Defaults come from the EnvironmentConfig `defaultLabels` (auto-project on,
+    # every profile toggle 'false'). Set ONLY the toggles you flip to 'true'
+    # here — they override the defaults; the 'false' siblings (which the AppSet
+    # NotIn-selectors need) come from the env, so no manual pinning.
+    #
+    # FIRST TEST: storage-platform/openebs only.
     labels:
-      # ---- core / project ----
-      env: lab
-      role: dev
-      auto-project: 'true'                              # per-cluster AppProject (proj-k3s-xp) for the app to live in
-      allow-all: 'false'
-
-      # ---- cicd-platform (OFF) ----
-      cicd-platform: 'false'
-      cicd-platform/crossplane: 'false'
-      cicd-platform/kro: 'false'
-      cicd-platform/tekton: 'false'
-      cicd-platform/machinery: 'false'
-      cicd-platform/dapr: 'false'
-      cicd-platform/kargo: 'false'
-      cicd-platform/argo-rollouts: 'false'
-      cicd-platform/openebs: 'false'
-
-      # ---- network-platform (OFF) ----
-      network-platform: 'false'
-      network-platform/cilium-lb: 'false'
-      network-platform/cilium-gateway: 'false'
-      network-platform/cilium-gateway-secondary: 'false'
-      network-platform/cert-manager-install: 'false'
-      network-platform/cert-manager-selfsigned: 'false'
-      network-platform/cert-manager-cluster-ca: 'false'
-      network-platform/cert-manager-vault-pki: 'false'
-      network-platform/trust-manager-install: 'false'
-      network-platform/trust-manager-bundle: 'false'
-
-      # ---- storage-platform (ON — openebs only) ----
       storage-platform: 'true'
       storage-platform/openebs: 'true'                  # openebs-hostpath = default SC + snapshot CRDs
-      storage-platform/longhorn: 'false'                # pinned false (umbrella on → NotIn selector would fire it)
-      storage-platform/nfs-csi-install: 'false'         # pinned false
-      storage-platform/nfs-csi-storageclasses: 'false'  # pinned false
-
-      # ---- security-platform (OFF) ----
-      security-platform: 'false'
-      security-platform/external-secrets: 'false'
-      security-platform/kyverno: 'false'
 
     # Component parameters (newly supported via spec.argocd.annotations).
     # Uncomment a block AND flip the matching label above to 'true' to enable.

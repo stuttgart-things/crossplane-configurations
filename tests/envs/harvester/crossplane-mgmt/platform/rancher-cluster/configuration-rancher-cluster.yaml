@@ -1,9 +1,12 @@
 ---
 # rancher-cluster Configuration package — provisions a Rancher cluster (generic
 # or Harvester) and wires its kubeconfig into Crossplane, optionally registering
-# it in Argo CD. v0.4.0: adds spec.argocd.annotations (platform component
-# params copied onto the ClusterbookCluster / Argo CD cluster Secret) alongside
-# the existing spec.argocd.labels (platform profile toggles). v0.3.0: Harvester
+# it in Argo CD. v0.5.0: EnvironmentConfig defaultLabels/defaultAnnotations as
+# the base for the ClusterbookCluster, overridden per key by spec.argocd.* on
+# the XR (auto-project defaults on; profile toggles default 'false'). v0.4.0:
+# adds spec.argocd.annotations (platform component params copied onto the
+# ClusterbookCluster / Argo CD cluster Secret) alongside the existing
+# spec.argocd.labels (platform profile toggles). v0.3.0: Harvester
 # provision path, Argo CD registration (direct endpoint + self-minted SA token,
 # target cluster = argocd.providerConfigRef), EnvironmentConfig defaults +
 # auto-discovered API server endpoint.
@@ -12,4 +15,4 @@ kind: Configuration
 metadata:
   name: rancher-cluster
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/rancher-cluster:v0.4.0
+  package: ghcr.io/stuttgart-things/crossplane-configurations/rancher-cluster:v0.5.0
