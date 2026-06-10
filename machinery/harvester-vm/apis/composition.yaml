@@ -403,7 +403,22 @@ spec:
                               cpu: {{ $xr.spec.vm.resources.cpu }}
                           memory:
                             guest: {{ $xr.spec.vm.resources.memory }}
-                            maxGuest: {{ $xr.spec.vm.resources.memory }}
+                            # maxGuest must equal what KubeVirt's LiveUpdate webhook
+                            # computes for the VMI, or the template stays mismatched and
+                            # RestartRequired latches. With liveUpdateConfiguration unset,
+                            # KubeVirt's default is maxGuest = 4x guest (observed: 4Gi->16Gi,
+                            # 6Gi->24Gi). An explicit lower value (e.g. = guest) is ignored
+                            # and bumped back to 4x, so we must match 4x here. NOTE: this
+                            # hardcodes KubeVirt's default ratio — revisit if Harvester sets
+                            # a custom liveUpdateConfiguration.maxGuestRatio.
+                            {{- $mem := $xr.spec.vm.resources.memory }}
+                            {{- if hasSuffix "Gi" $mem }}
+                            maxGuest: {{ mul (trimSuffix "Gi" $mem | int) 4 }}Gi
+                            {{- else if hasSuffix "Mi" $mem }}
+                            maxGuest: {{ mul (trimSuffix "Mi" $mem | int) 4 }}Mi
+                            {{- else }}
+                            maxGuest: {{ $mem }}
+                            {{- end }}
                           devices:
                             disks:
                               - name: rootdisk
