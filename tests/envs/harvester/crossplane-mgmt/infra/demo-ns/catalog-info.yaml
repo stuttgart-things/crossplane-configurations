@@ -1,0 +1,20 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: demo-ns
+  description: Crossplane claim (xr-namespace-minimal) - demo-ns
+  annotations:
+    github.com/project-slug: stuttgart-things/crossplane-configurations
+    backstage.io/source-location: url:https://github.com/stuttgart-things/crossplane-configurations/tree/main/tests/envs/harvester/crossplane-mgmt/infra/demo-ns
+    claim-machinery/template: xr-namespace-minimal
+    claim-machinery/category: infra
+  tags:
+    - crossplane
+    - claim
+    - xr-namespace-minimal
+    - infra
+spec:
+  type: crossplane-claim
+  lifecycle: production
+  owner: platform-team
