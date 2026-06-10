@@ -96,6 +96,42 @@ spec:
             {{- $caVal := index $caData $caSrcKey }}
             {{- if and $caVal $tokenVal }}
             ---
+            # TARGET NAMESPACE — ensure the cert-manager controller namespace
+            # exists on the target cluster BEFORE the Secrets land; a brand-new
+            # cluster may not have it yet (the cert-manager-vault-pki Argo appset
+            # / cert-manager itself can arrive later). Pattern lifted from the
+            # k8s/namespace Configuration. managementPolicies [Observe, Create]
+            # adopt an existing namespace WITHOUT modifying it and NEVER delete it
+            # — deleting this XR must not remove cert-manager. A Namespace has no
+            # conditions[], only status.phase, so derive readiness from
+            # phase == "Active" (DeriveFromObject would find no Ready condition
+            # and never go ready, stalling Argo health).
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $xrName "-namespace") }}
+              labels:
+                app.kubernetes.io/name: vault-pki-secrets
+                app.kubernetes.io/instance: {{ $xrName }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $cpc }}
+                kind: {{ $cpcKind }}
+              managementPolicies:
+                - Observe
+                - Create
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.status.phase == "Active"
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Namespace
+                  metadata:
+                    name: {{ $ns | quote }}
+            ---
             # CA-BUNDLE SECRET — referenced by the ClusterIssuer's
             # caBundleSecretRef (default vault-pki-ca / ca.crt). The source
             # base64 (PEM) is passed straight through into data[].
