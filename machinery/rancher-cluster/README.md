@@ -1,19 +1,42 @@
 # rancher-cluster
 
-A Crossplane v2 Configuration that provisions a **generic (custom-node) Rancher
-cluster** and then makes that brand-new cluster usable by Crossplane — by wiring
-its Rancher-managed kubeconfig into a `provider-kubernetes` `ClusterProviderConfig`
-and bootstrapping a namespace on it as proof.
+A Crossplane v2 Configuration that provisions a **Rancher cluster** — either
+**generic** (custom-node, nodes registered manually) or **Harvester** (VM nodes
+on a Harvester cluster via a machine pool) — and then makes that brand-new
+cluster usable by Crossplane: wiring its Rancher-managed kubeconfig into a
+`provider-kubernetes` `ClusterProviderConfig`, bootstrapping a namespace on it as
+proof, and optionally registering it in Argo CD.
+
+The `spec.infrastructure` discriminator (`generic` | `harvester`) selects the
+provision path; **everything downstream is identical** (kubeconfig → wired CPC →
+bootstrap → Argo CD).
 
 A namespaced `RancherCluster` XR (group `resources.stuttgart-things.com`) drives a
-`function-go-templating` pipeline that emits three `provider-kubernetes` `Object`s:
+`function-go-templating` pipeline that emits `provider-kubernetes` `Object`s:
 
 | # | Step | Object | Target cluster |
 |---|------|--------|----------------|
-| 1 | **Provision** | `provisioning.cattle.io/v1` `Cluster` (k3s or rke2, no machine pools — nodes registered manually) | management |
+| 1 | **Provision** | per `infrastructure` — see [Provision path](#provision-path-generic-vs-harvester) below | management / Rancher |
 | 2 | **Wire** | `kubernetes.m.crossplane.io/v1alpha1` `ClusterProviderConfig` named after the cluster | management |
 | 3 | **Use** | a bootstrap `Namespace` | **downstream** (the new cluster) |
-| 4 | **Register** *(optional)* | an assembled kubeconfig `Secret` + a `ClusterbookCluster` (→ Argo CD cluster Secret) | management |
+| 4 | **Register** *(optional)* | an assembled kubeconfig `Secret` + a `ClusterbookCluster` (→ Argo CD cluster Secret) | Argo CD cluster |
+
+## Provision path: generic vs Harvester
+
+`spec.infrastructure` only changes step 1; steps 2–4 are byte-identical either way.
+
+| | `generic` (default) | `harvester` |
+|---|---|---|
+| Step-1 objects | one bare `provisioning.cattle.io/v1` `Cluster` (no machine pools) | a `rke-machine-config.cattle.io/v1` `HarvesterConfig` (the VM template) **plus** a `provisioning.cattle.io/v1` `Cluster` with one machine pool referencing it |
+| Node registration | **manual** — run Rancher's registration command on each node | **automatic** — Rancher creates Harvester VMs and joins them |
+| Extra spec | — | the `spec.harvester` block (cloud credential, image, network, sizing) |
+| Example | [`examples/xr.yaml`](examples/xr.yaml) (co-located), [`examples/xr-split.yaml`](examples/xr-split.yaml) (split) | [`examples/xr-harvester.yaml`](examples/xr-harvester.yaml) |
+
+For `harvester`, the `HarvesterConfig` is a **flat** CRD (fields at the top level,
+no `spec`); `diskInfo`/`networkInfo` are built as JSON strings, and `userData`
+defaults to a cloud-config that installs + enables `qemu-guest-agent` (so Rancher
+can read the VM's IP). The machine pool carries all three roles
+(`etcd`/`controlPlane`/`worker`) with `quantity: spec.harvester.quantity`.
 
 ## How the kubeconfig is obtained
 
@@ -51,9 +74,20 @@ spec:
 | `name` | ✅ | — | Cluster name; also the `<name>-kubeconfig` Secret prefix and the downstream CPC name |
 | `kubernetesVersion` | ✅ | — | e.g. `v1.34.7+k3s1` / `v1.31.5+rke2r1` (the suffix selects the distro) |
 | `distro` | | `k3s` | `k3s` or `rke2` |
+| `infrastructure` | | `generic` | `generic` (custom-node) or `harvester` (VM machine pool — requires the `harvester` block) |
 | `rancherNamespace` | | `fleet-default` | Namespace of the provisioning Cluster + kubeconfig Secret |
 | `clusterLabels` | | — | Extra labels on the `provisioning.cattle.io` Cluster |
 | `machineGlobalConfig` | | — | Free-form `rkeConfig.machineGlobalConfig` passthrough |
+| `harvester.cloudCredentialSecretName` | when `harvester` | — | Harvester cloud credential, `cattle-global-data:<name>` (Rancher UI → Cloud Credentials) |
+| `harvester.imageName` | when `harvester` | — | Harvester VM image, `<namespace>/<image>` (e.g. `default/sthings-u26-k3s`) |
+| `harvester.networkName` | when `harvester` | — | Harvester network, `<namespace>/<network>` (e.g. `default/vms`) |
+| `harvester.vmNamespace` | | `default` | Harvester namespace the VMs are created in |
+| `harvester.cpuCount` | | `2` | vCPUs per VM |
+| `harvester.memorySize` | | `4` | Memory per VM (GiB) |
+| `harvester.diskSize` | | `40` | Root disk per VM (GiB) |
+| `harvester.sshUser` | | `ubuntu` | SSH user baked into the image |
+| `harvester.quantity` | | `1` | Number of VM nodes in the pool |
+| `harvester.userData` | | qemu-guest-agent cloud-config | cloud-init `userData` for the VMs (base64 is handled for you) |
 | `bootstrap.namespace` | | `crossplane-bootstrap` | Namespace created on the downstream cluster |
 | `bootstrap.labels` | | — | Labels for that downstream namespace |
 | `argocd.register` | | `false` | Register the cluster in Argo CD via clusterbook-operator |
@@ -134,14 +168,14 @@ The bridge uses `provider-kubernetes`'s native `connectionDetails` +
 co-located, step 1b is not emitted and step 2 reads `<name>-kubeconfig` directly,
 so rendered output is **byte-identical** to a spec without `rancherProviderConfigRef`.
 
-> [!IMPORTANT]
-> **Encoding — verify on a live split.** The bridge copies the Secret field at
-> `data.value` (base64) into a connection Secret via `connectionDetails`. Whether
-> `provider-kubernetes` re-encodes that when materializing the connection Secret
-> (potential double-base64) has not yet been confirmed against a real Rancher +
-> two-cluster setup. Render output is correct; confirm the wired CPC actually
-> authenticates with the bridged Secret on first live use, and adjust the
-> `fieldPath`/decode if needed.
+> [!NOTE]
+> **Encoding — confirmed on a live split.** `provider-kubernetes` decodes the
+> `data.value` field once when materializing the connection Secret, so the bridged
+> `<name>-kubeconfig-bridged` Secret decodes in **one** base64 pass (no
+> double-base64). Verified end-to-end on a real Rancher/Harvester split: the wired
+> CPC authenticates with the bridged Secret and bootstraps the downstream
+> namespace. The same single-decode behavior is relied on by the Argo CD path
+> (SA token + downstream CA extraction).
 
 ## Cluster preconditions
 
@@ -163,24 +197,39 @@ For a **split control plane** (`rancherProviderConfigRef` set), additionally:
   `spec.rancherNamespace` on the Rancher cluster (the bridge `Object` Observes
   `<name>-kubeconfig` there).
 
+For **`infrastructure: harvester`**, additionally:
+
+- A Harvester cloud credential exists on the Rancher cluster (Rancher UI →
+  Cluster Management → Cloud Credentials). Find its Secret name with
+  `kubectl -n cattle-global-data get secrets | grep '^cc-'` and pass
+  `cattle-global-data:<name>` as `spec.harvester.cloudCredentialSecretName`.
+- The `imageName` and `networkName` reference resources that already exist on the
+  Harvester cluster.
+
 ## Caveats
 
 - **Token TTL.** The Rancher kubeconfig token may carry a TTL
   (`kubeconfig-default-token-ttl-minutes`). If non-zero, the wired
   `ClusterProviderConfig` eventually goes stale and must be refreshed.
 - **Eventual consistency.** Steps 2 and 3 stay `NotReady` until Rancher creates
-  the kubeconfig Secret and the cluster's API is reachable — expected while the
-  generic cluster's nodes are still being registered.
+  the kubeconfig Secret and the cluster's API is reachable — expected while nodes
+  are still joining (`generic`: manual registration; `harvester`: VMs booting).
 
 ## Try it locally
 
 ```bash
 cd machinery/rancher-cluster
+# generic (co-located)
 crossplane render examples/xr.yaml apis/composition.yaml examples/functions.yaml --include-function-results
+# Harvester (split control plane)
+crossplane render examples/xr-harvester.yaml apis/composition.yaml examples/functions.yaml --include-function-results
 ```
 
 Or via the repo Taskfile:
 
 ```bash
-CONFIG=machinery/rancher-cluster XR=xr.yaml task render
+CONFIG=machinery/rancher-cluster XR=xr.yaml task render            # or XR=xr-harvester.yaml
 ```
+
+A full split-control-plane walkthrough (generic + Harvester, including the Argo CD
+step) is in [`examples/MIXED-CLUSTER.md`](examples/MIXED-CLUSTER.md).
