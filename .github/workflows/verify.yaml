@@ -1,10 +1,19 @@
 ---
 name: Verify Crossplane Configurations
+# The Configuration package pipeline (discover + pre-commit + verify + preview)
+# does not apply to the XR claims under tests/ — those are test-env manifests,
+# not packages. paths-ignore skips this whole workflow when a change touches
+# ONLY tests/ (a mixed PR that also edits a package still runs it in full).
+# Claims are linted instead by the lighter Kyverno gate (validate-claims.yaml).
 on:
   pull_request:
+    paths-ignore:
+      - 'tests/**'
   push:
     branches:
       - main
+    paths-ignore:
+      - 'tests/**'
 
 jobs:
   discover:

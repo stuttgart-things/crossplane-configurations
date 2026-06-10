@@ -1,0 +1,90 @@
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: crossplane-claim-standards
+  annotations:
+    policies.kyverno.io/title: Crossplane test-claim standards
+    policies.kyverno.io/category: crossplane
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: XR claims
+    policies.kyverno.io/description: >-
+      Validates the stuttgart-things Crossplane XR claims committed under tests/.
+      Runs offline in CI via the dagger kyverno module (kyverno apply) as a lint
+      gate for the test claims — it is NOT deployed to a cluster. Enforces an
+      allowlist of XR kinds, RFC-1123 claim names, and required spec fields for
+      ManagedNamespace.
+spec:
+  validationFailureAction: Enforce
+  background: false
+  rules:
+    # ── 1. Allowed templates only ──────────────────────────────────────────
+    # Catch stray/unknown XR kinds in the resources.stuttgart-things.com group.
+    # Matches every loaded resource, then the precondition narrows to our group
+    # so catalog-info.yaml (Component) and kustomization.yaml are ignored.
+    - name: only-known-xr-kinds
+      match:
+        any:
+          - resources:
+              kinds:
+                - "*"
+      preconditions:
+        all:
+          - key: "{{ request.object.apiVersion || '' }}"
+            operator: Equals
+            value: resources.stuttgart-things.com/v1alpha1
+      validate:
+        message: >-
+          Unknown XR kind '{{ request.object.kind }}' under tests/. Allowed claim
+          kinds are ManagedNamespace, AnsibleRun, RancherCluster, XVirtualMachine.
+          Add new kinds to the crossplane-claim-standards Kyverno policy.
+        deny:
+          conditions:
+            all:
+              - key: "{{ request.object.kind }}"
+                operator: AnyNotIn
+                value:
+                  - ManagedNamespace
+                  - AnsibleRun
+                  - RancherCluster
+                  - XVirtualMachine
+
+    # ── 2. Naming convention ───────────────────────────────────────────────
+    # metadata.name must be a lowercase RFC-1123 label.
+    - name: claim-name-rfc1123
+      match:
+        any:
+          - resources:
+              kinds:
+                - "*"
+      preconditions:
+        all:
+          - key: "{{ request.object.apiVersion || '' }}"
+            operator: Equals
+            value: resources.stuttgart-things.com/v1alpha1
+      validate:
+        message: >-
+          Claim name '{{ request.object.metadata.name }}' must be a lowercase
+          RFC-1123 label (a-z, 0-9 and '-'; start and end alphanumeric).
+        deny:
+          conditions:
+            all:
+              - key: "{{ regex_match('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$', request.object.metadata.name) }}"
+                operator: Equals
+                value: false
+
+    # ── 3. Required spec fields (ManagedNamespace) ─────────────────────────
+    - name: managednamespace-required-fields
+      match:
+        any:
+          - resources:
+              kinds:
+                - ManagedNamespace
+      validate:
+        message: >-
+          ManagedNamespace must set spec.name and spec.providerConfigRef
+          (non-empty).
+        pattern:
+          spec:
+            name: "?*"
+            providerConfigRef: "?*"
