@@ -1,0 +1,16 @@
+---
+# ansible-run Configuration package — renders a Tekton PipelineRun (wrapped in a
+# provider-kubernetes Object) from an AnsibleRun XR. Shared per-environment
+# defaults come from the `ansible-run-defaults` EnvironmentConfig in this dir.
+#
+# v0.1.3 removes the XRD defaults for ansibleWorkingImage, gitRevision and
+# ansibleCredentialsSecretName: an XRD default is applied by the API server
+# before the Composition runs, so it always looked like an explicit XR value
+# and masked the EnvironmentConfig. With no XRD default the precedence is
+# explicit XR value > EnvironmentConfig > KCL module default.
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: ansible-run
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/ansible-run:v0.1.3

@@ -51,8 +51,13 @@ spec:
                 # Ansible Configuration
                 ansibleWorkingImage:
                   type: string
-                  description: Ansible working container image
-                  default: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test
+                  description: |
+                    Ansible working container image. Intentionally has NO
+                    XRD default: an XRD default is applied by the API server
+                    BEFORE the Composition runs, so it would always look like
+                    an explicit XR value and mask the EnvironmentConfig's
+                    `ansibleWorkingImage`. With no default the precedence is
+                    explicit XR value > EnvironmentConfig > KCL module default.
                 createInventory:
                   type: string
                   description: Whether to create an Ansible inventory
@@ -78,8 +83,11 @@ spec:
                   default: https://github.com/stuttgart-things/stage-time.git
                 gitRevision:
                   type: string
-                  description: Git branch or revision
-                  default: main
+                  description: |
+                    Git branch or revision. No XRD default on purpose so the
+                    EnvironmentConfig's `gitRevision` is authoritative (an XRD
+                    default would mask it); precedence is explicit XR value >
+                    EnvironmentConfig > KCL module default.
                 gitPath:
                   type: string
                   description: Path to the pipeline file in the Git repository
@@ -91,8 +99,12 @@ spec:
                 # Credentials
                 ansibleCredentialsSecretName:
                   type: string
-                  description: Name of the secret containing Ansible credentials
-                  default: ansible-credentials
+                  description: |
+                    Name of the secret containing Ansible credentials. No XRD
+                    default on purpose so the EnvironmentConfig's
+                    `ansibleCredentialsSecretName` is authoritative (an XRD
+                    default would mask it); precedence is explicit XR value >
+                    EnvironmentConfig > KCL module default.
                 ansibleCredentialsUserKey:
                   type: string
                   description: Key for the Ansible user in the credentials secret

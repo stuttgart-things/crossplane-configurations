@@ -1,0 +1,38 @@
+---
+# AnsibleRun driven through the `ansible-run` Configuration. Runs the
+# sthings.baseos.setup playbook against a single target host via a Tekton
+# PipelineRun (wrapped in a provider-kubernetes Object on in-cluster).
+#
+# ansibleWorkingImage + ansibleExtraCollections + gitRevision are intentionally
+# OMITTED so they fall through to the `ansible-run-defaults` EnvironmentConfig
+# (platform/ansible-run/ansiblerun.yaml): image -> sthings-ansible:14.0.0-test,
+# collections -> community.general + sthings-baseos, gitRevision -> main. As of
+# ansible-run v0.1.3 the XRD no longer defaults these fields, so the env config
+# is authoritative (precedence: explicit XR > EnvironmentConfig > KCL default).
+#
+# Lives in `default` (always present) so Argo doesn't need to create a namespace
+# for the XR object; the PipelineRun lands in `tekton-ci` on this cluster.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: AnsibleRun
+metadata:
+  name: ansible-run-test
+  namespace: default
+spec:
+  pipelineRunName: run-ansible-test
+  namespace: tekton-ci
+  gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  ansiblePlaybooks:
+    - sthings.baseos.setup
+  ansibleVarsFile:
+    - manage_filesystem+-true
+    - update_packages+-true
+    - ansible_become+-true
+    - ansible_become_method+-sudo
+  ansibleVarsInventory:
+    - 'all+["192.168.10.149"]'
+  wrapInCrossplane: true
+  crossplaneObjectName: run-ansible-test
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
+  # ansibleWorkingImage / ansibleExtraCollections / gitRevision OMITTED on
+  # purpose -> supplied by the ansible-run-defaults EnvironmentConfig.
