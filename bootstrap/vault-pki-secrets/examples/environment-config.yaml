@@ -1,0 +1,37 @@
+---
+# Shared per-environment defaults for VaultPkiSecret XRs.
+#
+# The `vault-pki-secrets` Composition selects this EnvironmentConfig via the
+# config-scoped label `vault-pki-secrets.config.stuttgart-things.com/environment`,
+# matched against the XR's `spec.environmentConfig` (default "default"). The key
+# is namespaced to this Configuration so it never collides with another
+# Configuration's EnvironmentConfig (function-environment-configs requires
+# exactly one Selector match). The `data` values become defaults in the
+# pipeline; anything set explicitly on the XR spec wins over them.
+#
+# These mirror the clusterbook annotations the cert-manager-vault-pki
+# ApplicationSet reads on the target cluster — keep them aligned:
+#   namespace        = the appset destination namespace (cert-manager)
+#   caSecretName     = the chart's caBundleSecretRef.name (vault-pki-ca)
+#   tokenSecretName  = clusterbook.stuttgart-things.com/vault-token-secret
+# so a VaultPkiSecret XR shrinks to per-cluster values (token + caBundle, and
+# providerConfigRef when pushing to a remote cluster).
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: vault-pki-secrets-defaults
+  labels:
+    vault-pki-secrets.config.stuttgart-things.com/environment: default
+data:
+  # Target cluster: provider-kubernetes (Cluster)ProviderConfig name.
+  # "in-cluster" pushes onto the local cluster; set per-environment to a
+  # bridged-kubeconfig ClusterProviderConfig to push onto a remote cluster.
+  providerConfigRef: in-cluster
+  # cert-manager controller namespace on the target cluster.
+  namespace: cert-manager
+  # CA-bundle Secret (the chart hard-codes caBundleSecretRef.name=vault-pki-ca).
+  caSecretName: vault-pki-ca
+  caSecretKey: ca.crt
+  # Vault-token Secret (= clusterbook.../vault-token-secret on the target).
+  tokenSecretName: vault-pki-token # pragma: allowlist secret
+  tokenSecretKey: token # pragma: allowlist secret

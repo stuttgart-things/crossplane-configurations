@@ -1,0 +1,37 @@
+---
+# Maximal VaultPkiSecret — every field set, overriding the EnvironmentConfig to
+# push to a REMOTE/managed cluster (providerConfigRef points at a
+# bridged-kubeconfig ClusterProviderConfig) with custom source-secret
+# names/namespaces/keys and target Secret names/keys.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultPkiSecret
+metadata:
+  name: vault-pki-prod
+  namespace: default
+spec:
+  # environmentConfig: prod   # selects a non-default EnvironmentConfig; every
+  #                           # field below is set explicitly anyway, so this XR
+  #                           # doesn't depend on one.
+
+  # SOURCE Secrets holding the prod token + CA bundle (custom names/keys, in a
+  # dedicated namespace on the control-plane cluster).
+  tokenSecretRef:
+    name: vault-pki-prod-token # pragma: allowlist secret
+    namespace: vault-pki
+    key: vault-token # pragma: allowlist secret
+  caBundleSecretRef:
+    name: vault-pki-prod-ca
+    namespace: vault-pki
+    key: vault-ca
+
+  # Remote cluster: a ClusterProviderConfig wired from that cluster's
+  # kubeconfig (e.g. produced by rancher-cluster / clusterbook registration).
+  providerConfigRef: k8s-prod-cluster
+  providerConfigKind: ClusterProviderConfig
+
+  namespace: cert-manager
+
+  caSecretName: vault-pki-ca
+  caSecretKey: ca.crt
+  tokenSecretName: vault-pki-prod-token # pragma: allowlist secret
+  tokenSecretKey: token # pragma: allowlist secret

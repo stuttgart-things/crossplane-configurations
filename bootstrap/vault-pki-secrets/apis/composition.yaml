@@ -1,0 +1,163 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: vault-pki-secrets
+  labels:
+    crossplane.io/xrd: vaultpkisecrets.config.stuttgart-things.com
+    provider-kubernetes: "true"
+    service: vault-pki-secrets
+spec:
+  compositeTypeRef:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: VaultPkiSecret
+  mode: Pipeline
+  pipeline:
+    # Load per-environment defaults from the EnvironmentConfig selected by the
+    # config-scoped label (value from spec.environmentConfig, default "default").
+    # Its `data` lands in the pipeline environment; precedence below is always
+    # XR spec → EnvironmentConfig → built-in default.
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: vault-pki-secrets.config.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    fromFieldPathPolicy: Optional
+    - step: render-vault-pki-secrets
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $spec := .observed.composite.resource.spec }}
+            {{- $xrName := .observed.composite.resource.metadata.name }}
+            {{- $xrNs := .observed.composite.resource.metadata.namespace }}
+            {{- /* EnvironmentConfig data → pipeline environment. Empty in offline
+                   render unless an EnvironmentConfig is passed via --extra-resources. */}}
+            {{- $env := index .context "apiextensions.crossplane.io/environment" | default dict }}
+            {{- /* precedence: XR spec → EnvironmentConfig → built-in default */}}
+            {{- $cpc := $spec.providerConfigRef | default $env.providerConfigRef | default "in-cluster" }}
+            {{- $cpcKind := $spec.providerConfigKind | default "ClusterProviderConfig" }}
+            {{- $ns := $spec.namespace | default $env.namespace | default "cert-manager" }}
+            {{- $caName := $spec.caSecretName | default $env.caSecretName | default "vault-pki-ca" }}
+            {{- $caKey := $spec.caSecretKey | default $env.caSecretKey | default "ca.crt" }}
+            {{- $tokenName := $spec.tokenSecretName | default $env.tokenSecretName | default "vault-pki-token" }}
+            {{- $tokenKey := $spec.tokenSecretKey | default $env.tokenSecretKey | default "token" }}
+            {{- /* SOURCE secret references — read values from here, never inline them in the XR */}}
+            {{- $tokenRef := $spec.tokenSecretRef }}
+            {{- $caRef := $spec.caBundleSecretRef }}
+            {{- $tokenSrcName := $tokenRef.name }}
+            {{- $tokenSrcNs := $tokenRef.namespace | default $xrNs }}
+            {{- $tokenSrcKey := $tokenRef.key | default "token" }}
+            {{- $caSrcName := $caRef.name }}
+            {{- $caSrcNs := $caRef.namespace | default $xrNs }}
+            {{- $caSrcKey := $caRef.key | default "ca.crt" }}
+            ---
+            # Fetch the two source Secrets into the pipeline so their token + CA
+            # values can be copied onto the target cluster. Values stay base64
+            # the whole way (a k8s Secret's data is base64), so the token is
+            # never materialised in plaintext.
+            apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
+            kind: ExtraResources
+            requirements:
+              token-secret:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $tokenSrcName }}
+                namespace: {{ $tokenSrcNs }}
+              ca-secret:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $caSrcName }}
+                namespace: {{ $caSrcNs }}
+            {{- with .extraResources }}
+            {{- $tokenObj := index . "token-secret" }}
+            {{- $caObj := index . "ca-secret" }}
+            {{- if and $tokenObj $caObj }}
+            {{- $tokenItems := $tokenObj.items }}
+            {{- $caItems := $caObj.items }}
+            {{- if and $tokenItems $caItems }}
+            {{- $tokenData := (index $tokenItems 0).resource.data }}
+            {{- $caData := (index $caItems 0).resource.data }}
+            {{- if and $tokenData $caData }}
+            {{- $tokenVal := index $tokenData $tokenSrcKey }}
+            {{- $caVal := index $caData $caSrcKey }}
+            {{- if and $caVal $tokenVal }}
+            ---
+            # CA-BUNDLE SECRET — referenced by the ClusterIssuer's
+            # caBundleSecretRef (default vault-pki-ca / ca.crt). The source
+            # base64 (PEM) is passed straight through into data[].
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $xrName "-ca") }}
+              labels:
+                app.kubernetes.io/name: vault-pki-secrets
+                app.kubernetes.io/instance: {{ $xrName }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $cpc }}
+                kind: {{ $cpcKind }}
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: {{ $caName | quote }}
+                    namespace: {{ $ns | quote }}
+                  type: Opaque
+                  data:
+                    {{ $caKey }}: {{ $caVal | quote }}
+            ---
+            # VAULT-TOKEN SECRET — referenced by the ClusterIssuer's
+            # auth.tokenSecretRef (default vault-pki-token / token). Source
+            # base64 token is passed straight through into data[].
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $xrName "-token") }}
+              labels:
+                app.kubernetes.io/name: vault-pki-secrets
+                app.kubernetes.io/instance: {{ $xrName }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $cpc }}
+                kind: {{ $cpcKind }}
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: {{ $tokenName | quote }}
+                    namespace: {{ $ns | quote }}
+                  type: Opaque
+                  data:
+                    {{ $tokenKey }}: {{ $tokenVal | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

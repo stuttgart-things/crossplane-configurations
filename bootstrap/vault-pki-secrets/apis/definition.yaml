@@ -1,0 +1,109 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: vaultpkisecrets.config.stuttgart-things.com
+spec:
+  group: config.stuttgart-things.com
+  scope: Namespaced
+  defaultCompositeDeletePolicy: Foreground
+  names:
+    kind: VaultPkiSecret
+    plural: vaultpkisecrets
+    singular: vaultpkisecret
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                environmentConfig:
+                  type: string
+                  description: >-
+                    Selects the EnvironmentConfig (by the config-scoped label
+                    `vault-pki-secrets.config.stuttgart-things.com/environment`)
+                    that supplies per-environment defaults — providerConfigRef,
+                    namespace, caSecretName/Key and tokenSecretName/Key
+                    (mirroring the clusterbook annotations). Anything set on this
+                    XR spec wins over the EnvironmentConfig, which wins over the
+                    built-in defaults.
+                  default: default
+                providerConfigRef:
+                  type: string
+                  description: "Name of the provider-kubernetes (Cluster)ProviderConfig that targets the cluster the Secrets are pushed onto. Defaults from the EnvironmentConfig, then `in-cluster`."
+                providerConfigKind:
+                  type: string
+                  enum:
+                    - ClusterProviderConfig
+                    - ProviderConfig
+                  default: ClusterProviderConfig
+                namespace:
+                  type: string
+                  description: "Namespace on the target cluster where both Secrets are created (the cert-manager controller namespace). Defaults from the EnvironmentConfig, then `cert-manager`."
+                tokenSecretRef:
+                  type: object
+                  description: >-
+                    Reference to the SOURCE Secret (on the control-plane cluster)
+                    holding the Vault token. The Composition reads its value
+                    (never inlined in the XR) and copies it into the target
+                    cluster's token Secret. The control-plane's Crossplane SA
+                    must be able to read it.
+                  properties:
+                    name:
+                      type: string
+                      description: "Name of the source token Secret."
+                    namespace:
+                      type: string
+                      description: "Namespace of the source token Secret. Defaults to the XR's namespace."
+                    key:
+                      type: string
+                      description: "Key in the source Secret holding the Vault token."
+                      default: "token"
+                  required:
+                    - name
+                caBundleSecretRef:
+                  type: object
+                  description: >-
+                    Reference to the SOURCE Secret (on the control-plane cluster)
+                    holding the CA bundle. The Composition reads its value and
+                    copies it into the target cluster's CA Secret.
+                  properties:
+                    name:
+                      type: string
+                      description: "Name of the source CA Secret."
+                    namespace:
+                      type: string
+                      description: "Namespace of the source CA Secret. Defaults to the XR's namespace."
+                    key:
+                      type: string
+                      description: "Key in the source Secret holding the CA bundle."
+                      default: "ca.crt"
+                  required:
+                    - name
+                caSecretName:
+                  type: string
+                  description: "Name of the CA-bundle Secret (matches the ClusterIssuer's caBundleSecretRef.name). Defaults from the EnvironmentConfig, then `vault-pki-ca`."
+                caSecretKey:
+                  type: string
+                  description: "Key under which the CA bundle is stored (matches caBundleSecretRef.key). Defaults from the EnvironmentConfig, then `ca.crt`."
+                tokenSecretName:
+                  type: string
+                  description: "Name of the Vault-token Secret (matches the ClusterIssuer's tokenSecretRef.name; the clusterbook annotation clusterbook.stuttgart-things.com/vault-token-secret). Defaults from the EnvironmentConfig, then `vault-pki-token`."
+                tokenSecretKey:
+                  type: string
+                  description: "Key under which the token is stored (matches tokenSecretRef.key). Defaults from the EnvironmentConfig, then `token`."
+              required:
+                - tokenSecretRef
+                - caBundleSecretRef
+            status:
+              type: object
+              description: "Observed state of the VaultPkiSecret."
+              properties:
+                share:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true

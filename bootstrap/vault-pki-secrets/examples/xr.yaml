@@ -1,0 +1,26 @@
+---
+# Realistic VaultPkiSecret — pushes the prerequisite Secrets for the platform's
+# vault-pki ClusterIssuer (the one the cert-manager-vault-pki Argo CD
+# ApplicationSet renders) onto a target cluster.
+#
+# The token + CA bundle are NOT inlined here — they're read from the two source
+# Secrets referenced below (see examples/source-secrets.yaml). Target Secret
+# names/namespace/providerConfigRef come from the EnvironmentConfig
+# (vault-pki-secrets-defaults). The ClusterIssuer itself is owned by Argo CD.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultPkiSecret
+metadata:
+  name: vault-pki
+  namespace: default
+spec:
+  # environmentConfig: default   # selects vault-pki-secrets-defaults (the default)
+
+  # SOURCE Secrets (same namespace as this XR) holding the Vault token + CA bundle.
+  tokenSecretRef:
+    name: vault-pki-source-token # pragma: allowlist secret
+    # namespace: default          # defaults to this XR's namespace
+    key: token
+  caBundleSecretRef:
+    name: vault-pki-source-ca
+    # namespace: default
+    key: ca.crt
