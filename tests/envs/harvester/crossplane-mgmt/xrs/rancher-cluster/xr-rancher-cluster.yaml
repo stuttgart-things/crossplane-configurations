@@ -22,6 +22,12 @@ spec:
     quantity: 1
   argocd:
     register: true                # target + server resolved automatically
+    # IP/DNS reservation via clusterbook-operator. REQUIRED for network-platform:
+    # every network-platform AppSet selector needs the allocation-ip anchor, which
+    # is only stamped when an IP is reserved. networkKey + ClusterbookProviderConfig
+    # come from the EnvironmentConfig (clusterbookNetworkKey: 192.168.10 / default).
+    reservation:
+      enabled: true               # -> ClusterbookCluster skipReservation: false + createDNS
     # Platform profile toggles → copied onto the ClusterbookCluster / Argo CD
     # cluster Secret; the platforms/<profile> AppSets select on them.
     #
@@ -31,23 +37,35 @@ spec:
     # NotIn-selectors need) come from the env, so no manual pinning.
     #
     # Enabled profiles: storage-platform (openebs) + security-platform
-    # (external-secrets + kyverno). All other toggles default 'false' from the
-    # EnvironmentConfig.
+    # (external-secrets + kyverno) + network-platform (cert-manager chain +
+    # trust-manager + vault-pki ClusterIssuer). The cilium components
+    # (cilium-lb / cilium-gateway) are left OFF — they need the Cilium CNI, but
+    # this cluster runs k3s' default flannel. To enable them, rebuild with
+    # cilium via spec.machineGlobalConfig (e.g. cni: cilium / flannel-backend:
+    # none) and flip network-platform/cilium-lb + /cilium-gateway to 'true'.
     labels:
       storage-platform: 'true'
       storage-platform/openebs: 'true'                  # openebs-hostpath = default SC + snapshot CRDs
       security-platform: 'true'
       security-platform/external-secrets: 'true'        # → external-secrets-install-security
       security-platform/kyverno: 'true'                 # → kyverno-install-security
+      network-platform: 'true'                          # master gate
+      network-platform/cert-manager-install: 'true'     # → cert-manager-install-clusterbook
+      network-platform/cert-manager-selfsigned: 'true'  # → selfsigned ClusterIssuer
+      network-platform/cert-manager-cluster-ca: 'true'  # → cluster CA chain + gateway-tls Certificate
+      network-platform/cert-manager-vault-pki: 'true'   # → vault-pki ClusterIssuer (consumes vault-pki-secrets)
+      network-platform/trust-manager-install: 'true'    # → trust-manager controller
+      network-platform/trust-manager-bundle: 'true'     # → cluster-trust-bundle Bundle
 
-    # Component parameters (newly supported via spec.argocd.annotations).
-    # Uncomment a block AND flip the matching label above to 'true' to enable.
-    # annotations:
-    #   # cert-manager Vault-PKI ClusterIssuer (network-platform/cert-manager-vault-pki)
-    #   clusterbook.stuttgart-things.com/vault-server: https://vault.example/
-    #   clusterbook.stuttgart-things.com/vault-pki-path: pki/sign/sthings
-    #   clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token
-    #   # NFS StorageClass (storage-platform/nfs-csi-storageclasses; also add the gate label)
-    #   storage-platform.stuttgart-things.com/nfs-server: '10.31.101.26'
-    #   storage-platform.stuttgart-things.com/nfs-share: /data/col1/sthings
-    #   storage-platform.stuttgart-things.com/nfs-version: '3'
+    # Component parameters. The vault-pki ClusterIssuer reads these; the token
+    # Secret (cert-manager-vault-token) is provisioned into cert-manager by the
+    # vault-pki-secrets Configuration. Mirrors the crossplane-mgmt cluster.
+    annotations:
+      clusterbook.stuttgart-things.com/vault-server: https://vault.infra.sthings.lab
+      clusterbook.stuttgart-things.com/vault-pki-path: pki/sign/sthings-lab
+      clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token # pragma: allowlist secret
+      clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki
+      # NFS StorageClass (storage-platform/nfs-csi-storageclasses; also add the gate label)
+      # storage-platform.stuttgart-things.com/nfs-server: '10.31.101.26'
+      # storage-platform.stuttgart-things.com/nfs-share: /data/col1/sthings
+      # storage-platform.stuttgart-things.com/nfs-version: '3'

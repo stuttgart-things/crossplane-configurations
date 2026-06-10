@@ -78,6 +78,16 @@ spec:
                    downstream `kubernetes` Endpoints); spec.argocd.server overrides
                    it for HA VIP/LB. */}}
             {{- $argocdServerOverride := $argocd.server }}
+            {{- /* IP/DNS reservation: when spec.argocd.reservation.enabled the
+                   ClusterbookCluster reserves an IP (skipReservation: false),
+                   producing the allocation-ip anchor the network-platform
+                   AppSets require. networkKey + clusterbook providerConfigRef
+                   fall back to the EnvironmentConfig; createDNS defaults true. */}}
+            {{- $reservation := $argocd.reservation | default dict }}
+            {{- $reserveIP := $reservation.enabled | default false }}
+            {{- $networkKey := $reservation.networkKey | default $env.clusterbookNetworkKey }}
+            {{- $clusterbookCpc := $reservation.providerConfigRef | default $env.clusterbookProviderConfigRef | default "default" }}
+            {{- $createDNS := ternary ($reservation.createDNS) true (hasKey $reservation "createDNS") }}
             {{- $argocdSaSecret := print $name "-argocd-sa" }}
             {{- if eq $infra "harvester" }}
             {{- /* Harvester VM nodes: a HarvesterConfig (the VM template) plus a
@@ -596,9 +606,12 @@ spec:
                         user:
                           token: {{ $token | quote }}
             ---
-            # (4g) ClusterbookCluster on the Argo CD cluster. skipReservation +
-            # preserveKubeconfigServer keep the direct endpoint verbatim (no
-            # clusterbook IP/DNS rewrite); the operator emits cluster-<name>.
+            # (4g) ClusterbookCluster on the Argo CD cluster. preserveKubeconfigServer
+            # keeps the direct endpoint verbatim (no clusterbook IP/DNS rewrite);
+            # the operator emits cluster-<name>. With spec.argocd.reservation.enabled
+            # the operator also reserves an IP from networkKey (skipReservation:
+            # false) + optional DNS, stamping the allocation-ip anchor the
+            # network-platform AppSets require; otherwise skipReservation: true.
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
             metadata:
@@ -622,7 +635,17 @@ spec:
                     name: {{ $name }}
                   spec:
                     clusterName: {{ $name }}
+                    {{- if $reserveIP }}
+                    skipReservation: false
+                    providerConfigRef:
+                      name: {{ $clusterbookCpc }}
+                    {{- if $networkKey }}
+                    networkKey: {{ $networkKey | quote }}
+                    {{- end }}
+                    createDNS: {{ $createDNS }}
+                    {{- else }}
                     skipReservation: true
+                    {{- end }}
                     preserveKubeconfigServer: true
                     argocdNamespace: {{ $argocdNs }}
                     kubeconfigSecretRef:
