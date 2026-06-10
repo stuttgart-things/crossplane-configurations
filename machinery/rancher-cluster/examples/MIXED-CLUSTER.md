@@ -96,10 +96,26 @@ kubectl get object.kubernetes.m.crossplane.io -l app.kubernetes.io/instance=k3s-
 
 ## 5. (Optional) Register in central Argo CD
 
-Set `spec.argocd.register: true` + `spec.argocd.tokenSecretRef` (see
-`argocd-token.yaml`) on the XR; the Composition emits the assembled kubeconfig
-Secret + a `ClusterbookCluster`, and clusterbook-operator creates the Argo CD
-`cluster-k3s-xp` Secret.
+Argo CD + clusterbook-operator run on the **Rancher cluster** here, so set
+`spec.argocd.providerConfigRef: rancher-mgmt`. The Composition mints an
+`argocd-manager` SA on the downstream cluster, assembles a **direct-endpoint**
+kubeconfig (`spec.argocd.server` + downstream CA + SA token), and emits the
+kubeconfig Secret + `ClusterbookCluster` on the Rancher cluster;
+clusterbook-operator then creates the Argo CD `cluster-k3s-xp` Secret.
+
+```yaml
+spec:
+  argocd:
+    register: true
+    namespace: argocd
+    providerConfigRef: rancher-mgmt          # cluster running Argo CD + clusterbook
+    server: https://192.168.10.135:6443      # downstream API endpoint (VIP/LB for HA)
+```
+
+```bash
+# the produced Argo CD cluster Secret (on the Rancher/Argo cluster)
+KUBECONFIG=~/.kube/platform.sthings.lab kubectl -n argocd get secret cluster-k3s-xp
+```
 
 ## Generic vs Harvester
 

@@ -33,3 +33,12 @@ spec:
     quantity: 1
   bootstrap:
     namespace: crossplane-bootstrap
+  # Optional: register in Argo CD (clusterbook-operator). Mints an argocd-manager
+  # SA on the downstream cluster and registers its direct endpoint — no Rancher
+  # proxy dependency. providerConfigRef = the cluster running Argo CD + clusterbook
+  # (the Rancher cluster in this split lab). See MIXED-CLUSTER.md step 5.
+  # argocd:
+  #   register: true
+  #   namespace: argocd
+  #   providerConfigRef: rancher-mgmt
+  #   server: https://192.168.10.135:6443

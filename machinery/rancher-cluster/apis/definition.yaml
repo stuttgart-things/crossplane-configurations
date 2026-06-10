@@ -179,10 +179,13 @@ spec:
                   type: object
                   description: >-
                     Optional: register the provisioned cluster in Argo CD via
-                    the clusterbook-operator. Assembles a kubeconfig that keeps
-                    Rancher's auth-proxy server + CA but embeds a dedicated,
-                    non-expiring token (from tokenSecretRef), then emits a
-                    ClusterbookCluster that creates the Argo CD cluster Secret.
+                    the clusterbook-operator. Mints a non-expiring argocd-manager
+                    ServiceAccount token on the downstream cluster, extracts it +
+                    the downstream CA to the control plane, and assembles a
+                    direct-endpoint kubeconfig (spec.argocd.server + downstream
+                    CA + SA token — no Rancher proxy dependency). Emits the
+                    kubeconfig Secret + a ClusterbookCluster on the cluster that
+                    runs Argo CD + clusterbook-operator (providerConfigRef).
                   properties:
                     register:
                       type: boolean
@@ -194,24 +197,22 @@ spec:
                         Argo CD namespace — holds the assembled kubeconfig
                         Secret and the generated cluster Secret.
                       default: argocd
-                    tokenSecretRef:
-                      type: object
+                    providerConfigRef:
+                      type: string
                       description: >-
-                        Pre-existing Secret holding a dedicated, non-expiring
-                        Rancher API token for a least-privilege service user.
-                        Required when register is true.
-                      properties:
-                        name:
-                          type: string
-                        namespace:
-                          type: string
-                        key:
-                          type: string
-                          description: "Secret data key holding the token."
-                          default: token
-                      required:
-                        - name
-                        - namespace
+                        ClusterProviderConfig for the cluster running Argo CD +
+                        clusterbook-operator (where the kubeconfig Secret and
+                        ClusterbookCluster are created). Defaults to
+                        spec.rancherProviderConfigRef — in the stuttgart-things
+                        lab Argo CD + clusterbook run on the Rancher cluster, not
+                        the Crossplane control plane.
+                    server:
+                      type: string
+                      description: >-
+                        Direct API endpoint of the downstream cluster
+                        (https://<host>:6443) embedded verbatim in the assembled
+                        kubeconfig. Use a stable VIP/LB for HA clusters; a node IP
+                        is fine for single-node. Required when register is true.
                     labels:
                       type: object
                       description: >-
@@ -222,8 +223,8 @@ spec:
                   default:
                     register: false
                   x-kubernetes-validations:
-                    - rule: "self.register == false || has(self.tokenSecretRef)"
-                      message: "spec.argocd.tokenSecretRef is required when spec.argocd.register is true"
+                    - rule: "self.register == false || has(self.server)"
+                      message: "spec.argocd.server is required when spec.argocd.register is true"
               required:
                 - providerConfigRef
                 - name

@@ -58,48 +58,52 @@ spec:
 | `bootstrap.labels` | | — | Labels for that downstream namespace |
 | `argocd.register` | | `false` | Register the cluster in Argo CD via clusterbook-operator |
 | `argocd.namespace` | | `argocd` | Argo CD namespace (kubeconfig + cluster Secret) |
-| `argocd.tokenSecretRef` | when `register` | — | Pre-existing Secret with a dedicated **non-expiring** Rancher token (`{name, namespace, key}`, key default `token`) |
+| `argocd.providerConfigRef` | | `rancherProviderConfigRef` | ClusterProviderConfig for the cluster running Argo CD + clusterbook-operator |
+| `argocd.server` | when `register` | — | Direct API endpoint of the downstream cluster (`https://host:6443`); use a VIP/LB for HA |
 | `argocd.labels` | | — | Labels on the `ClusterbookCluster` / Argo cluster Secret (for ApplicationSet selectors) |
 
 Status: `kubeconfigSecret`, `clusterProviderConfig`, `argocdClusterSecret`.
 
 ## Optional: Argo CD registration (`spec.argocd.register: true`)
 
-Rancher's downstream kubeconfig authenticates against the **auth-proxy** endpoint
-with a Rancher API token — `argocd cluster add` can't consume that (it wants a
-ServiceAccount token), so registration is done by assembling a kubeconfig Secret
-and handing it to [`clusterbook-operator`](https://github.com/stuttgart-things/clusterbook-operator),
+Rancher's downstream kubeconfig points at the **auth-proxy** endpoint with a
+Rancher session token (TTL-limited) and a CA that only validates the proxy — not
+something Argo CD should depend on. Instead the Composition registers the cluster
+by its **direct API endpoint** with a self-minted, non-expiring ServiceAccount
+token, and hands the assembled kubeconfig to
+[`clusterbook-operator`](https://github.com/stuttgart-things/clusterbook-operator),
 which creates the Argo CD `cluster-<name>` Secret.
 
-When enabled, the Composition (step 4):
+When enabled, the Composition (step 4) — all Argo CD objects target the cluster
+that runs Argo CD + clusterbook (`spec.argocd.providerConfigRef`, default the
+Rancher cluster):
 
-1. Uses `function-go-templating`'s **extra-resources** to read the
-   Rancher-managed `<name>-kubeconfig` Secret (for `server` + `certificate-authority-data`)
-   and the **dedicated-token** Secret (`spec.argocd.tokenSecretRef`).
-2. Emits a `Secret` (`<name>-argocd-kubeconfig`, key `kubeconfig`) in the Argo CD
-   namespace — Rancher's proxy `server` + CA, but with the **dedicated
-   non-expiring token** swapped in (not the kubeconfig's own token).
-3. Emits a `ClusterbookCluster` with `skipReservation: true` and
-   `preserveKubeconfigServer: true`, so clusterbook keeps the Rancher proxy
-   `server` verbatim (no IP/DNS rewrite) and just builds the Argo cluster Secret.
+1. Mints an `argocd-manager` ServiceAccount + `cluster-admin` binding + a
+   long-lived token Secret on the **downstream** cluster (via the wired CPC).
+2. **Observe-only** extracts the SA `token` + downstream `ca.crt` into a
+   control-plane connection Secret (`<name>-argocd-sa`). Create and extract are
+   **separate** Objects — provider-kubernetes does not surface `connectionDetails`
+   on an Object that also manages/creates the target.
+3. Assembles a `Secret` (`<name>-argocd-kubeconfig`, key `kubeconfig`) in the Argo
+   CD namespace: `spec.argocd.server` (direct endpoint) + downstream CA + SA token.
+4. Emits a `ClusterbookCluster` with `skipReservation: true` and
+   `preserveKubeconfigServer: true`, so clusterbook keeps the direct `server`
+   verbatim (no IP/DNS rewrite) and just builds the Argo cluster Secret.
 
-### Why a dedicated token
+### Why the direct endpoint + a self-minted SA token
 
-The token Rancher bakes into `<name>-kubeconfig` is broad and may carry a TTL.
-A dedicated least-privilege, **ttl=0** Rancher token for a service user
-(e.g. `service-argo`) avoids both problems. Provide it via `tokenSecretRef`
-(ideally sourced from Vault/ESO) — see
-[`examples/argocd-token.yaml`](examples/argocd-token.yaml).
+The Rancher proxy URL + session token are fragile for GitOps: the token can
+expire and the proxy CA won't validate a direct connection. A `cluster-admin`
+`argocd-manager` SA token (`ttl=0`) against the cluster's own API endpoint is the
+standard Argo CD pattern — non-expiring and Rancher-independent. The Composition
+mints it for you, so no external token Secret is needed.
 
 ### Additional preconditions (only when `register: true`)
 
 - [`clusterbook-operator`](https://github.com/stuttgart-things/clusterbook-operator)
-  installed on the management cluster (provides the `ClusterbookCluster` CRD).
-- The Argo CD namespace (`spec.argocd.namespace`, default `argocd`) exists.
-- The dedicated-token Secret referenced by `spec.argocd.tokenSecretRef` exists.
-- Crossplane's function pipeline must be able to read the two source Secrets via
-  extra-resources (their contents transit the pipeline into the assembled
-  kubeconfig Secret).
+  installed on the Argo CD cluster (provides the `ClusterbookCluster` CRD).
+- The Argo CD namespace (`spec.argocd.namespace`, default `argocd`) exists there.
+- `spec.argocd.server` is reachable from the Argo CD cluster's pods.
 
 ## Split control plane (`rancherProviderConfigRef`)
 

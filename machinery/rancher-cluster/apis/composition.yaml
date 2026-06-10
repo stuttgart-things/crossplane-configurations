@@ -39,8 +39,12 @@ spec:
             {{- $argocd := $spec.argocd | default dict }}
             {{- $argocdRegister := $argocd.register | default false }}
             {{- $argocdNs := $argocd.namespace | default "argocd" }}
-            {{- $tokenRef := $argocd.tokenSecretRef | default dict }}
-            {{- $tokenKey := $tokenRef.key | default "token" }}
+            {{- /* Argo CD + clusterbook-operator run on this cluster (the Rancher
+                   cluster in the split lab, not the control plane). The kubeconfig
+                   Secret + ClusterbookCluster are created here. */}}
+            {{- $argocdCpc := $argocd.providerConfigRef | default $rancherCpc }}
+            {{- $argocdServer := $argocd.server }}
+            {{- $argocdSaSecret := print $name "-argocd-sa" }}
             {{- if eq $infra "harvester" }}
             {{- /* Harvester VM nodes: a HarvesterConfig (the VM template) plus a
                    provisioning Cluster whose single machine pool references it. */}}
@@ -320,37 +324,178 @@ spec:
             {{- if $argocdRegister }}
             ---
             # (4) ARGO CD REGISTRATION (optional, spec.argocd.register=true).
-            # Ask Crossplane to fetch the Rancher-managed kubeconfig Secret and
-            # the dedicated-token Secret into the pipeline so we can read their
-            # contents (extra-resources is native to function-go-templating).
+            # Register the DOWNSTREAM cluster by its direct API endpoint
+            # (spec.argocd.server) with a self-minted, non-expiring SA token —
+            # no Rancher auth-proxy dependency. Steps 4a-4c run on the downstream
+            # cluster (wired CPC); 4e-4f run on the cluster that hosts Argo CD +
+            # clusterbook-operator (spec.argocd.providerConfigRef, default the
+            # Rancher cluster).
+            #
+            # (4a) argocd-manager ServiceAccount on the downstream cluster.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-argocd-sa") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-argocd-sa
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+                - Create
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: ServiceAccount
+                  metadata:
+                    name: argocd-manager
+                    namespace: kube-system
+            ---
+            # (4b) cluster-admin binding for the SA.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-argocd-crb") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-argocd-crb
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+                - Create
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              forProvider:
+                manifest:
+                  apiVersion: rbac.authorization.k8s.io/v1
+                  kind: ClusterRoleBinding
+                  metadata:
+                    name: argocd-manager-role-binding
+                  roleRef:
+                    apiGroup: rbac.authorization.k8s.io
+                    kind: ClusterRole
+                    name: cluster-admin
+                  subjects:
+                    - kind: ServiceAccount
+                      name: argocd-manager
+                      namespace: kube-system
+            ---
+            # (4c) Long-lived SA token Secret on the downstream cluster. The
+            # token controller populates .data.token + .data['ca.crt']. This
+            # Object only CREATES it (Observe+Create, never update — so the
+            # controller-populated fields are not stripped). Extraction is a
+            # separate Observe-only Object (4d): provider-kubernetes does not
+            # surface connectionDetails on an Object that also manages/creates
+            # the target, so create and extract must be split.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-argocd-token") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-argocd-token
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+                - Create
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: argocd-manager-token
+                    namespace: kube-system
+                    annotations:
+                      kubernetes.io/service-account.name: argocd-manager
+                  type: kubernetes.io/service-account-token
+            ---
+            # (4d) Observe-only extraction of the SA token + downstream CA into a
+            # control-plane connection Secret (consumed by the pipeline below).
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-argocd-saextract") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-argocd-saextract
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              writeConnectionSecretToRef:
+                name: {{ $argocdSaSecret }}
+              connectionDetails:
+                - apiVersion: v1
+                  kind: Secret
+                  name: argocd-manager-token
+                  namespace: kube-system
+                  fieldPath: data.token
+                  toConnectionSecretKey: token
+                - apiVersion: v1
+                  kind: Secret
+                  name: argocd-manager-token
+                  namespace: kube-system
+                  fieldPath: data[ca.crt]
+                  toConnectionSecretKey: ca
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: argocd-manager-token
+                    namespace: kube-system
+            ---
+            # (4e) Pull the extracted SA token + downstream CA into the pipeline.
             apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
             kind: ExtraResources
             requirements:
-              rancher-kubeconfig:
+              argocd-sa:
                 apiVersion: v1
                 kind: Secret
-                matchName: {{ $kcfgSecretName }}
-                namespace: {{ $kcfgSecretNs }}
-              dedicated-token:
-                apiVersion: v1
-                kind: Secret
-                matchName: {{ $tokenRef.name }}
-                namespace: {{ $tokenRef.namespace }}
+                matchName: {{ $argocdSaSecret }}
+                namespace: {{ $xrNs }}
             {{- with .extraResources }}
-            {{- $rkObj := index . "rancher-kubeconfig" }}
-            {{- $dtObj := index . "dedicated-token" }}
-            {{- if and $rkObj $dtObj }}
-            {{- $rk := $rkObj.items }}
-            {{- $dt := $dtObj.items }}
-            {{- if and $rk $dt }}
-            {{- $kcfg := (index $rk 0).resource.data.value | b64dec | fromYaml }}
-            {{- $cluster := (index $kcfg.clusters 0).cluster }}
-            {{- $server := $cluster.server }}
-            {{- $ca := index $cluster "certificate-authority-data" }}
-            {{- $token := index (index $dt 0).resource.data $tokenKey | b64dec }}
+            {{- $saObj := index . "argocd-sa" }}
+            {{- if $saObj }}
+            {{- $sa := $saObj.items }}
+            {{- if $sa }}
+            {{- $saData := (index $sa 0).resource.data }}
+            {{- if and $saData (hasKey $saData "token") (hasKey $saData "ca") }}
+            {{- $ca := index $saData "ca" }}
+            {{- $token := index $saData "token" | b64dec }}
             ---
-            # Assembled kubeconfig: Rancher's auth-proxy server + CA, but our
-            # dedicated non-expiring token (not the kubeconfig's own token).
+            # (4f) Direct-endpoint kubeconfig on the Argo CD cluster: the
+            # downstream API server (spec.argocd.server) + downstream CA + the
+            # self-minted SA token.
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
             metadata:
@@ -362,10 +507,13 @@ spec:
                 app.kubernetes.io/managed-by: crossplane
             spec:
               providerConfigRef:
-                name: {{ $cpc }}
+                name: {{ $argocdCpc }}
                 kind: ClusterProviderConfig
               managementPolicies:
                 - '*'
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
               forProvider:
                 manifest:
                   apiVersion: v1
@@ -381,23 +529,22 @@ spec:
                       clusters:
                       - name: {{ $name }}
                         cluster:
-                          server: {{ $server }}
+                          server: {{ $argocdServer }}
                           certificate-authority-data: {{ $ca }}
                       contexts:
                       - name: {{ $name }}
                         context:
                           cluster: {{ $name }}
-                          user: {{ $name }}
+                          user: argocd-manager
                       current-context: {{ $name }}
                       users:
-                      - name: {{ $name }}
+                      - name: argocd-manager
                         user:
                           token: {{ $token | quote }}
             ---
-            # ClusterbookCluster: clusterbook-operator reads the kubeconfig
-            # above and creates the Argo CD cluster Secret. skipReservation +
-            # preserveKubeconfigServer keep the Rancher proxy server verbatim
-            # (no clusterbook IP/DNS rewrite).
+            # (4g) ClusterbookCluster on the Argo CD cluster. skipReservation +
+            # preserveKubeconfigServer keep the direct endpoint verbatim (no
+            # clusterbook IP/DNS rewrite); the operator emits cluster-<name>.
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
             metadata:
@@ -409,7 +556,7 @@ spec:
                 app.kubernetes.io/managed-by: crossplane
             spec:
               providerConfigRef:
-                name: {{ $cpc }}
+                name: {{ $argocdCpc }}
                 kind: ClusterProviderConfig
               managementPolicies:
                 - '*'
@@ -435,6 +582,7 @@ spec:
                       {{- end }}
                     {{- end }}
                     releaseOnDelete: false
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- end }}
