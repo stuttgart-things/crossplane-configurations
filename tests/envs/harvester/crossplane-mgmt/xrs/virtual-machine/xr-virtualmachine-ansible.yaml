@@ -17,17 +17,23 @@
 # vault_instances -> vault.infra.sthings.lab) come from the EnvironmentConfig
 # `ansible` block, NOT from this XR — the high-level XR stays pure intent.
 #
+# os: sthings-u26 (NOT the vanilla ubuntu24/u26-dev image): the golden
+# stuttgart-things image already carries the `sthings` user with the password
+# auth that the `ansible-credentials` secret expects (ANSIBLE_USER/ANSIBLE_PASSWORD,
+# no SSH key). A vanilla cloud image disables password auth and only trusts the
+# cloud-init key, so Ansible can't log in (Permission denied (publickey)).
+#
 # Lives in `default` (always present) so Argo doesn't create a namespace for the
 # XR object; the VM lands in `vms` on Harvester and the PipelineRun in
 # `tekton-ci` on this cluster.
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: XVirtualMachine
 metadata:
-  name: vm-harvester-ansible-1
+  name: vm-harvester-ansible-2
   namespace: default
 spec:
   size: medium
   provider: harvester
   environment: harvester
-  os: ubuntu24
+  os: sthings-u26
   ansible: true
