@@ -29,10 +29,12 @@
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: XVirtualMachine
 metadata:
-  # ansible-3: clean recreate after fixing the stale sthings-u26 storageClass in
-  # the env config (the ansible-2 PVC was stuck Pending on a nonexistent class,
-  # and PVC storageClass is immutable).
-  name: vm-harvester-ansible-3
+  # ansible-4: recreate now that the corrected sthings-u26 storageClass
+  # (lh-68e4c918) is live in the env config. ansible-3 was created in the same
+  # Argo sync wave as the env-config fix, so it rendered its PVC against the
+  # still-stale class and wedged (PVC storageClass is immutable, and Harvester
+  # blocks deleting a VM-attached volume in place). A fresh XR avoids the race.
+  name: vm-harvester-ansible-4
   namespace: default
 spec:
   size: medium
