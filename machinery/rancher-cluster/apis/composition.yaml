@@ -88,6 +88,25 @@ spec:
             {{- $networkKey := $reservation.networkKey | default $env.clusterbookNetworkKey }}
             {{- $clusterbookCpc := $reservation.providerConfigRef | default $env.clusterbookProviderConfigRef | default "default" }}
             {{- $createDNS := ternary ($reservation.createDNS) true (hasKey $reservation "createDNS") }}
+            {{- /* Inlined vault-pki-secrets: when network-platform/cert-manager-vault-pki
+                   is enabled, read the source token + CA Secrets on the control plane
+                   and push them onto the downstream cluster's cert-manager namespace so
+                   the vault-pki ClusterIssuer (shipped by the cert-manager-vault-pki
+                   AppSet) has its prerequisites. Source refs + target names default from
+                   the EnvironmentConfig; the target token Secret name comes from the
+                   clusterbook vault-token-secret annotation. Mirrors bootstrap/vault-pki-secrets. */}}
+            {{- $vpkiEnabled := eq (index $argocdLabels "network-platform/cert-manager-vault-pki" | default "false") "true" }}
+            {{- $vpkiSrcTokenName := $env.vaultPkiSourceTokenName }}
+            {{- $vpkiSrcTokenNs := $env.vaultPkiSourceTokenNamespace | default "cert-manager" }}
+            {{- $vpkiSrcTokenKey := $env.vaultPkiSourceTokenKey | default "token" }}
+            {{- $vpkiSrcCaName := $env.vaultPkiSourceCaName }}
+            {{- $vpkiSrcCaNs := $env.vaultPkiSourceCaNamespace | default "cert-manager" }}
+            {{- $vpkiSrcCaKey := $env.vaultPkiSourceCaKey | default "ca.crt" }}
+            {{- $vpkiTargetNs := $env.vaultPkiTargetNamespace | default "cert-manager" }}
+            {{- $vpkiCaName := $env.vaultPkiCaSecretName | default "vault-pki-ca" }}
+            {{- $vpkiCaKey := $env.vaultPkiCaSecretKey | default "ca.crt" }}
+            {{- $vpkiTokenName := index $argocdAnnotations "clusterbook.stuttgart-things.com/vault-token-secret" | default "vault-pki-token" }}
+            {{- $vpkiTokenKey := $env.vaultPkiTokenSecretKey | default "token" }}
             {{- $argocdSaSecret := print $name "-argocd-sa" }}
             {{- if eq $infra "harvester" }}
             {{- /* Harvester VM nodes: a HarvesterConfig (the VM template) plus a
@@ -665,6 +684,131 @@ spec:
                       {{- end }}
                     {{- end }}
                     releaseOnDelete: false
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if $vpkiEnabled }}
+            ---
+            # (5) VAULT-PKI PREREQUISITE SECRETS (inlined bootstrap/vault-pki-secrets).
+            # network-platform/cert-manager-vault-pki is on: read the source token +
+            # CA Secrets on the control plane and push them onto the DOWNSTREAM
+            # cluster's cert-manager namespace (its ClusterProviderConfig is named
+            # after the cluster) so the vault-pki ClusterIssuer the AppSet ships has
+            # its prerequisites. Values stay base64 the whole way.
+            apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
+            kind: ExtraResources
+            requirements:
+              vpki-token:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $vpkiSrcTokenName }}
+                namespace: {{ $vpkiSrcTokenNs }}
+              vpki-ca:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $vpkiSrcCaName }}
+                namespace: {{ $vpkiSrcCaNs }}
+            {{- with .extraResources }}
+            {{- $vt := index . "vpki-token" }}
+            {{- $vc := index . "vpki-ca" }}
+            {{- if and $vt $vc }}
+            {{- $vtItems := $vt.items }}
+            {{- $vcItems := $vc.items }}
+            {{- if and $vtItems $vcItems }}
+            {{- $vtData := (index $vtItems 0).resource.data }}
+            {{- $vcData := (index $vcItems 0).resource.data }}
+            {{- if and $vtData $vcData }}
+            {{- $vtVal := index $vtData $vpkiSrcTokenKey }}
+            {{- $vcVal := index $vcData $vpkiSrcCaKey }}
+            {{- if and $vtVal $vcVal }}
+            ---
+            # (5a) cert-manager namespace on the downstream cluster
+            # ([Observe, Create] — adopt if present, create if missing, never
+            # delete). A Namespace has no conditions[], only status.phase, so
+            # derive readiness from phase == "Active".
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-vpki-namespace") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-vpki-namespace
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+                - Create
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.status.phase == "Active"
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Namespace
+                  metadata:
+                    name: {{ $vpkiTargetNs | quote }}
+            ---
+            # (5b) CA-bundle Secret (ClusterIssuer caBundleSecretRef).
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-vpki-ca") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-vpki-ca
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: {{ $vpkiCaName | quote }}
+                    namespace: {{ $vpkiTargetNs | quote }}
+                  type: Opaque
+                  data:
+                    {{ $vpkiCaKey }}: {{ $vcVal | quote }}
+            ---
+            # (5c) Vault-token Secret (ClusterIssuer auth.tokenSecretRef; name from
+            # the clusterbook vault-token-secret annotation).
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-vpki-token") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-vpki-token
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: {{ $vpkiTokenName | quote }}
+                    namespace: {{ $vpkiTargetNs | quote }}
+                  type: Opaque
+                  data:
+                    {{ $vpkiTokenKey }}: {{ $vtVal | quote }}
             {{- end }}
             {{- end }}
             {{- end }}

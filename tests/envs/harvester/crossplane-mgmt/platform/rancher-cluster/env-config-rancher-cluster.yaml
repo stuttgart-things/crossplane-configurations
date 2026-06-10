@@ -51,6 +51,18 @@ data:
   clusterbookNetworkKey: "192.168.10"
   clusterbookProviderConfigRef: default
 
+  # --- Vault-PKI prerequisite Secrets (inlined vault-pki-secrets) ---
+  # Consumed only when the XR enables network-platform/cert-manager-vault-pki.
+  # SOURCE Secrets on the control plane (this mgmt cluster's cert-manager ns) the
+  # Composition reads and pushes onto the downstream cluster's cert-manager ns —
+  # so the vault-pki ClusterIssuer has its CA bundle + token. The target token
+  # Secret name comes from the clusterbook vault-token-secret annotation; the CA
+  # Secret name defaults to vault-pki-ca.
+  vaultPkiSourceTokenName: cert-manager-vault-token  # pragma: allowlist secret
+  vaultPkiSourceTokenNamespace: cert-manager
+  vaultPkiSourceCaName: vault-pki-ca
+  vaultPkiSourceCaNamespace: cert-manager
+
   # --- Default platform labels for the ClusterbookCluster / Argo CD cluster
   # Secret. These are the BASE; spec.argocd.labels on the XR overrides per key.
   # auto-project is on by default (creates the per-cluster AppProject the
