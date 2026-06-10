@@ -29,12 +29,11 @@
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: XVirtualMachine
 metadata:
-  # ansible-4: recreate now that the corrected sthings-u26 storageClass
-  # (lh-68e4c918) is live in the env config. ansible-3 was created in the same
-  # Argo sync wave as the env-config fix, so it rendered its PVC against the
-  # still-stale class and wedged (PVC storageClass is immutable, and Harvester
-  # blocks deleting a VM-attached volume in place). A fresh XR avoids the race.
-  name: vm-harvester-ansible-4
+  # ansible-5: recreate against virtual-machine v0.1.7, which sets cloud-init
+  # ssh_pwauth: true when ansible is enabled. ansible-4 booted + ran the pipeline
+  # end-to-end but failed SSH auth ("Permission denied (publickey)") because the
+  # VM had password auth disabled while the runner only has a password.
+  name: vm-harvester-ansible-5
   namespace: default
 spec:
   size: medium

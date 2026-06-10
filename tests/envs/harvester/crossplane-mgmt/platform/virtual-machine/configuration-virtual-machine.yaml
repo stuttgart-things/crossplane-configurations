@@ -15,6 +15,11 @@
 # host without an LVM data disk (manage_filesystem=false) or a different Vault
 # (vault_instances) is configured per environment. The target inventory stays
 # auto-set to the VM's resolved IP by harvester-vm.
+# v0.1.7 sets cloud-init sshPasswordAuth: true when ansible is enabled, so the
+# ansible-run pipeline (which authenticates with the ANSIBLE_USER/ANSIBLE_PASSWORD
+# from the ansible-credentials Secret, no SSH key) can log into the freshly
+# created VM. Without it cloud-init defaults ssh_pwauth: false and the run fails
+# with "Permission denied (publickey)".
 #
 # Driving an XVirtualMachine also needs an EnvironmentConfig labelled
 # `virtual-machine.resources.stuttgart-things.com/environment=<env>` carrying a
@@ -26,4 +31,4 @@ kind: Configuration
 metadata:
   name: virtual-machine
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.6
+  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.7

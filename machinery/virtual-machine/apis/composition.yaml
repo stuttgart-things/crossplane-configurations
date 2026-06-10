@@ -231,6 +231,15 @@ spec:
                         vmName = _name
                         hostname = _name
                         namespace = _hvNamespace
+                        # Enable SSH password auth when Ansible provisioning is on:
+                        # the ansible-run pipeline authenticates with the password
+                        # from the ansible-credentials Secret (ANSIBLE_USER/
+                        # ANSIBLE_PASSWORD, no key), and the golden images bake the
+                        # matching `sthings` password. Leaving this unset defaults
+                        # the cloud-config to ssh_pwauth: false, which disables the
+                        # only auth method the runner has (-> "Permission denied
+                        # (publickey)"). Key-only stays the default for plain VMs.
+                        sshPasswordAuth = _ansibleEnabled
                         users = [
                             {
                                 name = _hvUser
