@@ -1,0 +1,33 @@
+---
+# Integrated end-to-end test: VM creation THEN Ansible base-OS provisioning,
+# driven by a single XVirtualMachine (ansible: true). This is the combined path
+# the two atomic tests (plain XVirtualMachine + standalone AnsibleRun) validate
+# separately.
+#
+# Cascade (all automatic — you only apply THIS XR):
+#   XVirtualMachine (ansible: true)
+#     -> HarvesterVM  (.spec.ansible from the `ansible` block of the
+#        `virtualmachine-harvester` EnvironmentConfig)
+#       -> once the VM is Running with a resolved IP, harvester-vm emits an
+#          AnsibleRun "<name>-ansible" with the inventory auto-set to the VM IP
+#         -> Tekton PipelineRun on crossplane-mgmt via the `in-cluster`
+#            provider-kubernetes ClusterProviderConfig.
+#
+# Requires virtual-machine >=v0.1.6: playbooks + varsFile (manage_filesystem=false,
+# vault_instances -> vault.infra.sthings.lab) come from the EnvironmentConfig
+# `ansible` block, NOT from this XR — the high-level XR stays pure intent.
+#
+# Lives in `default` (always present) so Argo doesn't create a namespace for the
+# XR object; the VM lands in `vms` on Harvester and the PipelineRun in
+# `tekton-ci` on this cluster.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: XVirtualMachine
+metadata:
+  name: vm-harvester-ansible-1
+  namespace: default
+spec:
+  size: medium
+  provider: harvester
+  environment: harvester
+  os: ubuntu24
+  ansible: true

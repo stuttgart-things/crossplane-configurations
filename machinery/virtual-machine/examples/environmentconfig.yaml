@@ -30,6 +30,16 @@ data:
   ansible:
     crossplaneProviderConfig: in-cluster
     ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test
+    # playbooks + varsFile are env-owned (>=v0.1.6); omit to fall back to the
+    # baseos defaults below. The target inventory is NOT set here — it is
+    # auto-populated with the VM's resolved IP. varsFile uses key+-value form.
+    playbooks:
+      - sthings.baseos.setup
+    varsFile:
+      - manage_filesystem+-true
+      - update_packages+-true
+      - ansible_become+-true
+      - ansible_become_method+-sudo
   vsphere:
     templates:
       ubuntu24: sthings-u24
@@ -86,6 +96,16 @@ data:
   ansible:
     crossplaneProviderConfig: in-cluster
     ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test
+    # playbooks + varsFile are env-owned (>=v0.1.6); omit to fall back to the
+    # baseos defaults below. The target inventory is NOT set here — it is
+    # auto-populated with the VM's resolved IP. varsFile uses key+-value form.
+    playbooks:
+      - sthings.baseos.setup
+    varsFile:
+      - manage_filesystem+-true
+      - update_packages+-true
+      - ansible_become+-true
+      - ansible_become_method+-sudo
   vsphere:
     templates:
       ubuntu24: sthings-u24

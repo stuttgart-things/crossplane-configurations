@@ -10,6 +10,11 @@
 # pins dependsOn harvester-vm >=v0.1.4 (single place harvester-vm's version is
 # managed, since there's no explicit harvester-vm install); harvester-vm v0.1.4
 # adds Usage deletion-ordering protection for the boot disk + cloud-init.
+# v0.1.6 makes the Ansible playbooks + varsFile env-overridable: they are read
+# from the EnvironmentConfig `ansible` block instead of being hardcoded, so a
+# host without an LVM data disk (manage_filesystem=false) or a different Vault
+# (vault_instances) is configured per environment. The target inventory stays
+# auto-set to the VM's resolved IP by harvester-vm.
 #
 # Driving an XVirtualMachine also needs an EnvironmentConfig labelled
 # `virtual-machine.resources.stuttgart-things.com/environment=<env>` carrying a
@@ -21,4 +26,4 @@ kind: Configuration
 metadata:
   name: virtual-machine
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.5
+  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.6

@@ -19,9 +19,28 @@ metadata:
     virtual-machine.resources.stuttgart-things.com/environment: harvester
 data:
   # Cross-provider Ansible defaults (inert unless an XR sets ansible: true).
+  # When enabled, virtual-machine reads playbooks + varsFile from HERE and passes
+  # them down the XVirtualMachine -> HarvesterVM -> AnsibleRun chain; the target
+  # inventory is NOT set here — harvester-vm auto-populates it with the VM's
+  # resolved IP once it boots. Requires virtual-machine >=v0.1.6 (earlier
+  # versions hardcoded playbooks/varsFile and ignored these keys).
   ansible:
     crossplaneProviderConfig: in-cluster
     ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test
+    playbooks:
+      - sthings.baseos.setup
+    # Extra vars for the baseos playbook (key+-value form, parsed by ansible-run).
+    # manage_filesystem=false: Harvester VMs here have no LVM data disk, and the
+    # baseos manage_filesystem role auto-locates one -> "'lvm_disk' is undefined".
+    # vault_instances overrides the baseos default (vault.tiab.labda.sva.de,
+    # unreachable from this env) with the sthings.lab Vault. Mirrors the proven
+    # atomic AnsibleRun test (xrs/ansiblerun/xr-ansiblerun.yaml).
+    varsFile:
+      - manage_filesystem+-false
+      - update_packages+-true
+      - ansible_become+-true
+      - ansible_become_method+-sudo
+      - vault_instances+-["https://vault.infra.sthings.lab"]
   # Harvester / KubeVirt placement. `images` maps spec.os -> a
   # {imageId, storageClassName} pair. Each Harvester image carries its OWN
   # per-image Longhorn storage class (the backing-image class) — using the

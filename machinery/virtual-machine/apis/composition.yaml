@@ -108,13 +108,18 @@ spec:
             } if _provider == "proxmox" else {}
 
             # --- Ansible spec ---
-            # The provider-kubernetes (Cluster)ProviderConfig that runs the
-            # AnsibleRun's Tekton PipelineRun is per-cluster infra, not a VM
-            # property — so its NAME comes from the EnvironmentConfig top-level
-            # `ansible` block (cross-provider: same value for vsphere/proxmox/
-            # harvester). Flows to VMProvision/HarvesterVM .spec.ansible, which
-            # vm-provision/harvester-vm pass to AnsibleRun.crossplaneProviderConfig.
-            # Falls back to "in-cluster" only if the EnvironmentConfig omits it.
+            # Cross-provider Ansible provisioning, fully env-owned: every field
+            # comes from the EnvironmentConfig top-level `ansible` block (same
+            # value for vsphere/proxmox/harvester) — only the target inventory is
+            # deliberately NOT set here. harvester-vm auto-populates the inventory
+            # with the VM's resolved IP once it boots (so the IP comes from the
+            # VM output, not config). Flows to VMProvision/HarvesterVM
+            # .spec.ansible, which vm-provision/harvester-vm pass to the AnsibleRun.
+            # `playbooks` and `varsFile` are env-overridable so a host without an
+            # LVM data disk (manage_filesystem=false) or a different Vault
+            # (vault_instances) is expressed per environment, not by editing this
+            # Composition. Each field falls back to a shared default only when the
+            # EnvironmentConfig omits it.
             _ansibleEnv = _envData?.ansible or {}
             _ansibleSpec = {
                 enabled: True
@@ -123,8 +128,8 @@ spec:
                 # build time), env-overridable to pin a rebuilt image per
                 # environment. Falls back to the shared default.
                 ansibleWorkingImage: _ansibleEnv?.ansibleWorkingImage or "ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test"
-                playbooks: ["sthings.baseos.setup"]
-                varsFile: [
+                playbooks: _ansibleEnv?.playbooks or ["sthings.baseos.setup"]
+                varsFile: _ansibleEnv?.varsFile or [
                     "manage_filesystem+-true"
                     "update_packages+-true"
                     "ansible_become+-true"
