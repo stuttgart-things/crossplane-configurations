@@ -1,0 +1,47 @@
+---
+name: Validate Claims (kyverno)
+
+# Lightweight policy gate for the Crossplane XR claims committed under tests/.
+# The Configuration package pipeline (verify.yaml) is excluded for tests/-only
+# changes, so this is the check that runs instead: it validates the claim
+# manifests offline (no cluster) against the Kyverno policies in
+# tests/kyverno/policies/ via the stuttgart-things dagger kyverno module
+# (kubectl-kyverno apply). Enforces an allowlist of XR kinds, RFC-1123 claim
+# names, and required spec fields for ManagedNamespace.
+
+on:
+  pull_request:
+    paths:
+      - 'tests/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'tests/**'
+
+jobs:
+  kyverno:
+    name: Kyverno validate XR claims
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Validate claims against policies
+        uses: dagger/dagger-for-github@27b130bf0f79a7f6fbbbe0fbca6760dc9bb40a77 # v8.4.1
+        with:
+          # Match the kyverno module's engineVersion (kyverno/dagger.json).
+          version: "0.20.8"
+          verb: call
+          # Pinned to a dagger-repo commit for reproducible CI; bump deliberately.
+          module: github.com/stuttgart-things/dagger/kyverno@acf61ed2c80c7ca70746944edb60785d4ab01431
+          # validate runs `kubectl-kyverno apply /policy --resource /resource`
+          # and exits non-zero on any policy failure. The resource dir is the
+          # whole xrs/ tree; non-XR files (catalog-info.yaml, kustomization.yaml)
+          # are ignored by the policies' apiGroup precondition.
+          args: >-
+            validate
+            --policy tests/kyverno/policies
+            --resource tests/envs/harvester/crossplane-mgmt/xrs
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
