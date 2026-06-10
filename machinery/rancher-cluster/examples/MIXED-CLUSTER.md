@@ -96,20 +96,19 @@ kubectl get object.kubernetes.m.crossplane.io -l app.kubernetes.io/instance=k3s-
 
 ## 5. (Optional) Register in central Argo CD
 
-Argo CD + clusterbook-operator run on the **Rancher cluster** here, so set
-`spec.argocd.providerConfigRef: rancher-mgmt`. The Composition mints an
-`argocd-manager` SA on the downstream cluster, assembles a **direct-endpoint**
-kubeconfig (`spec.argocd.server` + downstream CA + SA token), and emits the
-kubeconfig Secret + `ClusterbookCluster` on the Rancher cluster;
-clusterbook-operator then creates the Argo CD `cluster-k3s-xp` Secret.
+Argo CD + clusterbook-operator run on the **Rancher cluster** here; that target
+(`argocdProviderConfigRef: rancher-mgmt`) comes from the EnvironmentConfig, so the
+XR just flips `register: true`. The Composition mints an `argocd-manager` SA on the
+downstream cluster, **auto-discovers** its API endpoint (from the downstream
+`kubernetes` Endpoints), assembles a direct-endpoint kubeconfig (endpoint +
+downstream CA + SA token), and emits the kubeconfig Secret + `ClusterbookCluster`
+on the Rancher cluster; clusterbook-operator then creates the Argo CD
+`cluster-k3s-xp` Secret.
 
 ```yaml
 spec:
   argocd:
-    register: true
-    namespace: argocd
-    providerConfigRef: rancher-mgmt          # cluster running Argo CD + clusterbook
-    server: https://192.168.10.135:6443      # downstream API endpoint (VIP/LB for HA)
+    register: true     # target from EnvironmentConfig; server auto-discovered
 ```
 
 ```bash
