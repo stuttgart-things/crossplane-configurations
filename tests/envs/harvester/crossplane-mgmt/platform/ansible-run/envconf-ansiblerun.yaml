@@ -1,0 +1,35 @@
+---
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: ansible-run-defaults
+  labels:
+    ansible-run.resources.stuttgart-things.com/environment: default
+data:
+  # Git source of the pipeline definition
+  gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  gitRevision: main
+  gitPath: pipelines/execute-ansible-playbooks.yaml
+  # Infra defaults
+  storageClass: openebs-hostpath
+  ansibleWorkingImage: "ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test"
+  namespace: tekton-ci
+  # Credentials Secret (pre-created in the pipeline namespace)
+  ansibleCredentialsSecretName: ansible-credentials # pragma: allowlist secret
+  # Default Ansible collections (JSON list of "namespace.name:version" strings
+  # or tarball URLs — the XRD schema is items: string, so name/version pairs
+  # are expressed as "name:version"; overridable per XR).
+  ansibleExtraCollections:
+    - "community.crypto:3.2.1"
+    - "community.general:13.0.1"
+    - "ansible.posix:2.2.0"
+    - "kubernetes.core:6.4.0"
+    - "community.docker:5.2.1"
+    - "community.vmware:6.2.0"
+    - "awx.awx:24.6.1"
+    - "community.hashi_vault:7.1.0"
+    - "ansible.netcommon:8.5.2"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.4.404.tar.gz/sthings-baseos-26.4.404.tar.gz"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-awx-25.4.506.tar.gz/sthings-awx-25.4.506.tar.gz"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.0.702.tar.gz/sthings-rke-26.0.702.tar.gz"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-container-26.6.975.tar.gz/sthings-container-26.6.975.tar.gz"
