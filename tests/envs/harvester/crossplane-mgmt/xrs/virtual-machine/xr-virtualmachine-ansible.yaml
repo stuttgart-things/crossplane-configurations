@@ -29,10 +29,10 @@
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: XVirtualMachine
 metadata:
-  # ansible-8: rendered by harvester-vm v0.1.7, which pins cpu.model +
-  # memory.maxGuest (the actual RestartRequired latch) on top of maxSockets/guest.
-  # Definitive check that the template == launched VMI and RestartRequired is gone.
-  name: vm-harvester-ansible-8
+  # ansible-9: rendered by harvester-vm v0.1.8, which sets memory.maxGuest = 4x
+  # guest to match KubeVirt's LiveUpdate default (the last drift field). Final
+  # check that template == launched VMI and RestartRequired is gone.
+  name: vm-harvester-ansible-9
   namespace: default
 spec:
   size: medium
