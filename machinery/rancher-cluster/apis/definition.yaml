@@ -22,6 +22,16 @@ spec:
             spec:
               type: object
               properties:
+                environmentConfig:
+                  type: string
+                  description: >-
+                    Selects the EnvironmentConfig (by the config-scoped label
+                    `rancher-cluster.resources.stuttgart-things.com/environment`)
+                    that supplies per-environment defaults — providerConfigRef(s),
+                    rancherNamespace, distro, kubernetesVersion, the Harvester
+                    infra fields and the Argo CD target. Anything set on this XR
+                    spec wins over the EnvironmentConfig.
+                  default: default
                 providerConfigRef:
                   type: string
                   description: >-
@@ -31,7 +41,8 @@ spec:
                     Secret and (optional) Argo CD objects are created here. When
                     co-located with Rancher (the default, see
                     rancherProviderConfigRef) this is also where the
-                    provisioning.cattle.io Cluster lands.
+                    provisioning.cattle.io Cluster lands. Falls back to the
+                    EnvironmentConfig `providerConfigRef` when unset.
                 rancherProviderConfigRef:
                   type: string
                   description: >-
@@ -54,11 +65,12 @@ spec:
                     the name of the emitted downstream ClusterProviderConfig.
                 distro:
                   type: string
-                  description: "Kubernetes distribution for the cluster."
+                  description: >-
+                    Kubernetes distribution for the cluster. Falls back to the
+                    EnvironmentConfig `distro`, then `k3s`.
                   enum:
                     - k3s
                     - rke2
-                  default: k3s
                 infrastructure:
                   type: string
                   description: >-
@@ -77,14 +89,15 @@ spec:
                   description: >-
                     Rancher Kubernetes version, e.g. `v1.34.7+k3s1` or
                     `v1.31.5+rke2r1`. The `+k3s`/`+rke2` suffix selects the
-                    distribution; keep it consistent with `distro`.
+                    distribution; keep it consistent with `distro`. Falls back to
+                    the EnvironmentConfig `kubernetesVersion` when unset.
                 rancherNamespace:
                   type: string
                   description: >-
                     Namespace on the management cluster holding the
                     provisioning Cluster and the Rancher-managed kubeconfig
-                    Secret.
-                  default: fleet-default
+                    Secret. Falls back to the EnvironmentConfig `rancherNamespace`,
+                    then `fleet-default`.
                 clusterLabels:
                   type: object
                   description: "Extra labels for the provisioning.cattle.io Cluster."
@@ -99,33 +112,39 @@ spec:
                 harvester:
                   type: object
                   description: >-
-                    VM node sizing for `infrastructure: harvester`. The
+                    VM node config for `infrastructure: harvester`. The
                     Composition renders a HarvesterConfig (the VM template) and
                     a single machine pool referencing it. Ignored when
-                    infrastructure is generic.
+                    infrastructure is generic. The infra-identity fields
+                    (cloudCredentialSecretName, imageName, networkName,
+                    vmNamespace, sshUser) fall back to the EnvironmentConfig, so
+                    a per-cluster XR typically only sets sizing/quantity here.
                   properties:
                     cloudCredentialSecretName:
                       type: string
                       description: >-
                         Rancher Harvester cloud credential, in
                         `<namespace>:<name>` form (e.g.
-                        `cattle-global-data:cc-xxxxx`). Must already exist on
-                        the Rancher cluster — created once via the Rancher UI /
-                        API, referenced here by name.
+                        `cattle-global-data:cc-xxxxx`). Must already exist on the
+                        Rancher cluster. Falls back to the EnvironmentConfig
+                        `cloudCredentialSecretName`.
                     imageName:
                       type: string
                       description: >-
                         Harvester VM image, `<namespace>/<name>`
-                        (e.g. `default/sthings-u26-k3s`).
+                        (e.g. `default/sthings-u26-k3s`). Falls back to the
+                        EnvironmentConfig `imageName`.
                     networkName:
                       type: string
                       description: >-
                         Harvester network, `<namespace>/<name>`
-                        (e.g. `default/vms`).
+                        (e.g. `default/vms`). Falls back to the EnvironmentConfig
+                        `networkName`.
                     vmNamespace:
                       type: string
-                      description: "Harvester namespace the VMs are created in."
-                      default: default
+                      description: >-
+                        Harvester namespace the VMs are created in. Falls back to
+                        the EnvironmentConfig `vmNamespace`, then `default`.
                     cpuCount:
                       type: integer
                       description: "vCPUs per node."
@@ -142,7 +161,8 @@ spec:
                       type: string
                       description: >-
                         SSH user baked into the image (e.g. `ubuntu`, `sthings`).
-                      default: ubuntu
+                        Falls back to the EnvironmentConfig `sshUser`, then
+                        `ubuntu`.
                     quantity:
                       type: integer
                       description: "Number of nodes in the pool."
@@ -154,10 +174,6 @@ spec:
                         Composition base64-encodes it for HarvesterConfig).
                         Defaults to installing + enabling qemu-guest-agent,
                         which Harvester needs for IP reporting.
-                  required:
-                    - cloudCredentialSecretName
-                    - imageName
-                    - networkName
                 bootstrap:
                   type: object
                   description: >-
@@ -181,11 +197,11 @@ spec:
                     Optional: register the provisioned cluster in Argo CD via
                     the clusterbook-operator. Mints a non-expiring argocd-manager
                     ServiceAccount token on the downstream cluster, extracts it +
-                    the downstream CA to the control plane, and assembles a
-                    direct-endpoint kubeconfig (spec.argocd.server + downstream
-                    CA + SA token — no Rancher proxy dependency). Emits the
-                    kubeconfig Secret + a ClusterbookCluster on the cluster that
-                    runs Argo CD + clusterbook-operator (providerConfigRef).
+                    the downstream CA to the control plane, auto-discovers the
+                    cluster's direct API endpoint, and assembles a direct-endpoint
+                    kubeconfig (no Rancher proxy dependency). Emits the kubeconfig
+                    Secret + a ClusterbookCluster on the cluster that runs Argo CD
+                    + clusterbook-operator (providerConfigRef).
                   properties:
                     register:
                       type: boolean
@@ -195,24 +211,26 @@ spec:
                       type: string
                       description: >-
                         Argo CD namespace — holds the assembled kubeconfig
-                        Secret and the generated cluster Secret.
-                      default: argocd
+                        Secret and the generated cluster Secret. Falls back to the
+                        EnvironmentConfig `argocdNamespace`, then `argocd`.
                     providerConfigRef:
                       type: string
                       description: >-
                         ClusterProviderConfig for the cluster running Argo CD +
                         clusterbook-operator (where the kubeconfig Secret and
-                        ClusterbookCluster are created). Defaults to
+                        ClusterbookCluster are created). Falls back to the
+                        EnvironmentConfig `argocdProviderConfigRef`, then
                         spec.rancherProviderConfigRef — in the stuttgart-things
                         lab Argo CD + clusterbook run on the Rancher cluster, not
                         the Crossplane control plane.
                     server:
                       type: string
                       description: >-
-                        Direct API endpoint of the downstream cluster
-                        (https://<host>:6443) embedded verbatim in the assembled
-                        kubeconfig. Use a stable VIP/LB for HA clusters; a node IP
-                        is fine for single-node. Required when register is true.
+                        Optional override for the downstream cluster's direct API
+                        endpoint (https://<host>:6443). Normally left UNSET — the
+                        Composition auto-discovers it from the downstream
+                        `kubernetes` Endpoints. Set this only for HA clusters
+                        where you want a stable VIP/LB instead of a node IP.
                     labels:
                       type: object
                       description: >-
@@ -222,16 +240,12 @@ spec:
                         type: string
                   default:
                     register: false
-                  x-kubernetes-validations:
-                    - rule: "self.register == false || has(self.server)"
-                      message: "spec.argocd.server is required when spec.argocd.register is true"
+              # providerConfigRef, kubernetesVersion and the Harvester infra
+              # fields are resolved from the EnvironmentConfig when unset, so they
+              # are not `required` here (CEL cannot see EnvironmentConfig values).
+              # spec.argocd.server is auto-discovered, not required.
               required:
-                - providerConfigRef
                 - name
-                - kubernetesVersion
-              x-kubernetes-validations:
-                - rule: "self.infrastructure != 'harvester' || has(self.harvester)"
-                  message: "spec.harvester is required when spec.infrastructure is 'harvester'"
             status:
               type: object
               properties:

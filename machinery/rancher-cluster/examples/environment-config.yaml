@@ -1,0 +1,47 @@
+---
+# Shared per-environment defaults for RancherCluster XRs.
+#
+# The `rancher-cluster` Composition selects this EnvironmentConfig via the
+# config-scoped label `rancher-cluster.resources.stuttgart-things.com/environment`,
+# matched against the XR's `spec.environmentConfig` (default "default"). The key
+# is namespaced to this Configuration so it never collides with another
+# Configuration's EnvironmentConfig (function-environment-configs requires
+# exactly one Selector match). The `data` values become defaults in the pipeline;
+# anything set explicitly on the XR spec wins over them.
+#
+# This holds the lab-constant fields so a RancherCluster XR shrinks to per-cluster
+# values (name, sizing, argocd.register). NOTE: values below are PLACEHOLDERS
+# matching the stuttgart-things split lab — replace with your environment.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: rancher-cluster-defaults
+  labels:
+    rancher-cluster.resources.stuttgart-things.com/environment: default
+data:
+  # Control-plane cluster where Crossplane runs (wired CPC + bridged Secret land here)
+  providerConfigRef: in-cluster
+  # Rancher management cluster (provisioning.cattle.io + Harvester)
+  rancherProviderConfigRef: rancher-mgmt
+  # Namespace of the provisioning Cluster + Rancher-managed kubeconfig Secret
+  rancherNamespace: fleet-default
+  # Distro + Kubernetes version (lab standard; override per XR if needed)
+  distro: k3s
+  kubernetesVersion: v1.35.4+k3s1
+
+  # --- Harvester infrastructure defaults (infrastructure: harvester) ---
+  # Harvester cloud credential, cattle-global-data:<name>
+  cloudCredentialSecretName: cattle-global-data:cc-cl944  # pragma: allowlist secret
+  # Harvester VM image, <namespace>/<image>
+  imageName: default/sthings-u26-k3s
+  # Harvester network, <namespace>/<network>
+  networkName: default/vms
+  # Harvester namespace the VMs are created in
+  vmNamespace: default
+  # SSH user baked into the image
+  sshUser: sthings
+
+  # --- Argo CD registration defaults (argocd.register: true) ---
+  # Namespace + cluster running Argo CD + clusterbook-operator
+  argocdNamespace: argocd
+  argocdProviderConfigRef: rancher-mgmt

@@ -9,6 +9,25 @@ spec:
     kind: RancherCluster
   mode: Pipeline
   pipeline:
+    # Load per-environment defaults from the EnvironmentConfig selected by the
+    # config-scoped label (value from spec.environmentConfig, default "default").
+    # Its `data` lands in the pipeline environment; precedence below is always
+    # XR spec → EnvironmentConfig → built-in default.
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: rancher-cluster.resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    fromFieldPathPolicy: Optional
     - step: render-rancher-cluster
       functionRef:
         name: function-go-templating
@@ -19,43 +38,52 @@ spec:
         inline:
           template: |
             {{- $spec := .observed.composite.resource.spec }}
+            {{- /* EnvironmentConfig data → pipeline environment. Empty in offline
+                   render unless an EnvironmentConfig is passed via --extra-resources. */}}
+            {{- $env := index .context "apiextensions.crossplane.io/environment" | default dict }}
             {{- $name := $spec.name }}
             {{- $xrNs := .observed.composite.resource.metadata.namespace }}
-            {{- $cpc := $spec.providerConfigRef }}
-            {{- $rancherCpc := $spec.rancherProviderConfigRef | default $cpc }}
+            {{- $cpc := $spec.providerConfigRef | default $env.providerConfigRef }}
+            {{- $rancherCpc := $spec.rancherProviderConfigRef | default $env.rancherProviderConfigRef | default $cpc }}
             {{- $split := ne $rancherCpc $cpc }}
-            {{- $rancherNs := $spec.rancherNamespace | default "fleet-default" }}
+            {{- $rancherNs := $spec.rancherNamespace | default $env.rancherNamespace | default "fleet-default" }}
             {{- $bridgedSecret := print $name "-kubeconfig-bridged" }}
             {{- /* Where the wired CPC + Argo CD path read the kubeconfig from:
                    co-located → Rancher's published Secret on the (shared) cluster;
                    split      → the bridged connection Secret on the control plane. */}}
             {{- $kcfgSecretName := ternary $bridgedSecret (print $name "-kubeconfig") $split }}
             {{- $kcfgSecretNs := ternary $xrNs $rancherNs $split }}
-            {{- $version := $spec.kubernetesVersion }}
+            {{- $version := $spec.kubernetesVersion | default $env.kubernetesVersion }}
             {{- $infra := $spec.infrastructure | default "generic" }}
             {{- $harvester := $spec.harvester | default dict }}
             {{- $bootstrap := $spec.bootstrap | default dict }}
             {{- $bootstrapNs := $bootstrap.namespace | default "crossplane-bootstrap" }}
             {{- $argocd := $spec.argocd | default dict }}
             {{- $argocdRegister := $argocd.register | default false }}
-            {{- $argocdNs := $argocd.namespace | default "argocd" }}
+            {{- $argocdNs := $argocd.namespace | default $env.argocdNamespace | default "argocd" }}
             {{- /* Argo CD + clusterbook-operator run on this cluster (the Rancher
                    cluster in the split lab, not the control plane). The kubeconfig
                    Secret + ClusterbookCluster are created here. */}}
-            {{- $argocdCpc := $argocd.providerConfigRef | default $rancherCpc }}
-            {{- $argocdServer := $argocd.server }}
+            {{- $argocdCpc := $argocd.providerConfigRef | default $env.argocdProviderConfigRef | default $rancherCpc }}
+            {{- /* Direct API endpoint: usually auto-discovered (step 4d reads the
+                   downstream `kubernetes` Endpoints); spec.argocd.server overrides
+                   it for HA VIP/LB. */}}
+            {{- $argocdServerOverride := $argocd.server }}
             {{- $argocdSaSecret := print $name "-argocd-sa" }}
             {{- if eq $infra "harvester" }}
             {{- /* Harvester VM nodes: a HarvesterConfig (the VM template) plus a
                    provisioning Cluster whose single machine pool references it. */}}
             {{- $hcfgName := print $name "-pool1" }}
-            {{- $hImage := $harvester.imageName }}
-            {{- $hNetwork := $harvester.networkName }}
-            {{- $hVmNs := $harvester.vmNamespace | default "default" }}
+            {{- /* Infra-identity fields fall back to the EnvironmentConfig. */}}
+            {{- $hImage := $harvester.imageName | default $env.imageName }}
+            {{- $hNetwork := $harvester.networkName | default $env.networkName }}
+            {{- $hVmNs := $harvester.vmNamespace | default $env.vmNamespace | default "default" }}
+            {{- $hSshUser := $harvester.sshUser | default $env.sshUser | default "ubuntu" }}
+            {{- $hCloudCred := $harvester.cloudCredentialSecretName | default $env.cloudCredentialSecretName }}
+            {{- /* Sizing/quantity stay per-cluster (XRD defaults). */}}
             {{- $hCpu := $harvester.cpuCount | default 2 }}
             {{- $hMem := $harvester.memorySize | default 4 }}
             {{- $hDisk := $harvester.diskSize | default 40 }}
-            {{- $hSshUser := $harvester.sshUser | default "ubuntu" }}
             {{- $hQuantity := $harvester.quantity | default 1 }}
             {{- $defaultUserData := "#cloud-config\npackage_update: true\npackages:\n  - qemu-guest-agent\nruncmd:\n  - - systemctl\n    - enable\n    - '--now'\n    - qemu-guest-agent.service\n" }}
             {{- $userData := $harvester.userData | default $defaultUserData }}
@@ -133,7 +161,7 @@ spec:
                     {{- end }}
                   spec:
                     kubernetesVersion: {{ $version }}
-                    cloudCredentialSecretName: {{ $harvester.cloudCredentialSecretName }}
+                    cloudCredentialSecretName: {{ $hCloudCred }}
                     rkeConfig:
                       machinePools:
                         - name: pool1
@@ -431,8 +459,9 @@ spec:
                       kubernetes.io/service-account.name: argocd-manager
                   type: kubernetes.io/service-account-token
             ---
-            # (4d) Observe-only extraction of the SA token + downstream CA into a
-            # control-plane connection Secret (consumed by the pipeline below).
+            # (4d) Observe-only extraction of the SA token + downstream CA + the
+            # cluster's direct API endpoint (from the `kubernetes` Endpoints) into
+            # a control-plane connection Secret (consumed by the pipeline below).
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
             metadata:
@@ -466,6 +495,14 @@ spec:
                   namespace: kube-system
                   fieldPath: data[ca.crt]
                   toConnectionSecretKey: ca
+                # Direct API endpoint of the downstream cluster (the apiserver IP
+                # behind the `kubernetes` Service) — used to build the server URL.
+                - apiVersion: v1
+                  kind: Endpoints
+                  name: kubernetes
+                  namespace: default
+                  fieldPath: subsets[0].addresses[0].ip
+                  toConnectionSecretKey: apiserverIp
               forProvider:
                 manifest:
                   apiVersion: v1
@@ -474,7 +511,7 @@ spec:
                     name: argocd-manager-token
                     namespace: kube-system
             ---
-            # (4e) Pull the extracted SA token + downstream CA into the pipeline.
+            # (4e) Pull the extracted SA token + downstream CA + endpoint into the pipeline.
             apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
             kind: ExtraResources
             requirements:
@@ -492,10 +529,18 @@ spec:
             {{- if and $saData (hasKey $saData "token") (hasKey $saData "ca") }}
             {{- $ca := index $saData "ca" }}
             {{- $token := index $saData "token" | b64dec }}
+            {{- /* Server: spec.argocd.server override, else auto-discovered from
+                   the downstream `kubernetes` Endpoints apiserver IP. */}}
+            {{- $discovered := "" }}
+            {{- if hasKey $saData "apiserverIp" }}
+            {{- $discovered = printf "https://%s:6443" (index $saData "apiserverIp" | b64dec) }}
+            {{- end }}
+            {{- $server := $argocdServerOverride | default $discovered }}
+            {{- if $server }}
             ---
             # (4f) Direct-endpoint kubeconfig on the Argo CD cluster: the
-            # downstream API server (spec.argocd.server) + downstream CA + the
-            # self-minted SA token.
+            # downstream API server (auto-discovered or spec.argocd.server) +
+            # downstream CA + the self-minted SA token.
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
             metadata:
@@ -529,7 +574,7 @@ spec:
                       clusters:
                       - name: {{ $name }}
                         cluster:
-                          server: {{ $argocdServer }}
+                          server: {{ $server }}
                           certificate-authority-data: {{ $ca }}
                       contexts:
                       - name: {{ $name }}
@@ -582,6 +627,7 @@ spec:
                       {{- end }}
                     {{- end }}
                     releaseOnDelete: false
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- end }}

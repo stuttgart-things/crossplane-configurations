@@ -1,12 +1,13 @@
 ---
-# Minimal RancherCluster: only the XRD-required fields. Exercises defaults
-# (distro=k3s, rancherNamespace=fleet-default, bootstrap.namespace=crossplane-bootstrap).
+# Minimal RancherCluster: only `name` is required. Everything else
+# (providerConfigRef, kubernetesVersion, distro, rancherNamespace, …) comes from
+# the EnvironmentConfig selected by `environmentConfig`. See
+# examples/environment-config.yaml.
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: RancherCluster
 metadata:
   name: k3s-min
   namespace: default
 spec:
-  providerConfigRef: in-cluster
   name: k3s-min
-  kubernetesVersion: v1.34.7+k3s1
+  environmentConfig: default
