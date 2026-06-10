@@ -626,6 +626,12 @@ spec:
                       {{ $k }}: {{ $v | quote }}
                       {{- end }}
                     {{- end }}
+                    {{- if $argocd.annotations }}
+                    annotations:
+                      {{- range $k, $v := $argocd.annotations }}
+                      {{ $k }}: {{ $v | quote }}
+                      {{- end }}
+                    {{- end }}
                     releaseOnDelete: false
             {{- end }}
             {{- end }}

@@ -235,7 +235,23 @@ spec:
                       type: object
                       description: >-
                         Labels for the ClusterbookCluster / Argo CD cluster
-                        Secret (e.g. for ApplicationSet cluster selectors).
+                        Secret (e.g. for ApplicationSet cluster selectors —
+                        the platform profile toggles like
+                        `cicd-platform/crossplane: 'true'`).
+                      additionalProperties:
+                        type: string
+                    annotations:
+                      type: object
+                      description: >-
+                        Annotations for the ClusterbookCluster / Argo CD
+                        cluster Secret. Platform ApplicationSets read component
+                        parameters from these (e.g.
+                        `clusterbook.stuttgart-things.com/vault-server`,
+                        `storage-platform.stuttgart-things.com/nfs-server`).
+                        Set only the `[user]` annotations here; `[auto]` ones
+                        (ip/fqdn/…) are stamped by the clusterbook controller
+                        from the reservation and are absent when
+                        skipReservation is true.
                       additionalProperties:
                         type: string
                   default:
