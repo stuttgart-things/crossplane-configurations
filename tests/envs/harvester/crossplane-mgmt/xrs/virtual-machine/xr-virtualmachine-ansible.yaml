@@ -29,12 +29,10 @@
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: XVirtualMachine
 metadata:
-  # ansible-6: recreate against virtual-machine v0.1.8 / harvester-vm v0.1.6,
-  # which pre-set the VM template's cpu.maxSockets + memory.guest so KubeVirt's
-  # LiveUpdate webhook can't inject them post-launch and latch RestartRequired.
-  # (ansible-5 proved the full VM->Ansible flow works end-to-end; this run also
-  # verifies the RestartRequired drift is gone.)
-  name: vm-harvester-ansible-6
+  # ansible-7: first VM actually rendered by harvester-vm v0.1.6 (ansible-6 was
+  # created while the dependency was still pinned at v0.1.5, so it didn't get the
+  # maxSockets/memory.guest pre-set). Verifies the RestartRequired drift is gone.
+  name: vm-harvester-ansible-7
   namespace: default
 spec:
   size: medium
