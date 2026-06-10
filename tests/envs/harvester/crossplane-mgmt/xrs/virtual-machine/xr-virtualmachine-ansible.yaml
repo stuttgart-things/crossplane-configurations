@@ -29,7 +29,10 @@
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: XVirtualMachine
 metadata:
-  name: vm-harvester-ansible-2
+  # ansible-3: clean recreate after fixing the stale sthings-u26 storageClass in
+  # the env config (the ansible-2 PVC was stuck Pending on a nonexistent class,
+  # and PVC storageClass is immutable).
+  name: vm-harvester-ansible-3
   namespace: default
 spec:
   size: medium

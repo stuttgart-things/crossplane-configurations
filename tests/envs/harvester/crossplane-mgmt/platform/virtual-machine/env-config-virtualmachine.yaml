@@ -54,7 +54,7 @@ data:
         storageClassName: lh-7f7c570a-a326-4232-b291-3f2a946aeadf
       sthings-u26:
         imageId: default/sthings-u26
-        storageClassName: lh-d3f0ed68-ecca-4c6f-82dc-1aed26247089
+        storageClassName: lh-68e4c918-0059-48bf-acaf-0de0ebe1eb65
       sthings-u26-k3s:
         imageId: default/sthings-u26-k3s
         storageClassName: lh-103a0ea1-2403-4370-9c01-f5bd45077375
@@ -63,10 +63,10 @@ data:
         storageClassName: lh-3d211dc0-a298-4277-9d5a-fe2c5bcec053
       sthings-rocky9:
         imageId: default/sthings-rocky9
-        storageClassName: lh-e2195584-f1fe-489c-9d93-f7289f1dec82
+        storageClassName: lh-cdf924f2-6c46-4d7d-8a61-17973408273c
       sthings-leap:
         imageId: default/sthings-leap
-        storageClassName: lh-dea93717-4bbb-4b36-9e13-aa4893ff7227
+        storageClassName: lh-3a6f72f1-c87e-44c3-b136-4020dbefea6c
     providerConfigRef: harvester
     # Target namespace for PVC / cloud-init Secret / VM ON THE HARVESTER cluster.
     namespace: vms
