@@ -207,6 +207,38 @@ spec:
                       type: boolean
                       description: "Enable Argo CD registration via clusterbook-operator."
                       default: false
+                    reservation:
+                      type: object
+                      description: >-
+                        IP/DNS reservation via clusterbook-operator. When
+                        enabled, the ClusterbookCluster reserves an IP from
+                        networkKey (and optionally creates DNS), stamping the
+                        `clusterbook.stuttgart-things.com/allocation-ip` label +
+                        ip/fqdn annotations onto the cluster Secret — the anchor
+                        every network-platform ApplicationSet requires. When
+                        disabled (the default), `skipReservation: true` is set
+                        and no anchor is produced (the cluster joins Argo CD with
+                        its verbatim direct endpoint, no clusterbook IP/DNS).
+                      properties:
+                        enabled:
+                          type: boolean
+                          description: "Reserve an IP (sets the ClusterbookCluster's skipReservation: false). Default false."
+                          default: false
+                        networkKey:
+                          type: string
+                          description: >-
+                            Network prefix to reserve the IP from (e.g.
+                            '192.168.10'). Falls back to the EnvironmentConfig
+                            `clusterbookNetworkKey`. Required for a reservation.
+                        providerConfigRef:
+                          type: string
+                          description: >-
+                            ClusterbookProviderConfig name backing the
+                            reservation. Falls back to the EnvironmentConfig
+                            `clusterbookProviderConfigRef`, then `default`.
+                        createDNS:
+                          type: boolean
+                          description: "Create the DNS record for the reserved IP. Defaults true when a reservation is enabled."
                     namespace:
                       type: string
                       description: >-

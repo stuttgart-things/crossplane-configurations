@@ -15,4 +15,4 @@ kind: Configuration
 metadata:
   name: rancher-cluster
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/rancher-cluster:v0.5.0
+  package: ghcr.io/stuttgart-things/crossplane-configurations/rancher-cluster:v0.6.0
