@@ -18,7 +18,7 @@ metadata:
   name: ansible-run-test
   namespace: default
 spec:
-  pipelineRunName: run-ansible-test
+  pipelineRunName: run-ansible-baseos
   namespace: tekton-ci
   gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
   ansiblePlaybooks:
