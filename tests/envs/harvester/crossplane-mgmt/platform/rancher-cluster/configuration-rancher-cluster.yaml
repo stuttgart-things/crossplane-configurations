@@ -1,0 +1,12 @@
+---
+# rancher-cluster Configuration package — provisions a Rancher cluster (generic
+# or Harvester) and wires its kubeconfig into Crossplane, optionally registering
+# it in Argo CD. v0.3.0: Harvester provision path, Argo CD registration (direct
+# endpoint + self-minted SA token, target cluster = argocd.providerConfigRef),
+# EnvironmentConfig defaults + auto-discovered API server endpoint.
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: rancher-cluster
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/rancher-cluster:v0.3.0

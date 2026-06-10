@@ -1,0 +1,24 @@
+---
+# Showcase RancherCluster: a Harvester k3s cluster registered in Argo CD.
+#
+# Nearly everything comes from the EnvironmentConfig `rancher-cluster-defaults`
+# (providerConfigRef + rancherProviderConfigRef, rancherNamespace, distro,
+# kubernetesVersion, the Harvester image/network/credential/vmNamespace/sshUser,
+# and the Argo CD target). This XR carries only per-cluster values: name, sizing,
+# and the Argo CD toggle. The downstream API endpoint is auto-discovered — no
+# server IP is provided here.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: k3s-xp
+  namespace: default
+spec:
+  name: k3s-xp
+  environmentConfig: default      # -> rancher-cluster-defaults
+  infrastructure: harvester
+  harvester:                      # per-cluster sizing (infra fields from env)
+    cpuCount: 6
+    memorySize: 6
+    quantity: 1
+  argocd:
+    register: true                # target + server resolved automatically
