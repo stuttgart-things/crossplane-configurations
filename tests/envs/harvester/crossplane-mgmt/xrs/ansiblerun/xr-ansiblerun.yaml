@@ -24,7 +24,11 @@ spec:
   ansiblePlaybooks:
     - sthings.baseos.setup
   ansibleVarsFile:
-    - manage_filesystem+-true
+    # manage_filesystem=false: the sthings.baseos manage_filesystem role
+    # auto-locates an LVM data disk (lvm_disk), which 192.168.10.149 doesn't
+    # have -> "'lvm_disk' is undefined". Keep the rest of baseos setup
+    # (package updates + privilege escalation).
+    - manage_filesystem+-false
     - update_packages+-true
     - ansible_become+-true
     - ansible_become_method+-sudo
