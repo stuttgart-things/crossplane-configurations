@@ -15,6 +15,10 @@
 # host without an LVM data disk (manage_filesystem=false) or a different Vault
 # (vault_instances) is configured per environment. The target inventory stays
 # auto-set to the VM's resolved IP by harvester-vm.
+# v0.1.9 bumps the harvester-vm floor to >=v0.1.7, which additionally pins
+# cpu.model + memory.maxGuest in the VM template so KubeVirt's LiveUpdate
+# hotplug-headroom injection no longer leaves the template mismatched against
+# the launched VMI (the real cause of the lingering "Restart action required").
 # v0.1.7 sets cloud-init sshPasswordAuth: true when ansible is enabled, so the
 # ansible-run pipeline (which authenticates with the ANSIBLE_USER/ANSIBLE_PASSWORD
 # from the ansible-credentials Secret, no SSH key) can log into the freshly
@@ -35,4 +39,4 @@ kind: Configuration
 metadata:
   name: virtual-machine
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.8
+  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.9
