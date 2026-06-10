@@ -32,6 +32,10 @@ spec:
     - update_packages+-true
     - ansible_become+-true
     - ansible_become_method+-sudo
+    # Override the baseos setup.yaml default vault_instances list (which points
+    # at vault.tiab.labda.sva.de:8200 — not resolvable from this env) with the
+    # correct Vault for the sthings.lab environment.
+    - vault_instances+-["https://vault.infra.sthings.lab"]
   ansibleVarsInventory:
     - 'all+["192.168.10.149"]'
   wrapInCrossplane: true
