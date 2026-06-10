@@ -67,36 +67,71 @@ spec:
 
 ## Spec fields
 
+Fields marked **env** below are resolved from the
+[EnvironmentConfig](#per-environment-defaults-environmentconfig) when unset, so a
+real XR is usually just `name` + per-cluster sizing + `argocd.register`.
+
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `providerConfigRef` | ✅ | — | `ClusterProviderConfig` for the **control-plane** cluster where Crossplane runs (wired CPC, bridged Secret, Argo CD objects land here). Co-located default: also the Rancher cluster. |
-| `rancherProviderConfigRef` | | = `providerConfigRef` | `ClusterProviderConfig` for the Rancher **management** cluster. Set it different from `providerConfigRef` to split the control plane from Rancher — see [Split control plane](#split-control-plane-rancherproviderconfigref). |
 | `name` | ✅ | — | Cluster name; also the `<name>-kubeconfig` Secret prefix and the downstream CPC name |
-| `kubernetesVersion` | ✅ | — | e.g. `v1.34.7+k3s1` / `v1.31.5+rke2r1` (the suffix selects the distro) |
-| `distro` | | `k3s` | `k3s` or `rke2` |
-| `infrastructure` | | `generic` | `generic` (custom-node) or `harvester` (VM machine pool — requires the `harvester` block) |
-| `rancherNamespace` | | `fleet-default` | Namespace of the provisioning Cluster + kubeconfig Secret |
+| `environmentConfig` | | `default` | Selects the EnvironmentConfig (label value) supplying the **env** defaults below |
+| `providerConfigRef` | | **env** | `ClusterProviderConfig` for the **control-plane** cluster where Crossplane runs (wired CPC, bridged Secret, Argo CD objects land here). Co-located default: also the Rancher cluster. |
+| `rancherProviderConfigRef` | | **env** → `providerConfigRef` | `ClusterProviderConfig` for the Rancher **management** cluster. Different from `providerConfigRef` ⇒ split control plane — see [Split control plane](#split-control-plane-rancherproviderconfigref). |
+| `kubernetesVersion` | | **env** | e.g. `v1.34.7+k3s1` / `v1.31.5+rke2r1` (the suffix selects the distro) |
+| `distro` | | **env** → `k3s` | `k3s` or `rke2` |
+| `infrastructure` | | `generic` | `generic` (custom-node) or `harvester` (VM machine pool) |
+| `rancherNamespace` | | **env** → `fleet-default` | Namespace of the provisioning Cluster + kubeconfig Secret |
 | `clusterLabels` | | — | Extra labels on the `provisioning.cattle.io` Cluster |
 | `machineGlobalConfig` | | — | Free-form `rkeConfig.machineGlobalConfig` passthrough |
-| `harvester.cloudCredentialSecretName` | when `harvester` | — | Harvester cloud credential, `cattle-global-data:<name>` (Rancher UI → Cloud Credentials) |
-| `harvester.imageName` | when `harvester` | — | Harvester VM image, `<namespace>/<image>` (e.g. `default/sthings-u26-k3s`) |
-| `harvester.networkName` | when `harvester` | — | Harvester network, `<namespace>/<network>` (e.g. `default/vms`) |
-| `harvester.vmNamespace` | | `default` | Harvester namespace the VMs are created in |
-| `harvester.cpuCount` | | `2` | vCPUs per VM |
-| `harvester.memorySize` | | `4` | Memory per VM (GiB) |
-| `harvester.diskSize` | | `40` | Root disk per VM (GiB) |
-| `harvester.sshUser` | | `ubuntu` | SSH user baked into the image |
-| `harvester.quantity` | | `1` | Number of VM nodes in the pool |
+| `harvester.cloudCredentialSecretName` | | **env** | Harvester cloud credential, `cattle-global-data:<name>` (Rancher UI → Cloud Credentials) |
+| `harvester.imageName` | | **env** | Harvester VM image, `<namespace>/<image>` (e.g. `default/sthings-u26-k3s`) |
+| `harvester.networkName` | | **env** | Harvester network, `<namespace>/<network>` (e.g. `default/vms`) |
+| `harvester.vmNamespace` | | **env** → `default` | Harvester namespace the VMs are created in |
+| `harvester.sshUser` | | **env** → `ubuntu` | SSH user baked into the image |
+| `harvester.cpuCount` | | `2` | vCPUs per VM (per-cluster) |
+| `harvester.memorySize` | | `4` | Memory per VM, GiB (per-cluster) |
+| `harvester.diskSize` | | `40` | Root disk per VM, GiB (per-cluster) |
+| `harvester.quantity` | | `1` | Number of VM nodes in the pool (per-cluster) |
 | `harvester.userData` | | qemu-guest-agent cloud-config | cloud-init `userData` for the VMs (base64 is handled for you) |
 | `bootstrap.namespace` | | `crossplane-bootstrap` | Namespace created on the downstream cluster |
 | `bootstrap.labels` | | — | Labels for that downstream namespace |
 | `argocd.register` | | `false` | Register the cluster in Argo CD via clusterbook-operator |
-| `argocd.namespace` | | `argocd` | Argo CD namespace (kubeconfig + cluster Secret) |
-| `argocd.providerConfigRef` | | `rancherProviderConfigRef` | ClusterProviderConfig for the cluster running Argo CD + clusterbook-operator |
-| `argocd.server` | when `register` | — | Direct API endpoint of the downstream cluster (`https://host:6443`); use a VIP/LB for HA |
+| `argocd.namespace` | | **env** → `argocd` | Argo CD namespace (kubeconfig + cluster Secret) |
+| `argocd.providerConfigRef` | | **env** → `rancherProviderConfigRef` | ClusterProviderConfig for the cluster running Argo CD + clusterbook-operator |
+| `argocd.server` | | **auto-discovered** | Direct API endpoint of the downstream cluster. Normally omitted — discovered from the downstream `kubernetes` Endpoints. Set only to force a VIP/LB for HA. |
 | `argocd.labels` | | — | Labels on the `ClusterbookCluster` / Argo cluster Secret (for ApplicationSet selectors) |
 
 Status: `kubeconfigSecret`, `clusterProviderConfig`, `argocdClusterSecret`.
+
+## Per-environment defaults (EnvironmentConfig)
+
+The lab-constant fields (the **env** rows above) live in an `EnvironmentConfig`,
+not on every XR. The Composition's first pipeline step (`function-environment-configs`)
+selects one by the **config-scoped** label
+`rancher-cluster.resources.stuttgart-things.com/environment`, matched against the
+XR's `spec.environmentConfig` (default `default`), and loads its `data` into the
+pipeline environment. Precedence is always **XR spec → EnvironmentConfig →
+built-in default**.
+
+`data` keys: `providerConfigRef`, `rancherProviderConfigRef`, `rancherNamespace`,
+`distro`, `kubernetesVersion`, `cloudCredentialSecretName`, `imageName`,
+`networkName`, `vmNamespace`, `sshUser`, `argocdNamespace`,
+`argocdProviderConfigRef`. See [`examples/environment-config.yaml`](examples/environment-config.yaml).
+
+With it in place, a full Harvester + Argo CD XR is just:
+
+```yaml
+spec:
+  name: k3s-xp
+  environmentConfig: default
+  infrastructure: harvester
+  harvester: { cpuCount: 6, memorySize: 6, quantity: 1 }
+  argocd: { register: true }     # target + server resolved automatically
+```
+
+> `crossplane render` does not read EnvironmentConfigs from a cluster — pass the
+> example with `--extra-resources examples/environment-config.yaml`, or the env
+> fields render empty.
 
 ## Optional: Argo CD registration (`spec.argocd.register: true`)
 
@@ -114,12 +149,14 @@ Rancher cluster):
 
 1. Mints an `argocd-manager` ServiceAccount + `cluster-admin` binding + a
    long-lived token Secret on the **downstream** cluster (via the wired CPC).
-2. **Observe-only** extracts the SA `token` + downstream `ca.crt` into a
-   control-plane connection Secret (`<name>-argocd-sa`). Create and extract are
-   **separate** Objects — provider-kubernetes does not surface `connectionDetails`
-   on an Object that also manages/creates the target.
+2. **Observe-only** extracts the SA `token`, the downstream `ca.crt`, **and the
+   cluster's API endpoint** (the apiserver IP behind the downstream `kubernetes`
+   Endpoints) into a control-plane connection Secret (`<name>-argocd-sa`). Create
+   and extract are **separate** Objects — provider-kubernetes does not surface
+   `connectionDetails` on an Object that also manages/creates the target.
 3. Assembles a `Secret` (`<name>-argocd-kubeconfig`, key `kubeconfig`) in the Argo
-   CD namespace: `spec.argocd.server` (direct endpoint) + downstream CA + SA token.
+   CD namespace: the **auto-discovered** direct endpoint (`https://<apiserver-ip>:6443`,
+   or `spec.argocd.server` if set) + downstream CA + SA token.
 4. Emits a `ClusterbookCluster` with `skipReservation: true` and
    `preserveKubeconfigServer: true`, so clusterbook keeps the direct `server`
    verbatim (no IP/DNS rewrite) and just builds the Argo cluster Secret.
@@ -130,14 +167,16 @@ The Rancher proxy URL + session token are fragile for GitOps: the token can
 expire and the proxy CA won't validate a direct connection. A `cluster-admin`
 `argocd-manager` SA token (`ttl=0`) against the cluster's own API endpoint is the
 standard Argo CD pattern — non-expiring and Rancher-independent. The Composition
-mints it for you, so no external token Secret is needed.
+mints it **and** discovers the endpoint for you, so neither a token Secret nor the
+server IP is something the user provides.
 
 ### Additional preconditions (only when `register: true`)
 
 - [`clusterbook-operator`](https://github.com/stuttgart-things/clusterbook-operator)
   installed on the Argo CD cluster (provides the `ClusterbookCluster` CRD).
 - The Argo CD namespace (`spec.argocd.namespace`, default `argocd`) exists there.
-- `spec.argocd.server` is reachable from the Argo CD cluster's pods.
+- The discovered endpoint (the downstream apiserver IP, or `spec.argocd.server` if
+  set) is reachable from the Argo CD cluster's pods.
 
 ## Split control plane (`rancherProviderConfigRef`)
 
