@@ -1,0 +1,16 @@
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: k3s-test
+  namespace: default
+spec:
+  name: k3s-test
+  environmentConfig: default
+  infrastructure: harvester
+  harvester:
+    cpuCount: 4
+    memorySize: 4
+    diskSize: 40
+    quantity: 1
+  argocd:
+    register: false
