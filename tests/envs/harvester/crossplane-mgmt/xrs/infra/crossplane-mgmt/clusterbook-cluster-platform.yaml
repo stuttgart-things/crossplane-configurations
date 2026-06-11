@@ -1,0 +1,33 @@
+items:
+- apiVersion: clusterbook.stuttgart-things.com/v1alpha1
+  kind: ClusterbookCluster
+  metadata:
+    name: crossplane-mgmt
+  spec:
+    networkKey: '192.168.10'
+    clusterName: crossplane-mgmt
+    providerConfigRef:
+      name: default
+    argocdNamespace: argocd
+    createDNS: true
+    preserveKubeconfigServer: true
+    useFQDNAsServer: false
+    kubeconfigSecretRef:
+      name: crossplane-mgmt
+      namespace: argocd
+      key: kubeconfig
+    labels:
+      auto-project: 'true'
+      network-platform: 'true'
+      network-platform/cilium-lb: 'true'
+      network-platform/cilium-gateway: 'true'
+      network-platform/cert-manager-install: 'true'
+      network-platform/cert-manager-selfsigned: 'true'
+      network-platform/cert-manager-cluster-ca: 'true'
+      network-platform/cert-manager-vault-pki: 'true'
+      network-platform/trust-manager-install: 'true'
+      network-platform/trust-manager-bundle: 'true'
+      storage-platform: 'true'
+      storage-platform/openebs: 'true'
+      storage-platform/longhorn: 'true'
+    releaseOnDelete: true
