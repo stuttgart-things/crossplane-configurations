@@ -1,0 +1,20 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: crossplane-mgmt
+  description: Crossplane claim (clusterbook-cluster-platform) - crossplane-mgmt
+  annotations:
+    github.com/project-slug: stuttgart-things/crossplane-configurations
+    backstage.io/source-location: url:https://github.com/stuttgart-things/crossplane-configurations/tree/main/tests/envs/harvester/crossplane-mgmt/xrs/infra/crossplane-mgmt
+    claim-machinery/template: clusterbook-cluster-platform
+    claim-machinery/category: infra
+  tags:
+    - crossplane
+    - claim
+    - clusterbook-cluster-platform
+    - infra
+spec:
+  type: crossplane-claim
+  lifecycle: production
+  owner: platform-team
