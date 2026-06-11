@@ -1,0 +1,20 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: cocacola
+  description: Crossplane claim (xr-namespace-minimal) - cocacola
+  annotations:
+    github.com/project-slug: stuttgart-things/crossplane-configurations
+    backstage.io/source-location: url:https://github.com/stuttgart-things/crossplane-configurations/tree/main/tests/envs/harvester/crossplane-mgmt/xrs/infra/cocacola
+    claim-machinery/template: xr-namespace-minimal
+    claim-machinery/category: infra
+  tags:
+    - crossplane
+    - claim
+    - xr-namespace-minimal
+    - infra
+spec:
+  type: crossplane-claim
+  lifecycle: production
+  owner: platform-team
