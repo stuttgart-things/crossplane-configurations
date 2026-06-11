@@ -1,0 +1,8 @@
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ManagedNamespace
+metadata:
+  name: martin-demo-ns
+  namespace: default
+spec:
+  providerConfigRef: harvester
+  name: martin-demo-ns
