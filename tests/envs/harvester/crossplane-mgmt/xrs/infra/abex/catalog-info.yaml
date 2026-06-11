@@ -1,0 +1,20 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: abex
+  description: Crossplane claim (xr-virtualmachine-harvester) - abex
+  annotations:
+    github.com/project-slug: stuttgart-things/crossplane-configurations
+    backstage.io/source-location: url:https://github.com/stuttgart-things/crossplane-configurations/tree/main/tests/envs/harvester/crossplane-mgmt/xrs/infra/abex
+    claim-machinery/template: xr-virtualmachine-harvester
+    claim-machinery/category: infra
+  tags:
+    - crossplane
+    - claim
+    - xr-virtualmachine-harvester
+    - infra
+spec:
+  type: crossplane-claim
+  lifecycle: production
+  owner: platform-team

@@ -1,0 +1,11 @@
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: XVirtualMachine
+metadata:
+  name: abex
+  namespace: default
+spec:
+  size: medium
+  provider: harvester
+  environment: harvester
+  os: sthings-u26
+  ansible: true
