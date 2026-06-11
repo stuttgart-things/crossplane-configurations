@@ -3,16 +3,16 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: k3s-test
-  description: Crossplane claim (xr-rancher-cluster-harvester) - k3s-test
+  description: Crossplane claim (xr-rancher-cluster-harvester-bootstrap) - k3s-test
   annotations:
     github.com/project-slug: stuttgart-things/crossplane-configurations
     backstage.io/source-location: url:https://github.com/stuttgart-things/crossplane-configurations/tree/main/tests/envs/harvester/crossplane-mgmt/xrs/infra/k3s-test
-    claim-machinery/template: xr-rancher-cluster-harvester
+    claim-machinery/template: xr-rancher-cluster-harvester-bootstrap
     claim-machinery/category: infra
   tags:
     - crossplane
     - claim
-    - xr-rancher-cluster-harvester
+    - xr-rancher-cluster-harvester-bootstrap
     - infra
 spec:
   type: crossplane-claim
