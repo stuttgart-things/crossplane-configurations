@@ -1,0 +1,20 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ferdinand
+  description: Crossplane claim (xr-rancher-cluster-harvester-bootstrap) - ferdinand
+  annotations:
+    github.com/project-slug: stuttgart-things/crossplane-configurations
+    backstage.io/source-location: url:https://github.com/stuttgart-things/crossplane-configurations/tree/main/tests/envs/harvester/crossplane-mgmt/xrs/infra/ferdinand
+    claim-machinery/template: xr-rancher-cluster-harvester-bootstrap
+    claim-machinery/category: infra
+  tags:
+    - crossplane
+    - claim
+    - xr-rancher-cluster-harvester-bootstrap
+    - infra
+spec:
+  type: crossplane-claim
+  lifecycle: production
+  owner: platform-team
