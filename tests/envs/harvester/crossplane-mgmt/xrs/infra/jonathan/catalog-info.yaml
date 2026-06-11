@@ -1,0 +1,20 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: jonathan
+  description: Crossplane claim (xr-virtualmachine-harvester) - jonathan
+  annotations:
+    github.com/project-slug: stuttgart-things/crossplane-configurations
+    backstage.io/source-location: url:https://github.com/stuttgart-things/crossplane-configurations/tree/main/tests/envs/harvester/crossplane-mgmt/xrs/infra/jonathan
+    claim-machinery/template: xr-virtualmachine-harvester
+    claim-machinery/category: infra
+  tags:
+    - crossplane
+    - claim
+    - xr-virtualmachine-harvester
+    - infra
+spec:
+  type: crossplane-claim
+  lifecycle: production
+  owner: platform-team
