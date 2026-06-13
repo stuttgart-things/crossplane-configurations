@@ -1,0 +1,12 @@
+---
+# Minimum example: only the XRD-required field (vm.name). cpu/ram/disk fall back
+# to XRD defaults (2 / 4096 / 40); all placement MOIDs come from the "default"
+# EnvironmentConfig (environmentConfig defaults to "default").
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  name: vspherevm-min
+  namespace: default
+spec:
+  vm:
+    name: vspherevm-min

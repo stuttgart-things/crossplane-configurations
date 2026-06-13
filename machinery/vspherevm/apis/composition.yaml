@@ -1,0 +1,167 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: vspherevm
+  labels:
+    crossplane.io/xrd: nativevspherevms.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: NativeVsphereVM
+  mode: Pipeline
+  pipeline:
+    # -------------------------------------------------------------------------
+    # Step 0: load the per-environment placement MOIDs from an EnvironmentConfig
+    # into the pipeline context. Selected by the CONFIG-SCOPED label
+    # `vspherevm.resources.stuttgart-things.com/environment`, value from the XR's
+    # `spec.environmentConfig` (default "default"). The key is namespaced to this
+    # Configuration so it never collides with another Configuration's
+    # EnvironmentConfig (function-environment-configs requires EXACTLY ONE
+    # Selector match). Offline `crossplane render` needs the EnvironmentConfig
+    # supplied via --extra-resources (the verify harness does this).
+    # -------------------------------------------------------------------------
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: vspherevm.resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    fromFieldPathPolicy: Optional
+
+    # -------------------------------------------------------------------------
+    # Step 1: render the native provider-vspherevm VirtualMachine. Per-VM fields
+    # come from the XR; placement MOIDs default from the loaded EnvironmentConfig
+    # and are overridable per XR. Numeric provider fields are int()-converted.
+    # -------------------------------------------------------------------------
+    - step: render
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: render
+        spec:
+          source: |
+            oxr = option("params").oxr
+            _ctx = option("params").ctx or {}
+
+            _spec = oxr.spec
+            _name = oxr.metadata.name
+            _vm = _spec?.vm or {}
+
+            # function-environment-configs merges the matched EnvironmentConfig
+            # data into the context under this well-known key.
+            _env = _ctx["apiextensions.crossplane.io/environment"] or {}
+
+            # --- per-VM intent (XRD defaults already applied for cpu/ram/disk) ---
+            _cpu = _vm?.cpu or "2"
+            _ram = _vm?.ram or "4096"
+            _disk = _vm?.disk or "40"
+            _wait = _vm?.waitForGuestNetTimeout or "5"
+
+            # --- fields that fall back to the EnvironmentConfig, then a builtin ---
+            _guestId = _vm?.guestId or _env?.guestId or "ubuntu64Guest"
+            _firmware = _vm?.firmware or _env?.firmware or "bios"
+            _scsiType = _vm?.scsiType or _env?.scsiType or "pvscsi"
+            _adapterType = _vm?.adapterType or _env?.adapterType or "vmxnet3"
+            _annotation = _vm?.annotation or _env?.annotation or "VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS"
+
+            # --- placement MOIDs (EnvironmentConfig default, XR override) ---
+            _templateUuid = _vm?.templateUuid or _env?.templateUuid or ""
+            _datastoreId = _vm?.datastoreId or _env?.datastoreId or ""
+            _resourcePoolId = _vm?.resourcePoolId or _env?.resourcePoolId or ""
+            _networkId = _vm?.networkId or _env?.networkId or ""
+            _folder = _vm?.folder or _env?.folder or ""
+
+            _providerConfigName = _spec?.providerConfigRef?.name or _env?.providerConfigName or "default"
+
+            _vmResource = {
+                apiVersion = "virtualmachine.vspherevm.stuttgart-things.com/v1alpha1"
+                kind = "VirtualMachine"
+                metadata = {
+                    name = _name
+                    annotations = {
+                        "crossplane.io/composition-resource-name" = "vspherevm"
+                    }
+                }
+                spec = {
+                    forProvider = {
+                        name = _name
+                        annotation = _annotation
+                        folder = _folder
+                        firmware = _firmware
+                        guestId = _guestId
+                        numCpus = int(_cpu)
+                        memory = int(_ram)
+                        datastoreId = _datastoreId
+                        resourcePoolId = _resourcePoolId
+                        clone = [{
+                            templateUuid = _templateUuid
+                            timeout = 30
+                        }]
+                        networkInterface = [{
+                            adapterType = _adapterType
+                            networkId = _networkId
+                        }]
+                        disk = [{
+                            label = "disk0"
+                            size = int(_disk)
+                            thinProvisioned = True
+                        }]
+                        scsiType = _scsiType
+                        waitForGuestNetTimeout = int(_wait)
+                    }
+                    providerConfigRef = {
+                        name = _providerConfigName
+                    }
+                }
+            }
+
+            items = [_vmResource]
+
+    # -------------------------------------------------------------------------
+    # Step 2: surface the VirtualMachine IP / MOID / power state onto the XR.
+    # -------------------------------------------------------------------------
+    - step: patch-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: patch-status
+        spec:
+          source: |
+            oxr = option("params").oxr
+            ocds = option("params").ocds
+
+            _entries = [v.Resource?.status or {} for _, v in ocds if v.Resource?.kind == "VirtualMachine"]
+            _st = _entries[0] if len(_entries) > 0 else {}
+            _ap = _st?.atProvider or {}
+            _ip = _ap?.defaultIpAddress or ""
+
+            _oxr = oxr | {
+                status = {
+                    share = {
+                        ip = [_ip] if _ip else []
+                        moid = _ap?.moid or ""
+                        powerState = _ap?.powerState or ""
+                    }
+                }
+            }
+
+            items = [_oxr]
+
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready
