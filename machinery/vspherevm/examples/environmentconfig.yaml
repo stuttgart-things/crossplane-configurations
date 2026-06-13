@@ -1,0 +1,54 @@
+---
+# Shared per-environment placement MOIDs for NativeVsphereVM XRs.
+#
+# The `vspherevm` Composition selects an EnvironmentConfig via the config-scoped
+# label `vspherevm.resources.stuttgart-things.com/environment`, matched against
+# the XR's `spec.environmentConfig` (default "default"). The key is namespaced to
+# this Configuration so it never collides with another Configuration's
+# EnvironmentConfig (function-environment-configs requires EXACTLY ONE Selector
+# match). The `data` values are loaded into the pipeline context; anything set
+# explicitly on the XR spec wins over them.
+#
+# Unlike the OpenTofu `vsphere-vm` Configuration (inventory PATHS/NAMES), the
+# native provider consumes opaque vCenter MOIDs. Look these up for your own
+# vCenter inventory — the values below are LabDA IDs.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: vspherevm-defaults
+  labels:
+    vspherevm.resources.stuttgart-things.com/environment: default
+data:
+  templateUuid: 4221ffec-016e-5533-0435-1103fb1a611e
+  datastoreId: datastore-12
+  resourcePoolId: resgroup-8
+  networkId: dvportgroup-2048
+  folder: stuttgart-things/testing
+  firmware: bios
+  guestId: ubuntu64Guest
+  scsiType: pvscsi
+  adapterType: vmxnet3
+  annotation: VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+  # provider-vspherevm ProviderConfig the VirtualMachine runs through.
+  providerConfigName: default
+---
+# Same MOIDs, exposed under the `labda` environment label so an XR can select it
+# explicitly with `spec.environmentConfig: labda` (see xr-max.yaml).
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: vspherevm-labda
+  labels:
+    vspherevm.resources.stuttgart-things.com/environment: labda
+data:
+  templateUuid: 4221ffec-016e-5533-0435-1103fb1a611e
+  datastoreId: datastore-12
+  resourcePoolId: resgroup-8
+  networkId: dvportgroup-2048
+  folder: stuttgart-things/testing
+  firmware: bios
+  guestId: ubuntu64Guest
+  scsiType: pvscsi
+  adapterType: vmxnet3
+  annotation: VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+  providerConfigName: default

@@ -1,0 +1,108 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: nativevspherevms.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: NativeVsphereVM
+    plural: nativevspherevms
+    singular: nativevspherevm
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                vm:
+                  type: object
+                  description: |
+                    Per-VM settings. Placement MOIDs (templateUuid,
+                    datastoreId, resourcePoolId, networkId, folder) and the
+                    guestId/firmware/scsiType/adapterType/annotation fields
+                    default from the selected EnvironmentConfig when unset
+                    here; set them explicitly to override per VM.
+                  properties:
+                    name:
+                      type: string
+                    cpu:
+                      type: string
+                      default: "2"
+                    ram:
+                      type: string
+                      default: "4096"
+                    disk:
+                      type: string
+                      default: "40"
+                    waitForGuestNetTimeout:
+                      type: string
+                      description: |
+                        Minutes to wait for guest networking so the IP is
+                        captured into status. "-1" disables the wait.
+                      default: "5"
+                    # --- fields below default from the EnvironmentConfig ---
+                    # No XRD default: leaving them unset lets the
+                    # EnvironmentConfig value win; setting them overrides it.
+                    guestId:
+                      type: string
+                    firmware:
+                      type: string
+                    scsiType:
+                      type: string
+                    adapterType:
+                      type: string
+                    annotation:
+                      type: string
+                    templateUuid:
+                      type: string
+                    datastoreId:
+                      type: string
+                    resourcePoolId:
+                      type: string
+                    networkId:
+                      type: string
+                    folder:
+                      type: string
+                  required:
+                    - name
+                providerConfigRef:
+                  type: object
+                  description: |
+                    The provider-vspherevm ProviderConfig the VirtualMachine
+                    runs through. Defaults from the EnvironmentConfig
+                    (providerConfigName) or "default" when unset.
+                  properties:
+                    name:
+                      type: string
+                environmentConfig:
+                  type: string
+                  description: |
+                    Selects the Crossplane EnvironmentConfig that provides the
+                    shared per-environment placement MOIDs. The Composition
+                    matches an EnvironmentConfig carrying the config-scoped
+                    label
+                    `vspherevm.resources.stuttgart-things.com/environment=<value>`.
+                    Supported `data` keys: templateUuid, datastoreId,
+                    resourcePoolId, networkId, folder, firmware, guestId,
+                    scsiType, adapterType, annotation, providerConfigName. Any
+                    value set explicitly on this XR's spec overrides the
+                    EnvironmentConfig.
+                  default: default
+              required:
+                - vm
+            status:
+              description: A Status represents the observed state.
+              type: object
+              properties:
+                share:
+                  description: Freeform field containing status information.
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true

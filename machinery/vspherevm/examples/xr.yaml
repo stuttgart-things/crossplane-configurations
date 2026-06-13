@@ -1,0 +1,16 @@
+---
+# Realistic "standard" usage: a single VM sized per spec, with all vSphere
+# placement MOIDs inherited from the "default" EnvironmentConfig. This is the
+# copy-paste template.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  name: vspherevm-test1
+  namespace: default
+spec:
+  environmentConfig: default
+  vm:
+    name: vspherevm-test1
+    cpu: "2"
+    ram: "4096"
+    disk: "40"

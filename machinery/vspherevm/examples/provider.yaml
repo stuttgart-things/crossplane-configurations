@@ -1,0 +1,10 @@
+---
+# Native vSphere VM provider. Normally pulled automatically as a `dependsOn` of
+# this Configuration; included here for standalone install / pinning.
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-vspherevm
+spec:
+  package: ghcr.io/stuttgart-things/provider-vspherevm-xpkg:v0.8.1
+  skipDependencyResolution: true
