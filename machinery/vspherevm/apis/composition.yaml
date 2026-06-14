@@ -146,7 +146,11 @@ spec:
             _envAnsible = _env?.ansible or {}
             _ansibleEnabled = _ansible?.enabled or False
 
-            _vmObserved = ocds["vspherevm"].Resource?.status or {} if "vspherevm" in ocds else {}
+            # Find the composed VM by KIND (ocds is keyed by composition-resource-name,
+            # which function-kcl derives from the resource's metadata.name — not a
+            # fixed key — so iterate rather than look up "vspherevm").
+            _vmEntries = [v.Resource for _, v in ocds if v?.Resource?.kind == "VirtualMachine"]
+            _vmObserved = _vmEntries[0]?.status or {} if len(_vmEntries) > 0 else {}
             _vmIP = _vmObserved?.atProvider?.defaultIpAddress or ""
             _vmConds = _vmObserved?.conditions or []
             _vmReady = len([c for c in _vmConds if c.type == "Ready" and c.status == "True"]) > 0
