@@ -1,0 +1,9 @@
+---
+# Installs the vspherevm Configuration. Its dependsOn pulls provider-vspherevm
+# and the pipeline Functions — no separate Provider/Function installs needed.
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: vspherevm
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/vspherevm:v0.1.1

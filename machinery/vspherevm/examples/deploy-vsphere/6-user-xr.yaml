@@ -1,0 +1,15 @@
+---
+# The request: a small vSphere VM on LabDA. Placement MOIDs come from the labda
+# EnvironmentConfig (3-...); this is the only file a VM consumer edits.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  name: vspherevm-test
+  namespace: vsphere-vms
+spec:
+  environmentConfig: labda
+  vm:
+    name: vspherevm-test
+    cpu: "2"
+    ram: "4096"
+    disk: "40"

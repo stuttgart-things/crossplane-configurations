@@ -1,0 +1,8 @@
+---
+# Namespace for the NativeVsphereVM XR(s). The provider VirtualMachine (.m,
+# namespaced) is composed into this namespace. The vsphere-creds Secret lives in
+# crossplane-system (see 5-...), referenced by the cluster-scoped ProviderConfig.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vsphere-vms

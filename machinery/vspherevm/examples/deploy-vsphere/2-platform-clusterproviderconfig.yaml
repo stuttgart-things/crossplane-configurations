@@ -1,0 +1,14 @@
+---
+# The Composition emits the namespaced (.m) VirtualMachine, which references a
+# .m (Cluster)ProviderConfig. Points at the vsphere-creds Secret (5-...).
+apiVersion: vspherevm.m.stuttgart-things.com/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      name: vsphere-creds
+      namespace: crossplane-system
+      key: credentials
