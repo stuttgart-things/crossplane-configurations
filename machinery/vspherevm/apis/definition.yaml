@@ -89,6 +89,55 @@ spec:
                       enum:
                         - ClusterProviderConfig
                         - ProviderConfig
+                ansible:
+                  type: object
+                  description: |
+                    Optional base-OS provisioning. When `enabled: true`, once the
+                    VM is Ready with an IP the Composition emits an `AnsibleRun`
+                    (Tekton) whose inventory is auto-populated with the VM IP.
+                    Shared fields (playbooks, varsFile, gitRepoUrl,
+                    ansibleWorkingImage, credentialsSecretName,
+                    crossplaneProviderConfig, pipelineNamespace) default from the
+                    EnvironmentConfig `ansible` sub-block when unset here.
+                    Requires the ansible-run preconditions on the cluster (Tekton,
+                    the credentials Secret, an in-cluster provider-kubernetes
+                    config).
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                    playbooks:
+                      type: array
+                      items:
+                        type: string
+                    varsFile:
+                      type: array
+                      items:
+                        type: string
+                    varsInventory:
+                      type: array
+                      items:
+                        type: string
+                    extraCollections:
+                      type: array
+                      items:
+                        type: string
+                    extraRoles:
+                      type: array
+                      items:
+                        type: string
+                    gitRepoUrl:
+                      type: string
+                    pipelineNamespace:
+                      type: string
+                    ansibleWorkingImage:
+                      type: string
+                    credentialsSecretName:
+                      type: string
+                    crossplaneProviderConfig:
+                      type: string
+                    wrapInCrossplane:
+                      type: boolean
                 environmentConfig:
                   type: string
                   description: |
@@ -99,9 +148,9 @@ spec:
                     `vspherevm.resources.stuttgart-things.com/environment=<value>`.
                     Supported `data` keys: templateUuid, datastoreId,
                     resourcePoolId, networkId, folder, firmware, guestId,
-                    scsiType, adapterType, annotation, providerConfigName. Any
-                    value set explicitly on this XR's spec overrides the
-                    EnvironmentConfig.
+                    scsiType, adapterType, annotation, providerConfigName, and an
+                    optional `ansible` sub-block. Any value set explicitly on this
+                    XR's spec overrides the EnvironmentConfig.
                   default: default
               required:
                 - vm

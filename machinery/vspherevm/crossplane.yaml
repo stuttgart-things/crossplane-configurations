@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.1.1
+    meta.crossplane.io/version: v0.2.0
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -40,8 +40,10 @@ metadata:
         (value from `spec.environmentConfig`).
       - `render` (`function-kcl`) emits a native `VirtualMachine`, taking
         per-VM fields from the XR and placement MOIDs from the loaded
-        EnvironmentConfig (XR spec overrides the EnvironmentConfig).
-      - `patch-status` surfaces the VM IP / MOID / power state onto the XR.
+        EnvironmentConfig (XR spec overrides the EnvironmentConfig). When
+        `spec.ansible.enabled`, it also emits an `AnsibleRun` once the VM is
+        Ready with an IP (inventory auto-populated with the VM IP).
+      - `patch-status` surfaces the VM IP / MOID / power state / ansibleReady.
 
       ## Cluster preconditions
 
@@ -69,3 +71,7 @@ spec:
       version: ">=v0.12.0,<v0.13.0"
     - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
       version: ">=v0.6.5,<v0.7.0"
+    # Optional base-OS provisioning: when spec.ansible.enabled, the Composition
+    # emits an AnsibleRun (from this Configuration) wired to the VM IP.
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/ansible-run
+      version: ">=v0.1.3"

@@ -51,9 +51,10 @@ spec:
         metadata:
           name: render
         spec:
-          source: |
+          source: | # pragma: allowlist secret
             oxr = option("params").oxr
             _ctx = option("params").ctx or {}
+            ocds = option("params").ocds or {}
 
             _spec = oxr.spec
             _name = oxr.metadata.name
@@ -134,7 +135,63 @@ spec:
                 }
             }
 
-            items = [_vmResource]
+            _resources = [_vmResource]
+
+            # --- Optional Ansible base-OS provisioning ---
+            # Gated on the composed VM being Ready with an IP (read from ocds),
+            # so the AnsibleRun is only emitted once the VM can be reached. The
+            # inventory auto-populates with the VM IP unless overridden. Shared
+            # fields fall back to the EnvironmentConfig `ansible` sub-block.
+            _ansible = _spec?.ansible or {}
+            _envAnsible = _env?.ansible or {}
+            _ansibleEnabled = _ansible?.enabled or False
+
+            _vmObserved = ocds["vspherevm"].Resource?.status or {} if "vspherevm" in ocds else {}
+            _vmIP = _vmObserved?.atProvider?.defaultIpAddress or ""
+            _vmConds = _vmObserved?.conditions or []
+            _vmReady = len([c for c in _vmConds if c.type == "Ready" and c.status == "True"]) > 0
+
+            if _ansibleEnabled and _vmReady and _vmIP != "":
+                _playbooks = _ansible?.playbooks or _envAnsible?.playbooks or ["sthings.baseos.setup"]
+                _varsFile = _ansible?.varsFile or _envAnsible?.varsFile or []
+                _varsInventory = _ansible?.varsInventory or ['all+["{}"]'.format(_vmIP)]
+                _pipelineRunName = "{}-ansible".format(_name)
+
+                _ansibleRun = {
+                    apiVersion = "resources.stuttgart-things.com/v1alpha1"
+                    kind = "AnsibleRun"
+                    metadata = {
+                        name = "{}-ansible-run".format(_name)
+                        namespace = _namespace
+                        annotations = {
+                            "crossplane.io/composition-resource-name" = "ansible-run"
+                        }
+                    }
+                    spec = {
+                        pipelineRunName = _pipelineRunName
+                        namespace = _ansible?.pipelineNamespace or _envAnsible?.pipelineNamespace or "tekton-ci"
+                        gitRepoUrl = _ansible?.gitRepoUrl or _envAnsible?.gitRepoUrl or "https://github.com/stuttgart-things/stage-time.git"
+                        ansibleWorkingImage = _ansible?.ansibleWorkingImage or _envAnsible?.ansibleWorkingImage or "ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test"
+                        ansibleCredentialsSecretName = _ansible?.credentialsSecretName or _envAnsible?.credentialsSecretName or "ansible-credentials"
+                        ansiblePlaybooks = _playbooks
+                        if len(_varsFile) > 0:
+                            ansibleVarsFile = _varsFile
+                        ansibleVarsInventory = _varsInventory
+                        wrapInCrossplane = _ansible?.wrapInCrossplane or True
+                        crossplaneObjectName = _pipelineRunName
+                        crossplaneNamespace = _namespace
+                        crossplaneProviderConfig = _ansible?.crossplaneProviderConfig or _envAnsible?.crossplaneProviderConfig or "in-cluster"
+                        if _ansible?.extraCollections and len(_ansible.extraCollections) > 0:
+                            installExtraCollections = "true"
+                            ansibleExtraCollections = _ansible.extraCollections
+                        if _ansible?.extraRoles and len(_ansible.extraRoles) > 0:
+                            installExtraRoles = "true"
+                            ansibleExtraRoles = _ansible.extraRoles
+                    }
+                }
+                _resources += [_ansibleRun]
+
+            items = _resources
 
     # -------------------------------------------------------------------------
     # Step 2: surface the VirtualMachine IP / MOID / power state onto the XR.
@@ -157,12 +214,19 @@ spec:
             _ap = _st?.atProvider or {}
             _ip = _ap?.defaultIpAddress or ""
 
+            # Ansible readiness (if an AnsibleRun was composed)
+            _ansibleEntries = [v.Resource?.status or {} for _, v in ocds if v.Resource?.kind == "AnsibleRun"]
+            _ansibleSt = _ansibleEntries[0] if len(_ansibleEntries) > 0 else {}
+            _ansibleConds = _ansibleSt?.conditions or []
+            _ansibleReady = len([c for c in _ansibleConds if c.type == "Ready" and c.status == "True"]) > 0
+
             _oxr = oxr | {
                 status = {
                     share = {
                         ip = [_ip] if _ip else []
                         moid = _ap?.moid or ""
                         powerState = _ap?.powerState or ""
+                        ansibleReady = _ansibleReady
                     }
                 }
             }

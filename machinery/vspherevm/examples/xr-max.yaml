@@ -28,3 +28,15 @@ spec:
     resourcePoolId: resgroup-8
     networkId: dvportgroup-2048
     folder: stuttgart-things/testing
+  # Optional base-OS provisioning: once the VM is Ready with an IP, an AnsibleRun
+  # is emitted with the inventory auto-populated to the VM IP. Requires the
+  # ansible-run cluster preconditions (Tekton, ansible-credentials Secret, an
+  # in-cluster provider-kubernetes config).
+  ansible:
+    enabled: true
+    playbooks:
+      - sthings.baseos.setup
+    varsFile:
+      - manage_filesystem+-true
+      - update_packages+-true
+    crossplaneProviderConfig: in-cluster

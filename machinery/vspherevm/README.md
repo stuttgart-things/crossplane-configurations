@@ -45,6 +45,32 @@ spec:
     disk: "40"
 ```
 
+## Ansible (optional)
+
+Set `spec.ansible.enabled: true` to run base-OS provisioning. Once the VM is
+Ready with an IP, the Composition emits an `AnsibleRun` (Tekton) whose inventory
+is auto-populated with the VM IP:
+
+```yaml
+spec:
+  environmentConfig: labda
+  vm:
+    name: vm1
+  ansible:
+    enabled: true
+    playbooks: [sthings.baseos.setup]
+    varsFile: [manage_filesystem+-true, update_packages+-true]
+    crossplaneProviderConfig: in-cluster
+```
+
+Shared fields (`playbooks`, `varsFile`, `gitRepoUrl`, `ansibleWorkingImage`,
+`credentialsSecretName`, `crossplaneProviderConfig`, `pipelineNamespace`) fall
+back to the EnvironmentConfig `ansible` sub-block when unset. This reuses the
+[`ansible-run`](../../cicd/ansible-run) Configuration and needs its preconditions
+on the cluster: Tekton, the ansible credentials Secret (default
+`ansible-credentials`), and an in-cluster `provider-kubernetes` config.
+`status.share.ansibleReady` reflects the run's readiness.
+
 ## Cluster preconditions
 
 - `provider-vspherevm` installed (declared as `dependsOn`; also see
