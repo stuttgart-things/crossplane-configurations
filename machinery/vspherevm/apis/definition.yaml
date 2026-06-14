@@ -61,6 +61,12 @@ spec:
                       type: string
                     annotation:
                       type: string
+                    domain:
+                      type: string
+                      description: |
+                        DNS domain for guest customization (sets the FQDN with
+                        the VM name as hostName). Defaults from the
+                        EnvironmentConfig `domain` or "localdomain".
                     templateUuid:
                       type: string
                     datastoreId:
