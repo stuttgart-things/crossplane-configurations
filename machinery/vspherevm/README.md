@@ -49,9 +49,12 @@ spec:
 
 - `provider-vspherevm` installed (declared as `dependsOn`; also see
   `examples/provider.yaml`).
-- A `ProviderConfig` (`vspherevm.stuttgart-things.com/v1beta1`) named per the
-  XR's `spec.providerConfigRef.name` (default `default`), pointing at a
-  `vsphere-creds` Secret in `crossplane-system`.
+- A `ClusterProviderConfig` (`vspherevm.m.stuttgart-things.com/v1beta1`) named
+  per the XR's `spec.providerConfigRef` (default kind `ClusterProviderConfig`,
+  name `default`), pointing at a `vsphere-creds` Secret in `crossplane-system`.
+  The Composition emits the namespaced (`.m`) `VirtualMachine` — a namespaced
+  composite cannot compose a cluster-scoped resource — so it references a `.m`
+  (Cluster)ProviderConfig. See `examples/clusterproviderconfig.yaml`.
   > ⚠️ The credentials JSON key MUST be `user`, **not** `username` — the provider
   > reads `creds["user"]`; a wrong key yields a misleading vCenter
   > `Cannot complete login due to an incorrect user name or password`.

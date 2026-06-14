@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/version: v0.1.1
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -46,10 +46,12 @@ metadata:
       ## Cluster preconditions
 
       - `provider-vspherevm` installed (declared as `dependsOn`).
-      - A `ProviderConfig` (`vspherevm.stuttgart-things.com/v1beta1`) named per
-        the XR's `spec.providerConfigRef.name` (default `default`) pointing at a
-        `vsphere-creds` Secret. The credentials JSON key MUST be `user` (not
-        `username`).
+      - A `ClusterProviderConfig` (`vspherevm.m.stuttgart-things.com/v1beta1`)
+        named per the XR's `spec.providerConfigRef` (default kind
+        `ClusterProviderConfig`, name `default`) pointing at a `vsphere-creds`
+        Secret. The composed VirtualMachine is the namespaced (`.m`) variant, so
+        it references a `.m` (Cluster)ProviderConfig. The credentials JSON key
+        MUST be `user` (not `username`).
       - The `EnvironmentConfig`(s) for the target environment(s).
 
       See the per-Configuration README for ready-to-apply manifests.
