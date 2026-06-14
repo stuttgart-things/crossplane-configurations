@@ -24,6 +24,7 @@ data:
   resourcePoolId: resgroup-8
   networkId: dvportgroup-2048
   folder: stuttgart-things/testing
+  domain: tiab.labda.sva.de
   firmware: bios
   guestId: ubuntu64Guest
   scsiType: pvscsi
@@ -46,6 +47,7 @@ data:
   resourcePoolId: resgroup-8
   networkId: dvportgroup-2048
   folder: stuttgart-things/testing
+  domain: tiab.labda.sva.de
   firmware: bios
   guestId: ubuntu64Guest
   scsiType: pvscsi
