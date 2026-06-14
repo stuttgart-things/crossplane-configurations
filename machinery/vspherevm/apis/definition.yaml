@@ -76,12 +76,19 @@ spec:
                 providerConfigRef:
                   type: object
                   description: |
-                    The provider-vspherevm ProviderConfig the VirtualMachine
-                    runs through. Defaults from the EnvironmentConfig
-                    (providerConfigName) or "default" when unset.
+                    The provider-vspherevm provider config the (namespaced)
+                    VirtualMachine runs through. `name` defaults from the
+                    EnvironmentConfig (providerConfigName) or "default"; `kind`
+                    defaults from the EnvironmentConfig (providerConfigKind) or
+                    "ClusterProviderConfig".
                   properties:
                     name:
                       type: string
+                    kind:
+                      type: string
+                      enum:
+                        - ClusterProviderConfig
+                        - ProviderConfig
                 environmentConfig:
                   type: string
                   description: |

@@ -57,6 +57,7 @@ spec:
 
             _spec = oxr.spec
             _name = oxr.metadata.name
+            _namespace = oxr.metadata.namespace or "default"
             _vm = _spec?.vm or {}
 
             # function-environment-configs merges the matched EnvironmentConfig
@@ -84,12 +85,17 @@ spec:
             _folder = _vm?.folder or _env?.folder or ""
 
             _providerConfigName = _spec?.providerConfigRef?.name or _env?.providerConfigName or "default"
+            _providerConfigKind = _spec?.providerConfigRef?.kind or _env?.providerConfigKind or "ClusterProviderConfig"
 
+            # Namespaced (".m") managed resource: a namespaced composite cannot
+            # compose a cluster-scoped resource, so emit the namespaced variant
+            # carrying the XR's namespace.
             _vmResource = {
-                apiVersion = "virtualmachine.vspherevm.stuttgart-things.com/v1alpha1"
+                apiVersion = "virtualmachine.vspherevm.m.stuttgart-things.com/v1alpha1"
                 kind = "VirtualMachine"
                 metadata = {
                     name = _name
+                    namespace = _namespace
                     annotations = {
                         "crossplane.io/composition-resource-name" = "vspherevm"
                     }
@@ -122,6 +128,7 @@ spec:
                         waitForGuestNetTimeout = int(_wait)
                     }
                     providerConfigRef = {
+                        kind = _providerConfigKind
                         name = _providerConfigName
                     }
                 }

@@ -1,0 +1,14 @@
+---
+# Cluster precondition for the namespaced (.m) VirtualMachine the Composition
+# emits. The credentials JSON key MUST be `user` (not `username`).
+apiVersion: vspherevm.m.stuttgart-things.com/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      name: vsphere-creds
+      namespace: crossplane-system
+      key: credentials
