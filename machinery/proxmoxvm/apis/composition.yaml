@@ -1,0 +1,307 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: proxmoxvm
+  labels:
+    crossplane.io/xrd: nativeproxmoxvms.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: NativeProxmoxVM
+  mode: Pipeline
+  pipeline:
+    # -------------------------------------------------------------------------
+    # Step 0: load the per-environment placement defaults from an EnvironmentConfig
+    # into the pipeline context. Selected by the CONFIG-SCOPED label
+    # `proxmoxvm.resources.stuttgart-things.com/environment`, value from the XR's
+    # `spec.environmentConfig` (default "default"). The key is namespaced to this
+    # Configuration so it never collides with another Configuration's
+    # EnvironmentConfig (function-environment-configs requires EXACTLY ONE
+    # Selector match). Offline `crossplane render` needs the EnvironmentConfig
+    # supplied via --extra-resources (the verify harness does this).
+    # -------------------------------------------------------------------------
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: proxmoxvm.resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    fromFieldPathPolicy: Optional
+
+    # -------------------------------------------------------------------------
+    # Step 1: render the native provider-proxmox-bpg EnvironmentVM. Per-VM fields
+    # come from the XR; placement defaults from the loaded EnvironmentConfig and
+    # are overridable per XR. Upjet encodes every Terraform block as a SINGLE-
+    # ELEMENT LIST, so cpu/memory/disk/networkDevice/clone/initialization are
+    # emitted as lists. Numeric provider fields are int()-converted.
+    # -------------------------------------------------------------------------
+    - step: render
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: render
+        spec:
+          source: | # pragma: allowlist secret
+            oxr = option("params").oxr
+            _ctx = option("params").ctx or {}
+            ocds = option("params").ocds or {}
+
+            _spec = oxr.spec
+            _name = oxr.metadata.name
+            _namespace = oxr.metadata.namespace or "default"
+            _vm = _spec?.vm or {}
+            _ci = _spec?.cloudInit or {}
+
+            # function-environment-configs merges the matched EnvironmentConfig
+            # data into the context under this well-known key.
+            _env = _ctx["apiextensions.crossplane.io/environment"] or {}
+
+            # --- per-VM intent (XRD defaults already applied for cpu/memory/disk) ---
+            _cpu = _vm?.cpu or "2"
+            _memory = _vm?.memory or "4096"
+            _disk = _vm?.disk or "64"
+
+            # QEMU guest agent: enabled unless explicitly set to false (needed
+            # for the VM IP to be reported back to status).
+            _agentSet = _vm?.agentEnabled
+            _agent = True if _agentSet == Undefined else _agentSet
+
+            # --- fields that fall back to the EnvironmentConfig, then a builtin ---
+            _cpuType = _vm?.cpuType or _env?.cpuType or "x86-64-v2-AES"
+            _osType = _vm?.osType or _env?.osType or "l26"
+            _bios = _vm?.bios or _env?.bios or "seabios"
+            _diskInterface = _vm?.diskInterface or _env?.diskInterface or "scsi0"
+            _networkModel = _vm?.networkModel or _env?.networkModel or "virtio"
+            _annotation = _vm?.annotation or _env?.annotation or "PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS"
+
+            # --- placement (EnvironmentConfig default, XR override) ---
+            _node = _vm?.node or _env?.node or ""
+            _datastore = _vm?.datastore or _env?.datastore or ""
+            _bridge = _vm?.bridge or _env?.bridge or "vmbr0"
+            _pool = _vm?.pool or _env?.pool or ""
+            _templateVmId = _vm?.templateVmId or _env?.templateVmId or ""
+            _vlanTag = _vm?.vlanTag or _env?.vlanTag or ""
+
+            _providerConfigName = _spec?.providerConfigRef?.name or _env?.providerConfigName or "default"
+            _providerConfigKind = _spec?.providerConfigRef?.kind or _env?.providerConfigKind or "ClusterProviderConfig"
+
+            # --- cloud-init (initialization) ---
+            _ipv4Address = _ci?.ipv4Address or "dhcp"
+            _ipv4cfg = {
+                address = _ipv4Address
+                if _ci?.ipv4Gateway:
+                    gateway = _ci.ipv4Gateway
+            }
+
+            _ciUser = _ci?.username or _env?.ciUsername or ""
+            _sshKeys = _ci?.sshKeys or []
+            _userAccount = {
+                if _ciUser != "":
+                    username = _ciUser
+                if len(_sshKeys) > 0:
+                    keys = _sshKeys
+                if _ci?.passwordSecretRef:
+                    passwordSecretRef = {
+                        name = _ci.passwordSecretRef.name
+                        namespace = _ci.passwordSecretRef.namespace
+                        key = _ci.passwordSecretRef.key
+                    }
+            }
+
+            _dns = {
+                if _ci?.dnsDomain:
+                    domain = _ci.dnsDomain
+                if _ci?.dnsServers and len(_ci.dnsServers) > 0:
+                    servers = _ci.dnsServers
+            }
+
+            _initialization = {
+                ipConfig = [{ ipv4 = [_ipv4cfg] }]
+                if _userAccount != {}:
+                    userAccount = [_userAccount]
+                if _dns != {}:
+                    dns = [_dns]
+            }
+
+            # Clone block (by numeric template VMID). Guarded so an offline
+            # render without a loaded EnvironmentConfig does not int("") -> error.
+            _cloneList = [{ vmId = int(_templateVmId), full = True }] if str(_templateVmId) != "" else []
+
+            # Network device (optional VLAN tag).
+            _networkDevice = {
+                bridge = _bridge
+                model = _networkModel
+                if str(_vlanTag) != "":
+                    vlanId = int(_vlanTag)
+            }
+
+            _forProvider = {
+                nodeName = _node
+                name = _name
+                description = _annotation
+                bios = _bios
+                started = True
+                stopOnDestroy = True
+                agent = [{ enabled = _agent }]
+                cpu = [{ cores = int(_cpu), type = _cpuType }]
+                memory = [{ dedicated = int(_memory) }]
+                operatingSystem = [{ type = _osType }]
+                disk = [{
+                    datastoreId = _datastore
+                    interface = _diskInterface
+                    size = int(_disk)
+                }]
+                networkDevice = [_networkDevice]
+                clone = _cloneList
+                initialization = [_initialization]
+                if _pool != "":
+                    poolId = _pool
+                if _vm?.vmId:
+                    vmId = int(_vm.vmId)
+            }
+
+            # Namespaced (".m") managed resource: a namespaced composite cannot
+            # compose a cluster-scoped resource, so emit the namespaced variant
+            # carrying the XR's namespace, referencing a ".m" (Cluster)ProviderConfig.
+            _vmResource = {
+                apiVersion = "virtualenvironmentvm.proxmoxbpg.m.crossplane.io/v1alpha1"
+                kind = "EnvironmentVM"
+                metadata = {
+                    name = _name
+                    namespace = _namespace
+                    annotations = {
+                        "crossplane.io/composition-resource-name" = "proxmoxvm"
+                    }
+                }
+                spec = {
+                    forProvider = _forProvider
+                    providerConfigRef = {
+                        kind = _providerConfigKind
+                        name = _providerConfigName
+                    }
+                }
+            }
+
+            _resources = [_vmResource]
+
+            # --- Optional Ansible base-OS provisioning ---
+            # Gated on the composed VM being Ready with an IP (read from ocds),
+            # so the AnsibleRun is only emitted once the VM can be reached. The
+            # inventory auto-populates with the VM IP unless overridden. Shared
+            # fields fall back to the EnvironmentConfig `ansible` sub-block.
+            _ansible = _spec?.ansible or {}
+            _envAnsible = _env?.ansible or {}
+            _ansibleEnabled = _ansible?.enabled or False
+
+            # Find the composed VM by KIND (ocds is keyed by composition-resource-name,
+            # which function-kcl derives from the resource's metadata.name — not a
+            # fixed key — so iterate rather than look up "proxmoxvm").
+            _vmEntries = [v.Resource for _, v in ocds if v?.Resource?.kind == "EnvironmentVM"]
+            _vmObserved = _vmEntries[0]?.status or {} if len(_vmEntries) > 0 else {}
+            # bpg exposes ipv4Addresses as a list-of-lists (one per interface).
+            # Flatten and drop loopback to find the reachable address.
+            _ipv4 = _vmObserved?.atProvider?.ipv4Addresses or []
+            _allIps = [ip for iface in _ipv4 for ip in iface if ip != "127.0.0.1"]
+            _vmIP = _allIps[0] if len(_allIps) > 0 else ""
+            _vmConds = _vmObserved?.conditions or []
+            _vmReady = len([c for c in _vmConds if c.type == "Ready" and c.status == "True"]) > 0
+
+            if _ansibleEnabled and _vmReady and _vmIP != "":
+                _playbooks = _ansible?.playbooks or _envAnsible?.playbooks or ["sthings.baseos.setup"]
+                _varsFile = _ansible?.varsFile or _envAnsible?.varsFile or []
+                _varsInventory = _ansible?.varsInventory or ['all+["{}"]'.format(_vmIP)]
+                _pipelineRunName = "{}-ansible".format(_name)
+
+                _ansibleRun = {
+                    apiVersion = "resources.stuttgart-things.com/v1alpha1"
+                    kind = "AnsibleRun"
+                    metadata = {
+                        name = "{}-ansible-run".format(_name)
+                        namespace = _namespace
+                        annotations = {
+                            "crossplane.io/composition-resource-name" = "ansible-run"
+                        }
+                    }
+                    spec = {
+                        pipelineRunName = _pipelineRunName
+                        namespace = _ansible?.pipelineNamespace or _envAnsible?.pipelineNamespace or "tekton-ci"
+                        gitRepoUrl = _ansible?.gitRepoUrl or _envAnsible?.gitRepoUrl or "https://github.com/stuttgart-things/stage-time.git"
+                        ansibleWorkingImage = _ansible?.ansibleWorkingImage or _envAnsible?.ansibleWorkingImage or "ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test"
+                        ansibleCredentialsSecretName = _ansible?.credentialsSecretName or _envAnsible?.credentialsSecretName or "ansible-credentials"
+                        ansiblePlaybooks = _playbooks
+                        if len(_varsFile) > 0:
+                            ansibleVarsFile = _varsFile
+                        ansibleVarsInventory = _varsInventory
+                        wrapInCrossplane = _ansible?.wrapInCrossplane or True
+                        crossplaneObjectName = _pipelineRunName
+                        crossplaneNamespace = _namespace
+                        crossplaneProviderConfig = _ansible?.crossplaneProviderConfig or _envAnsible?.crossplaneProviderConfig or "in-cluster"
+                        if _ansible?.extraCollections and len(_ansible.extraCollections) > 0:
+                            installExtraCollections = "true"
+                            ansibleExtraCollections = _ansible.extraCollections
+                        if _ansible?.extraRoles and len(_ansible.extraRoles) > 0:
+                            installExtraRoles = "true"
+                            ansibleExtraRoles = _ansible.extraRoles
+                    }
+                }
+                _resources += [_ansibleRun]
+
+            items = _resources
+
+    # -------------------------------------------------------------------------
+    # Step 2: surface the EnvironmentVM IP / VMID / power state onto the XR.
+    # -------------------------------------------------------------------------
+    - step: patch-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: patch-status
+        spec:
+          source: |
+            oxr = option("params").oxr
+            ocds = option("params").ocds
+
+            _entries = [v.Resource?.status or {} for _, v in ocds if v.Resource?.kind == "EnvironmentVM"]
+            _st = _entries[0] if len(_entries) > 0 else {}
+            _ap = _st?.atProvider or {}
+            _ipv4 = _ap?.ipv4Addresses or []
+            _allIps = [ip for iface in _ipv4 for ip in iface if ip != "127.0.0.1"]
+            _ip = _allIps[0] if len(_allIps) > 0 else ""
+
+            # Ansible readiness (if an AnsibleRun was composed)
+            _ansibleEntries = [v.Resource?.status or {} for _, v in ocds if v.Resource?.kind == "AnsibleRun"]
+            _ansibleSt = _ansibleEntries[0] if len(_ansibleEntries) > 0 else {}
+            _ansibleConds = _ansibleSt?.conditions or []
+            _ansibleReady = len([c for c in _ansibleConds if c.type == "Ready" and c.status == "True"]) > 0
+
+            _oxr = oxr | {
+                status = {
+                    share = {
+                        ip = [_ip] if _ip else []
+                        vmId = str(_ap?.vmId) if _ap?.vmId else ""
+                        started = _ap?.started or False
+                        ansibleReady = _ansibleReady
+                    }
+                }
+            }
+
+            items = [_oxr]
+
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

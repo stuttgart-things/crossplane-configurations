@@ -1,0 +1,12 @@
+---
+# Minimum example: only the XRD-required field (vm.name). cpu/memory/disk fall
+# back to XRD defaults (2 / 4096 / 64); all placement comes from the "default"
+# EnvironmentConfig (environmentConfig defaults to "default").
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeProxmoxVM
+metadata:
+  name: proxmoxvm-min
+  namespace: default
+spec:
+  vm:
+    name: proxmoxvm-min

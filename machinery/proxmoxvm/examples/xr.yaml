@@ -1,0 +1,18 @@
+---
+# Realistic "standard" usage: a single VM sized per spec, with all Proxmox
+# placement inherited from the "default" EnvironmentConfig. This is the
+# copy-paste template.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeProxmoxVM
+metadata:
+  name: proxmoxvm-test1
+  namespace: default
+spec:
+  environmentConfig: default
+  vm:
+    name: proxmoxvm-test1
+    cpu: "2"
+    memory: "4096"
+    disk: "64"
+  cloudInit:
+    ipv4Address: dhcp

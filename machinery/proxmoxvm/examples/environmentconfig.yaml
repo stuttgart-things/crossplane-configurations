@@ -1,0 +1,62 @@
+---
+# Shared per-environment placement for NativeProxmoxVM XRs.
+#
+# The `proxmoxvm` Composition selects an EnvironmentConfig via the config-scoped
+# label `proxmoxvm.resources.stuttgart-things.com/environment`, matched against
+# the XR's `spec.environmentConfig` (default "default"). The key is namespaced to
+# this Configuration so it never collides with another Configuration's
+# EnvironmentConfig (function-environment-configs requires EXACTLY ONE Selector
+# match). The `data` values are loaded into the pipeline context; anything set
+# explicitly on the XR spec wins over them.
+#
+# Unlike the OpenTofu `proxmox-vm` Configuration (which clones a template by
+# NAME), the native bpg provider clones by numeric VMID — set `templateVmId`
+# to the VMID of your prepared template (e.g. the VMID of `sthings-u26`).
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: proxmoxvm-defaults
+  labels:
+    proxmoxvm.resources.stuttgart-things.com/environment: default
+data:
+  node: ul-pve01
+  datastore: V5010-01-1
+  bridge: vmbrvlan
+  vlanTag: "102"
+  pool: stuttgart-things
+  templateVmId: "9000"          # VMID of the sthings-u26 template — replace
+  cpuType: x86-64-v2-AES
+  osType: l26
+  bios: seabios
+  diskInterface: scsi0
+  networkModel: virtio
+  annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
+  ciUsername: sthings
+  # provider-proxmox-bpg ProviderConfig the EnvironmentVM runs through.
+  providerConfigName: default
+  providerConfigKind: ClusterProviderConfig
+---
+# Same placement, exposed under the `labul` environment label so an XR can
+# select it explicitly with `spec.environmentConfig: labul` (see xr-max.yaml).
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: proxmoxvm-labul
+  labels:
+    proxmoxvm.resources.stuttgart-things.com/environment: labul
+data:
+  node: ul-pve01
+  datastore: V5010-01-1
+  bridge: vmbrvlan
+  vlanTag: "102"
+  pool: stuttgart-things
+  templateVmId: "9000"
+  cpuType: x86-64-v2-AES
+  osType: l26
+  bios: seabios
+  diskInterface: scsi0
+  networkModel: virtio
+  annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
+  ciUsername: sthings
+  providerConfigName: default
+  providerConfigKind: ClusterProviderConfig

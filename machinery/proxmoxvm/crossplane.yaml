@@ -1,0 +1,78 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: proxmoxvm
+  annotations:
+    # Local convention used by `task push` to bump and re-publish.
+    # Not a Crossplane-standard field — the true package version is the OCI tag.
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Provisions a Proxmox VE virtual machine from a namespaced
+      `NativeProxmoxVM` XR using the NATIVE `provider-proxmox-bpg` managed
+      `EnvironmentVM` resource (no Terraform/OpenTofu). Per-environment
+      placement (node, datastore, bridge, vlanTag, pool, templateVmId) is
+      loaded from a Crossplane `EnvironmentConfig`, so an XR only states intent
+      (name/cpu/memory/disk) and the topology is injected. Guest bootstrap is
+      done via cloud-init (`initialization`).
+    meta.crossplane.io/readme: |
+      # proxmoxvm
+
+      A Crossplane v2 Configuration that provisions a Proxmox VE VM from a
+      namespaced `NativeProxmoxVM` XR (group `resources.stuttgart-things.com`)
+      via the native [`provider-proxmox-bpg`](https://github.com/valkiriaaquatica/provider-proxmox-bpg)
+      managed `EnvironmentVM` resource.
+
+      This is the NATIVE-provider sibling of the OpenTofu-based `proxmox-vm`
+      Configuration. `proxmox-vm` runs the Telmate-based
+      `github.com/stuttgart-things/proxmox-vm` Terraform module inside an
+      OpenTofu `Workspace`; `proxmoxvm` reconciles a bpg `EnvironmentVM` managed
+      resource directly (built on `bpg/terraform-provider-proxmox`).
+
+      The Composition is a `function-kcl` pipeline:
+
+      - `load-environment` (`function-environment-configs`) loads the
+        per-environment placement, selected by the config-scoped label
+        `proxmoxvm.resources.stuttgart-things.com/environment`
+        (value from `spec.environmentConfig`).
+      - `render` (`function-kcl`) emits a native `EnvironmentVM`, taking
+        per-VM fields from the XR and placement from the loaded
+        EnvironmentConfig (XR spec overrides the EnvironmentConfig). Cloud-init
+        (`initialization`) replaces the legacy SSH remote-exec bootstrap. When
+        `spec.ansible.enabled`, it also emits an `AnsibleRun` once the VM is
+        Ready with an IP (inventory auto-populated with the VM IP).
+      - `patch-status` surfaces the VM IP / VMID / power state / ansibleReady.
+
+      ## Cluster preconditions
+
+      - `provider-proxmox-bpg` installed (declared as `dependsOn`).
+      - A `ClusterProviderConfig` (`proxmoxbpg.m.crossplane.io/v1beta1`) named
+        per the XR's `spec.providerConfigRef` (default kind
+        `ClusterProviderConfig`, name `default`) pointing at a Proxmox
+        credentials Secret. The composed EnvironmentVM is the namespaced (`.m`)
+        variant, so it references a `.m` (Cluster)ProviderConfig.
+      - The `EnvironmentConfig`(s) for the target environment(s).
+
+      See the per-Configuration README for ready-to-apply manifests.
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    # Native Proxmox VE provider (Upjet, built on bpg/terraform-provider-proxmox).
+    # Published on the Upbound mirror.
+    - provider: xpkg.upbound.io/valkiriaaquaticamendi/provider-proxmox-bpg
+      version: ">=v1.15.0,<v2.0.0"
+    # Functions used by this Configuration's Composition pipeline.
+    - function: xpkg.crossplane.io/crossplane-contrib/function-environment-configs
+      version: ">=v0.7.0,<v0.8.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
+      version: ">=v0.12.0,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"
+    # Optional base-OS provisioning: when spec.ansible.enabled, the Composition
+    # emits an AnsibleRun (from this Configuration) wired to the VM IP.
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/ansible-run
+      version: ">=v0.1.3"

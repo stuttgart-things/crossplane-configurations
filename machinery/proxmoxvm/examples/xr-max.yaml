@@ -1,0 +1,54 @@
+---
+# Maximum example: every spec field set, selecting the `labul` EnvironmentConfig
+# and overriding placement + tunables per VM (XR spec wins over the
+# EnvironmentConfig). Catches templating breakage.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeProxmoxVM
+metadata:
+  name: proxmoxvm-max
+  namespace: default
+spec:
+  environmentConfig: labul
+  providerConfigRef:
+    name: default
+    kind: ClusterProviderConfig
+  vm:
+    name: proxmoxvm-max
+    cpu: "8"
+    memory: "16384"
+    disk: "96"
+    agentEnabled: true
+    vmId: "131"
+    cpuType: x86-64-v2-AES
+    osType: l26
+    bios: seabios
+    diskInterface: scsi0
+    networkModel: virtio
+    annotation: "PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS"
+    # placement overrides (otherwise inherited from the labul EnvironmentConfig)
+    node: ul-pve01
+    datastore: V5010-01-1
+    bridge: vmbrvlan
+    vlanTag: "102"
+    pool: stuttgart-things
+    templateVmId: "9000"
+  cloudInit:
+    ipv4Address: dhcp
+    username: sthings
+    sshKeys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAExampleKeyReplaceMe user@sthings
+    dnsDomain: labul.sva.de
+    dnsServers:
+      - 10.31.103.1
+  # Optional base-OS provisioning: once the VM is Ready with an IP, an AnsibleRun
+  # is emitted with the inventory auto-populated to the VM IP. Requires the
+  # ansible-run cluster preconditions (Tekton, ansible-credentials Secret, an
+  # in-cluster provider-kubernetes config).
+  ansible:
+    enabled: true
+    playbooks:
+      - sthings.baseos.setup
+    varsFile:
+      - manage_filesystem+-true
+      - update_packages+-true
+    crossplaneProviderConfig: in-cluster

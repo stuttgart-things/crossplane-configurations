@@ -1,0 +1,236 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: nativeproxmoxvms.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: NativeProxmoxVM
+    plural: nativeproxmoxvms
+    singular: nativeproxmoxvm
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                vm:
+                  type: object
+                  description: |
+                    Per-VM settings. Placement fields (node, datastore, bridge,
+                    vlanTag, pool, templateVmId) and the
+                    cpuType/osType/bios/diskInterface/networkModel/annotation
+                    fields default from the selected EnvironmentConfig when unset
+                    here; set them explicitly to override per VM.
+                  properties:
+                    name:
+                      type: string
+                    cpu:
+                      type: string
+                      description: vCPU cores.
+                      default: "2"
+                    memory:
+                      type: string
+                      description: Dedicated memory in MiB.
+                      default: "4096"
+                    disk:
+                      type: string
+                      description: Root disk size in GB.
+                      default: "64"
+                    agentEnabled:
+                      type: boolean
+                      description: |
+                        Enable the QEMU guest agent. MUST be true (and the agent
+                        installed in the template) for the VM IP to be reported
+                        back onto status.share.ip.
+                      default: true
+                    vmId:
+                      type: string
+                      description: |
+                        Optional explicit VMID for the new VM. Omit to let
+                        Proxmox / the provider assign one.
+                    # --- fields below default from the EnvironmentConfig ---
+                    # No XRD default: leaving them unset lets the
+                    # EnvironmentConfig value win; setting them overrides it.
+                    cpuType:
+                      type: string
+                    osType:
+                      type: string
+                      description: Proxmox OS type (e.g. l26 for Linux 2.6+/3.x).
+                    bios:
+                      type: string
+                      description: Firmware — "seabios" or "ovmf".
+                    diskInterface:
+                      type: string
+                      description: Disk bus/interface (e.g. scsi0, virtio0).
+                    networkModel:
+                      type: string
+                      description: NIC model (e.g. virtio, e1000).
+                    annotation:
+                      type: string
+                      description: VM description/notes.
+                    node:
+                      type: string
+                      description: Proxmox node name (nodeName).
+                    datastore:
+                      type: string
+                      description: Datastore/storage id for the root disk.
+                    bridge:
+                      type: string
+                      description: Network bridge (e.g. vmbr0, vmbrvlan).
+                    vlanTag:
+                      type: string
+                      description: Optional VLAN tag for the NIC.
+                    pool:
+                      type: string
+                      description: Resource pool id (poolId).
+                    templateVmId:
+                      type: string
+                      description: |
+                        VMID of the template to clone. bpg clones by numeric
+                        VMID (not name) — resolve your template (e.g. sthings-u26)
+                        to its VMID and set it here or, preferably, on the
+                        EnvironmentConfig.
+                  required:
+                    - name
+                cloudInit:
+                  type: object
+                  description: |
+                    Cloud-init (Proxmox `initialization`) settings — replaces the
+                    legacy SSH remote-exec bootstrap. The guest hostname is set
+                    from the VM name by Proxmox cloud-init.
+                  properties:
+                    ipv4Address:
+                      type: string
+                      description: IPv4 config — "dhcp" or CIDR (e.g. 10.0.0.5/24).
+                      default: dhcp
+                    ipv4Gateway:
+                      type: string
+                    username:
+                      type: string
+                      description: |
+                        Default cloud-init user. Falls back to the
+                        EnvironmentConfig `ciUsername` when unset.
+                    sshKeys:
+                      type: array
+                      items:
+                        type: string
+                    passwordSecretRef:
+                      type: object
+                      description: |
+                        Reference to a Secret key holding the cloud-init user
+                        password (provider reads it at apply time).
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                        key:
+                          type: string
+                      required:
+                        - name
+                        - namespace
+                        - key
+                    dnsDomain:
+                      type: string
+                    dnsServers:
+                      type: array
+                      items:
+                        type: string
+                providerConfigRef:
+                  type: object
+                  description: |
+                    The provider-proxmox-bpg provider config the (namespaced)
+                    EnvironmentVM runs through. `name` defaults from the
+                    EnvironmentConfig (providerConfigName) or "default"; `kind`
+                    defaults from the EnvironmentConfig (providerConfigKind) or
+                    "ClusterProviderConfig".
+                  properties:
+                    name:
+                      type: string
+                    kind:
+                      type: string
+                      enum:
+                        - ClusterProviderConfig
+                        - ProviderConfig
+                ansible:
+                  type: object
+                  description: |
+                    Optional base-OS provisioning. When `enabled: true`, once the
+                    VM is Ready with an IP the Composition emits an `AnsibleRun`
+                    (Tekton) whose inventory is auto-populated with the VM IP.
+                    Shared fields (playbooks, varsFile, gitRepoUrl,
+                    ansibleWorkingImage, credentialsSecretName,
+                    crossplaneProviderConfig, pipelineNamespace) default from the
+                    EnvironmentConfig `ansible` sub-block when unset here.
+                    Requires the ansible-run preconditions on the cluster (Tekton,
+                    the credentials Secret, an in-cluster provider-kubernetes
+                    config).
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                    playbooks:
+                      type: array
+                      items:
+                        type: string
+                    varsFile:
+                      type: array
+                      items:
+                        type: string
+                    varsInventory:
+                      type: array
+                      items:
+                        type: string
+                    extraCollections:
+                      type: array
+                      items:
+                        type: string
+                    extraRoles:
+                      type: array
+                      items:
+                        type: string
+                    gitRepoUrl:
+                      type: string
+                    pipelineNamespace:
+                      type: string
+                    ansibleWorkingImage:
+                      type: string
+                    credentialsSecretName:
+                      type: string
+                    crossplaneProviderConfig:
+                      type: string
+                    wrapInCrossplane:
+                      type: boolean
+                environmentConfig:
+                  type: string
+                  description: |
+                    Selects the Crossplane EnvironmentConfig that provides the
+                    shared per-environment placement defaults. The Composition
+                    matches an EnvironmentConfig carrying the config-scoped label
+                    `proxmoxvm.resources.stuttgart-things.com/environment=<value>`.
+                    Supported `data` keys: node, datastore, bridge, vlanTag, pool,
+                    templateVmId, cpuType, osType, bios, diskInterface,
+                    networkModel, annotation, ciUsername, providerConfigName,
+                    providerConfigKind, and an optional `ansible` sub-block. Any
+                    value set explicitly on this XR's spec overrides the
+                    EnvironmentConfig.
+                  default: default
+              required:
+                - vm
+            status:
+              description: A Status represents the observed state.
+              type: object
+              properties:
+                share:
+                  description: Freeform field containing status information.
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true

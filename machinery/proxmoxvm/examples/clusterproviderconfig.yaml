@@ -1,0 +1,33 @@
+---
+# Cluster precondition for the namespaced (.m) EnvironmentVM the Composition
+# emits. The Secret's `credentials` value is a JSON blob whose keys map to the
+# bpg provider config (see internal/clients/proxmoxbpg.go::buildConfiguration):
+#   endpoint, api_token | username + password, insecure, auth_ticket,
+#   csrf_prevention_token, tmp_dir, random_vm_id*, and an ssh block
+#   (ssh_username / ssh_password / ssh_private_key).
+# Token auth shown here; swap for username/password if preferred.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: proxmox-creds
+  namespace: crossplane-system
+type: Opaque
+stringData:
+  credentials: | # pragma: allowlist secret
+    {
+      "endpoint": "https://ul-pve01.labul.sva.de:8006/",
+      "api_token": "user@pam!tokenid=00000000-0000-0000-0000-000000000000",
+      "insecure": true
+    }
+---
+apiVersion: proxmoxbpg.m.crossplane.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      name: proxmox-creds
+      namespace: crossplane-system
+      key: credentials
