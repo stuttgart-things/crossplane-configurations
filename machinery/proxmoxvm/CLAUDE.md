@@ -26,7 +26,13 @@ Configuration, mirroring `vspherevm`'s relationship to `vsphere-vm`.
   behavioural difference from the Telmate `proxmox-vm` module. Supplied via
   EnvironmentConfig `templateVmId` (or per-XR `spec.vm.templateVmId`). The clone
   list is guarded (`[] if templateVmId == ""`) so offline render does not
-  `int("")`.
+  `int("")`. LabUL `sthings-u26` = **VMID 110** on `ul-pve01`.
+- **Template gotchas (baked into the examples):** the `sthings-u26` root disk is
+  on **`virtio0`** (not `scsi0`) — `diskInterface` defaults to `virtio0`. The
+  Packer templates carry **no cloud-init drive**, so bpg adds one on clone and
+  needs a datastore: `initialization.datastoreId` defaults to the root disk's
+  datastore (`_ciDatastore = _ci?.datastoreId or _datastore`), overridable via
+  `spec.cloudInit.datastoreId`.
 
 ## Composition pipeline (`apis/composition.yaml`)
 1. **`load-environment`** (`function-environment-configs`) — config-scoped label

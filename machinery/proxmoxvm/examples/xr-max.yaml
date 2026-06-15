@@ -19,10 +19,10 @@ spec:
     disk: "96"
     agentEnabled: true
     vmId: "131"
-    cpuType: x86-64-v2-AES
+    cpuType: host
     osType: l26
     bios: seabios
-    diskInterface: scsi0
+    diskInterface: virtio0
     networkModel: virtio
     annotation: "PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS"
     # placement overrides (otherwise inherited from the labul EnvironmentConfig)
@@ -31,9 +31,10 @@ spec:
     bridge: vmbrvlan
     vlanTag: "102"
     pool: stuttgart-things
-    templateVmId: "9000"
+    templateVmId: "110"
   cloudInit:
     ipv4Address: dhcp
+    datastoreId: V5010-01-1
     username: sthings
     sshKeys:
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAExampleKeyReplaceMe user@sthings

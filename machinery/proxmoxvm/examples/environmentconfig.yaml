@@ -21,14 +21,14 @@ metadata:
 data:
   node: ul-pve01
   datastore: V5010-01-1
-  bridge: vmbrvlan
-  vlanTag: "102"
+  bridge: vmbrvlan          # VLAN-trunk bridge; template ships on vmbr0/untagged
+  vlanTag: "102"            # 10.31.102.0/24
   pool: stuttgart-things
-  templateVmId: "9000"          # VMID of the sthings-u26 template — replace
-  cpuType: x86-64-v2-AES
+  templateVmId: "110"       # VMID of the sthings-u26 template (ul-pve01)
+  cpuType: host
   osType: l26
   bios: seabios
-  diskInterface: scsi0
+  diskInterface: virtio0    # sthings-u26 root disk is on virtio0, NOT scsi0
   networkModel: virtio
   annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
   ciUsername: sthings
@@ -50,11 +50,11 @@ data:
   bridge: vmbrvlan
   vlanTag: "102"
   pool: stuttgart-things
-  templateVmId: "9000"
-  cpuType: x86-64-v2-AES
+  templateVmId: "110"
+  cpuType: host
   osType: l26
   bios: seabios
-  diskInterface: scsi0
+  diskInterface: virtio0
   networkModel: virtio
   annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
   ciUsername: sthings

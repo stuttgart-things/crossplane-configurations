@@ -53,10 +53,23 @@ spec:
 ## Template VMID (clone)
 
 The bpg provider clones a template by its **numeric VMID**, not its name. Resolve
-your prepared template (e.g. `sthings-u26`) to its VMID and set it on the
-EnvironmentConfig (`templateVmId`) — or per XR via `spec.vm.templateVmId`. This is
-the one behavioural difference from the Telmate-based `proxmox-vm` module, which
-clones by name.
+your prepared template to its VMID and set it on the EnvironmentConfig
+(`templateVmId`) — or per XR via `spec.vm.templateVmId`. This is the one
+behavioural difference from the Telmate-based `proxmox-vm` module, which clones by
+name. In the LabUL fleet, `sthings-u26` is **VMID 110** on `ul-pve01` (the example
+EnvironmentConfig is set accordingly).
+
+Two template-specific gotchas the example values already account for:
+
+- **Disk bus is `virtio0`, not `scsi0`.** The `sthings-u26` root disk lives on
+  `virtio0`; a `scsi0` `diskInterface` would target a non-existent disk on clone.
+  The EnvironmentConfig defaults `diskInterface: virtio0`.
+- **The Packer templates ship no cloud-init drive.** When `spec.cloudInit` is set,
+  bpg adds a cloud-init drive on clone, which needs a datastore. The Composition
+  defaults `initialization.datastoreId` to the root disk's datastore; override via
+  `spec.cloudInit.datastoreId`. (The Telmate path instead provisions over SSH via
+  Ansible — key-based cloud-init is a newer path for these templates, so validate
+  it on first use.)
 
 ## IP surfacing (`status.share.ip`)
 

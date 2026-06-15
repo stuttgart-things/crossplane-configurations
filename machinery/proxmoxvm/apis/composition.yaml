@@ -127,8 +127,15 @@ spec:
                     servers = _ci.dnsServers
             }
 
+            # bpg adds a cloud-init drive on clone (the stuttgart-things Packer
+            # templates ship none), so it needs a datastore. Default to the root
+            # disk's datastore; override via spec.cloudInit.datastoreId.
+            _ciDatastore = _ci?.datastoreId or _datastore or ""
+
             _initialization = {
                 ipConfig = [{ ipv4 = [_ipv4cfg] }]
+                if _ciDatastore != "":
+                    datastoreId = _ciDatastore
                 if len(_userAccount) > 0:
                     userAccount = [_userAccount]
                 if len(_dns) > 0:

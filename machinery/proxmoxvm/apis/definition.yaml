@@ -114,6 +114,12 @@ spec:
                       default: dhcp
                     ipv4Gateway:
                       type: string
+                    datastoreId:
+                      type: string
+                      description: |
+                        Datastore for the cloud-init drive bpg adds on clone (the
+                        stuttgart-things Packer templates have no cloud-init
+                        disk). Defaults to the root disk's datastore when unset.
                     username:
                       type: string
                       description: |
