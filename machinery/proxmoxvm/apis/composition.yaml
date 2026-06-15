@@ -86,6 +86,21 @@ spec:
             _networkModel = _vm?.networkModel or _env?.networkModel or "virtio"
             _annotation = _vm?.annotation or _env?.annotation or "PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS"
 
+            # --- SMBIOS (PegaProxManagment workaround, see README "SMBIOS") ---
+            # The LabUL Proxmox node runs PegaProx's "SMBIOS Auto-Configurator", a
+            # systemd service that stamps every NEW VM with PLAIN-TEXT smbios1
+            # (manufacturer=Proxmox,product=PegaProxManagment,version,serial,family,
+            # no base64=1 flag). bpg base64-decodes those SMBIOS fields on EVERY read,
+            # so a plain-text stamp makes every clone fail observe/refresh with
+            # "illegal base64 data at input byte N" — the VM boots but never goes Ready
+            # and delete blocks. We can't change the node, so we emit our own smbios
+            # block: bpg then writes smbios1 with base64=1 during create (decodes
+            # cleanly on read), AND PegaProx skips the VM afterwards — its
+            # needs_smbios_update() leaves any VM that already has SMBIOS keys alone.
+            # Overridable via EnvironmentConfig (smbiosManufacturer / smbiosProduct).
+            _smbiosManufacturer = _env?.smbiosManufacturer or "stuttgart-things"
+            _smbiosProduct = _env?.smbiosProduct or "crossplane-proxmoxvm"
+
             # --- placement (EnvironmentConfig default, XR override) ---
             _node = _vm?.node or _env?.node or ""
             _datastore = _vm?.datastore or _env?.datastore or ""
@@ -173,6 +188,9 @@ spec:
                 networkDevice = [_networkDevice]
                 clone = _cloneList
                 initialization = [_initialization]
+                # bpg stores this base64-encoded (base64=1), which it can read back
+                # and which makes PegaProx's auto-configurator skip the VM.
+                smbios = [{ manufacturer = _smbiosManufacturer, product = _smbiosProduct }]
                 if _pool != "":
                     poolId = _pool
                 if _vm?.vmId:

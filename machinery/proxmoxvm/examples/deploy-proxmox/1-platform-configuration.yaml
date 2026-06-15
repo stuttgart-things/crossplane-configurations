@@ -1,4 +1,6 @@
 ---
+# Installs the proxmoxvm Configuration. Its dependsOn pulls provider-proxmox-bpg
+# and the pipeline Functions — no separate Provider/Function installs needed.
 apiVersion: pkg.crossplane.io/v1
 kind: Configuration
 metadata:

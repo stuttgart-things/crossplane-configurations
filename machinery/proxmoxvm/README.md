@@ -70,6 +70,26 @@ Two template-specific gotchas the example values already account for:
   `spec.cloudInit.datastoreId`. (The Telmate path instead provisions over SSH via
   Ansible — key-based cloud-init is a newer path for these templates, so validate
   it on first use.)
+## SMBIOS (`PegaProxManagment` / bpg `illegal base64 data`)
+
+bpg base64-decodes the SMBIOS type1 fields (`manufacturer`/`product`/`version`/
+`serial`/`family`) on **every** read. The LabUL Proxmox node (`ul-pve01`) is managed
+by **[PegaProx](https://github.com/PegaProx/project-pegaprox)**, whose *SMBIOS
+Auto-Configurator* — a systemd service on the node — stamps every **new** VM with
+**plain-text** `smbios1` (`manufacturer=Proxmox,product=PegaProxManagment,version=v1,
+serial=PVE…,family=ProxmoxVE`, no `base64=1` flag). Because it fires on each new VMID,
+it hits every bpg **clone**, so without mitigation every VM fails `observe`/`refresh`
+with `illegal base64 data at input byte N` (one per plain field) — the VM boots but
+never reaches Ready, and delete blocks.
+
+**Mitigation (built into the Composition):** the `render` step emits an explicit
+`smbios` block (`manufacturer`/`product`) on the `EnvironmentVM`. bpg stores it
+**base64-encoded** (`base64=1`) during create — which it reads back cleanly — and
+PegaProx then **skips** the VM (its `needs_smbios_update()` leaves any VM that already
+has SMBIOS keys alone). Override the values via the EnvironmentConfig
+(`smbiosManufacturer` / `smbiosProduct`). This is a workaround for the node-level
+PegaProx behaviour, which we don't control; the root-cause fix would be to disable or
+base64-enable PegaProx's auto-configurator on the node.
 
 ## IP surfacing (`status.share.ip`)
 
@@ -109,6 +129,10 @@ on the cluster: Tekton, the ansible credentials Secret (default
   > `ssh_private_key`). bpg uses SSH to the node for some operations (e.g.
   > uploading cloud-init snippets), so SSH creds may be required depending on
   > the flow.
+  > **All values are strings** — `insecure` must be `"true"`/`"false"` (a bare
+  > JSON bool fails with `cannot unmarshal bool into Go value of type string`).
+  > **`endpoint`** is the bare base URL (`https://host:8006/`) — do *not* append
+  > `/api2/json`. **`username`** is realm-qualified (e.g. `phermann@LabUL`).
 - The `EnvironmentConfig`(s) for the target environment(s) — see
   `examples/environmentconfig.yaml`.
 

@@ -6,6 +6,10 @@
 #   csrf_prevention_token, tmp_dir, random_vm_id*, and an ssh block
 #   (ssh_username / ssh_password / ssh_private_key).
 # Token auth shown here; swap for username/password if preferred.
+# NOTE: `insecure` MUST be a JSON string ("true"), not a bool — the bpg client
+# unmarshals every credential value into a Go string; a bare `true` fails with
+# `cannot unmarshal bool into Go value of type string`. Same for the `endpoint`:
+# use the bare base URL (no /api2/json suffix).
 apiVersion: v1
 kind: Secret
 metadata:
@@ -17,7 +21,7 @@ stringData:
     {
       "endpoint": "https://ul-pve01.labul.sva.de:8006/",
       "api_token": "user@pam!tokenid=00000000-0000-0000-0000-000000000000",
-      "insecure": true
+      "insecure": "true"
     }
 ---
 apiVersion: proxmoxbpg.m.crossplane.io/v1beta1

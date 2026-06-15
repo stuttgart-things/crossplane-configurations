@@ -1,0 +1,30 @@
+---
+# Per-environment placement, selected by the config-scoped label
+# proxmoxvm.resources.stuttgart-things.com/environment (here: labul). The XR's
+# spec.environmentConfig must match this value. Unlike the OpenTofu proxmox-vm
+# Configuration (clone by NAME), the native bpg provider clones by numeric
+# VMID — set `templateVmId` to the VMID of your prepared template. Values below
+# are LabUL placement (sthings-u26 = VMID 110 on ul-pve01).
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: proxmoxvm-labul
+  labels:
+    proxmoxvm.resources.stuttgart-things.com/environment: labul
+data:
+  node: ul-pve01
+  datastore: V5010-01-1
+  bridge: vmbrvlan          # VLAN-trunk bridge; template ships on vmbr0/untagged
+  vlanTag: "102"            # 10.31.102.0/24
+  pool: stuttgart-things
+  templateVmId: "110"       # VMID of the sthings-u26 template (ul-pve01)
+  cpuType: host
+  osType: l26
+  bios: seabios
+  diskInterface: virtio0    # sthings-u26 root disk is on virtio0, NOT scsi0
+  networkModel: virtio
+  annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
+  ciUsername: sthings
+  # provider-proxmox-bpg ProviderConfig the EnvironmentVM runs through.
+  providerConfigName: default
+  providerConfigKind: ClusterProviderConfig

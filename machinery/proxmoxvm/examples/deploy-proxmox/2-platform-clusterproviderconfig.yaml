@@ -1,0 +1,14 @@
+---
+# The Composition emits the namespaced (.m) EnvironmentVM, which references a
+# .m (Cluster)ProviderConfig. Points at the proxmox-creds Secret (5-...).
+apiVersion: proxmoxbpg.m.crossplane.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      name: proxmox-creds
+      namespace: crossplane-system
+      key: credentials

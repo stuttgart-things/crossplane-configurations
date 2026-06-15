@@ -33,6 +33,26 @@ Configuration, mirroring `vspherevm`'s relationship to `vsphere-vm`.
   needs a datastore: `initialization.datastoreId` defaults to the root disk's
   datastore (`_ciDatastore = _ci?.datastoreId or _datastore`), overridable via
   `spec.cloudInit.datastoreId`.
+- **SMBIOS / PegaProx `illegal base64 data` (live-test blocker, 2026-06-15;
+  mitigation in the Composition).** bpg base64-decodes the SMBIOS type1 fields
+  (manufacturer/product/version/serial/family) on **every** read. The LabUL node
+  `ul-pve01` is managed by **PegaProx** (github.com/PegaProx/project-pegaprox),
+  whose *SMBIOS Auto-Configurator* — a systemd service on the node — stamps every
+  NEW VMID with PLAIN-TEXT `smbios1` (`manufacturer=Proxmox,product=PegaProxManagment,
+  version=v1,serial=PVE<ts>,family=ProxmoxVE`, no `base64=1`). It fires on each new
+  VMID, so it hits every bpg **clone** → `observe`/`refresh` fails with N×
+  `illegal base64 data at input byte N` (the VM boots but never goes Ready, delete
+  blocks). NOT set by Packer/dagger/the hashicorp proxmox plugin — confirmed via
+  `qm` config (`smbios1`) + GitHub code search (`PegaProxManagment` exists only in
+  the PegaProx repo); its `serial` timestamp post-dates the Packer build. We can't
+  touch the node, so the **`render` KCL emits an `smbios` block** (`manufacturer`/
+  `product`, defaults `stuttgart-things`/`crossplane-proxmoxvm`, overridable via
+  EnvironmentConfig `smbiosManufacturer`/`smbiosProduct`): bpg writes it `base64=1`
+  on create (reads back fine) AND PegaProx then **skips** the VM —
+  `needs_smbios_update()` leaves any VM that already has SMBIOS keys alone. This
+  bpg version's CRD has **no `base64` toggle** in the smbios schema; bpg always
+  encodes when a block is present. Validated: vmid 144 reached Ready and survived
+  re-observes.
 
 ## Composition pipeline (`apis/composition.yaml`)
 1. **`load-environment`** (`function-environment-configs`) — config-scoped label
@@ -62,7 +82,8 @@ agentEnabled, cloudInit.ipv4Address) carry XRD defaults.
 ## EnvironmentConfig data keys
 `node, datastore, bridge, vlanTag, pool, templateVmId, cpuType, osType, bios,
 diskInterface, networkModel, annotation, ciUsername, providerConfigName,
-providerConfigKind`, plus an optional `ansible` sub-block. See
+providerConfigKind`, optional `smbiosManufacturer` / `smbiosProduct` (PegaProx
+workaround override), plus an optional `ansible` sub-block. See
 `examples/environmentconfig.yaml` (values are LabUL placeholders — set the real
 `templateVmId` before cluster use).
 
@@ -73,6 +94,22 @@ top-level `endpoint, username, password, api_token, auth_ticket,
 csrf_prevention_token, insecure, tmp_dir, random_vm_id*`; SSH block
 `ssh_username / ssh_password / ssh_private_key`. bpg may need SSH to the node
 for cloud-init snippet uploads / some disk paths — validate per flow.
+
+**Credential JSON gotchas (validated against LabUL 2026-06-15):**
+- **Every value is a string.** `buildConfiguration` unmarshals each into a Go
+  string, so `insecure` MUST be `"true"`/`"false"` — a bare JSON bool `true`
+  fails the whole connect with `cannot unmarshal bool into Go value of type
+  string` (looks like an apply/observe error, not a creds error). The repo
+  examples were wrong (bool) and are now fixed.
+- **`endpoint` is the bare base URL** (`https://host:8006/`). bpg appends
+  `/api2/json` itself; a `…:8006/api2/json` value is tolerated but non-standard.
+- **`username` is realm-qualified**, e.g. `phermann@LabUL` (realm `LabUL` is a
+  real PVE realm here — `pam`/`pve` return 401).
+- ESO path (deploy-proxmox bundle) maps Vault KV `cicd-proxmox-labul`/`default`:
+  `pve_api_url→endpoint, pve_api_user→username, pve_api_password→password,
+  vm_ssh_user→ssh_username, vm_ssh_password→ssh_password`. CSS reuses the live
+  `vault-cicd-vsphere-labul` coords (same Vault server, `test-k3s-eso` auth mount)
+  with the path swapped.
 
 ## Local render
 `crossplane render` does NOT resolve EnvironmentConfigs from a cluster — pass

@@ -1,0 +1,18 @@
+---
+# The request: a small Proxmox VM on LabUL. Placement (node/datastore/bridge/
+# vlanTag/pool/templateVmId) comes from the labul EnvironmentConfig (3-...); this
+# is the only file a VM consumer edits.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeProxmoxVM
+metadata:
+  name: proxmoxvm-test1
+  namespace: proxmox-vms
+spec:
+  environmentConfig: labul
+  vm:
+    name: proxmoxvm-test1
+    cpu: "2"
+    memory: "4096"
+    disk: "64"
+  cloudInit:
+    ipv4Address: dhcp

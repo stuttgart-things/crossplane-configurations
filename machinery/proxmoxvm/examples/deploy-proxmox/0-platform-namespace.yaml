@@ -1,0 +1,8 @@
+---
+# Namespace for the NativeProxmoxVM XR(s). The provider EnvironmentVM (.m,
+# namespaced) is composed into this namespace. The proxmox-creds Secret lives in
+# crossplane-system (see 5-...), referenced by the cluster-scoped ProviderConfig.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: proxmox-vms
