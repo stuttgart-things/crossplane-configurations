@@ -129,9 +129,9 @@ spec:
 
             _initialization = {
                 ipConfig = [{ ipv4 = [_ipv4cfg] }]
-                if _userAccount != {}:
+                if len(_userAccount) > 0:
                     userAccount = [_userAccount]
-                if _dns != {}:
+                if len(_dns) > 0:
                     dns = [_dns]
             }
 
