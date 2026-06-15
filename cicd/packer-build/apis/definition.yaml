@@ -1,0 +1,273 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: packerbuilds.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: PackerBuild
+    plural: packerbuilds
+    singular: packerbuild
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                # Pipeline Configuration
+                pipelineRunName:
+                  type: string
+                  description: Name of the Tekton PipelineRun
+                namespace:
+                  type: string
+                  description: Namespace where the pipeline will run
+                  default: tekton-ci
+
+                # Storage Configuration
+                storageSize:
+                  type: string
+                  description: Size of the PipelineRun workspace volume
+                  default: "5Gi"
+                storageAccessModes:
+                  type: string
+                  description: Storage access mode
+                  default: ReadWriteOnce
+                  enum: ["ReadWriteOnce", "ReadWriteMany", "ReadOnlyMany"]
+                storageClass:
+                  type: string
+                  description: |
+                    StorageClass for the PipelineRun workspace PVC. When
+                    unset, the KCL module's default ("openebs-hostpath")
+                    is used. Override on clusters whose default SC differs.
+
+                # Packer Configuration
+                packerWorkingImage:
+                  type: string
+                  description: |
+                    Packer working container image. Intentionally has NO
+                    XRD default: an XRD default is applied by the API server
+                    BEFORE the Composition runs, so it would always look like
+                    an explicit XR value and mask the EnvironmentConfig's
+                    `packerWorkingImage`. With no default the precedence is
+                    explicit XR value > EnvironmentConfig > KCL module default.
+                packerAction:
+                  type: string
+                  description: Packer action to perform
+                  default: build
+                  enum: ["init", "validate", "build"]
+                packerTemplate:
+                  type: string
+                  description: Packer template file or directory to act on
+                  default: "."
+                packerOnly:
+                  type: string
+                  description: Comma-separated build sources to restrict to (packer -only)
+                packerForce:
+                  type: string
+                  description: Force a build, overwriting existing artifacts (packer -force)
+                  default: "false"
+                  enum: ["true", "false"]
+                packerRunInit:
+                  type: string
+                  description: Run "packer init" before validate/build
+                  default: "true"
+                  enum: ["true", "false"]
+                packerVars:
+                  type: array
+                  description: Extra variables, list of key+-value (written to *.auto.pkrvars.hcl)
+                  items:
+                    type: string
+                packerVarsFile:
+                  type: string
+                  description: pkrvars file as base64 (merged via *.auto.pkrvars.hcl)
+                packerInitExtraArgs:
+                  type: string
+                  description: Extra arguments passed to packer init
+                packerBuildExtraArgs:
+                  type: string
+                  description: Extra arguments passed to packer validate/build
+                packerLog:
+                  type: string
+                  description: Enable packer debug logging (1 to enable, empty to disable)
+
+                # Pipeline definition location (where build-packer-template.yaml lives).
+                # DISTINCT from the template source repo below.
+                pipelineRepoUrl:
+                  type: string
+                  description: Git repo holding the pipeline definition
+                  default: https://github.com/stuttgart-things/stage-time.git
+                pipelineRevision:
+                  type: string
+                  description: |
+                    Git branch/revision of the pipeline definition repo. No XRD
+                    default on purpose so the EnvironmentConfig's
+                    `pipelineRevision` is authoritative (an XRD default would
+                    mask it); precedence is explicit XR value >
+                    EnvironmentConfig > KCL module default.
+                pipelinePath:
+                  type: string
+                  description: Path to the pipeline file in the pipeline repo
+                  default: pipelines/build-packer-template.yaml
+
+                # Template source repo (the *.pkr.hcl the pipeline checks out)
+                gitRepoUrl:
+                  type: string
+                  description: Git repository URL holding the packer templates
+                  default: https://github.com/stuttgart-things/stuttgart-things.git
+                gitRevision:
+                  type: string
+                  description: |
+                    Git branch/revision of the template source repo. No XRD
+                    default on purpose so the EnvironmentConfig's `gitRevision`
+                    is authoritative; precedence is explicit XR value >
+                    EnvironmentConfig > KCL module default.
+                gitWorkspaceSubdirectory:
+                  type: string
+                  description: |
+                    Subdirectory in the template repo to build. When unset but
+                    osVersion+lab+provisioning are given, it is composed as
+                    `packer/builds/<osVersion>-<lab>-vsphere-<provisioning>`.
+
+                # High-level build selectors (compose gitWorkspaceSubdirectory)
+                osVersion:
+                  type: string
+                  description: OS version selector (e.g. ubuntu24, rocky9)
+                lab:
+                  type: string
+                  description: Lab/environment selector (e.g. labul, labda)
+                provisioning:
+                  type: string
+                  description: Ansible provisioning profile selector (e.g. base-os, rke2-node)
+
+                # Credentials
+                credentialsSecretName:
+                  type: string
+                  description: |
+                    Name of the secret with builder credentials (keys injected
+                    as env vars). No XRD default on purpose so the
+                    EnvironmentConfig's `credentialsSecretName` is authoritative.
+                vaultSecretName:
+                  type: string
+                  description: Name of the Vault secret (approle/token)
+                  default: vault
+                userHome:
+                  type: string
+                  description: Absolute path to the user's home directory
+                  default: /home/nonroot
+
+                # Environment / shared defaults
+                environmentConfig:
+                  type: string
+                  description: |
+                    Selects the Crossplane EnvironmentConfig that provides
+                    shared per-environment defaults. The Composition matches
+                    an EnvironmentConfig carrying the config-scoped label
+                    `packer-build.resources.stuttgart-things.com/environment=<value>`.
+                    Supported `data` keys: pipelineRepoUrl, pipelineRevision,
+                    pipelinePath, gitRepoUrl, storageClass, packerWorkingImage,
+                    namespace, credentialsSecretName, lab. Any value set
+                    explicitly on this XR's spec overrides the EnvironmentConfig.
+                  default: default
+
+                # Crossplane Configuration
+                wrapInCrossplane:
+                  type: boolean
+                  description: Whether to wrap the pipeline in Crossplane
+                  default: true
+                crossplaneObjectName:
+                  type: string
+                  description: Name of the Crossplane object
+                crossplaneNamespace:
+                  type: string
+                  description: Namespace for the Crossplane object
+                  default: default
+                crossplaneProviderConfig:
+                  type: string
+                  description: Crossplane provider config to use
+                  default: kubernetes-provider
+                crossplaneTimeout:
+                  type: string
+                  description: Timeout for Crossplane operations
+                  default: "120"
+                deriveReadiness:
+                  type: boolean
+                  description: |
+                    When true, the PackerBuild becomes Ready only once the
+                    rendered Tekton PipelineRun's "Succeeded" condition is
+                    True (readiness derived from the live PipelineRun via
+                    provider-kubernetes). When false, it is Ready as soon
+                    as the wrapped Object is applied.
+                  default: true
+
+                # Target Cluster
+                targetCluster:
+                  type: object
+                  description: Target cluster configuration
+                  properties:
+                    name:
+                      type: string
+                      description: Name of the ProviderConfig
+                      default: in-cluster
+                    scope:
+                      type: string
+                      description: Scope of the ProviderConfig (Namespaced or Cluster)
+                      default: Namespaced
+                      enum:
+                        - Namespaced
+                        - Cluster
+
+              required:
+                - pipelineRunName
+                - namespace
+                - gitRepoUrl
+
+            status:
+              type: object
+              properties:
+                installed:
+                  type: boolean
+                  description: Whether the PackerBuild has been installed
+                pipelineRunName:
+                  type: string
+                  description: Name of the rendered Tekton PipelineRun
+                templateName:
+                  type: string
+                  description: Name of the template/artifact produced by the build
+                succeeded:
+                  type: string
+                  description: |
+                    The PipelineRun's "Succeeded" condition status:
+                    "True" (completed), "False" (failed) or "Unknown"
+                    (running / not yet reported).
+                reason:
+                  type: string
+                  description: Reason of the PipelineRun's Succeeded condition
+                message:
+                  type: string
+                  description: Human-readable message from the PipelineRun's Succeeded condition
+                startTime:
+                  type: string
+                  description: When the PipelineRun started
+                completionTime:
+                  type: string
+                  description: When the PipelineRun completed
+                taskRuns:
+                  type: array
+                  description: The PipelineRun's child TaskRuns
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: Name of the TaskRun
+                      pipelineTaskName:
+                        type: string
+                        description: The pipeline task this TaskRun runs

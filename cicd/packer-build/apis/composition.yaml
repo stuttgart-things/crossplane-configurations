@@ -1,0 +1,112 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: packer-build
+  labels:
+    crossplane.io/xrd: packerbuilds.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: PackerBuild
+  mode: Pipeline
+  pipeline:
+    # Load shared per-environment defaults from an EnvironmentConfig into
+    # the pipeline context. The EnvironmentConfig is selected by the
+    # CONFIG-SCOPED label `packer-build.resources.stuttgart-things.com/environment`,
+    # whose value is taken from the XR's `spec.environmentConfig` field. The
+    # key is namespaced to this Configuration on purpose: a generic shared key
+    # collides with other Configurations' EnvironmentConfigs carrying the same
+    # value, and function-environment-configs requires EXACTLY ONE Selector
+    # match (otherwise: "expected exactly one required resource, got 2").
+    # When `spec.environmentConfig` is ABSENT the matcher is skipped
+    # (fromFieldPathPolicy: Optional), the selector matches nothing and the
+    # step is a no-op — the KCL module then falls back to XR spec / its own
+    # defaults. When the field IS set, the Selector requires exactly one
+    # matching EnvironmentConfig: if none exists the step fails. Offline
+    # `crossplane render` therefore needs the EnvironmentConfig supplied via
+    # --extra-resources (the verify harness does this from examples/).
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: packer-build.resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    # Optional: when spec.environmentConfig is absent (e.g. a
+                    # minimal XR before XRD defaulting) skip this matcher
+                    # instead of erroring; the step then becomes a no-op.
+                    fromFieldPathPolicy: Optional
+    - step: render-pipelinerun
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: packerbuild
+        spec:
+          source: oci://ghcr.io/stuttgart-things/kcl-tekton-pr-packer:0.1.0
+    # Surface the live Tekton PipelineRun status onto the PackerBuild XR.
+    # The wrapped provider-kubernetes Object mirrors the PipelineRun under
+    # status.atProvider.manifest; this inline KCL reads it (observed
+    # composed resources) and patches the composite status. Returning only
+    # the desired XR (dxr) leaves the rendered Object from the previous
+    # step untouched — function-kcl carries forward prior desired state.
+    - step: derive-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: packerbuild-status
+        spec:
+          source: |
+            _params = option("params") or {}
+            _ocds = _params?.ocds or {}
+
+            # Locate the observed wrapped Object regardless of its
+            # composition-resource-name, and read the live PipelineRun.
+            _objs = [
+                v.Resource for _, v in _ocds if v?.Resource?.kind == "Object"
+            ]
+            _manifest = _objs[0]?.status?.atProvider?.manifest if _objs else {}
+            _pr = _manifest?.status or {}
+
+            _succeeded = [c for c in (_pr?.conditions or []) if c?.type == "Succeeded"]
+            _sc = _succeeded[0] if _succeeded else {}
+            _children = _pr?.childReferences or []
+
+            # The pipeline declares a "template-name" result wiring the
+            # execute-packer task's output; surface it when present.
+            _results = _pr?.results or []
+            _tn = [r?.value for r in _results if r?.name == "template-name"]
+
+            _statusPatch = {
+                installed = True if _manifest else False
+                succeeded = _sc?.status or "Unknown"
+                if _sc?.reason: reason = _sc.reason
+                if _sc?.message: message = _sc.message
+                if _manifest?.metadata?.name: pipelineRunName = _manifest.metadata.name
+                if _tn and _tn[0]: templateName = _tn[0]
+                if _pr?.startTime: startTime = _pr.startTime
+                if _pr?.completionTime: completionTime = _pr.completionTime
+                taskRuns = [
+                    {name = c?.name, pipelineTaskName = c?.pipelineTaskName}
+                    for c in _children
+                ]
+            }
+
+            _dxr = _params?.dxr or {}
+            items = [_dxr | {status = (_dxr?.status or {}) | _statusPatch}]
+    - step: ready
+      functionRef:
+        name: function-auto-ready

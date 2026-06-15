@@ -1,0 +1,38 @@
+---
+# Realistic "standard" usage: build the ubuntu24 golden image for labul with
+# the base-os provisioning profile. The build subdirectory is composed from
+# osVersion+lab+provisioning -> packer/builds/ubuntu24-labul-vsphere-base-os.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerBuild
+metadata:
+  name: packer-build-ubuntu24
+  namespace: default
+spec:
+  pipelineRunName: build-ubuntu24-labul
+  namespace: tekton-ci
+
+  # Storage Configuration
+  storageSize: 5Gi
+  storageAccessModes: ReadWriteOnce
+
+  # Packer Configuration
+  packerWorkingImage: ghcr.io/stuttgart-things/sthings-packer:1.15.1
+  packerAction: build
+
+  # Template source / build selectors
+  gitRepoUrl: https://github.com/stuttgart-things/stuttgart-things.git
+  gitRevision: main
+  osVersion: ubuntu24
+  lab: labul
+  provisioning: base-os
+
+  # Credentials (Secrets pre-created in spec.namespace; see README)
+  credentialsSecretName: packer-credentials # pragma: allowlist secret
+  vaultSecretName: vault # pragma: allowlist secret
+
+  # Crossplane Configuration (target cluster for the rendered Object)
+  wrapInCrossplane: true
+  crossplaneObjectName: build-ubuntu24-labul
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
+  crossplaneTimeout: "120"
