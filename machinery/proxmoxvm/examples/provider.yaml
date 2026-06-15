@@ -1,0 +1,11 @@
+---
+# Native Proxmox VE provider (Upjet, built on bpg/terraform-provider-proxmox).
+# Normally pulled automatically as a `dependsOn` of this Configuration; included
+# here for standalone install / pinning.
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-proxmox-bpg
+spec:
+  package: xpkg.upbound.io/valkiriaaquaticamendi/provider-proxmox-bpg:v1.15.0
+  skipDependencyResolution: true
