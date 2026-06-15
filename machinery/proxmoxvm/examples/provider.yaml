@@ -1,11 +1,21 @@
 ---
 # Native Proxmox VE provider (Upjet, built on bpg/terraform-provider-proxmox).
 # Normally pulled automatically as a `dependsOn` of this Configuration; included
-# here for standalone install / pinning.
+# here only to PIN an exact version (the dependsOn declares a range).
+#
+# IMPORTANT — the metadata.name MUST match the name Crossplane derives for the
+# dependsOn-managed provider, which comes from the UPSTREAM package's own
+# metadata.name: `valkiriaaquaticamendi-provider-proxmox-bpg` (NOT the short
+# `provider-proxmox-bpg`). A short-named Provider for the same package is a
+# DUPLICATE node in the package-lock graph: it fights the dependsOn provider for
+# CRD ownership (one flips to Healthy=False) and can freeze the dependency
+# resolver fleet-wide. So this file pins the SAME provider the Configuration
+# manages — it does not add a second one. A clean short name would require
+# republishing the provider under ghcr.io/stuttgart-things (issue #78).
 apiVersion: pkg.crossplane.io/v1
 kind: Provider
 metadata:
-  name: provider-proxmox-bpg
+  name: valkiriaaquaticamendi-provider-proxmox-bpg
 spec:
   package: xpkg.upbound.io/valkiriaaquaticamendi/provider-proxmox-bpg:v1.15.0
   skipDependencyResolution: true

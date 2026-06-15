@@ -115,8 +115,14 @@ on the cluster: Tekton, the ansible credentials Secret (default
 
 ## Cluster preconditions
 
-- `provider-proxmox-bpg` installed (declared as `dependsOn`; also see
-  `examples/provider.yaml`).
+- The native Proxmox provider — **auto-installed via the Configuration's
+  `dependsOn`**, so it is not a manual step. Crossplane names it
+  `valkiriaaquaticamendi-provider-proxmox-bpg` (derived from the upstream package's
+  own metadata; a clean short name needs the ghcr republish in issue #78). Do
+  **not** also apply a short-named `provider-proxmox-bpg` for the same package — it
+  becomes a duplicate that fights for CRD ownership and can freeze the resolver.
+  `examples/provider.yaml` exists only to pin an exact version and is named to match
+  the dependsOn-managed provider (so it adopts it rather than duplicating).
 - A `ClusterProviderConfig` (`proxmoxbpg.m.crossplane.io/v1beta1`) named per the
   XR's `spec.providerConfigRef` (default kind `ClusterProviderConfig`, name
   `default`), pointing at a Proxmox credentials Secret. The Composition emits the
