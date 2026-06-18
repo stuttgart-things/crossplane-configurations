@@ -36,7 +36,7 @@ spec:
 
   # Runtime
   userHome: /home/nonroot
-  vaultSecretName: vault
+  vaultSecretName: vault # pragma: allowlist secret
 
   # Ansible Roles and Collections
   installExtraRoles: "true"
