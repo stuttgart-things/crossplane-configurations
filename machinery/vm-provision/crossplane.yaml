@@ -57,4 +57,4 @@ spec:
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/proxmox-vm
       version: ">=v0.1.0"
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/ansible-run
-      version: ">=v0.1.3"
+      version: ">=v0.1.4"
