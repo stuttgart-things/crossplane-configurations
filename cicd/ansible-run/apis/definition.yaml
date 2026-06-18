@@ -28,8 +28,14 @@ spec:
                   description: Name of the Tekton PipelineRun
                 namespace:
                   type: string
-                  description: Namespace where the pipeline will run
-                  default: tekton-ci
+                  description: |
+                    Namespace where the pipeline will run. No XRD default and
+                    not required on purpose so the EnvironmentConfig's
+                    `namespace` is authoritative (an XRD default would mask it,
+                    and a required field can't be satisfied by the
+                    EnvironmentConfig — it is applied after admission);
+                    precedence is explicit XR value > EnvironmentConfig > KCL
+                    module default ("tekton-ci").
 
                 # Storage Configuration
                 storageSize:
@@ -79,8 +85,15 @@ spec:
                 # Git Configuration
                 gitRepoUrl:
                   type: string
-                  description: Git repository URL
-                  default: https://github.com/stuttgart-things/stage-time.git
+                  description: |
+                    Git repository URL of the pipeline definition. No XRD
+                    default and not required on purpose so the
+                    EnvironmentConfig's `gitRepoUrl` is authoritative (an XRD
+                    default would mask it, and a required field can't be
+                    satisfied by the EnvironmentConfig — it is applied after
+                    admission); precedence is explicit XR value >
+                    EnvironmentConfig > KCL module default
+                    ("https://github.com/stuttgart-things/stage-time.git").
                 gitRevision:
                   type: string
                   description: |
@@ -205,7 +218,7 @@ spec:
                 crossplaneProviderConfig:
                   type: string
                   description: Crossplane provider config to use
-                  default: kubernetes-provider
+                  default: in-cluster
                 crossplaneTimeout:
                   type: string
                   description: Timeout for Crossplane operations
@@ -239,8 +252,6 @@ spec:
 
               required:
                 - pipelineRunName
-                - namespace
-                - gitRepoUrl
                 - ansiblePlaybooks
 
             status:
