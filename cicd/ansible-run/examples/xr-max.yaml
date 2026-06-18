@@ -34,6 +34,10 @@ spec:
   ansibleCredentialsUserKey: ANSIBLE_USER # pragma: allowlist secret
   ansibleCredentialsPasswordKey: ANSIBLE_PASSWORD # pragma: allowlist secret
 
+  # Runtime
+  userHome: /home/nonroot
+  vaultSecretName: vault
+
   # Ansible Roles and Collections
   installExtraRoles: "true"
   ansibleExtraRoles:
@@ -61,6 +65,11 @@ spec:
   ansibleVarsInventory:
     - 'all+["10.31.102.107","10.31.102.108"]'
     - 'webservers+["10.31.102.107"]'
+
+  # Static inventory / vars file, both base64-encoded. Exercised here for
+  # completeness; `inventory` takes effect only when createInventory is "false".
+  inventory: W2FsbF0KMTAuMzEuMTAyLjEwNwoxMC4zMS4xMDIuMTA4Cg== # pragma: allowlist secret
+  varsFile: bWFuYWdlX2ZpbGVzeXN0ZW06IHRydWUK # pragma: allowlist secret
 
   # Shared per-environment defaults (selects the EnvironmentConfig labelled
   # ansible-run.resources.stuttgart-things.com/environment=default)

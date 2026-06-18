@@ -114,6 +114,16 @@ spec:
                   description: Key for the Ansible password in the credentials secret
                   default: ANSIBLE_PASSWORD
 
+                # Runtime
+                userHome:
+                  type: string
+                  description: Absolute path to the user's home directory
+                  default: /home/nonroot
+                vaultSecretName:
+                  type: string
+                  description: Name of the Vault secret
+                  default: vault
+
                 # Ansible Roles and Collections
                 installExtraRoles:
                   type: string
@@ -152,6 +162,17 @@ spec:
                   description: List of Ansible inventory variables
                   items:
                     type: string
+                inventory:
+                  type: string
+                  description: |
+                    Static inventory as a base64-encoded string. Applied when
+                    createInventory is "false"; mutually exclusive with the
+                    generated inventory built from ansibleVarsInventory.
+                varsFile:
+                  type: string
+                  description: |
+                    Ansible vars file as a base64-encoded string (later merged
+                    with key/value vars from ansibleVarsFile).
 
                 # Environment / shared defaults
                 environmentConfig:
