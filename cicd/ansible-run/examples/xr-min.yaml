@@ -1,14 +1,22 @@
 ---
-# Minimum example: XRD-required fields plus the wrap-Object inputs
-# that `function-kcl` needs to render the kubernetes.m.crossplane.io
-# Object. `crossplane render` does not apply XRD-level defaults
-# (they only kick in via the cluster API server), so wrapInCrossplane
-# is set explicitly here to exercise the documented default path.
-# Everything else falls through to the KCL module's own defaults
-# (storage=20Mi/ReadWriteOnce, ansibleWorkingImage,
-# gitRevision=main, credentials Secret = ansible-credentials with
-# ANSIBLE_USER/ANSIBLE_PASSWORD keys, install*={true},
-# crossplaneNamespace=default).
+# Minimum example: the two XRD-required fields (pipelineRunName,
+# ansiblePlaybooks) plus the single wrap-Object input that bare
+# `crossplane render` needs.
+#
+# Everything else falls through to the EnvironmentConfig and/or the
+# kcl-tekton-pr module defaults:
+#   - namespace, gitRepoUrl, gitRevision, gitPath, storageClass,
+#     ansibleWorkingImage, ansibleCredentialsSecretName,
+#     ansibleExtraCollections  -> EnvironmentConfig (see environmentconfig.yaml)
+#   - storage=20Mi/ReadWriteOnce, credentials keys ANSIBLE_USER/
+#     ANSIBLE_PASSWORD, install*={true}, crossplaneNamespace=default,
+#     crossplaneObjectName=pipelineRunName  -> KCL module defaults
+#
+# On a cluster the API server also applies the XRD defaults
+# (wrapInCrossplane=true, crossplaneProviderConfig=in-cluster), so there
+# you could omit wrapInCrossplane too. `crossplane render` does NOT apply
+# XRD defaults, and the KCL module's own wrapInCrossplane default is false,
+# so it is set explicitly here to exercise the wrapping-Object path.
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: AnsibleRun
 metadata:
@@ -16,11 +24,6 @@ metadata:
   namespace: default
 spec:
   pipelineRunName: run-ansible-min
-  namespace: tekton-ci
-  gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
   ansiblePlaybooks:
     - sthings.baseos.setup
   wrapInCrossplane: true
-  crossplaneObjectName: run-ansible-min
-  crossplaneNamespace: default
-  crossplaneProviderConfig: in-cluster
