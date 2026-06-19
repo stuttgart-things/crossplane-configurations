@@ -32,6 +32,10 @@ data:
   networkModel: virtio
   annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
   ciUsername: sthings
+  # Filesystem-backed datastore with the Proxmox "Snippets" content type, used to
+  # upload the cloud-init meta-data snippet that sets the guest hostname. Leave
+  # unset on block-only environments to skip hostname injection.
+  snippetsDatastore: DD-sthings
   # provider-proxmox-bpg ProviderConfig the EnvironmentVM runs through.
   providerConfigName: default
   providerConfigKind: ClusterProviderConfig
@@ -58,5 +62,6 @@ data:
   networkModel: virtio
   annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
   ciUsername: sthings
+  snippetsDatastore: DD-sthings
   providerConfigName: default
   providerConfigKind: ClusterProviderConfig

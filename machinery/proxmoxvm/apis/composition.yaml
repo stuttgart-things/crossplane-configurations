@@ -147,6 +147,18 @@ spec:
             # disk's datastore; override via spec.cloudInit.datastoreId.
             _ciDatastore = _ci?.datastoreId or _datastore or ""
 
+            # --- hostname via cloud-init meta-data snippet ---
+            # bpg has NO hostname field, so the guest otherwise keeps the
+            # template's baked-in hostname. The only lever is a NoCloud meta-data
+            # snippet carrying `local-hostname`, referenced by metaDataFileId. That
+            # snippet (a tiny text file — NOT the VM disk) lives on a snippets-
+            # capable, filesystem-backed datastore. When none is configured we skip
+            # the snippet entirely so block-only environments stay unaffected.
+            _hostname = _ci?.hostname or _vm?.name or _name
+            _snippetsDatastore = _ci?.snippetsDatastore or _env?.snippetsDatastore or ""
+            _metaFileName = "{}-meta.yaml".format(_name)
+            _metaDataFileId = "{}:snippets/{}".format(_snippetsDatastore, _metaFileName) if _snippetsDatastore != "" else ""
+
             _initialization = {
                 ipConfig = [{ ipv4 = [_ipv4cfg] }]
                 if _ciDatastore != "":
@@ -155,6 +167,8 @@ spec:
                     userAccount = [_userAccount]
                 if len(_dns) > 0:
                     dns = [_dns]
+                if _metaDataFileId != "":
+                    metaDataFileId = _metaDataFileId
             }
 
             # Clone block (by numeric template VMID). Guarded so an offline
@@ -220,6 +234,42 @@ spec:
             }
 
             _resources = [_vmResource]
+
+            # --- cloud-init meta-data snippet (hostname) ---
+            # Only emitted when a snippets datastore is configured. Uploads a tiny
+            # NoCloud meta-data file (instance-id + local-hostname) that the
+            # EnvironmentVM references via initialization.metaDataFileId. The VM
+            # may fail its first reconcile(s) until the file lands; bpg retries.
+            if _snippetsDatastore != "":
+                _metaData = "instance-id: {}\nlocal-hostname: {}\n".format(_name, _hostname)
+                _fileResource = {
+                    apiVersion = "virtualenvironmentfile.proxmoxbpg.m.crossplane.io/v1alpha1"
+                    kind = "EnvironmentFile"
+                    metadata = {
+                        name = "{}-metadata".format(_name)
+                        namespace = _namespace
+                        annotations = {
+                            "crossplane.io/composition-resource-name" = "proxmoxvm-metadata"
+                        }
+                    }
+                    spec = {
+                        forProvider = {
+                            nodeName = _node
+                            datastoreId = _snippetsDatastore
+                            contentType = "snippets"
+                            overwrite = True
+                            sourceRaw = [{
+                                data = _metaData
+                                fileName = _metaFileName
+                            }]
+                        }
+                        providerConfigRef = {
+                            kind = _providerConfigKind
+                            name = _providerConfigName
+                        }
+                    }
+                }
+                _resources += [_fileResource]
 
             # --- Optional Ansible base-OS provisioning ---
             # Gated on the composed VM being Ready with an IP (read from ocds),
