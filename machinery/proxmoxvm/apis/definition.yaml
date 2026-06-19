@@ -151,6 +151,25 @@ spec:
                       type: array
                       items:
                         type: string
+                    hostname:
+                      type: string
+                      description: |
+                        Guest hostname to set via cloud-init. Defaults to the VM
+                        name. bpg has no native hostname field, so this is
+                        injected through a cloud-init meta-data snippet
+                        (`local-hostname`) — which requires a snippets-capable
+                        datastore (see snippetsDatastore). When no snippets
+                        datastore is configured the snippet is skipped and the
+                        guest keeps the template's baked-in hostname.
+                    snippetsDatastore:
+                      type: string
+                      description: |
+                        Datastore (with the Proxmox "Snippets" content type) used
+                        to upload the cloud-init meta-data snippet that sets the
+                        hostname. Must be filesystem-backed (Directory/NFS/CIFS) —
+                        block datastores cannot hold snippets. Falls back to the
+                        EnvironmentConfig `snippetsDatastore`; when neither is set,
+                        no snippet is emitted and the hostname is left unmanaged.
                 providerConfigRef:
                   type: object
                   description: |
