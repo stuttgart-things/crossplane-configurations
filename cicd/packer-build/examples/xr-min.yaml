@@ -1,0 +1,24 @@
+---
+# Minimum example: XRD-required fields plus the wrap-Object inputs that
+# `function-kcl` needs to render the kubernetes.m.crossplane.io Object.
+# `crossplane render` does not apply XRD-level defaults (they only kick in via
+# the cluster API server), so wrapInCrossplane is set explicitly here to
+# exercise the documented default path. Everything else falls through to the
+# KCL module's own defaults (storage=5Gi/ReadWriteOnce, packerWorkingImage,
+# packerAction=build, gitRevision=main, credentials=packer-credentials,
+# vault=vault, crossplaneNamespace=default). The build target is given
+# explicitly via gitWorkspaceSubdirectory.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerBuild
+metadata:
+  name: packer-build-min
+  namespace: default
+spec:
+  pipelineRunName: build-packer-min
+  namespace: tekton-ci
+  gitRepoUrl: https://github.com/stuttgart-things/stuttgart-things.git
+  gitWorkspaceSubdirectory: packer/builds/ubuntu24-labul-vsphere-base-os
+  wrapInCrossplane: true
+  crossplaneObjectName: build-packer-min
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster

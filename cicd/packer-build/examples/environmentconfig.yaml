@@ -1,0 +1,34 @@
+---
+# Shared per-environment defaults for PackerBuild XRs.
+#
+# The `packer-build` Composition selects this EnvironmentConfig via the
+# config-scoped label `packer-build.resources.stuttgart-things.com/environment`,
+# matched against the XR's `spec.environmentConfig` (default "default"). The
+# key is namespaced to this Configuration so it never collides with another
+# Configuration's EnvironmentConfig (function-environment-configs requires
+# exactly one Selector match). The `data` values are merged into the pipeline
+# context and consumed by the `kcl-tekton-pr-packer` KCL module as defaults.
+# Anything set explicitly on the XR spec wins over the values here.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: packer-build-defaults
+  labels:
+    packer-build.resources.stuttgart-things.com/environment: default
+data:
+  # Pipeline definition location (stage-time)
+  pipelineRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  pipelineRevision: main
+  pipelinePath: pipelines/build-packer-template.yaml
+
+  # Template source repo (the *.pkr.hcl)
+  gitRepoUrl: https://github.com/stuttgart-things/stuttgart-things.git
+
+  # Infra defaults
+  storageClass: openebs-hostpath
+  packerWorkingImage: ghcr.io/stuttgart-things/sthings-packer:1.15.1
+  namespace: tekton-ci
+  lab: labul
+
+  # Builder credentials Secret (pre-created in the pipeline namespace)
+  credentialsSecretName: packer-credentials # pragma: allowlist secret

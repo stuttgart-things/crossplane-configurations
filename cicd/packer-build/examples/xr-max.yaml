@@ -1,0 +1,69 @@
+---
+# Maximum example: every XRD spec field exercised at least once.
+# Useful for catching templating breakage when KCL module inputs change.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerBuild
+metadata:
+  name: packer-build-max
+  namespace: default
+spec:
+  # Pipeline Configuration
+  pipelineRunName: build-packer-max
+  namespace: tekton-ci
+
+  # Storage Configuration
+  storageSize: 10Gi
+  storageAccessModes: ReadWriteOnce
+  storageClass: openebs-hostpath
+
+  # Packer Configuration
+  packerWorkingImage: ghcr.io/stuttgart-things/sthings-packer:1.15.1
+  packerAction: build
+  packerTemplate: "."
+  packerOnly: vsphere-iso.rocky9
+  packerForce: "true"
+  packerRunInit: "true"
+  packerVars:
+    - "vm_name+-'rocky9-golden'"
+    - "vsphere_cluster+-'cluster-01'"
+  packerVarsFile: ""
+  packerInitExtraArgs: "-upgrade"
+  packerBuildExtraArgs: "-timestamp-ui"
+  packerLog: "1"
+
+  # Pipeline definition location
+  pipelineRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  pipelineRevision: main
+  pipelinePath: pipelines/build-packer-template.yaml
+
+  # Template source / build selectors
+  gitRepoUrl: https://github.com/stuttgart-things/stuttgart-things.git
+  gitRevision: main
+  gitWorkspaceSubdirectory: packer/builds/rocky9-labda-vsphere-rke2-node
+  osVersion: rocky9
+  lab: labda
+  provisioning: rke2-node
+
+  # Credentials
+  credentialsSecretName: packer-credentials # pragma: allowlist secret
+  vaultSecretName: vault # pragma: allowlist secret
+  userHome: /home/nonroot
+
+  # Shared per-environment defaults (selects the EnvironmentConfig labelled
+  # packer-build.resources.stuttgart-things.com/environment=default)
+  environmentConfig: default
+
+  # Become Ready only once the PipelineRun's Succeeded condition is True
+  deriveReadiness: true
+
+  # Crossplane Configuration
+  wrapInCrossplane: true
+  crossplaneObjectName: build-packer-max
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
+  crossplaneTimeout: "180"
+
+  # Target Cluster
+  targetCluster:
+    name: in-cluster
+    scope: Namespaced
