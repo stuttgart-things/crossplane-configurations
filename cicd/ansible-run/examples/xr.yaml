@@ -40,7 +40,7 @@ spec:
   installExtraCollections: "true"
   ansibleExtraCollections:
     - "community.general:10.1.0"
-    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-25.4.118.tar.gz/sthings-baseos-25.4.118.tar.gz"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.6.449.tar.gz/sthings-baseos-26.6.449.tar.gz"
 
   # Playbooks and Variables
   ansiblePlaybooks:

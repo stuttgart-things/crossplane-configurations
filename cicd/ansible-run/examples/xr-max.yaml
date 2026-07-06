@@ -48,7 +48,9 @@ spec:
   ansibleExtraCollections:
     - "community.general:10.1.0"
     - "ansible.posix:1.5.4"
-    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-25.4.118.tar.gz/sthings-baseos-25.4.118.tar.gz"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.6.449.tar.gz/sthings-baseos-26.6.449.tar.gz"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-container-26.6.854.tar.gz/sthings-container-26.6.854.tar.gz"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.1.561.tar.gz/sthings-rke-26.1.561.tar.gz"
 
   # Playbooks and Variables
   ansiblePlaybooks:
