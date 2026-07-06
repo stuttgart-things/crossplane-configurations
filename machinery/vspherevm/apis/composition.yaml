@@ -70,6 +70,7 @@ spec:
             _ram = _vm?.ram or "4096"
             _disk = _vm?.disk or "40"
             _wait = _vm?.waitForGuestNetTimeout or "5"
+            _waitIp = _vm?.waitForGuestIpTimeout or "5"
 
             # --- fields that fall back to the EnvironmentConfig, then a builtin ---
             _guestId = _vm?.guestId or _env?.guestId or "ubuntu64Guest"
@@ -141,6 +142,7 @@ spec:
                         }]
                         scsiType = _scsiType
                         waitForGuestNetTimeout = int(_wait)
+                        waitForGuestIpTimeout = int(_waitIp)
                     }
                     providerConfigRef = {
                         kind = _providerConfigKind

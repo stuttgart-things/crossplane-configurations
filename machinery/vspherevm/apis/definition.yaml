@@ -48,6 +48,14 @@ spec:
                         Minutes to wait for guest networking so the IP is
                         captured into status. "-1" disables the wait.
                       default: "5"
+                    waitForGuestIpTimeout:
+                      type: string
+                      description: |
+                        Minutes to wait for the guest to report an IP before the
+                        provider considers the VM ready. Defaults to "5" (not "0")
+                        so a transient NIC/boot glitch fails loudly instead of
+                        returning a Ready VM with an empty status.share.ip.
+                      default: "5"
                     # --- fields below default from the EnvironmentConfig ---
                     # No XRD default: leaving them unset lets the
                     # EnvironmentConfig value win; setting them overrides it.
