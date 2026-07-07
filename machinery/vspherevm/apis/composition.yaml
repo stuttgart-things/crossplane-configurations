@@ -86,10 +86,6 @@ spec:
             _networkId = _vm?.networkId or _env?.networkId or ""
             _folder = _vm?.folder or _env?.folder or ""
 
-            # Guest hostname customization (clone-time). domain is required by the
-            # terraform vSphere provider's linux_options; defaults env -> localdomain.
-            _domain = _vm?.domain or _env?.domain or "localdomain"
-
             _providerConfigName = _spec?.providerConfigRef?.name or _env?.providerConfigName or "default"
             _providerConfigKind = _spec?.providerConfigRef?.kind or _env?.providerConfigKind or "ClusterProviderConfig"
 
@@ -120,16 +116,15 @@ spec:
                         clone = [{
                             templateUuid = _templateUuid
                             timeout = 30
-                            # Guest customization sets the hostname to the VM name
-                            # at clone time. linux_options requires a domain, and a
-                            # networkInterface entry per NIC (empty = DHCP).
-                            customize = [{
-                                linuxOptions = [{
-                                    hostName = _name
-                                    domain = _domain
-                                }]
-                                networkInterface = [{}]
-                            }]
+                            # No `customize` block on purpose. VMware guest
+                            # customization (GOSC) leaves the cloned NIC
+                            # startConnected=false on Ubuntu 26.04 guests, so the
+                            # VM boots networkless (verified 2026-07-07: dropping
+                            # customize -> NIC connected + DHCP immediately; u24
+                            # tolerates GOSC, u26 does not). Hostname / OS config
+                            # is handled by the optional ansible baseos run, not
+                            # by GOSC. Networking needs nothing extra: the
+                            # template's DHCP netplan works once the NIC is up.
                         }]
                         networkInterface = [{
                             adapterType = _adapterType
