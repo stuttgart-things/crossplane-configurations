@@ -9,7 +9,7 @@ metadata:
   labels:
     vspherevm.resources.stuttgart-things.com/environment: labda
 data:
-  templateUuid: 4221ffec-016e-5533-0435-1103fb1a611e
+  templateUuid: 42212cd2-5060-9bc5-ac82-7fdef66efc61
   datastoreId: datastore-12
   resourcePoolId: resgroup-8
   networkId: dvportgroup-2048
