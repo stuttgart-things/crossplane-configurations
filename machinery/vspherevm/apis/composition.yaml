@@ -89,6 +89,15 @@ spec:
             _providerConfigName = _spec?.providerConfigRef?.name or _env?.providerConfigName or "default"
             _providerConfigKind = _spec?.providerConfigRef?.kind or _env?.providerConfigKind or "ClusterProviderConfig"
 
+            # Cloud-init metadata (single-line JSON) injected via the VMware
+            # guestinfo datasource — sets the guest hostname (= VM name) on the
+            # RAW VM at first boot, independent of GOSC and of the optional
+            # ansible run. Requires the template's cloud-init to enable the
+            # VMware datasource and to be `cloud-init clean`ed at build time (see
+            # the packer ubuntu26 base-os build). instance-id = VM name so each
+            # clone is a fresh cloud-init instance that applies the hostname.
+            _ciMeta = "{{\"local-hostname\":\"{}\",\"instance-id\":\"{}\"}}".format(_name, _name)
+
             # Namespaced (".m") managed resource: a namespaced composite cannot
             # compose a cluster-scoped resource, so emit the namespaced variant
             # carrying the XR's namespace.
@@ -138,6 +147,12 @@ spec:
                         scsiType = _scsiType
                         waitForGuestNetTimeout = int(_wait)
                         waitForGuestIpTimeout = int(_waitIp)
+                        # Raw-VM hostname via cloud-init VMware guestinfo (no GOSC,
+                        # no ansible needed). encoding is omitted -> cloud-init
+                        # reads guestinfo.metadata as raw (single-line JSON).
+                        extraConfig = {
+                            "guestinfo.metadata" = _ciMeta
+                        }
                     }
                     providerConfigRef = {
                         kind = _providerConfigKind
