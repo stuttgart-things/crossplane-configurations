@@ -85,6 +85,14 @@ spec:
                       type: string
                     folder:
                       type: string
+                    hostSystemId:
+                      type: string
+                      description: >-
+                        Optional ESXi host MOID to pin the clone to. Defaults from
+                        the EnvironmentConfig (hostSystemId) when unset here. Use it
+                        to force placement onto a host compatible with the template's
+                        VM hardware version (the provider otherwise clones onto the
+                        template's own host). Empty = provider default.
                   required:
                     - name
                 providerConfigRef:
@@ -161,10 +169,10 @@ spec:
                     label
                     `vspherevm.resources.stuttgart-things.com/environment=<value>`.
                     Supported `data` keys: templateUuid, datastoreId,
-                    resourcePoolId, networkId, folder, firmware, guestId,
-                    scsiType, adapterType, annotation, providerConfigName, and an
-                    optional `ansible` sub-block. Any value set explicitly on this
-                    XR's spec overrides the EnvironmentConfig.
+                    resourcePoolId, networkId, folder, hostSystemId, firmware,
+                    guestId, scsiType, adapterType, annotation, providerConfigName,
+                    and an optional `ansible` sub-block. Any value set explicitly on
+                    this XR's spec overrides the EnvironmentConfig.
                   default: default
               required:
                 - vm

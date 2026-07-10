@@ -85,6 +85,14 @@ spec:
             _resourcePoolId = _vm?.resourcePoolId or _env?.resourcePoolId or ""
             _networkId = _vm?.networkId or _env?.networkId or ""
             _folder = _vm?.folder or _env?.folder or ""
+            # Optional host pin. The terraform vSphere provider clones onto the
+            # TEMPLATE's current host when this is unset — which fails if the
+            # template has drifted onto a host too old for its VM hardware version
+            # ("virtual machine version is not compatible with the version of the
+            # host"). Set hostSystemId (per-env via EnvironmentConfig, or per-XR)
+            # to a compatible ESXi host MOID to pin placement. Empty = unset =
+            # current DRS/template-host behaviour.
+            _hostSystemId = _vm?.hostSystemId or _env?.hostSystemId or ""
 
             _providerConfigName = _spec?.providerConfigRef?.name or _env?.providerConfigName or "default"
             _providerConfigKind = _spec?.providerConfigRef?.kind or _env?.providerConfigKind or "ClusterProviderConfig"
@@ -122,6 +130,9 @@ spec:
                         memory = int(_ram)
                         datastoreId = _datastoreId
                         resourcePoolId = _resourcePoolId
+                        # Pin the clone to a specific ESXi host when set (see above).
+                        if _hostSystemId != "":
+                            hostSystemId = _hostSystemId
                         clone = [{
                             templateUuid = _templateUuid
                             timeout = 30
