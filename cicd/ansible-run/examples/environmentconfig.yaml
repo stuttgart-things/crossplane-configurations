@@ -34,5 +34,5 @@ data:
   ansibleExtraCollections:
     - "community.general:10.1.0"
     - "https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.6.449.tar.gz/sthings-baseos-26.6.449.tar.gz"
-    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-container-26.6.854.tar.gz/sthings-container-26.6.854.tar.gz"
+    - "https://github.com/stuttgart-things/ansible/releases/download/sthings-container-26.0.1099.tar.gz/sthings-container-26.0.1099.tar.gz"
     - "https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.1.561.tar.gz/sthings-rke-26.1.561.tar.gz"
