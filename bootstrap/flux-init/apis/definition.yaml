@@ -1,0 +1,97 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: fluxinits.config.stuttgart-things.com
+spec:
+  group: config.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: FluxInit
+    plural: fluxinits
+    singular: fluxinit
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - helmProviderConfigRef
+                - kubernetesProviderConfigRef
+              properties:
+                helmProviderConfigRef:
+                  type: string
+                  description: Name of the Helm ClusterProviderConfig for the target cluster
+                kubernetesProviderConfigRef:
+                  type: string
+                  description: Name of the Kubernetes ClusterProviderConfig for the target cluster
+                namespace:
+                  type: string
+                  default: flux-system
+                operatorChart:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                    repoURL:
+                      type: string
+                instance:
+                  type: object
+                  properties:
+                    distribution:
+                      type: string
+                    components:
+                      type: array
+                      items:
+                        type: string
+                    sources:
+                      type: array
+                      description: Optional list of OCI/Git sources - if omitted, Flux controllers are installed without sources
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - url
+                        properties:
+                          name:
+                            type: string
+                            description: Unique name for this source (used in resource naming)
+                          kind:
+                            type: string
+                            enum:
+                              - GitRepository
+                              - OCIRepository
+                            default: OCIRepository
+                          url:
+                            type: string
+                            description: OCI or Git URL e.g. oci://ghcr.io/stuttgart-things/flux-infra
+                          ref:
+                            type: string
+                            default: latest
+                          path:
+                            type: string
+                            default: "."
+                          pullSecret:
+                            type: string
+                            description: Secret name in flux-system namespace for private registries
+            status:
+              type: object
+              properties:
+                operatorReady:
+                  type: boolean
+                instanceReady:
+                  type: boolean
+                sourcesReady:
+                  type: boolean
+                ready:
+                  type: boolean
+                sourceCount:
+                  type: integer

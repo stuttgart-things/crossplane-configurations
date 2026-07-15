@@ -1,0 +1,27 @@
+---
+# Target-cluster provider configs referenced by the FluxInit XR. Both read the
+# same kubeconfig Secret (created out of band, e.g. by provider-kubeconfig).
+# Names here must match spec.helmProviderConfigRef / kubernetesProviderConfigRef.
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: staging-helm
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: kubeconfig-staging
+      key: kubeconfig
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: staging-kubernetes
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: kubeconfig-staging
+      key: kubeconfig

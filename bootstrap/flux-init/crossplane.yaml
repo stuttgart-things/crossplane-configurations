@@ -1,0 +1,62 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: flux-init
+  annotations:
+    # Local convention used by `task push` to bump and re-publish.
+    # Not a Crossplane-standard field — the true package version is the OCI tag.
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Bootstraps Flux on a target cluster from a namespaced `FluxInit` XR
+      via the flux-operator. Installs the operator Helm Release, creates a
+      `FluxInstance` CR, and optionally provisions OCI/Git sources — one
+      managed resource per `spec.instance.sources` entry.
+    meta.crossplane.io/readme: |
+      # flux-init
+
+      A Crossplane v2 Configuration that bootstraps
+      [Flux](https://fluxcd.io/) on a target cluster from a namespaced
+      `FluxInit` XR (group `config.stuttgart-things.com`) via the
+      [flux-operator](https://github.com/controlplaneio-fluxcd/flux-operator).
+
+      The Composition is a thin `function-kcl` wrapper around the
+      `xplane-flux-init` KCL module (pulled from OCI at render time). It
+      emits a `helm.m.crossplane.io/v1beta1` Release (flux-operator chart),
+      a `kubernetes.m.crossplane.io/v1alpha1` Object holding a `FluxInstance`
+      CR, a `protection.crossplane.io/v1beta1` Usage (so the FluxInstance is
+      torn down before the operator), and one Object per
+      `spec.instance.sources` entry (`OCIRepository`/`GitRepository`).
+
+      Chart version, Flux distribution, components and reconcile intervals
+      default from a `flux-defaults` EnvironmentConfig; per-XR `spec.*`
+      fields always win.
+
+      ## Cluster preconditions
+
+      - A Helm `ClusterProviderConfig` (`helm.m.crossplane.io/v1beta1`) whose
+        name matches the XR's `spec.helmProviderConfigRef`.
+      - A Kubernetes `ClusterProviderConfig`
+        (`kubernetes.m.crossplane.io/v1alpha1`) matching
+        `spec.kubernetesProviderConfigRef`.
+      - A `flux-defaults` EnvironmentConfig (see `examples/environment-config.yaml`).
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    # Managed resources are applied to the target cluster via the namespaced
+    # Helm and Kubernetes providers.
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-helm
+      version: ">=v1.0.0,<v2.0.0"
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+      version: ">=v1.2.0,<v2.0.0"
+    # Functions used by this Configuration's Composition pipeline.
+    - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
+      version: ">=v0.12.0,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-environment-configs
+      version: ">=v0.7.0,<v0.8.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"

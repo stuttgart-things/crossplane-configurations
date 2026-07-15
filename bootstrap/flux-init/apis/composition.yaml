@@ -1,0 +1,43 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: flux-init
+  labels:
+    crossplane.io/xrd: fluxinits.config.stuttgart-things.com
+    provider-helm: "true"
+    provider-kubernetes: "true"
+    service: flux-init
+spec:
+  compositeTypeRef:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: FluxInit
+  mode: Pipeline
+  pipeline:
+    # Load chart/distribution/reconcile defaults into the environment context.
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Reference
+              ref:
+                name: flux-defaults
+    # Render managed resources and patch XR status (single pass) via the
+    # xplane-flux-init KCL module pulled from OCI.
+    - step: flux-init
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: flux-init
+        spec:
+          source: oci://ghcr.io/stuttgart-things/xplane-flux-init:0.1.0
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

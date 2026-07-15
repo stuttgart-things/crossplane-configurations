@@ -1,0 +1,21 @@
+---
+# Defaults consumed by the Composition's load-environment step. Per-XR spec.*
+# fields always override these. Apply before creating any FluxInit.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: flux-defaults
+data:
+  operatorChart:
+    version: "0.45.1"
+    repoURL: "oci://ghcr.io/controlplaneio-fluxcd/charts"
+  instance:
+    distribution: "2.x"
+    components:
+      - source-controller
+      - kustomize-controller
+      - helm-controller
+      - notification-controller
+  namespace: "flux-system"
+  reconcileEvery: "1h"
+  reconcileTimeout: "5m"
