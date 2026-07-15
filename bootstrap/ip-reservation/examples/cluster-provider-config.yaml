@@ -1,0 +1,19 @@
+---
+# in-cluster (InjectedIdentity) Kubernetes provider config — used for the
+# management-cluster Observe (RemoteCluster) and IPReservation Objects.
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: in-cluster
+spec:
+  credentials:
+    source: InjectedIdentity
+---
+# clusterbook provider config — the IPReservation MR is applied through this.
+# Name must match spec.clusterbookProviderConfigRef (default: default).
+apiVersion: clusterbook.stuttgart-things.com/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  url: "http://clusterbook.clusterbook.svc.cluster.local:8080"

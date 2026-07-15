@@ -1,0 +1,10 @@
+---
+# Minimal XIPReservation — only the required clusterName. Reserves one IP from
+# clusterbook on the network derived from the RemoteCluster, no DNS.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: XIPReservation
+metadata:
+  name: test-ip-reservation
+  namespace: crossplane-system
+spec:
+  clusterName: xplane-test

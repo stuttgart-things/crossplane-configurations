@@ -1,0 +1,75 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: xipreservations.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: XIPReservation
+    plural: xipreservations
+    singular: xipreservation
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - clusterName
+              properties:
+                clusterName:
+                  type: string
+                  description: Name of the RemoteCluster resource to read internalNetworkKey from
+                count:
+                  type: integer
+                  default: 1
+                  description: Number of IP addresses to reserve
+                ip:
+                  type: string
+                  description: Optional explicit IP address (skips auto-reservation)
+                createDNS:
+                  type: boolean
+                  default: false
+                  description: Create a PDNS wildcard DNS record for the reserved IP
+                clusterbookProviderConfigRef:
+                  type: string
+                  default: default
+                  description: Name of the clusterbook ClusterProviderConfig
+                kubernetesProviderConfigRef:
+                  type: string
+                  default: in-cluster
+                  description: >-
+                    Kubernetes ClusterProviderConfig (InjectedIdentity) used for
+                    the management-cluster Observe + IPReservation Objects
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+                  description: True when the IPReservation is ready
+                networkKey:
+                  type: string
+                  description: internalNetworkKey read from the RemoteCluster
+                ipAddresses:
+                  type: array
+                  items:
+                    type: string
+                  description: Reserved IP addresses
+                reservationStatus:
+                  type: string
+                  description: IPReservation status (e.g. ASSIGNED, ASSIGNED:DNS)
+                fqdn:
+                  type: string
+                  description: Wildcard DNS name (e.g. *.mycluster.example.com), set when createDNS is true
+                zone:
+                  type: string
+                  description: DNS zone (e.g. example.com), set when createDNS is true

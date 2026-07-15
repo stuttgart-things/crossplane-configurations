@@ -1,0 +1,7 @@
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: ip-reservation
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/ip-reservation:v0.1.0
