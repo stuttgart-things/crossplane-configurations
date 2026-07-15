@@ -1,0 +1,223 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: fluxapps.config.stuttgart-things.com
+spec:
+  group: config.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: FluxApps
+    plural: fluxapps
+    singular: fluxapps
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - kubernetesProviderConfigRef
+                - apps
+              properties:
+                kubernetesProviderConfigRef:
+                  type: string
+                  description: Name of the Kubernetes ClusterProviderConfig for the target cluster
+                namespace:
+                  type: string
+                  default: flux-system
+                  description: Namespace the Flux Kustomization objects are created in
+                sourceRef:
+                  type: object
+                  description: >-
+                    Default Flux source every app's Kustomization references.
+                    The source must already exist on the target cluster (e.g.
+                    bootstrapped by flux-init). Overridable per app.
+                  properties:
+                    kind:
+                      type: string
+                      enum:
+                        - GitRepository
+                        - OCIRepository
+                        - Bucket
+                      default: GitRepository
+                    name:
+                      type: string
+                      default: flux-apps
+                    namespace:
+                      type: string
+                      description: Defaults to the Kustomization namespace when omitted
+                interval:
+                  type: string
+                  default: 1h
+                  description: Default reconcile interval for all apps
+                retryInterval:
+                  type: string
+                  default: 1m
+                  description: Default retry interval for all apps
+                timeout:
+                  type: string
+                  default: 5m
+                  description: Default timeout for all apps
+                prune:
+                  type: boolean
+                  default: true
+                  description: Default garbage collection for all apps
+                wait:
+                  type: boolean
+                  default: true
+                  description: Default health-wait for all apps
+                commonMetadata:
+                  type: object
+                  description: Labels/annotations applied to all managed resources of every app (overridable per app)
+                  x-kubernetes-preserve-unknown-fields: true
+                apps:
+                  type: array
+                  minItems: 1
+                  description: List of Flux Kustomizations to deploy — one managed resource per entry
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - path
+                    properties:
+                      name:
+                        type: string
+                        description: Kustomization name (must be unique within the XR)
+                      path:
+                        type: string
+                        description: Path within the source to reconcile
+                      targetNamespace:
+                        type: string
+                        description: Namespace all resources in this Kustomization are applied to
+                      sourceRef:
+                        type: object
+                        description: Per-app source override (falls back to spec.sourceRef)
+                        properties:
+                          kind:
+                            type: string
+                            enum:
+                              - GitRepository
+                              - OCIRepository
+                              - Bucket
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                      interval:
+                        type: string
+                        description: Per-app reconcile interval override
+                      retryInterval:
+                        type: string
+                        description: Per-app retry interval override
+                      timeout:
+                        type: string
+                        description: Per-app timeout override
+                      prune:
+                        type: boolean
+                        description: Per-app prune override
+                      wait:
+                        type: boolean
+                        description: Per-app health-wait override
+                      force:
+                        type: boolean
+                        description: Force recreate resources on immutable-field changes
+                      dependsOn:
+                        type: array
+                        description: Other Kustomizations this app depends on
+                        items:
+                          type: object
+                          required:
+                            - name
+                          properties:
+                            name:
+                              type: string
+                            namespace:
+                              type: string
+                      components:
+                        type: array
+                        description: Kustomize components to include
+                        items:
+                          type: string
+                      substitute:
+                        type: object
+                        description: postBuild.substitute — literal key/value variables
+                        x-kubernetes-preserve-unknown-fields: true
+                      substituteFrom:
+                        type: array
+                        description: postBuild.substituteFrom — ConfigMap/Secret variable sources
+                        items:
+                          type: object
+                          required:
+                            - kind
+                            - name
+                          properties:
+                            kind:
+                              type: string
+                              enum:
+                                - ConfigMap
+                                - Secret
+                            name:
+                              type: string
+                            optional:
+                              type: boolean
+                      commonMetadata:
+                        type: object
+                        description: Per-app commonMetadata override
+                        x-kubernetes-preserve-unknown-fields: true
+                      healthChecks:
+                        type: array
+                        description: Resources whose readiness gates this app (requires wait)
+                        items:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                      healthCheckExprs:
+                        type: array
+                        description: CEL-based custom health checks
+                        items:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                      patches:
+                        type: array
+                        description: Strategic-merge / JSON6902 patches
+                        items:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                      images:
+                        type: array
+                        description: Image overrides (name/newName/newTag/digest)
+                        items:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                      decryption:
+                        type: object
+                        description: SOPS decryption for this app's Kustomization
+                        properties:
+                          provider:
+                            type: string
+                            default: sops
+                          secretRef:
+                            type: object
+                            required:
+                              - name
+                            properties:
+                              name:
+                                type: string
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+                appsReady:
+                  type: boolean
+                appCount:
+                  type: integer
+                readyCount:
+                  type: integer

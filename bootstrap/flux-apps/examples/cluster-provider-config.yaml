@@ -1,0 +1,15 @@
+---
+# Target-cluster Kubernetes provider config referenced by the FluxApps XR.
+# Reads a kubeconfig Secret (created out of band, e.g. by provider-kubeconfig).
+# The name here must match spec.kubernetesProviderConfigRef.
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: staging-kubernetes
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: kubeconfig-staging
+      key: kubeconfig

@@ -1,0 +1,17 @@
+---
+# Shared reconcile defaults consumed by the Composition's load-environment step.
+# Optional — the xplane-flux-apps KCL module has hardcoded fallbacks, so a
+# missing EnvironmentConfig is not fatal. Per-XR spec.* and per-app
+# spec.apps[].* fields always override these.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: flux-apps-defaults
+data:
+  namespace: flux-system
+  interval: "1h"
+  retryInterval: "1m"
+  timeout: "5m"
+  sourceRef:
+    kind: GitRepository
+    name: flux-apps

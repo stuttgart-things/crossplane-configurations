@@ -1,0 +1,30 @@
+---
+# Realistic FluxApps — the copy-paste template. Deploys two apps (tekton and
+# crossplane) from the shared `flux-apps` GitRepository source, with per-app
+# postBuild substitutions and a dependency edge. Mirrors what the
+# flux-app-kustomizations KCL module produced, now data-driven.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxApps
+metadata:
+  name: staging-apps
+  namespace: crossplane-system
+spec:
+  kubernetesProviderConfigRef: staging-kubernetes
+  sourceRef:
+    kind: GitRepository
+    name: flux-apps
+  apps:
+    - name: tekton
+      path: ./cicd/tekton
+      substitute:
+        TEKTON_NAMESPACE: tekton-pipelines
+        TEKTON_VERSION: "0.76.1"
+    - name: crossplane
+      path: ./apps/crossplane
+      dependsOn:
+        - name: tekton
+      substitute:
+        CROSSPLANE_VERSION: "1.20.0"
+        CROSSPLANE_NAMESPACE: crossplane-system
+        CROSSPLANE_HELM_PROVIDER_VERSION: v0.21.0
+        CROSSPLANE_K8S_PROVIDER_VERSION: v0.18.0

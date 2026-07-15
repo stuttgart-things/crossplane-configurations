@@ -1,0 +1,73 @@
+---
+# Maximal FluxApps — every spec field set. Exercises templating for the shared
+# defaults, per-app source override, targetNamespace, health checks, patches,
+# image overrides, substituteFrom, decryption and dependency ordering.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxApps
+metadata:
+  name: prod-apps
+  namespace: crossplane-system
+spec:
+  kubernetesProviderConfigRef: prod-kubernetes
+  namespace: flux-system
+  sourceRef:
+    kind: GitRepository
+    name: flux-apps
+    namespace: flux-system
+  interval: 10m
+  retryInterval: 2m
+  timeout: 5m
+  prune: true
+  wait: true
+  commonMetadata:
+    labels:
+      app.kubernetes.io/managed-by: flux
+      environment: production
+  apps:
+    - name: infrastructure
+      path: ./clusters/prod/infrastructure
+      wait: true
+      healthChecks:
+        - apiVersion: apps/v1
+          kind: Deployment
+          name: ingress-nginx-controller
+          namespace: ingress-nginx
+      substituteFrom:
+        - kind: ConfigMap
+          name: cluster-vars
+        - kind: Secret
+          name: cluster-secrets
+          optional: true
+    - name: crossplane
+      path: ./apps/crossplane
+      targetNamespace: crossplane-system
+      dependsOn:
+        - name: infrastructure
+      force: true
+      substitute:
+        CROSSPLANE_VERSION: "1.20.0"
+        CROSSPLANE_NAMESPACE: crossplane-system
+      images:
+        - name: nginx
+          newName: my-registry.io/nginx
+          newTag: 1.21.0
+      patches:
+        - patch: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: crossplane
+            spec:
+              replicas: 2
+          target:
+            kind: Deployment
+            name: crossplane
+    - name: secrets
+      path: ./apps/secrets
+      sourceRef:
+        kind: OCIRepository
+        name: fleet-secrets
+      decryption:
+        provider: sops
+        secretRef:
+          name: sops-age

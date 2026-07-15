@@ -1,0 +1,15 @@
+---
+# Minimal FluxApps — required provider config ref and a single app.
+# Everything else (namespace, sourceRef, intervals) defaults from the XRD /
+# flux-apps-defaults EnvironmentConfig. References the default `flux-apps`
+# GitRepository source, which must already exist on the target cluster.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxApps
+metadata:
+  name: lab-apps
+  namespace: crossplane-system
+spec:
+  kubernetesProviderConfigRef: lab-cluster-kubernetes
+  apps:
+    - name: podinfo
+      path: ./apps/podinfo
