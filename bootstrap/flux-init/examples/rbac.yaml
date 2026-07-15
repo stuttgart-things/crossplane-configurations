@@ -1,0 +1,40 @@
+---
+# RBAC precondition for flux-init when the target is reached via an in-cluster
+# (InjectedIdentity) provider-kubernetes ClusterProviderConfig.
+#
+# The provider-kubernetes ServiceAccount must be allowed to manage the Flux
+# CRDs that the FluxInstance / source Objects wrap. On the stuttgart-things
+# fleet clusters that SA is effectively cluster-admin and this is unnecessary;
+# on tighter clusters (e.g. a kind dev cluster) grant it explicitly, otherwise
+# the FluxInstance Object stalls with:
+#   observe failed: ... cannot get resource "fluxinstances" in API group
+#   "fluxcd.controlplane.io" ... is forbidden
+#
+# The SA name carries a hash — resolve it with:
+#   kubectl get sa -n crossplane-system -o name | grep provider-kubernetes
+# then set it as the binding subject below.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provider-kubernetes-flux
+rules:
+  - apiGroups: ["fluxcd.controlplane.io"] # FluxInstance
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["source.toolkit.fluxcd.io"] # OCIRepository / GitRepository sources
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: provider-kubernetes-flux
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: provider-kubernetes-flux
+subjects:
+  - kind: ServiceAccount
+    # Replace the hash with the actual provider-kubernetes SA (see header).
+    name: crossplane-contrib-provider-kubernetes-XXXXXXXXXXXX
+    namespace: crossplane-system

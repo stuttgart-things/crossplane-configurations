@@ -1,0 +1,146 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: fluxinits.config.stuttgart-things.com
+spec:
+  group: config.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: FluxInit
+    plural: fluxinits
+    singular: fluxinit
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - helmProviderConfigRef
+                - kubernetesProviderConfigRef
+              properties:
+                helmProviderConfigRef:
+                  type: string
+                  description: Name of the Helm ClusterProviderConfig for the target cluster
+                kubernetesProviderConfigRef:
+                  type: string
+                  description: Name of the Kubernetes ClusterProviderConfig for the target cluster
+                namespace:
+                  type: string
+                  default: flux-system
+                operatorChart:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                    repoURL:
+                      type: string
+                instance:
+                  type: object
+                  properties:
+                    distribution:
+                      type: string
+                    components:
+                      type: array
+                      items:
+                        type: string
+                    sources:
+                      type: array
+                      description: Optional list of OCI/Git sources - if omitted, Flux controllers are installed without sources
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - url
+                        properties:
+                          name:
+                            type: string
+                            description: Unique name for this source (used in resource naming)
+                          kind:
+                            type: string
+                            enum:
+                              - GitRepository
+                              - OCIRepository
+                            default: OCIRepository
+                          url:
+                            type: string
+                            description: OCI or Git URL e.g. oci://ghcr.io/stuttgart-things/flux-infra
+                          ref:
+                            type: string
+                            default: latest
+                          path:
+                            type: string
+                            default: "."
+                          pullSecret:
+                            type: string
+                            description: Secret name in flux-system namespace for private registries
+                kustomize:
+                  type: object
+                  description: >-
+                    Passed through verbatim to FluxInstance.spec.kustomize.
+                    Use for controller tuning or extra Kustomization patches
+                    (e.g. --concurrent, --requeue-dependency).
+                  x-kubernetes-preserve-unknown-fields: true
+                sops:
+                  type: object
+                  description: >-
+                    SOPS decryption for Flux. When enabled, a decryption patch
+                    (provider sops, secretRef {secretName}) is injected onto
+                    every Flux Kustomization; when ageKey is also set, the age
+                    key Secret is created in the flux namespace.
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                      description: Inject the sops decryption patch on all Kustomizations
+                    secretName:
+                      type: string
+                      default: sops-age
+                      description: Name of the age decryption Secret referenced by the patch
+                    ageKeySecretRef:
+                      type: object
+                      description: >-
+                        Preferred key source — copy the age key from an existing
+                        Secret on the target cluster into the decryption Secret
+                        (no plaintext in the XR). Read via kubernetesProviderConfigRef.
+                      properties:
+                        name:
+                          type: string
+                          description: Name of the source Secret holding the age key
+                        namespace:
+                          type: string
+                          description: Namespace of the source Secret (defaults to the flux namespace)
+                        key:
+                          type: string
+                          default: age.agekey
+                          description: data key in the source Secret to copy
+                      required:
+                        - name
+                    ageKey:
+                      type: string
+                      description: >-
+                        Inline age private key (dev only — plaintext in the XR).
+                        When set and ageKeySecretRef is not, an age.agekey Secret
+                        is created in the flux namespace. Omit both to only inject
+                        the decryption patch and manage the Secret out of band.
+            status:
+              type: object
+              properties:
+                operatorReady:
+                  type: boolean
+                instanceReady:
+                  type: boolean
+                sourcesReady:
+                  type: boolean
+                ready:
+                  type: boolean
+                sourceCount:
+                  type: integer

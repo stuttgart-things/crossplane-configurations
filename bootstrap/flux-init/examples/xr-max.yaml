@@ -1,0 +1,37 @@
+---
+# Maximal FluxInit — every spec field set. Exercises templating for chart
+# overrides, custom distribution/components, multiple sources of both kinds,
+# and a private-registry pull secret.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxInit
+metadata:
+  name: prod-flux
+  namespace: crossplane-system
+spec:
+  helmProviderConfigRef: prod-helm
+  kubernetesProviderConfigRef: prod-kubernetes
+  namespace: flux-system
+  operatorChart:
+    version: "0.55.0"
+    repoURL: "oci://ghcr.io/controlplaneio-fluxcd/charts"
+  instance:
+    distribution: "2.4.0"
+    components:
+      - source-controller
+      - kustomize-controller
+      - helm-controller
+      - notification-controller
+      - image-reflector-controller
+      - image-automation-controller
+    sources:
+      - name: flux-infra
+        kind: OCIRepository
+        url: oci://ghcr.io/stuttgart-things/flux-infra
+        ref: v1.2.0
+        path: clusters/prod
+        pullSecret: ghcr-credentials
+      - name: flux-apps
+        kind: GitRepository
+        url: https://github.com/stuttgart-things/flux-apps
+        ref: main
+        path: clusters/prod

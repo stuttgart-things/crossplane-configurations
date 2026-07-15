@@ -1,0 +1,12 @@
+---
+# Minimal FluxInit — only the two required provider config refs.
+# Installs Flux controllers on the target cluster with no GitOps source;
+# everything else defaults from the flux-defaults EnvironmentConfig.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxInit
+metadata:
+  name: lab-flux
+  namespace: crossplane-system
+spec:
+  helmProviderConfigRef: lab-cluster-helm
+  kubernetesProviderConfigRef: lab-cluster-kubernetes
