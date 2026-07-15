@@ -82,6 +82,55 @@ spec:
                           pullSecret:
                             type: string
                             description: Secret name in flux-system namespace for private registries
+                kustomize:
+                  type: object
+                  description: >-
+                    Passed through verbatim to FluxInstance.spec.kustomize.
+                    Use for controller tuning or extra Kustomization patches
+                    (e.g. --concurrent, --requeue-dependency).
+                  x-kubernetes-preserve-unknown-fields: true
+                sops:
+                  type: object
+                  description: >-
+                    SOPS decryption for Flux. When enabled, a decryption patch
+                    (provider sops, secretRef {secretName}) is injected onto
+                    every Flux Kustomization; when ageKey is also set, the age
+                    key Secret is created in the flux namespace.
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                      description: Inject the sops decryption patch on all Kustomizations
+                    secretName:
+                      type: string
+                      default: sops-age
+                      description: Name of the age decryption Secret referenced by the patch
+                    ageKeySecretRef:
+                      type: object
+                      description: >-
+                        Preferred key source — copy the age key from an existing
+                        Secret on the target cluster into the decryption Secret
+                        (no plaintext in the XR). Read via kubernetesProviderConfigRef.
+                      properties:
+                        name:
+                          type: string
+                          description: Name of the source Secret holding the age key
+                        namespace:
+                          type: string
+                          description: Namespace of the source Secret (defaults to the flux namespace)
+                        key:
+                          type: string
+                          default: age.agekey
+                          description: data key in the source Secret to copy
+                      required:
+                        - name
+                    ageKey:
+                      type: string
+                      description: >-
+                        Inline age private key (dev only — plaintext in the XR).
+                        When set and ageKeySecretRef is not, an age.agekey Secret
+                        is created in the flux namespace. Omit both to only inject
+                        the decryption patch and manage the Secret out of band.
             status:
               type: object
               properties:

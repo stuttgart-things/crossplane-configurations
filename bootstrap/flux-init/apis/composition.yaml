@@ -37,7 +37,7 @@ spec:
         metadata:
           name: flux-init
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-flux-init:0.1.0
+          source: oci://ghcr.io/stuttgart-things/xplane-flux-init:0.1.3
     - step: automatically-detect-ready-composed-resources
       functionRef:
         name: function-auto-ready

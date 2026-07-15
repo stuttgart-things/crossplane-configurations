@@ -1,0 +1,42 @@
+---
+# FluxInit with SOPS decryption enabled. The sops block injects a decryption
+# patch onto every Flux Kustomization (provider sops, secretRef sops-age) and —
+# because ageKey is set — creates the age.agekey Secret in the flux namespace.
+# The kustomize block is passed through verbatim to FluxInstance.spec.kustomize
+# for controller tuning.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxInit
+metadata:
+  name: sops-flux
+  namespace: crossplane-system
+spec:
+  helmProviderConfigRef: staging-helm
+  kubernetesProviderConfigRef: staging-kubernetes
+  instance:
+    sources:
+      - name: fleet-infra
+        url: oci://ghcr.io/stuttgart-things/fleet-infra
+        ref: latest
+        path: clusters/staging
+  sops:
+    enabled: true
+    secretName: sops-age
+    # Preferred: copy the age key from an existing Secret on the target cluster
+    # (no plaintext in the XR). Alternatively set `ageKey:` inline (dev only),
+    # or omit both to only inject the patch and manage sops-age out of band.
+    ageKeySecretRef:
+      name: sops-age-key
+      namespace: crossplane-system
+      key: age.agekey
+  kustomize:
+    patches:
+      - target:
+          kind: Deployment
+          name: "(kustomize-controller|helm-controller)"
+        patch: |
+          - op: add
+            path: /spec/template/spec/containers/0/args/-
+            value: --concurrent=10
+          - op: add
+            path: /spec/template/spec/containers/0/args/-
+            value: --requeue-dependency=5s

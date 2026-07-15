@@ -40,8 +40,32 @@ Ordering is enforced with `crossplane.io/uses`: operator → instance → source
 | `instance.sources[].ref` | string | no | `latest` | Tag/branch ref |
 | `instance.sources[].path` | string | no | `.` | Path within the source |
 | `instance.sources[].pullSecret` | string | no | | Secret (in `flux-system`) for private registries |
+| `kustomize` | object | no | | Passed through verbatim to `FluxInstance.spec.kustomize` (controller tuning / extra patches) |
+| `sops.enabled` | boolean | no | `false` | Inject a SOPS decryption patch onto every Flux Kustomization |
+| `sops.secretName` | string | no | `sops-age` | Name of the age decryption Secret referenced by the patch |
+| `sops.ageKeySecretRef` | object | no | | **Preferred** — copy the age key from an existing Secret on the target cluster (`{name, namespace, key}`, key default `age.agekey`); no plaintext in the XR |
+| `sops.ageKey` | string | no | | Inline age private key (dev only — plaintext in the XR); ignored when `ageKeySecretRef` is set |
 
 **Precedence:** `spec.*` > `flux-defaults` EnvironmentConfig > module fallback.
+
+### SOPS decryption
+
+`FluxInstance.spec.sync` cannot carry decryption, so SOPS is enabled the
+flux-operator way — a `kustomize.patches` entry that adds `spec.decryption`
+(`provider: sops`, `secretRef: {name: <secretName>}`) to **every** Flux
+`Kustomization`. Setting `sops.enabled: true` injects that patch automatically.
+Raw `kustomize.patches` (e.g. controller `--concurrent` tuning) are merged with
+it. See `examples/xr-sops.yaml`.
+
+The `sops-age` decryption Secret can be provided three ways:
+
+1. **`ageKeySecretRef` (preferred)** — copy the key from an existing Secret on
+   the target cluster into `sops-age` via provider-kubernetes `references`
+   (`patchesFrom`). No plaintext in the XR.
+2. **`ageKey` (dev only)** — inline plaintext key, base64-encoded into the
+   Secret's `data`. Visible in the management-cluster etcd; avoid for production.
+3. **Out of band** — omit both; only the patch is injected and `sops-age` is
+   managed elsewhere (e.g. the `sops.stuttgart-things.com` distribution).
 
 ### Status
 
@@ -58,8 +82,13 @@ Ordering is enforced with `crossplane.io/uses`: operator → instance → source
 - A Helm `ClusterProviderConfig` (`helm.m.crossplane.io/v1beta1`) named per `spec.helmProviderConfigRef`.
 - A Kubernetes `ClusterProviderConfig` (`kubernetes.m.crossplane.io/v1alpha1`) named per `spec.kubernetesProviderConfigRef`.
 - A `flux-defaults` EnvironmentConfig (`examples/environment-config.yaml`).
+- The `provider-kubernetes` ServiceAccount must be allowed to manage the Flux CRDs the composed Objects wrap (`fluxcd.controlplane.io`, `source.toolkit.fluxcd.io`). On the fleet clusters that SA is cluster-admin; on tighter clusters (e.g. kind) apply `examples/rbac.yaml`, otherwise the FluxInstance Object stalls with `... cannot get resource "fluxinstances" ... is forbidden`.
 
-See `examples/cluster-provider-config.yaml` for a kubeconfig-Secret-backed example.
+See `examples/cluster-provider-config.yaml` for a kubeconfig-Secret-backed example, and `examples/rbac.yaml` for the RBAC grant.
+
+## Verified
+
+Live-tested on a kind cluster (`in-cluster` ClusterProviderConfig as target): `FluxInit` reached `ready=true` — flux-operator installed, `FluxInstance` reconciled (Flux v2.8.3), all four controllers running.
 
 ## DEV
 

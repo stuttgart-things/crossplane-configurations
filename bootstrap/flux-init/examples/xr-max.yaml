@@ -12,7 +12,7 @@ spec:
   kubernetesProviderConfigRef: prod-kubernetes
   namespace: flux-system
   operatorChart:
-    version: "0.45.1"
+    version: "0.55.0"
     repoURL: "oci://ghcr.io/controlplaneio-fluxcd/charts"
   instance:
     distribution: "2.4.0"
