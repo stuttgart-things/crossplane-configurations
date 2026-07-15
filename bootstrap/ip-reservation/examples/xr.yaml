@@ -1,0 +1,12 @@
+---
+# Realistic XIPReservation — reserve one IP and create a wildcard PDNS record.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: XIPReservation
+metadata:
+  name: k3s-2-ip
+  namespace: crossplane-system
+spec:
+  clusterName: k3s-2
+  count: 1
+  createDNS: true
+  clusterbookProviderConfigRef: default

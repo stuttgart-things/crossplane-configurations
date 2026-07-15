@@ -1,0 +1,32 @@
+---
+# RBAC for the in-cluster provider-kubernetes ServiceAccount. It observes
+# RemoteClusters (provider-kubeconfig) and manages IPReservations
+# (provider-clusterbook) on the management cluster. On the fleet clusters this
+# SA is cluster-admin and this is unnecessary; on tighter clusters grant it
+# explicitly (resolve the SA with:
+#   kubectl get sa -n crossplane-system -o name | grep provider-kubernetes).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provider-kubernetes-ip-reservation
+rules:
+  - apiGroups: ["kubeconfig.stuttgart-things.com"]
+    resources: ["remoteclusters"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["ipreservation.clusterbook.stuttgart-things.com"]
+    resources: ["ipreservations"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: provider-kubernetes-ip-reservation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: provider-kubernetes-ip-reservation
+subjects:
+  - kind: ServiceAccount
+    # Replace the hash with the actual provider-kubernetes SA (see header).
+    name: crossplane-contrib-provider-kubernetes-XXXXXXXXXXXX
+    namespace: crossplane-system

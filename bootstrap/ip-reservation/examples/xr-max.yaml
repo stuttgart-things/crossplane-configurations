@@ -1,0 +1,15 @@
+---
+# Maximal XIPReservation — every spec field set. Note: `ip` pins an explicit
+# address and skips clusterbook auto-reservation.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: XIPReservation
+metadata:
+  name: prod-ip-reservation
+  namespace: crossplane-system
+spec:
+  clusterName: prod-cluster
+  count: 1
+  ip: 172.18.0.42
+  createDNS: true
+  clusterbookProviderConfigRef: default
+  kubernetesProviderConfigRef: in-cluster
