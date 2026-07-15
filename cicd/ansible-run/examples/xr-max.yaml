@@ -23,11 +23,19 @@ spec:
   ansibleVerbosity: "3"
   validateInventory: "true"
 
-  # Git Configuration
+  # Git Configuration (clone pipeline — required for SOPS decrypt below)
   gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
   gitRevision: main
-  gitPath: pipelines/execute-ansible-playbooks-from-collections.yaml
+  gitPath: pipelines/execute-ansible-playbooks.yaml
   gitWorkspaceSubdirectory: /ansible/workdir/
+
+  # SOPS decryption (runs after the git clone, before ansible). Only valid with
+  # the clone pipeline (gitPath above); the KCL module asserts this.
+  decryptSops: "true"
+  sopsFiles: ""
+  sopsFilePattern: "*.sops.yaml"
+  sopsAgeKeyFile: age.agekey
+  sopsAgeKeySecretName: sops-age-key # pragma: allowlist secret
 
   # Credentials
   ansibleCredentialsSecretName: ansible-credentials # pragma: allowlist secret

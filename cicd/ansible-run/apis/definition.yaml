@@ -137,6 +137,46 @@ spec:
                   description: Name of the Vault secret
                   default: vault
 
+                # SOPS decryption (runs after the git clone, before ansible).
+                # Only valid with gitPath=pipelines/execute-ansible-playbooks.yaml
+                # (the clone pipeline); the KCL module asserts this.
+                decryptSops:
+                  type: string
+                  enum: ["true", "false"]
+                  default: "false"
+                  description: |
+                    When "true", decrypt SOPS-encrypted files from the cloned
+                    repo before running ansible. Requires the clone pipeline
+                    (gitPath=pipelines/execute-ansible-playbooks.yaml) and the
+                    age-key secret (sopsAgeKeySecretName) in the PipelineRun
+                    namespace.
+                sopsFiles:
+                  type: string
+                  default: ""
+                  description: |
+                    Whitespace-separated files to decrypt, relative to the
+                    cloned workspace root. Empty => every file matching
+                    sopsFilePattern.
+                sopsFilePattern:
+                  type: string
+                  default: "*.sops.yaml"
+                  description: find(1) -name pattern used when sopsFiles is empty.
+                sopsAgeKeyFile:
+                  type: string
+                  default: age.agekey
+                  description: |
+                    Name of the age key file inside the sopsAgeKeySecretName
+                    secret (the sops-secrets-operator project key exposes it as
+                    "age.agekey").
+                sopsAgeKeySecretName:
+                  type: string
+                  description: |
+                    Name of the Secret holding the SOPS age key, mounted as the
+                    sopsKeys workspace. No XRD default on purpose so the
+                    EnvironmentConfig is authoritative; precedence is explicit XR
+                    value > EnvironmentConfig > KCL module default
+                    ("sops-age-key").
+
                 # Ansible Roles and Collections
                 installExtraRoles:
                   type: string
@@ -197,7 +237,8 @@ spec:
                     `ansible-run.resources.stuttgart-things.com/environment=<value>`.
                     Supported `data` keys: gitRepoUrl, gitRevision, gitPath,
                     storageClass, ansibleWorkingImage, namespace,
-                    ansibleExtraCollections, ansibleCredentialsSecretName.
+                    ansibleExtraCollections, ansibleCredentialsSecretName,
+                    sopsAgeKeySecretName.
                     Any value set explicitly on this XR's spec overrides the
                     EnvironmentConfig. When no EnvironmentConfig matches, the
                     XR spec / built-in defaults are used.
