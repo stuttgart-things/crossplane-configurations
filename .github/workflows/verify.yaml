@@ -17,7 +17,7 @@ on:
 
 jobs:
   discover:
-    runs-on: ubuntu-latest
+    runs-on: dagger-labul
     outputs:
       configs: ${{ steps.find.outputs.configs }}
     steps:
@@ -70,6 +70,8 @@ jobs:
 
   pre-commit:
     uses: stuttgart-things/github-workflow-templates/.github/workflows/call-pre-commit.yaml@main
+    with:
+      runs-on: dagger-labul
     secrets: inherit
 
   verify:
@@ -82,6 +84,7 @@ jobs:
     uses: stuttgart-things/github-workflow-templates/.github/workflows/call-crossplane-verify.yaml@main
     with:
       src: ${{ matrix.config }}
+      runs-on: dagger-labul
     secrets: inherit
 
   # Phase 1 of the CI/CD roadmap (docs/ci-cd-roadmap.md): per-changed-Configuration
@@ -97,7 +100,7 @@ jobs:
       fail-fast: false
       matrix:
         config: ${{ fromJson(needs.discover.outputs.configs) }}
-    runs-on: ubuntu-latest
+    runs-on: dagger-labul
     env:
       # 24h is ttl.sh's maximum TTL — long enough to outlive a review cycle.
       TTL: "24h"
@@ -178,7 +181,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    runs-on: ubuntu-latest
+    runs-on: dagger-labul
     steps:
       - uses: actions/download-artifact@v4
         with:
