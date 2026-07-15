@@ -54,7 +54,7 @@ spec:
         metadata:
           name: ansiblerun
         spec:
-          source: oci://ghcr.io/stuttgart-things/kcl-tekton-pr:0.6.0
+          source: oci://ghcr.io/stuttgart-things/kcl-tekton-pr:0.7.0
     # Surface the live Tekton PipelineRun status onto the AnsibleRun XR.
     # The wrapped provider-kubernetes Object mirrors the PipelineRun under
     # status.atProvider.manifest; this inline KCL reads it (observed
