@@ -26,8 +26,10 @@ Ordering is enforced with `crossplane.io/uses`: operator → instance → source
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `helmProviderConfigRef` | string | yes | | Helm `ClusterProviderConfig` name for the target cluster |
-| `kubernetesProviderConfigRef` | string | yes | | Kubernetes `ClusterProviderConfig` name for the target cluster |
+| `clusterName` | string | no\* | | RemoteCluster name — derives the provider refs (`{clusterName}-helm`/`-kubernetes`) and observes the RemoteCluster to gate the install |
+| `helmProviderConfigRef` | string | no\* | `{clusterName}-helm` | Helm `ClusterProviderConfig` for the target cluster |
+| `kubernetesProviderConfigRef` | string | no\* | `{clusterName}-kubernetes` | Kubernetes `ClusterProviderConfig` for the target cluster |
+| `observeProviderConfigRef` | string | no | `in-cluster` | Kubernetes `ClusterProviderConfig` (InjectedIdentity) to observe the RemoteCluster |
 | `namespace` | string | no | `flux-system` | Namespace for the operator + FluxInstance |
 | `operatorChart.version` | string | no | from EnvironmentConfig | flux-operator chart version |
 | `operatorChart.repoURL` | string | no | from EnvironmentConfig | flux-operator chart repo |
@@ -46,7 +48,24 @@ Ordering is enforced with `crossplane.io/uses`: operator → instance → source
 | `sops.ageKeySecretRef` | object | no | | **Preferred** — copy the age key from an existing Secret on the target cluster (`{name, namespace, key}`, key default `age.agekey`); no plaintext in the XR |
 | `sops.ageKey` | string | no | | Inline age private key (dev only — plaintext in the XR); ignored when `ageKeySecretRef` is set |
 
+\* **Either `clusterName` or both provider refs must be set** (enforced by a CEL rule). Explicit refs always win over the `clusterName`-derived defaults.
+
 **Precedence:** `spec.*` > `flux-defaults` EnvironmentConfig > module fallback.
+
+### Targeting by clusterName
+
+Instead of passing both provider refs, set `clusterName` to a registered
+`RemoteCluster` (provider-kubeconfig). The Composition then:
+
+1. derives `helmProviderConfigRef` = `{clusterName}-helm` and
+   `kubernetesProviderConfigRef` = `{clusterName}-kubernetes` (the names
+   provider-kubeconfig creates), and
+2. emits an **Observe** Object for the RemoteCluster and **withholds the Flux
+   resources** until it resolves (`status.clusterType` is set) — so the derived
+   provider configs exist before installing through them.
+
+The observed distribution is surfaced as `status.clusterType`. See
+`examples/xr-clustername.yaml`.
 
 ### SOPS decryption
 
@@ -74,14 +93,16 @@ The `sops-age` decryption Secret can be provided three ways:
 | `operatorReady` | flux-operator Helm Release is Ready |
 | `instanceReady` | FluxInstance CR is Ready |
 | `sourcesReady` | all source Objects Ready (`true` when none defined) |
-| `ready` | all of the above |
+| `ready` | all of the above (+ observe resolved when `clusterName` is set) |
 | `sourceCount` | number of source Objects created |
+| `clusterType` | distribution observed from the RemoteCluster (when `clusterName` is set) |
 
 ## Cluster preconditions
 
 - A Helm `ClusterProviderConfig` (`helm.m.crossplane.io/v1beta1`) named per `spec.helmProviderConfigRef`.
 - A Kubernetes `ClusterProviderConfig` (`kubernetes.m.crossplane.io/v1alpha1`) named per `spec.kubernetesProviderConfigRef`.
 - A `flux-defaults` EnvironmentConfig (`examples/environment-config.yaml`).
+- **When using `clusterName`:** a `RemoteCluster` (provider-kubeconfig) for the target cluster exposing `status.clusterType`; an in-cluster `ClusterProviderConfig` (InjectedIdentity) named per `observeProviderConfigRef`; and RBAC for the provider-kubernetes SA to `get,list,watch,patch` `remoteclusters` (`kubeconfig.stuttgart-things.com`).
 - The `provider-kubernetes` ServiceAccount must be allowed to manage the Flux CRDs the composed Objects wrap (`fluxcd.controlplane.io`, `source.toolkit.fluxcd.io`). On the fleet clusters that SA is cluster-admin; on tighter clusters (e.g. kind) apply `examples/rbac.yaml`, otherwise the FluxInstance Object stalls with `... cannot get resource "fluxinstances" ... is forbidden`.
 
 See `examples/cluster-provider-config.yaml` for a kubeconfig-Secret-backed example, and `examples/rbac.yaml` for the RBAC grant.

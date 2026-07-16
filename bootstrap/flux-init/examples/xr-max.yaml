@@ -29,7 +29,7 @@ spec:
         url: oci://ghcr.io/stuttgart-things/flux-infra
         ref: v1.2.0
         path: clusters/prod
-        pullSecret: ghcr-credentials
+        pullSecret: ghcr-credentials # pragma: allowlist secret
       - name: flux-apps
         kind: GitRepository
         url: https://github.com/stuttgart-things/flux-apps

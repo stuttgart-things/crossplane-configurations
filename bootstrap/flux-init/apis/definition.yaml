@@ -23,16 +23,34 @@ spec:
           properties:
             spec:
               type: object
-              required:
-                - helmProviderConfigRef
-                - kubernetesProviderConfigRef
+              x-kubernetes-validations:
+                - rule: "has(self.clusterName) || (has(self.helmProviderConfigRef) && has(self.kubernetesProviderConfigRef))"
+                  message: either clusterName, or both helmProviderConfigRef and kubernetesProviderConfigRef, must be set
               properties:
+                clusterName:
+                  type: string
+                  description: >-
+                    Target cluster's RemoteCluster name. When set, the provider
+                    config refs default to {clusterName}-helm and
+                    {clusterName}-kubernetes, and the RemoteCluster is observed to
+                    gate the install until it resolves (so the derived provider
+                    configs exist before installing through them).
                 helmProviderConfigRef:
                   type: string
-                  description: Name of the Helm ClusterProviderConfig for the target cluster
+                  description: >-
+                    Helm ClusterProviderConfig for the target cluster. Optional
+                    when clusterName is set (defaults to {clusterName}-helm).
                 kubernetesProviderConfigRef:
                   type: string
-                  description: Name of the Kubernetes ClusterProviderConfig for the target cluster
+                  description: >-
+                    Kubernetes ClusterProviderConfig for the target cluster.
+                    Optional when clusterName is set (defaults to {clusterName}-kubernetes).
+                observeProviderConfigRef:
+                  type: string
+                  default: in-cluster
+                  description: >-
+                    Kubernetes ClusterProviderConfig (InjectedIdentity) used to
+                    observe the RemoteCluster on the management cluster.
                 namespace:
                   type: string
                   default: flux-system
@@ -144,3 +162,6 @@ spec:
                   type: boolean
                 sourceCount:
                   type: integer
+                clusterType:
+                  type: string
+                  description: Distribution observed from the RemoteCluster (when clusterName is set)

@@ -20,7 +20,7 @@ spec:
         path: clusters/staging
   sops:
     enabled: true
-    secretName: sops-age
+    secretName: sops-age # pragma: allowlist secret
     # Preferred: copy the age key from an existing Secret on the target cluster
     # (no plaintext in the XR). Alternatively set `ageKey:` inline (dev only),
     # or omit both to only inject the patch and manage sops-age out of band.
