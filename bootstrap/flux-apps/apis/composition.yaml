@@ -1,0 +1,44 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: flux-apps
+  labels:
+    crossplane.io/xrd: fluxapps.config.stuttgart-things.com
+    provider-kubernetes: "true"
+    service: flux-apps
+spec:
+  compositeTypeRef:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: FluxApps
+  mode: Pipeline
+  pipeline:
+    # Load shared reconcile defaults (namespace, intervals, sourceRef) into the
+    # environment context. Optional — the KCL module also has hardcoded
+    # fallbacks, so a missing EnvironmentConfig is not fatal.
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Reference
+              ref:
+                name: flux-apps-defaults
+    # Render one Kustomization Object per spec.apps entry and patch XR status
+    # (single pass) via the xplane-flux-apps KCL module pulled from OCI.
+    - step: flux-apps
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: flux-apps
+        spec:
+          source: oci://ghcr.io/stuttgart-things/xplane-flux-apps:0.1.0
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready
