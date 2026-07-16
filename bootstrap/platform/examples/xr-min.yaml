@@ -1,0 +1,12 @@
+---
+# Minimal Platform — only XRD-required fields, exercises the defaults:
+# fluxInit.enabled=true, namespace=flux-system, observeProviderConfigRef=in-cluster,
+# and the {clusterName}-helm / {clusterName}-kubernetes ref derivation.
+# Flux is installed without sources.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: minimal
+  namespace: crossplane-system
+spec:
+  clusterName: dev
