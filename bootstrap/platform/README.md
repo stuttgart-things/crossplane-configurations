@@ -8,6 +8,87 @@ The Composition is a `function-kcl` step that composes one **child XR** per enab
 
 Without it, every bootstrap Configuration on a cluster restates the same cluster identity, and there is no single object that answers "is this cluster's platform up, and what was it given?". `Platform` states that once and publishes it back.
 
+## What gets created
+
+A `Platform` composes **child XRs**, not managed resources — the managed resources below are emitted one level deeper, by the wrapped Configuration's own Composition. `platform` itself never talks to a target cluster.
+
+```mermaid
+flowchart TD
+    P["Platform<br/>the XR you apply"]
+    F["FluxInit<br/>{platform}-flux-init"]
+
+    RC["Object: RemoteCluster<br/>...-observe-rc<br/>Observe only, gates the install"]
+    R["Release<br/>...-flux-operator<br/>flux-operator Helm chart"]
+    I["Object: FluxInstance<br/>...-flux-instance<br/>installs Flux itself"]
+    U["Usage<br/>...-flux-instance-uses-operator<br/>teardown ordering"]
+    S["Object: OCIRepository / GitRepository<br/>...-source-{name}"]
+    SA["Object: Secret<br/>...-sops-age<br/>age decryption key"]
+
+    P -->|"composes, per enabled component"| F
+    F -.->|"only if spec.clusterName"| RC
+    RC -.->|"unblocks once clusterType resolves"| R
+    F --> R
+    F --> I
+    F --> U
+    F -.->|"per instance.sources entry"| S
+    F -.->|"only if sops.enabled"| SA
+    R ==>|"crossplane.io/uses"| I
+    I ==>|"crossplane.io/uses"| S
+
+    classDef xr fill:#e8f0fe,stroke:#4285f4,color:#000
+    classDef mr fill:#f1f3f4,stroke:#9aa0a6,color:#000
+    classDef opt fill:#ffffff,stroke:#9aa0a6,stroke-dasharray:4 3,color:#000
+    class P,F xr
+    class R,I,U mr
+    class RC,S,SA opt
+```
+
+Blue is an XR (Crossplane composes it further), grey a managed resource, dashed-white conditional. Double arrows are ordering (`crossplane.io/uses`): operator → instance → sources.
+
+| Depth | Resource | Name | Emitted by | When |
+|---|---|---|---|---|
+| 0 | `Platform` | *yours* | you | — |
+| 1 | `FluxInit` | `{platform}-flux-init` | **platform** | `spec.fluxInit.enabled` (default `true`) |
+| 2 | `kubernetes.m…/Object` → `RemoteCluster` | `{platform}-flux-init-observe-rc` | flux-init | only with `spec.clusterName` |
+| 2 | `helm.m…/Release` | `{platform}-flux-init-flux-operator` | flux-init | always |
+| 2 | `kubernetes.m…/Object` → `FluxInstance` | `{platform}-flux-init-flux-instance` | flux-init | always |
+| 2 | `protection…/Usage` | `{platform}-flux-init-flux-instance-uses-operator` | flux-init | always |
+| 2 | `kubernetes.m…/Object` → `OCIRepository`/`GitRepository` | `{platform}-flux-init-source-{source}` | flux-init | per `sources` entry |
+| 2 | `kubernetes.m…/Object` → `Secret` | `{platform}-flux-init-sops-age` | flux-init | `sops.enabled` + a key source |
+
+So a minimal `Platform` (no sources, no SOPS, no `clusterName`) composes **four** objects — the `FluxInit` child, and a `Release`, an `Object` and a `Usage` beneath it:
+
+```console
+$ crossplane beta trace platform kind1 -n crossplane-system
+NAME                                                       SYNCED   READY   STATUS
+Platform/kind1 (crossplane-system)                         True     True    Available
+└─ FluxInit/kind1-flux-init (crossplane-system)            True     True    Available
+   ├─ Release/kind1-flux-init-flux-operator                True     True    Available
+   ├─ Object/kind1-flux-init-flux-instance                 True     True    Available
+   └─ Usage/kind1-flux-init-flux-instance-uses-operator    -        True    Available
+```
+
+On the target cluster that becomes the flux-operator Deployment plus the Flux controllers the `FluxInstance` installs.
+
+## Versions
+
+| What | Version | Where it comes from |
+|---|---|---|
+| `platform` Configuration | `v0.1.0` | [`crossplane.yaml`](crossplane.yaml) |
+| platform's KCL | **inline** | [`apis/composition.yaml`](apis/composition.yaml) — no OCI module to publish |
+| Crossplane | `>=v2.1.3` | `crossplane.yaml` |
+| `flux-init` Configuration | `>=v0.2.0` | `dependsOn` — pulled automatically |
+| `xplane-flux-init` KCL module | `0.2.0` | flux-init's Composition (OCI, pulled at render time) |
+| provider-helm | `>=v1.0.0,<v2.0.0` | `dependsOn` |
+| provider-kubernetes | `>=v1.2.0,<v2.0.0` | `dependsOn` |
+| function-kcl | `>=v0.12.0,<v0.13.0` | `dependsOn` |
+| function-environment-configs | `>=v0.7.0,<v0.8.0` | `dependsOn` |
+| function-auto-ready | `>=v0.6.5,<v0.7.0` | `dependsOn` — **not** `v0.7.x` |
+| flux-operator chart | `0.55.0` | `flux-defaults` EnvironmentConfig · override with `spec.fluxInit.operatorChart.version` |
+| Flux distribution | `2.x` | `flux-defaults` EnvironmentConfig · override with `spec.fluxInit.instance.distribution` |
+
+The two bottom rows are the only versions an XR normally sets; everything else is a package pin. `>=v0.2.0` on `flux-init` is a floor, not a cap — `clusterName` targeting needs it.
+
 ## The shared contract
 
 `status.shared` is the point of this Configuration. The cluster identity is stated **once** on `spec`, resolved by the Composition, injected into every child XR, and published on `status.shared`:
