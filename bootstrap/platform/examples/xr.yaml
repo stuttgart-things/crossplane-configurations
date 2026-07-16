@@ -1,0 +1,20 @@
+---
+# Realistic Platform — the copy-paste template. One clusterName is the whole
+# shared contract: provider config refs derive from it, every component
+# inherits it, and it comes back resolved on status.shared.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: staging
+  namespace: crossplane-system
+spec:
+  clusterName: staging
+  fluxInit:
+    enabled: true
+    instance:
+      sources:
+        - name: fleet-infra
+          kind: OCIRepository
+          url: oci://ghcr.io/stuttgart-things/fleet-infra
+          ref: latest
+          path: clusters/staging

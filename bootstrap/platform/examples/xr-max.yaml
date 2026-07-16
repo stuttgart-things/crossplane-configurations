@@ -1,0 +1,56 @@
+---
+# Maximal Platform — every spec field set, including the explicit provider
+# config refs (which win over the clusterName derivation) and the full
+# fluxInit passthrough (operatorChart, instance, kustomize, sops).
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: production
+  namespace: crossplane-system
+spec:
+  clusterName: production
+  # Explicit refs override the {clusterName}-helm / -kubernetes derivation.
+  helmProviderConfigRef: production-helm
+  kubernetesProviderConfigRef: production-kubernetes
+  observeProviderConfigRef: in-cluster
+  namespace: flux-system
+  fluxInit:
+    enabled: true
+    operatorChart:
+      version: "0.55.0"
+      repoURL: oci://ghcr.io/controlplaneio-fluxcd/charts
+    instance:
+      distribution: upstream
+      components:
+        - source-controller
+        - kustomize-controller
+        - helm-controller
+        - notification-controller
+      sources:
+        - name: fleet-infra
+          kind: OCIRepository
+          url: oci://ghcr.io/stuttgart-things/fleet-infra
+          ref: latest
+          path: clusters/production
+          pullSecret: ghcr-auth # pragma: allowlist secret
+        - name: flux-apps
+          kind: GitRepository
+          url: https://github.com/stuttgart-things/flux-apps.git
+          ref: main
+          path: apps/production
+    kustomize:
+      patches:
+        - target:
+            kind: Deployment
+            name: kustomize-controller
+          patch: |
+            - op: add
+              path: /spec/template/spec/containers/0/args/-
+              value: --concurrent=8
+    sops:
+      enabled: true
+      secretName: sops-age # pragma: allowlist secret
+      ageKeySecretRef:
+        name: sops-age-key
+        namespace: flux-system
+        key: age.agekey
