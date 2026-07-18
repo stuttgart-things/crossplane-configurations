@@ -4,4 +4,4 @@ kind: Configuration
 metadata:
   name: flux-apps
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/flux-apps:v0.1.1
+  package: ghcr.io/stuttgart-things/crossplane-configurations/flux-apps:v0.1.2
