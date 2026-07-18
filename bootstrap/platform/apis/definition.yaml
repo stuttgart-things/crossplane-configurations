@@ -26,6 +26,11 @@ spec:
               x-kubernetes-validations:
                 - rule: "has(self.clusterName) || (has(self.helmProviderConfigRef) && has(self.kubernetesProviderConfigRef))"
                   message: either clusterName, or both helmProviderConfigRef and kubernetesProviderConfigRef, must be set
+                # Apps reference Flux sources that the FluxInit child creates, so
+                # enabling one without fluxInit can never converge. Rejected here,
+                # at apply time, rather than as a composition error later.
+                - rule: "!(has(self.apps) && self.apps.exists(k, self.apps[k].enabled) && has(self.fluxInit) && has(self.fluxInit.enabled) && !self.fluxInit.enabled)"
+                  message: apps are enabled but fluxInit is disabled — fluxInit creates the Flux sources every app references; enable fluxInit or disable all apps
               properties:
                 # --- Shared cluster identity: set once here, passed to every component ---
                 clusterName:
@@ -57,6 +62,74 @@ spec:
                   description: >-
                     Target namespace on the cluster for platform components.
                     Distinct from metadata.namespace (where the XR itself lives).
+                # --- Apps: catalog-driven, delegated to the flux-apps Configuration ---
+                apps:
+                  type: object
+                  description: >-
+                    Apps to deploy, keyed by catalog name (see the
+                    xplane-flux-catalog KCL module). Enabling one emits BOTH the
+                    OCIRepository source on the FluxInit child and the
+                    Kustomization entries on the FluxApps child — the source name
+                    and the app are the same fact, because stuttgart-things/flux
+                    publishes one OCI artifact per app. A map, not a list, so
+                    per-app overrides merge. Unknown names are rejected.
+                  additionalProperties:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: true
+                        description: Deploy this app. false prunes it (the Kustomization and its workload are removed)
+                      version:
+                        type: string
+                        description: OCI tag of the app artifact; defaults to the catalog's defaultVersion
+                      targetNamespace:
+                        type: string
+                        description: Namespace all of this app's resources are applied to
+                      substitute:
+                        type: object
+                        description: postBuild.substitute applied to every component of this app. Values are environment-specific and deliberately live here, not in the catalog.
+                        x-kubernetes-preserve-unknown-fields: true
+                      components:
+                        type: object
+                        description: Per-component overrides, keyed by the catalog's component name (e.g. control-plane)
+                        additionalProperties:
+                          type: object
+                          properties:
+                            enabled:
+                              type: boolean
+                              default: true
+                            timeout:
+                              type: string
+                              description: Overrides the catalog's timeout for this component
+                            targetNamespace:
+                              type: string
+                            substitute:
+                              type: object
+                              description: Merged over the app-level substitute; wins on conflict
+                              x-kubernetes-preserve-unknown-fields: true
+                            substituteFrom:
+                              type: array
+                              description: >-
+                                postBuild.substituteFrom for this component only.
+                                Component-scoped on purpose — it resolves at build
+                                time and a missing Secret fails the build, so an
+                                app-wide one would break components that do not need it.
+                              items:
+                                type: object
+                                required:
+                                  - kind
+                                  - name
+                                properties:
+                                  kind:
+                                    type: string
+                                    enum:
+                                      - ConfigMap
+                                      - Secret
+                                  name:
+                                    type: string
+                                  optional:
+                                    type: boolean
                 # --- Components: one block per wrapped Configuration ---
                 fluxInit:
                   type: object
@@ -167,6 +240,17 @@ spec:
                         sourcesReady:
                           type: boolean
                         sourceCount:
+                          type: integer
+                    fluxApps:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                        ready:
+                          type: boolean
+                        appCount:
+                          type: integer
+                        readyCount:
                           type: integer
                 componentCount:
                   type: integer

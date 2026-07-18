@@ -12,9 +12,16 @@ spec:
     kind: Platform
   mode: Pipeline
   pipeline:
-    # Compose one child XR per enabled component and patch the shared status
-    # in a single pass. On the first reconcile `ocds` is empty, so status.ready
-    # starts false and converges as the child XRs become Ready.
+    # Compose one child XR per enabled component and patch the shared status in a
+    # single pass. On the first reconcile `ocds` is empty, so status.ready starts
+    # false and converges as the child XRs become Ready.
+    #
+    # The logic lives in the xplane-platform KCL module (which depends on
+    # xplane-flux-catalog for the app definitions) rather than inline here: inline
+    # KCL cannot be unit-tested, and the app-catalog rules — apps require fluxInit,
+    # a component may not depend on a disabled sibling, dependsOn is rewritten to
+    # the emitted names — are exactly the logic that should be tested before it
+    # reaches a cluster. Same pattern as flux-init and flux-apps.
     - step: platform
       functionRef:
         name: function-kcl
@@ -24,121 +31,7 @@ spec:
         metadata:
           name: platform
         spec:
-          source: |
-            oxr = option("params").oxr
-            ocds = option("params").ocds
-
-            _spec = oxr?.spec or {}
-            _meta = oxr?.metadata or {}
-            _name = _meta?.name or "platform"
-            _namespace = _meta?.namespace or "default"
-
-            # --- Shared contract: resolved once, handed to every component ---
-            # clusterName derives {clusterName}-helm / {clusterName}-kubernetes —
-            # the naming provider-kubeconfig's RemoteCluster creates for the target.
-            _clusterName = _spec?.clusterName or ""
-            _helmPcr = _spec?.helmProviderConfigRef or ("{}-helm".format(_clusterName) if _clusterName else "")
-            _k8sPcr = _spec?.kubernetesProviderConfigRef or ("{}-kubernetes".format(_clusterName) if _clusterName else "")
-            _observePcr = _spec?.observeProviderConfigRef or "in-cluster"
-            _ns = _spec?.namespace or "flux-system"
-
-            # --- Component: flux-init ---
-            # `or True` would swallow an explicit false, so test for the key.
-            _fluxSpec = _spec?.fluxInit or {}
-            _fluxEnabled = _fluxSpec.enabled if "enabled" in _fluxSpec else True
-            _fluxKey = "{}-flux-init".format(_name)
-
-            _fluxResources = []
-            if _fluxEnabled:
-                _fluxInitXR = {
-                    apiVersion = "config.stuttgart-things.com/v1alpha1"
-                    kind = "FluxInit"
-                    metadata = {
-                        name = _fluxKey
-                        namespace = _namespace
-                        annotations = {
-                            "krm.kcl.dev/composition-resource-name" = _fluxKey
-                        }
-                    }
-                    spec = {
-                        # Shared identity injected — never restated per component.
-                        if _clusterName:
-                            clusterName = _clusterName
-                        if _helmPcr:
-                            helmProviderConfigRef = _helmPcr
-                        if _k8sPcr:
-                            kubernetesProviderConfigRef = _k8sPcr
-                        observeProviderConfigRef = _observePcr
-                        namespace = _ns
-                        # Component-specific passthrough.
-                        if _fluxSpec?.operatorChart:
-                            operatorChart = _fluxSpec.operatorChart
-                        if _fluxSpec?.instance:
-                            instance = _fluxSpec.instance
-                        if _fluxSpec?.kustomize:
-                            kustomize = _fluxSpec.kustomize
-                        if _fluxSpec?.sops:
-                            sops = _fluxSpec.sops
-                    }
-                }
-                _fluxResources = [_fluxInitXR]
-
-            # --- Read child status back ---
-            _fluxFound = _fluxKey in ocds
-            _fluxStatus = ocds[_fluxKey].Resource?.status or {} if _fluxFound else {}
-            _fluxConds = _fluxStatus?.conditions or []
-            _fluxReady = len([c for c in _fluxConds if c.type == "Ready" and c.status == "True"]) > 0
-
-            # clusterType is discovered by the FluxInit child from the RemoteCluster;
-            # lifting it into shared status keeps later components from re-observing it.
-            _clusterType = _fluxStatus?.clusterType or ""
-
-            _fluxComponent = {
-                enabled = _fluxEnabled
-                ready = _fluxReady
-                operatorReady = _fluxStatus?.operatorReady or False
-                instanceReady = _fluxStatus?.instanceReady or False
-                sourcesReady = _fluxStatus?.sourcesReady or False
-                sourceCount = _fluxStatus?.sourceCount or 0
-            }
-
-            # --- Aggregate: every enabled component must be Ready ---
-            _enabledReady = [_fluxReady] if _fluxEnabled else []
-            _componentCount = len(_enabledReady)
-            _readyComponents = len([r for r in _enabledReady if r])
-
-            # Only publish what actually resolved. clusterName is absent on the
-            # explicit-refs path, and clusterType stays unset until the FluxInit
-            # child has observed the RemoteCluster (which it only does when
-            # clusterName is set). Emitting "" would make an unresolved field
-            # indistinguishable from one resolved to the empty string, and any
-            # consumer doing `if status.shared.clusterType` would read a value
-            # that was never discovered.
-            _xrStatus = oxr | {
-                status = {
-                    shared = {
-                        if _clusterName:
-                            clusterName = _clusterName
-                        helmProviderConfigRef = _helmPcr
-                        kubernetesProviderConfigRef = _k8sPcr
-                        observeProviderConfigRef = _observePcr
-                        namespace = _ns
-                        if _clusterType:
-                            clusterType = _clusterType
-                    }
-                    components = {
-                        fluxInit = _fluxComponent
-                    }
-                    componentCount = _componentCount
-                    readyComponents = _readyComponents
-                    # Vacuously true with nothing enabled — matches what
-                    # function-auto-ready reports on the Ready condition when
-                    # there are no composed resources to wait for.
-                    ready = _readyComponents == _componentCount
-                }
-            }
-
-            items = _fluxResources + [_xrStatus]
+          source: oci://ghcr.io/stuttgart-things/xplane-platform:0.1.0
     - step: automatically-detect-ready-composed-resources
       functionRef:
         name: function-auto-ready

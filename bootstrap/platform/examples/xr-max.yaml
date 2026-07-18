@@ -54,3 +54,25 @@ spec:
         name: sops-age-key
         namespace: flux-system
         key: age.agekey
+  apps:
+    dapr:
+      enabled: true
+      version: v1.18.1
+      substitute:
+        DAPR_NAMESPACE: dapr-system
+        DAPR_VERSION: "1.17.4"
+        DAPR_HA_ENABLED: "false"
+      components:
+        control-plane:
+          timeout: 20m
+        template-execution:
+          targetNamespace: backstage-workflows
+          substitute:
+            DAPR_BACKSTAGE_TPL_NAMESPACE: backstage-workflows
+            FLUX_SOURCE_API_VERSION: v1
+          # Component-scoped on purpose: substituteFrom resolves at build time
+          # and a missing Secret fails the build, so an app-wide one would break
+          # control-plane, which does not need it.
+          substituteFrom:
+            - kind: Secret
+              name: dapr-backstage-template-execution-vars
