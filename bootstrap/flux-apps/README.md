@@ -30,7 +30,7 @@ Each Kustomization references an **existing** Flux source (`GitRepository` / `OC
 | `sourceRef.namespace` | string | no | | Source namespace (defaults to the Kustomization namespace) |
 | `interval` | string | no | `1h` | Default reconcile interval for all apps |
 | `retryInterval` | string | no | `1m` | Default retry interval for all apps |
-| `timeout` | string | no | `5m` | Default timeout for all apps |
+| `timeout` | string | no | `10m` | Default timeout for all apps — 10m because `wait: true` on a HelmRelease-wrapping app routinely needs more than 5m on first install |
 | `prune` | boolean | no | `true` | Default garbage collection for all apps |
 | `wait` | boolean | no | `true` | Default health-wait for all apps |
 | `commonMetadata` | object | no | | Labels/annotations added to all resources of every app (overridable per app) |

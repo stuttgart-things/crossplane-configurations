@@ -66,7 +66,12 @@ spec:
                   description: Default retry interval for all apps
                 timeout:
                   type: string
-                  default: 5m
+                  # 10m, not 5m: apps that wrap a HelmRelease (the common case)
+                  # regularly exceed 5m on first install while the chart pulls
+                  # and pods roll out, and `wait: true` then reports a spurious
+                  # `health check failed ... timeout waiting for HelmRelease`
+                  # before converging on its own.
+                  default: 10m
                   description: Default timeout for all apps
                 prune:
                   type: boolean
