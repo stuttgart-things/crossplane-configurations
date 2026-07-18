@@ -14,8 +14,10 @@ spec:
   mode: Pipeline
   pipeline:
     # Load shared reconcile defaults (namespace, intervals, sourceRef) into the
-    # environment context. Optional — the KCL module also has hardcoded
-    # fallbacks, so a missing EnvironmentConfig is not fatal.
+    # environment context. REQUIRED — `type: Reference` has no `optional` field
+    # in function-environment-configs v0.7.x (it is rejected at unmarshal), so a
+    # missing flux-apps-defaults fails the whole pipeline with
+    # `Required environment config "flux-apps-defaults" not found`.
     - step: load-environment
       functionRef:
         name: function-environment-configs

@@ -1,43 +1,43 @@
 ---
-# RBAC precondition for flux-init when the target is reached via an in-cluster
+# RBAC precondition for flux-apps when the target is reached via an in-cluster
 # (InjectedIdentity) provider-kubernetes ClusterProviderConfig.
 #
 # The provider-kubernetes ServiceAccount must be allowed to manage the Flux
-# CRDs that the FluxInstance / source Objects wrap. On the stuttgart-things
+# Kustomization CRD that each composed Object wraps. On the stuttgart-things
 # fleet clusters that SA is effectively cluster-admin and this is unnecessary;
 # on tighter clusters (e.g. a kind dev cluster) grant it explicitly, otherwise
-# the FluxInstance Object stalls with:
-#   observe failed: ... cannot get resource "fluxinstances" in API group
-#   "fluxcd.controlplane.io" ... is forbidden
+# every app Object stalls with:
+#   observe failed: ... cannot get resource "kustomizations" in API group
+#   "kustomize.toolkit.fluxcd.io" ... is forbidden
+#
+# NOTE: flux-init's examples/rbac.yaml does NOT cover this group — it grants
+# fluxcd.controlplane.io + source.toolkit.fluxcd.io only. Applying both is the
+# complete grant for a flux-init + flux-apps cluster. (Verified on kind1.)
 #
 # The subject below assumes the provider ServiceAccount name is pinned to
 # `provider-kubernetes` via a DeploymentRuntimeConfig — see
 # ../../platform/examples/rbac.yaml, which applies the complete grant for
-# flux-init + flux-apps (including kustomize.toolkit, which this file does NOT
-# cover) in one file and is the recommended way to do this. Without that pin
-# the SA name carries the package-revision hash (resolve with
+# flux-init + flux-apps in one file and is the recommended way to do this.
+# Without that pin the SA name carries the package-revision hash (resolve with
 # `kubectl get sa -n crossplane-system -o name | grep provider-kubernetes`) and
 # the binding breaks on every provider upgrade.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: provider-kubernetes-flux
+  name: provider-kubernetes-flux-apps
 rules:
-  - apiGroups: ["fluxcd.controlplane.io"] # FluxInstance
-    resources: ["*"]
-    verbs: ["*"]
-  - apiGroups: ["source.toolkit.fluxcd.io"] # OCIRepository / GitRepository sources
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"] # Kustomization
     resources: ["*"]
     verbs: ["*"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: provider-kubernetes-flux
+  name: provider-kubernetes-flux-apps
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: provider-kubernetes-flux
+  name: provider-kubernetes-flux-apps
 subjects:
   - kind: ServiceAccount
     name: provider-kubernetes

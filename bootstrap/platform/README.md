@@ -104,6 +104,8 @@ The two bottom rows are the only versions an XR normally sets; everything else i
 
 `clusterType` is the shape that matters as components are added: a fact discovered by one child, published once, consumed by the next — instead of each component re-observing the `RemoteCluster` itself.
 
+Fields that have not resolved are **omitted**, not published as `""` — `clusterName` on the explicit-refs path, and `clusterType` until the `FluxInit` child has observed the `RemoteCluster` (which it only does when `clusterName` is set). So `if status.shared.clusterType` is a safe test for "discovered", and a consumer never reads a value that was never resolved.
+
 `status.components` carries per-component readiness and outputs; `status.ready` is true when every **enabled** component is Ready (vacuously true when none are enabled, matching what `function-auto-ready` reports on the `Ready` condition).
 
 ```yaml
@@ -169,9 +171,27 @@ Each component block mirrors the child XR's own spec (minus the shared identity,
 
 If a component needs a value another component discovers, put it on `status.shared` (as `clusterType` does) rather than re-deriving it.
 
+### Component schemas are mirrored, and must be kept in lockstep
+
+`spec.fluxInit.operatorChart` and `spec.fluxInit.instance` are **typed copies** of the corresponding blocks in flux-init's XRD (`kustomize` and `sops` are `x-kubernetes-preserve-unknown-fields` passthroughs instead, because their shape is FluxInstance's, not ours). A field added to flux-init is therefore not usable through `Platform` until it is mirrored here.
+
+That failure is loud, not silent — worth knowing which error you are looking at:
+
+| How you apply it | Result |
+|---|---|
+| `kubectl apply` (default, strict) | rejected: `unknown field "spec.fluxInit.instance.<x>"` |
+| server-side apply (Flux, Argo CD) | rejected: `field not declared in schema` |
+| `kubectl apply --validate=ignore` | **silently pruned** — the field never reaches the child |
+
+Mirroring the field into [`apis/definition.yaml`](apis/definition.yaml) is the fix; the Composition passes `instance` through verbatim, so no KCL change is needed. Do not "solve" this by making `instance` preserve-unknown: the field would then reach the child `FluxInit`, whose own schema rejects it when Crossplane server-side-applies it — turning a clear rejection on the object you wrote into a composition error one level down.
+
 ## Cluster preconditions
 
-Those of the wrapped Configurations — `platform` adds none of its own:
+Apply [`examples/rbac.yaml`](examples/rbac.yaml) **once per cluster** — it is the complete grant for every flux component this umbrella composes (flux-init's `FluxInstance` + sources, flux-apps' `Kustomization`s), and it is required every time you use `platform` or `flux-init` against an in-cluster provider config.
+
+It cannot be self-contained in a Composition, unlike the namespace precondition: `provider-kubernetes` has no `create` on `clusterroles`/`clusterrolebindings` and no `escalate` or `bind` verb, so a composed Object that tried to create the grant is denied. It must come from the layer that installs Crossplane. The file also pins the provider's ServiceAccount name via a `DeploymentRuntimeConfig` — by default that name carries the package-revision hash, which changes on provider upgrade and would silently break a binding pinned to it.
+
+Beyond that, the preconditions are those of the wrapped Configurations — `platform` adds none of its own:
 
 - A Helm `ClusterProviderConfig` (`helm.m.crossplane.io/v1beta1`) named `{clusterName}-helm`, or whatever `spec.helmProviderConfigRef` says.
 - A Kubernetes `ClusterProviderConfig` (`kubernetes.m.crossplane.io/v1alpha1`) named `{clusterName}-kubernetes`.

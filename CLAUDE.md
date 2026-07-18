@@ -64,7 +64,18 @@ spec:
   managementPolicies: [Observe, Create]   # adopt if exists; create if missing; never modify/delete
   ```
 - The only documented per-Configuration **precondition** that must live on the cluster (not in the package) is the `ClusterProviderConfig` referenced by `spec.providerConfigRef` on the XR. Note this in the per-Configuration README under "Cluster preconditions".
-- **Function CR names: short form, always.** In both `examples/functions.yaml` (`metadata.name`) and the Composition (`functionRef.name`), use the short form — `function-go-templating`, not `crossplane-contrib-function-go-templating`. Same rule for every Function (drop the `crossplane-contrib-` prefix). Target clusters in the stuttgart-things fleet install Functions under the short names via Argo CD; a long-named CR pointing at the same package adds a duplicate node to Crossplane's package lock graph (`cannot resolve package dependencies: ... node ... already exists`), which freezes the dependency resolver for **every** package on the cluster — providers and other Functions flip to `Healthy=False`, and any Configuration delete blocks on foreground deletion. Recovery requires deleting the long-named duplicates by hand. Applies to new Configurations and migrations alike.
+- **Function CR names: short form, always.** In both `examples/functions.yaml` (`metadata.name`) and the Composition (`functionRef.name`), use the short form — `function-go-templating`, not `crossplane-contrib-function-go-templating`. Same rule for every Function (drop the `crossplane-contrib-` prefix). Target clusters in the stuttgart-things fleet install Functions under the short names via Argo CD; a long-named CR pointing at the same package adds a duplicate node to Crossplane's package lock graph (`cannot resolve package dependencies: ... node ... already exists`), which freezes the dependency resolver for **every** package on the cluster — providers and other Functions flip to `Healthy=False`, and any Configuration delete blocks on foreground deletion. Applies to new Configurations and migrations alike.
+
+  **The trigger is same source under two CR names — not two CR names as such.** Verified on kind1 (2026-07-18). A cluster normally carries both `function-kcl` (short, Helm/Argo-installed, `xpkg.upbound.io`) and `crossplane-contrib-function-kcl` (long, **auto-installed by the package manager** from a Configuration's `dependsOn`, `xpkg.crossplane.io` — Crossplane derives that CR name from the package path, so deleting it just brings it back within seconds). That cross-mirror pair is **healthy and expected**: two Lock nodes, two distinct sources, resolves by digest.
+
+  So do **not** "clean this up" by aligning the mirrors. Repointing the Helm-installed short-named CR at `xpkg.crossplane.io` to match the `dependsOn` gives two Lock nodes with an *identical* source and instantly triggers `node xpkg.crossplane.io/crossplane-contrib/function-kcl already exists` — every Function on the cluster goes `Healthy=False`. The mirror split is what keeps the two nodes distinct.
+
+  **Recovery** (deleting the long-named CR does *not* work — it is recreated): the Lock keeps the stale source after you revert the CR, so drop the offending entry and let the package manager rebuild it:
+  ```bash
+  IDX=$(kubectl get lock lock -o json | jq '[.packages[].name] | index("function-kcl-<hash>")')
+  kubectl patch lock lock --type=json -p "[{\"op\":\"remove\",\"path\":\"/packages/$IDX\"}]"
+  ```
+  Health returns in under a minute. Corollary: `functionRef: function-kcl` resolves only because the fleet pre-installs short names via Argo CD — on a bare cluster the auto-installed dependency lands as `crossplane-contrib-function-kcl` and a short-named `functionRef` would not resolve.
 
 ### Example XR conventions
 
