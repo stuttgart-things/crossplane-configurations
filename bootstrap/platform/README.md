@@ -68,14 +68,48 @@ Platform/kind1 (crossplane-system)                         True     True    Avai
    └─ Usage/kind1-flux-init-flux-instance-uses-operator    -        True    Available
 ```
 
+With one app enabled (`apps: {dapr: {}}`), verified on kind1 2026-07-18 — note the
+source Object and the app Object both come from that single toggle:
+
+```console
+$ crossplane beta trace platform kind1 -n crossplane-system
+NAME                                                                          SYNCED   READY   STATUS
+Platform/kind1 (crossplane-system)                                            True     True    Available
+├─ FluxApps/kind1-flux-apps (crossplane-system)                               True     True    Available
+│  └─ Object/kind1-flux-apps-app-dapr-control-plane (crossplane-system)       True     True    Available
+└─ FluxInit/kind1-flux-init (crossplane-system)                               True     True    Available
+   ├─ Release/kind1-flux-init-flux-operator (crossplane-system)               True     True    Available
+   ├─ Object/kind1-flux-init-flux-instance (crossplane-system)                True     True    Available
+   ├─ Object/kind1-flux-init-source-dapr (crossplane-system)                  True     True    Available
+   └─ Usage/kind1-flux-init-flux-instance-uses-operator (crossplane-system)   -        True    Available
+```
+
+## Teardown ordering
+
+Delete the `Platform` and Crossplane removes the children in parallel, which can
+race: if the `FluxInstance` goes before the source Objects, Flux's CRDs are gone
+and provider-kubernetes can no longer observe an `OCIRepository` to finalize it,
+so those Objects hang on `finalizer.managedresource.crossplane.io` with
+
+```
+observe failed: cannot get object: no matches for kind "OCIRepository" in version "source.toolkit.fluxcd.io/v1"
+```
+
+Seen on kind1 while migrating a hand-built stack. Clear it with
+`kubectl patch object.kubernetes.m.crossplane.io <name> -n <ns> --type=merge -p '{"metadata":{"finalizers":[]}}'`
+— the underlying resource is already gone with the CRD. When tearing down by
+hand, delete `FluxApps` first (so Kustomizations prune while Flux still runs),
+then `FluxInit`.
+
 On the target cluster that becomes the flux-operator Deployment plus the Flux controllers the `FluxInstance` installs.
 
 ## Versions
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.1.0` | [`crossplane.yaml`](crossplane.yaml) |
-| platform's KCL | **inline** | [`apis/composition.yaml`](apis/composition.yaml) — no OCI module to publish |
+| `platform` Configuration | `v0.2.0` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-platform` KCL module | `0.1.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `xplane-flux-catalog` KCL module | `0.1.1` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
 | `flux-init` Configuration | `>=v0.2.0` | `dependsOn` — pulled automatically |
 | `xplane-flux-init` KCL module | `0.2.0` | flux-init's Composition (OCI, pulled at render time) |
@@ -125,8 +159,13 @@ status:
       instanceReady: true
       sourcesReady: true
       sourceCount: 1
-  componentCount: 1
-  readyComponents: 1
+    fluxApps:
+      enabled: true
+      ready: true
+      appCount: 1
+      readyCount: 1
+  componentCount: 2
+  readyComponents: 2
   ready: true
 ```
 
@@ -160,8 +199,56 @@ See [`examples/`](examples/): `xr-min.yaml` (defaults only), `xr.yaml` (the copy
 | Component | `spec` block | Child XR | Configuration |
 |---|---|---|---|
 | Flux bootstrap | `spec.fluxInit` | `FluxInit` | [flux-init](../flux-init/) |
+| Apps | `spec.apps` | `FluxApps` | [flux-apps](../flux-apps/) |
 
 Each component block mirrors the child XR's own spec (minus the shared identity, which is injected) and is passed through verbatim — `operatorChart`, `instance`, `kustomize` and `sops` all reach `FluxInit` unchanged. `enabled: false` omits the child entirely.
+
+## Apps
+
+`spec.apps` is the reason the umbrella earns its keep. stuttgart-things/flux publishes **one OCI artifact per app**, so a Flux source name and an app are the same fact — deploying one by hand means adding an `OCIRepository` to a `FluxInit` **and** referencing it by name in a `FluxApps`, two objects joined by a string nothing validates until a Kustomization stalls.
+
+Naming an app emits both:
+
+```yaml
+spec:
+  clusterName: kind1
+  apps:
+    dapr: {}
+```
+
+| Emitted on | What |
+|---|---|
+| `FluxInit` child | `instance.sources: [{name: dapr, kind: OCIRepository, url: oci://…/flux/apps/dapr, ref: v1.18.1}]` |
+| `FluxApps` child | `dapr-control-plane` + `dapr-template-execution`, each `sourceRef: {kind: OCIRepository, name: dapr}`, with `dependsOn` rewritten to the emitted names and `timeout: 15m` on the chart-installing one |
+
+App definitions come from the [`xplane-flux-catalog`](https://github.com/stuttgart-things/kcl/tree/main/crossplane/xplane-flux-catalog) KCL module, which holds **structural facts only** — artifact URL, component paths, ordering, timeouts. Substitution *values* are environment-specific and belong on the XR (below), not in the catalog, which would otherwise drift from each app's README in stuttgart-things/flux.
+
+### Overrides
+
+```yaml
+apps:
+  dapr:
+    version: v1.17.0                             # else the catalog's defaultVersion
+    substitute: {DAPR_NAMESPACE: dapr-system}    # applied to every component
+    components:
+      control-plane: {enabled: false}
+      template-execution:
+        substitute: {FLUX_SOURCE_API_VERSION: v1}   # merged over app-level, wins
+        substituteFrom:
+          - kind: Secret
+            name: dapr-backstage-template-execution-vars
+```
+
+`substituteFrom` is **component-scoped on purpose**: it resolves at *build* time and a missing Secret fails the build, so an app-level one would break components that do not need it.
+
+### Rules
+
+| Rule | Where |
+|---|---|
+| apps enabled while `fluxInit.enabled: false` | rejected by a **CEL rule at apply time** — fluxInit creates the sources apps reference |
+| a component depending on a **disabled** sibling | rejected at render, naming the offenders — it would otherwise sit in `DependencyNotReady` forever |
+| unknown app name | rejected by the catalog |
+| `enabled: false` | **prunes** — the entry stops being emitted, and flux-apps' Objects use `managementPolicies: ["*"]`, so the Kustomization and its workload are removed |
 
 ## Adding a component
 

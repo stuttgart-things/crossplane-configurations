@@ -2,6 +2,10 @@
 # Realistic Platform — the copy-paste template. One clusterName is the whole
 # shared contract: provider config refs derive from it, every component
 # inherits it, and it comes back resolved on status.shared.
+#
+# `apps` is the catalog: naming an app emits BOTH its OCIRepository source (on
+# the FluxInit child) and its Kustomizations (on the FluxApps child), because
+# stuttgart-things/flux publishes one OCI artifact per app.
 apiVersion: config.stuttgart-things.com/v1alpha1
 kind: Platform
 metadata:
@@ -18,3 +22,13 @@ spec:
           url: oci://ghcr.io/stuttgart-things/fleet-infra
           ref: latest
           path: clusters/staging
+  apps:
+    dapr:
+      substitute:
+        DAPR_NAMESPACE: dapr-system
+        DAPR_VERSION: "1.17.4"
+      components:
+        # Needs a Secret with GITHUB_TOKEN / BACKSTAGE_AUTH_TOKEN / REDIS_PASSWORD
+        # in the Kustomization namespace before it can build; off by default here.
+        template-execution:
+          enabled: false
