@@ -25,7 +25,7 @@ Each Kustomization references an **existing** Flux source (`GitRepository` / `OC
 |-------|------|----------|---------|-------------|
 | `kubernetesProviderConfigRef` | string | yes | | Kubernetes `ClusterProviderConfig` name for the target cluster |
 | `namespace` | string | no | `flux-system` | Namespace the Kustomization objects are created in |
-| `sourceRef.kind` | string | no | `GitRepository` | Default source kind (`GitRepository`/`OCIRepository`/`Bucket`) |
+| `sourceRef.kind` | string | no | `OCIRepository` | Default source kind (`OCIRepository`/`GitRepository`/`Bucket`) — apps ship as OCI artifacts |
 | `sourceRef.name` | string | no | `flux-apps` | Default source name every app references |
 | `sourceRef.namespace` | string | no | | Source namespace (defaults to the Kustomization namespace) |
 | `interval` | string | no | `1h` | Default reconcile interval for all apps |
@@ -69,8 +69,9 @@ Each Kustomization references an **existing** Flux source (`GitRepository` / `OC
 ## Cluster preconditions
 
 - A Kubernetes `ClusterProviderConfig` (`kubernetes.m.crossplane.io/v1alpha1`) whose name matches `spec.kubernetesProviderConfigRef` — see `examples/cluster-provider-config.yaml`.
-- A Flux source (`GitRepository` / `OCIRepository` / `Bucket`) on the target cluster matching `spec.sourceRef` — e.g. installed by [`flux-init`](../flux-init/).
-- Optionally a `flux-apps-defaults` EnvironmentConfig — see `examples/environment-config.yaml`.
+- A Flux source (`OCIRepository` / `GitRepository` / `Bucket`) on the target cluster matching `spec.sourceRef` — e.g. installed by [`flux-init`](../flux-init/).
+- The `provider-kubernetes` ServiceAccount must be allowed to manage `kustomizations` (`kustomize.toolkit.fluxcd.io`). On the fleet clusters that SA is cluster-admin; on tighter clusters (e.g. kind) apply `examples/rbac.yaml`, otherwise every app Object stalls with `... cannot get resource "kustomizations" ... is forbidden`. **flux-init's `examples/rbac.yaml` does not cover this group** — on a flux-init + flux-apps cluster apply both.
+- A `flux-apps-defaults` EnvironmentConfig — see `examples/environment-config.yaml`. **Required, not optional:** the `load-environment` step references it by name, and a missing one fails the whole pipeline with `Required environment config "flux-apps-defaults" not found`. It is also where the effective `sourceRef` default lives (see below).
 
 ## Examples
 
@@ -81,8 +82,20 @@ Each Kustomization references an **existing** Flux source (`GitRepository` / `OC
 | `examples/xr-max.yaml` | Every field set — per-app source, health checks, patches, images, SOPS |
 | `examples/configuration.yaml` | Runtime install manifest (points at the OCI package) |
 | `examples/functions.yaml` | Pipeline Functions the Composition references |
-| `examples/environment-config.yaml` | Optional shared reconcile defaults |
+| `examples/environment-config.yaml` | Shared reconcile defaults — **required**, and the real source of the `sourceRef` default |
 | `examples/cluster-provider-config.yaml` | Target-cluster Kubernetes `ClusterProviderConfig` |
+| `examples/rbac.yaml` | `kustomize.toolkit` grant for the provider-kubernetes SA (tight clusters) |
+
+## Verified
+
+Live-tested on kind1 (2026-07-18) with `in-cluster` as the target, OCI-only: [`flux-init`](../flux-init/) installed Flux and an `OCIRepository` source (`oci://ghcr.io/stefanprodan/manifests/podinfo`), then a `FluxApps` XR referencing that source reconciled its Kustomization and rolled out the workload — `FluxApps` reached `ready=true`, `readyCount=1`, with the app's Deployment 2/2 in its `targetNamespace`.
+
+```console
+$ crossplane beta trace fluxapps kind1-apps -n crossplane-system
+NAME                                                   SYNCED   READY   STATUS
+FluxApps/kind1-apps (crossplane-system)                True     True    Available
+└─ Object/kind1-apps-app-podinfo (crossplane-system)   True     True    Available
+```
 
 ## Render locally
 

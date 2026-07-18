@@ -1,8 +1,13 @@
 ---
 # Shared reconcile defaults consumed by the Composition's load-environment step.
-# Optional — the xplane-flux-apps KCL module has hardcoded fallbacks, so a
-# missing EnvironmentConfig is not fatal. Per-XR spec.* and per-app
-# spec.apps[].* fields always override these.
+# REQUIRED — the step references this by name and a missing EnvironmentConfig
+# fails the pipeline. Per-XR spec.* and per-app spec.apps[].* fields override
+# these.
+#
+# This is also where the effective sourceRef default lives: the XRD's
+# sourceRef.kind default only materialises if the XR actually sets
+# `sourceRef: {}` (CRD defaulting does not create absent objects), so for an XR
+# that omits sourceRef entirely, the value below is what every app gets.
 apiVersion: apiextensions.crossplane.io/v1beta1
 kind: EnvironmentConfig
 metadata:
@@ -13,5 +18,5 @@ data:
   retryInterval: "1m"
   timeout: "5m"
   sourceRef:
-    kind: GitRepository
+    kind: OCIRepository
     name: flux-apps

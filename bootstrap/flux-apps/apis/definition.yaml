@@ -47,7 +47,9 @@ spec:
                         - GitRepository
                         - OCIRepository
                         - Bucket
-                      default: GitRepository
+                      # OCI is the default source type for apps — the fleet
+                      # ships app manifests as OCI artifacts, not from git.
+                      default: OCIRepository
                     name:
                       type: string
                       default: flux-apps
