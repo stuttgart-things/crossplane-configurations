@@ -10,9 +10,14 @@
 #   observe failed: ... cannot get resource "fluxinstances" in API group
 #   "fluxcd.controlplane.io" ... is forbidden
 #
-# The SA name carries a hash — resolve it with:
-#   kubectl get sa -n crossplane-system -o name | grep provider-kubernetes
-# then set it as the binding subject below.
+# The subject below assumes the provider ServiceAccount name is pinned to
+# `provider-kubernetes` via a DeploymentRuntimeConfig — see
+# ../../platform/examples/rbac.yaml, which applies the complete grant for
+# flux-init + flux-apps (including kustomize.toolkit, which this file does NOT
+# cover) in one file and is the recommended way to do this. Without that pin
+# the SA name carries the package-revision hash (resolve with
+# `kubectl get sa -n crossplane-system -o name | grep provider-kubernetes`) and
+# the binding breaks on every provider upgrade.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -35,6 +40,5 @@ roleRef:
   name: provider-kubernetes-flux
 subjects:
   - kind: ServiceAccount
-    # Replace the hash with the actual provider-kubernetes SA (see header).
-    name: crossplane-contrib-provider-kubernetes-XXXXXXXXXXXX
+    name: provider-kubernetes
     namespace: crossplane-system

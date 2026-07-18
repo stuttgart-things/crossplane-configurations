@@ -187,7 +187,11 @@ Mirroring the field into [`apis/definition.yaml`](apis/definition.yaml) is the f
 
 ## Cluster preconditions
 
-Those of the wrapped Configurations — `platform` adds none of its own:
+Apply [`examples/rbac.yaml`](examples/rbac.yaml) **once per cluster** — it is the complete grant for every flux component this umbrella composes (flux-init's `FluxInstance` + sources, flux-apps' `Kustomization`s), and it is required every time you use `platform` or `flux-init` against an in-cluster provider config.
+
+It cannot be self-contained in a Composition, unlike the namespace precondition: `provider-kubernetes` has no `create` on `clusterroles`/`clusterrolebindings` and no `escalate` or `bind` verb, so a composed Object that tried to create the grant is denied. It must come from the layer that installs Crossplane. The file also pins the provider's ServiceAccount name via a `DeploymentRuntimeConfig` — by default that name carries the package-revision hash, which changes on provider upgrade and would silently break a binding pinned to it.
+
+Beyond that, the preconditions are those of the wrapped Configurations — `platform` adds none of its own:
 
 - A Helm `ClusterProviderConfig` (`helm.m.crossplane.io/v1beta1`) named `{clusterName}-helm`, or whatever `spec.helmProviderConfigRef` says.
 - A Kubernetes `ClusterProviderConfig` (`kubernetes.m.crossplane.io/v1alpha1`) named `{clusterName}-kubernetes`.

@@ -1,0 +1,64 @@
+---
+# Cluster precondition for platform / flux-init / flux-apps when the target is
+# reached through an in-cluster (InjectedIdentity) provider-kubernetes
+# ClusterProviderConfig. Apply ONCE per cluster, at bootstrap.
+#
+# Why this cannot live in a Composition: provider-kubernetes cannot grant
+# itself these rights. Its ServiceAccount has no create on clusterroles /
+# clusterrolebindings and no escalate or bind verb, so a composed Object that
+# tried to create this ClusterRole would be denied. RBAC has to come from the
+# layer that installs Crossplane. (Verified on kind1, 2026-07-18.)
+#
+# Why the DeploymentRuntimeConfig: by default the provider's ServiceAccount
+# carries the package revision hash (e.g.
+# crossplane-contrib-provider-kubernetes-f6665ef36536), which changes on every
+# provider upgrade and would silently break a ClusterRoleBinding pinned to it.
+# Pinning the name makes the binding below stable. Crossplane's RBAC manager
+# re-points its own provider:system binding at the new name automatically.
+#
+# Without this, every composed Object stalls on:
+#   observe failed: ... cannot get resource "fluxinstances" | "kustomizations"
+#   ... is forbidden
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-kubernetes
+spec:
+  serviceAccountTemplate:
+    metadata:
+      name: provider-kubernetes
+---
+# Point the Provider at the runtime config above:
+#   kubectl patch provider.pkg <provider-kubernetes-CR-name> --type=merge \
+#     -p '{"spec":{"runtimeConfigRef":{"apiVersion":"pkg.crossplane.io/v1beta1","kind":"DeploymentRuntimeConfig","name":"provider-kubernetes"}}}'
+# (Or set spec.runtimeConfigRef in whatever manifest installs the provider.)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provider-kubernetes-flux
+rules:
+  # fluxcd.controlplane.io  -> FluxInstance          (flux-init)
+  # source.toolkit          -> OCIRepository/Git     (flux-init)
+  # kustomize.toolkit       -> Kustomization         (flux-apps)
+  # helm./notification.     -> future components
+  - apiGroups:
+      - fluxcd.controlplane.io
+      - source.toolkit.fluxcd.io
+      - kustomize.toolkit.fluxcd.io
+      - helm.toolkit.fluxcd.io
+      - notification.toolkit.fluxcd.io
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: provider-kubernetes-flux
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: provider-kubernetes-flux
+subjects:
+  - kind: ServiceAccount
+    name: provider-kubernetes
+    namespace: crossplane-system

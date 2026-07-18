@@ -14,9 +14,13 @@
 # fluxcd.controlplane.io + source.toolkit.fluxcd.io only. Applying both is the
 # complete grant for a flux-init + flux-apps cluster. (Verified on kind1.)
 #
-# The SA name carries a hash — resolve it with:
-#   kubectl get sa -n crossplane-system -o name | grep provider-kubernetes
-# then set it as the binding subject below.
+# The subject below assumes the provider ServiceAccount name is pinned to
+# `provider-kubernetes` via a DeploymentRuntimeConfig — see
+# ../../platform/examples/rbac.yaml, which applies the complete grant for
+# flux-init + flux-apps in one file and is the recommended way to do this.
+# Without that pin the SA name carries the package-revision hash (resolve with
+# `kubectl get sa -n crossplane-system -o name | grep provider-kubernetes`) and
+# the binding breaks on every provider upgrade.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -36,6 +40,5 @@ roleRef:
   name: provider-kubernetes-flux-apps
 subjects:
   - kind: ServiceAccount
-    # Replace with the hashed SA name resolved above.
-    name: crossplane-contrib-provider-kubernetes-<hash>
+    name: provider-kubernetes
     namespace: crossplane-system

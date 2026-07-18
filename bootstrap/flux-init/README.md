@@ -103,7 +103,7 @@ The `sops-age` decryption Secret can be provided three ways:
 - A Kubernetes `ClusterProviderConfig` (`kubernetes.m.crossplane.io/v1alpha1`) named per `spec.kubernetesProviderConfigRef`.
 - A `flux-defaults` EnvironmentConfig (`examples/environment-config.yaml`).
 - **When using `clusterName`:** a `RemoteCluster` (provider-kubeconfig) for the target cluster exposing `status.clusterType`; an in-cluster `ClusterProviderConfig` (InjectedIdentity) named per `observeProviderConfigRef`; and RBAC for the provider-kubernetes SA to `get,list,watch,patch` `remoteclusters` (`kubeconfig.stuttgart-things.com`).
-- The `provider-kubernetes` ServiceAccount must be allowed to manage the Flux CRDs the composed Objects wrap (`fluxcd.controlplane.io`, `source.toolkit.fluxcd.io`). On the fleet clusters that SA is cluster-admin; on tighter clusters (e.g. kind) apply `examples/rbac.yaml`, otherwise the FluxInstance Object stalls with `... cannot get resource "fluxinstances" ... is forbidden`.
+- The `provider-kubernetes` ServiceAccount must be allowed to manage the Flux CRDs the composed Objects wrap (`fluxcd.controlplane.io`, `source.toolkit.fluxcd.io`). On the fleet clusters that SA is cluster-admin; on tighter clusters (e.g. kind) apply `examples/rbac.yaml`, otherwise the FluxInstance Object stalls with `... cannot get resource "fluxinstances" ... is forbidden`. If the cluster also runs [flux-apps](../flux-apps/), prefer [`../platform/examples/rbac.yaml`](../platform/examples/rbac.yaml) — one file covering every flux group, with the provider ServiceAccount name pinned so the binding survives provider upgrades.
 
 See `examples/cluster-provider-config.yaml` for a kubeconfig-Secret-backed example, and `examples/rbac.yaml` for the RBAC grant.
 
