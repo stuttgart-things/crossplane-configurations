@@ -104,6 +104,8 @@ The two bottom rows are the only versions an XR normally sets; everything else i
 
 `clusterType` is the shape that matters as components are added: a fact discovered by one child, published once, consumed by the next — instead of each component re-observing the `RemoteCluster` itself.
 
+Fields that have not resolved are **omitted**, not published as `""` — `clusterName` on the explicit-refs path, and `clusterType` until the `FluxInit` child has observed the `RemoteCluster` (which it only does when `clusterName` is set). So `if status.shared.clusterType` is a safe test for "discovered", and a consumer never reads a value that was never resolved.
+
 `status.components` carries per-component readiness and outputs; `status.ready` is true when every **enabled** component is Ready (vacuously true when none are enabled, matching what `function-auto-ready` reports on the `Ready` condition).
 
 ```yaml
@@ -168,6 +170,20 @@ Each component block mirrors the child XR's own spec (minus the shared identity,
 3. Add the wrapped Configuration to `dependsOn` in [`crossplane.yaml`](crossplane.yaml).
 
 If a component needs a value another component discovers, put it on `status.shared` (as `clusterType` does) rather than re-deriving it.
+
+### Component schemas are mirrored, and must be kept in lockstep
+
+`spec.fluxInit.operatorChart` and `spec.fluxInit.instance` are **typed copies** of the corresponding blocks in flux-init's XRD (`kustomize` and `sops` are `x-kubernetes-preserve-unknown-fields` passthroughs instead, because their shape is FluxInstance's, not ours). A field added to flux-init is therefore not usable through `Platform` until it is mirrored here.
+
+That failure is loud, not silent — worth knowing which error you are looking at:
+
+| How you apply it | Result |
+|---|---|
+| `kubectl apply` (default, strict) | rejected: `unknown field "spec.fluxInit.instance.<x>"` |
+| server-side apply (Flux, Argo CD) | rejected: `field not declared in schema` |
+| `kubectl apply --validate=ignore` | **silently pruned** — the field never reaches the child |
+
+Mirroring the field into [`apis/definition.yaml`](apis/definition.yaml) is the fix; the Composition passes `instance` through verbatim, so no KCL change is needed. Do not "solve" this by making `instance` preserve-unknown: the field would then reach the child `FluxInit`, whose own schema rejects it when Crossplane server-side-applies it — turning a clear rejection on the object you wrote into a composition error one level down.
 
 ## Cluster preconditions
 

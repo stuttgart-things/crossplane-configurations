@@ -107,15 +107,24 @@ spec:
             _componentCount = len(_enabledReady)
             _readyComponents = len([r for r in _enabledReady if r])
 
+            # Only publish what actually resolved. clusterName is absent on the
+            # explicit-refs path, and clusterType stays unset until the FluxInit
+            # child has observed the RemoteCluster (which it only does when
+            # clusterName is set). Emitting "" would make an unresolved field
+            # indistinguishable from one resolved to the empty string, and any
+            # consumer doing `if status.shared.clusterType` would read a value
+            # that was never discovered.
             _xrStatus = oxr | {
                 status = {
                     shared = {
-                        clusterName = _clusterName
+                        if _clusterName:
+                            clusterName = _clusterName
                         helmProviderConfigRef = _helmPcr
                         kubernetesProviderConfigRef = _k8sPcr
                         observeProviderConfigRef = _observePcr
                         namespace = _ns
-                        clusterType = _clusterType
+                        if _clusterType:
+                            clusterType = _clusterType
                     }
                     components = {
                         fluxInit = _fluxComponent
