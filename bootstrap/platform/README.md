@@ -109,9 +109,9 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.2.1` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-platform` KCL module | `0.1.1` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
-| `xplane-flux-catalog` KCL module | `0.1.2` | dependency of `xplane-platform` — the app definitions |
+| `platform` Configuration | `v0.2.2` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-platform` KCL module | `0.2.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `xplane-flux-catalog` KCL module | `0.2.1` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
 | `flux-init` Configuration | `>=v0.3.0` | `dependsOn` — pulled automatically |
 | `xplane-flux-init` KCL module | `0.3.0` | flux-init's Composition (OCI, pulled at render time) |
@@ -250,6 +250,37 @@ apps:
 ```
 
 `substituteFrom` is **component-scoped on purpose**: it resolves at *build* time and a missing Secret fails the build, so an app-level one would break components that do not need it.
+
+### Dependencies between apps
+
+A component may depend on one in **another** app — `trust-manager` cannot reconcile before cert-manager's CRDs exist:
+
+```yaml
+spec:
+  apps:
+    cert-manager: {}
+    trust-manager: {}      # catalog declares dependsOn: ["cert-manager:install"]
+```
+
+emits `trust-manager-install` with `dependsOn: [{name: cert-manager-install}]`. Enabling `trust-manager` alone is **rejected**, naming the fix rather than silently installing cert-manager for you:
+
+```
+unsatisfiable dependencies — trust-manager-install depends on cert-manager:install,
+but app 'cert-manager' is not enabled — add it to spec.apps
+```
+
+### Optional components
+
+Catalog components marked `optional` are opt-in and **not** deployed unless named. cert-manager's `selfsigned` issuer needs `CERT_MANAGER_SELFSIGNED_DOMAIN`; defaulting it to on would make installing cert-manager require an unrelated variable.
+
+```yaml
+apps:
+  cert-manager:
+    components:
+      selfsigned:
+        enabled: true
+        substitute: {CERT_MANAGER_SELFSIGNED_DOMAIN: example.com}
+```
 
 ### Rules
 
