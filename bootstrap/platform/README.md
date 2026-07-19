@@ -95,7 +95,9 @@ so those Objects hang on `finalizer.managedresource.crossplane.io` with
 observe failed: cannot get object: no matches for kind "OCIRepository" in version "source.toolkit.fluxcd.io/v1"
 ```
 
-Seen on kind1 while migrating a hand-built stack. Clear it with
+**Fixed in `flux-init` v0.3.0** (`xplane-flux-init` 0.3.0), which emits a `Usage` per source so teardown is ordered `source → instance → operator`. The note below applies to clusters still running flux-init < v0.3.0.
+
+Clear a stuck Object with
 `kubectl patch object.kubernetes.m.crossplane.io <name> -n <ns> --type=merge -p '{"metadata":{"finalizers":[]}}'`
 — the underlying resource is already gone with the CRD. When tearing down by
 hand, delete `FluxApps` first (so Kustomizations prune while Flux still runs),
@@ -107,12 +109,12 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.2.0` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-platform` KCL module | `0.1.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
-| `xplane-flux-catalog` KCL module | `0.1.1` | dependency of `xplane-platform` — the app definitions |
+| `platform` Configuration | `v0.2.1` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-platform` KCL module | `0.1.1` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `xplane-flux-catalog` KCL module | `0.1.2` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
-| `flux-init` Configuration | `>=v0.2.0` | `dependsOn` — pulled automatically |
-| `xplane-flux-init` KCL module | `0.2.0` | flux-init's Composition (OCI, pulled at render time) |
+| `flux-init` Configuration | `>=v0.3.0` | `dependsOn` — pulled automatically |
+| `xplane-flux-init` KCL module | `0.3.0` | flux-init's Composition (OCI, pulled at render time) |
 | provider-helm | `>=v1.0.0,<v2.0.0` | `dependsOn` |
 | provider-kubernetes | `>=v1.2.0,<v2.0.0` | `dependsOn` |
 | function-kcl | `>=v0.12.0,<v0.13.0` | `dependsOn` |
@@ -213,7 +215,15 @@ Naming an app emits both:
 spec:
   clusterName: kind1
   apps:
-    dapr: {}
+    dapr:
+      components:
+        template-execution:
+          # needs GITHUB_TOKEN / BACKSTAGE_AUTH_TOKEN / REDIS_PASSWORD — point at
+          # a Secret as here, or set `enabled: false`. Without one of the two the
+          # XR is rejected, because Flux would substitute empty strings.
+          substituteFrom:
+            - kind: Secret
+              name: dapr-backstage-template-execution-vars
 ```
 
 | Emitted on | What |
@@ -248,6 +258,7 @@ apps:
 | apps enabled while `fluxInit.enabled: false` | rejected by a **CEL rule at apply time** — fluxInit creates the sources apps reference |
 | a component depending on a **disabled** sibling | rejected at render, naming the offenders — it would otherwise sit in `DependencyNotReady` forever |
 | unknown app name | rejected by the catalog |
+| a required substitution variable is not supplied | rejected at render — Flux replaces an undefined variable with an **empty string** rather than failing, so it would deploy silently broken. Satisfied by `substitute` keys, or skipped when the component carries a `substituteFrom` (build-time, not statically checkable) |
 | `enabled: false` | **prunes** — the entry stops being emitted, and flux-apps' Objects use `managementPolicies: ["*"]`, so the Kustomization and its workload are removed |
 
 ## Adding a component
