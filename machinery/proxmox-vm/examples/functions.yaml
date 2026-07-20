@@ -1,14 +1,43 @@
 ---
+# Short CR names on `xpkg.upbound.io` — BOTH halves matter, do not "modernise"
+# either one.
+#
+# Short names: a Composition's `functionRef` resolves by CR name, and the
+# stuttgart-things fleet installs these under short names via Argo CD.
+#
+# The upbound mirror: `dependsOn` in crossplane.yaml uses `xpkg.crossplane.io`,
+# and the package manager derives a CR name from that package path — so
+# installing any Configuration auto-creates e.g.
+# `crossplane-contrib-function-kcl` from `xpkg.crossplane.io`. If the
+# short-named CR here pointed at the SAME registry, the two CRs would be two
+# Lock nodes with an identical source:
+#
+#   cannot resolve package dependencies: ... node
+#   xpkg.crossplane.io/crossplane-contrib/function-kcl already exists
+#
+# That freezes the dependency resolver for EVERY package on the cluster —
+# providers and Functions all flip Healthy=False, and Configuration deletes
+# block on foreground deletion. The differing mirror is what keeps the two Lock
+# nodes distinct; it is load-bearing, not legacy drift.
+#
+# Recovery, if it happens anyway: point the short-named CR back at
+# `xpkg.upbound.io` (read the prior source off the Inactive FunctionRevision),
+# then drop the stale Lock entry if it does not clear itself.
+#
+# Applying this file to a cluster that already has Functions is destructive in a
+# second way too — the pins here drift behind the fleet, so `kubectl apply` can
+# silently downgrade a Function. `task apply-dev` therefore skips this file
+# unless you pass FUNCTIONS=1 (use it only on a bare dev cluster).
 apiVersion: pkg.crossplane.io/v1beta1
 kind: Function
 metadata:
   name: function-patch-and-transform
 spec:
-  package: xpkg.crossplane.io/crossplane-contrib/function-patch-and-transform:v0.10.6
+  package: xpkg.upbound.io/crossplane-contrib/function-patch-and-transform:v0.10.6
 ---
 apiVersion: pkg.crossplane.io/v1beta1
 kind: Function
 metadata:
   name: function-environment-configs
 spec:
-  package: xpkg.crossplane.io/crossplane-contrib/function-environment-configs:v0.7.1
+  package: xpkg.upbound.io/crossplane-contrib/function-environment-configs:v0.7.1

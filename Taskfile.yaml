@@ -169,11 +169,16 @@ tasks:
         fi
 
   apply-dev:
-    desc: "Apply a Configuration and/or example XR from local files (non-interactive: KUBECONFIG=... CONFIG=k8s/<name> WHAT=both [XR=xr.yaml] YES=1 task apply-dev)"
+    desc: "Apply a Configuration and/or example XR from local files (non-interactive: KUBECONFIG=... CONFIG=k8s/<name> WHAT=both [XR=xr.yaml] [FUNCTIONS=1] YES=1 task apply-dev). Functions are skipped unless FUNCTIONS=1 — applying them to a fleet cluster downgrades Functions and can freeze the package resolver."
     silent: true
     cmds:
       - |
         set -euo pipefail
+
+        # Read the FUNCTIONS opt-in NOW: the variable is reused below as the
+        # path to examples/functions.yaml, so testing it later reads the path.
+        APPLY_FUNCTIONS=0
+        case "${FUNCTIONS:-}" in 1|true) APPLY_FUNCTIONS=1 ;; esac
 
         # --- pick kubeconfig (env: KUBECONFIG=<path>) ---
         if [ -n "${KUBECONFIG:-}" ]; then
@@ -207,7 +212,7 @@ tasks:
           esac
         else
           WHAT=$(printf "configuration\nxr\nboth" \
-            | gum choose --header "what to apply? (configuration = functions+XRD+Composition, xr = example XR only)")
+            | gum choose --header "what to apply? (configuration = XRD+Composition, xr = example XR only)")
           [ -n "$WHAT" ] || { gum style --foreground 3 "no selection"; exit 1; }
         fi
 
@@ -241,7 +246,9 @@ tasks:
 
         # --- validate files exist ---
         if [ "$WHAT" = "configuration" ] || [ "$WHAT" = "both" ]; then
-          for f in "$FUNCTIONS" "$DEFINITION" "$COMPOSITION"; do
+          FILES="$DEFINITION $COMPOSITION"
+          [ "$APPLY_FUNCTIONS" = "1" ] && FILES="$FUNCTIONS $FILES"
+          for f in $FILES; do
             [ -f "$f" ] || { gum style --foreground 1 "missing file: $f"; exit 1; }
           done
         fi
@@ -254,9 +261,10 @@ tasks:
         echo
         echo "  manifests:"
         if [ "$WHAT" = "configuration" ] || [ "$WHAT" = "both" ]; then
-          echo "    - $FUNCTIONS"
+          [ "$APPLY_FUNCTIONS" = "1" ] && echo "    - $FUNCTIONS  (FUNCTIONS=1)"
           echo "    - $DEFINITION"
           echo "    - $COMPOSITION"
+          [ "$APPLY_FUNCTIONS" = "1" ] || echo "    (skipping $FUNCTIONS — pass FUNCTIONS=1 for a bare dev cluster)"
         fi
         [ -n "$XR" ] && echo "    - $XR"
         echo
@@ -268,9 +276,26 @@ tasks:
 
         # --- apply configuration ---
         if [ "$WHAT" = "configuration" ] || [ "$WHAT" = "both" ]; then
-          gum style --foreground 4 "→ apply functions"
-          kubectl apply -f "$FUNCTIONS"
-          kubectl wait --for=condition=Healthy --timeout=120s -f "$FUNCTIONS"
+          # Applying examples/functions.yaml to a cluster that already has
+          # Functions is destructive TWICE OVER, so it is opt-in:
+          #
+          #  1. The pins here drift behind the fleet, so kubectl apply silently
+          #     DOWNGRADES a Function (e.g. environment-configs v0.7.2 -> v0.7.0).
+          #  2. Repointing a short-named CR at a registry that a dependsOn-derived
+          #     long-named CR already uses collides in the package Lock graph and
+          #     freezes dependency resolution for EVERY package on the cluster.
+          #     (The upbound pins in examples/functions.yaml exist to prevent
+          #     exactly this — see the header comment in any of those files.)
+          #
+          # Fleet clusters install Functions via Argo CD and need neither. Pass
+          # FUNCTIONS=1 only when bootstrapping a bare dev cluster.
+          if [ "$APPLY_FUNCTIONS" = "1" ]; then
+            gum style --foreground 4 "→ apply functions (FUNCTIONS=1)"
+            kubectl apply -f "$FUNCTIONS"
+            kubectl wait --for=condition=Healthy --timeout=120s -f "$FUNCTIONS"
+          else
+            gum style --foreground 8 "→ skipping functions (pass FUNCTIONS=1 for a bare dev cluster)"
+          fi
 
           gum style --foreground 4 "→ apply XRD"
           kubectl apply -f "$DEFINITION"
