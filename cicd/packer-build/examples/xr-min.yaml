@@ -32,6 +32,13 @@ metadata:
   namespace: default
 spec:
   pipelineRunName: build-ubuntu24-min
+  # Set explicitly for the same reason as wrapInCrossplane: `crossplane render`
+  # does not apply XRD defaults, so without it spec.environmentConfig is absent,
+  # the Selector matcher is skipped (fromFieldPathPolicy: Optional) and NO
+  # EnvironmentConfig is loaded — leaving lab/hypervisor empty and
+  # gitWorkspaceSubdirectory rendering as "". On a cluster the XRD default
+  # ("default") applies and this line is redundant.
+  environmentConfig: default
   osVersion: ubuntu24
   provisioning: base-os
   packerTemplate: ubuntu24-base-os.pkr.hcl
