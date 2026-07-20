@@ -77,6 +77,15 @@ spec:
   ```
   Health returns in under a minute. Corollary: `functionRef: function-kcl` resolves only because the fleet pre-installs short names via Argo CD — on a bare cluster the auto-installed dependency lands as `crossplane-contrib-function-kcl` and a short-named `functionRef` would not resolve.
 
+  **So every `examples/functions.yaml` pins `xpkg.upbound.io`, deliberately.** Our `dependsOn` entries all use `xpkg.crossplane.io`, and the package manager derives a long CR name from that path — so a short-named CR on the *same* registry is the collision above, by construction. The differing mirror is load-bearing, not legacy drift. Do not "modernise" these to `xpkg.crossplane.io`; the rule in the section above ("use the crossplane.io path for new work") is about `dependsOn`, not about Function CRs we author.
+
+  **`task apply-dev` no longer applies `examples/functions.yaml` unless you pass `FUNCTIONS=1`.** It used to, and that made the task destructive against any fleet cluster in two ways — hit for real on kind1, 2026-07-20, which took all six Functions to `Healthy=False`:
+
+  1. the Lock collision above, if a pin's registry matched a `dependsOn`-derived CR;
+  2. a silent **downgrade** — the pins in `examples/` drift behind the fleet (e.g. `function-environment-configs` v0.7.2 on kind1 vs v0.7.0 in the file), and `kubectl apply` happily walks a Function backwards.
+
+  Fleet clusters get their Functions from Argo CD and need neither. Use `FUNCTIONS=1` only when bootstrapping a bare dev cluster.
+
 ### Example XR conventions
 
 - `metadata.namespace` is where the XR object lives.
