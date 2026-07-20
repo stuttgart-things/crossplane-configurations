@@ -137,24 +137,59 @@ The ConfigMap name must match `caCertsConfigMapName` in the EnvironmentConfig.
 `VAULT_ROLE_ID` / `VAULT_SECRET_ID` alone will fail with
 `Must set VAULT_TOKEN env var in order to use vault template function`.
 
-Prefer the sops-secrets-operator route so the plaintext token never leaves
-your machine — see `templates/packer-vault-secret.yaml` in
-[stage-time](https://github.com/stuttgart-things/stage-time). The Secret name
-must match `vaultSecretName` on the XR (default `vault`).
+Template: `templates/packer-vault-secret.yaml` in
+[stage-time](https://github.com/stuttgart-things/stage-time) — an
+`InlineSopsSecret`, so you encrypt locally and the plaintext token never
+leaves your machine. The Secret name must match `vaultSecretName` on the XR
+(default `vault`).
+
+```bash
+# 1. encrypt locally (recipient key differs per cluster -- read it off an
+#    existing InlineSopsSecret rather than hardcoding one)
+sops --encrypt --age <recipient> secret.yaml
+# 2. paste the output into spec.encryptedYAML of the template, then apply it
+kubectl apply -f packer-vault-secret.yaml
+```
+
+Delete the `InlineSopsSecret` CR, not the derived Secret — the operator holds
+a finalizer and will recreate the Secret.
 
 ### 5. Create the git basic-auth Secret
 
 Needed because the default template repo is private, and an `https://` remote
-cannot be authenticated by an SSH-key workspace. The Secret provides
-`.gitconfig` + `.git-credentials`, and the `.gitconfig` needs a credential
-helper:
+cannot be authenticated by an SSH-key workspace.
 
-```
-[credential]
-    helper = store
+Template: `templates/git-basicauth-secret.yaml` in
+[stage-time](https://github.com/stuttgart-things/stage-time), rendered with
+machineshop (`task render-scm-secret`):
+
+```bash
+machineshop render --source local \
+  --template templates/git-basicauth-secret.yaml \
+  --values "name=packer-git-basicauth, gitServer=github.com, \
+            user=<user>, token=<pat>, \
+            userName=<full name>, email=<mail>"
 ```
 
-Its name must match `gitBasicAuthSecretName` in the EnvironmentConfig.
+The Secret name must match `gitBasicAuthSecretName` in the EnvironmentConfig.
+
+Two things the Secret must get right — both were broken in that template
+until recently, and either alone stops the clone working:
+
+- **`.gitconfig` needs `[credential] helper = store`.** Without it git never
+  reads `.git-credentials` and falls through to an interactive helper, which
+  does not exist inside a pipeline container.
+- **Do not use a `url`/`insteadOf` rewrite with a trailing slash.** It never
+  matches a real remote like `…/stuttgart-things.git`. The credential helper
+  alone is enough.
+
+Check a rendered Secret before trusting it:
+
+```bash
+# write .gitconfig and .git-credentials into a temp HOME, then:
+printf 'protocol=https\nhost=github.com\n\n' | HOME=$TMP git credential fill
+# expect username= and password= back, NOT "Missing or invalid credentials"
+```
 
 ### 6. Run a build
 
