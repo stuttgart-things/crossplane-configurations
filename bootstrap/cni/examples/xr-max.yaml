@@ -1,0 +1,38 @@
+---
+# Every spec field set, so templating breakage shows up in a render diff.
+# Deliberately uses explicit provider refs INSTEAD of clusterName on the helm
+# side while still setting clusterName — the explicit ref must win, and the
+# observe gate must still run.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cni
+metadata:
+  name: kind-test1-cni
+  namespace: crossplane-system
+spec:
+  clusterName: kind-test1
+  helmProviderConfigRef: kind-test1-helm
+  observeProviderConfigRef: in-cluster
+  namespace: kube-system
+  provider: cilium
+  chart:
+    version: "1.19.6"
+    repository: https://helm.cilium.io/
+  cilium:
+    kubeProxyReplacement: true
+    # Explicit address instead of the derived {clusterName}-control-plane —
+    # what a non-kind cluster (or a kind cluster reached over its host IP)
+    # needs.
+    k8sServiceHost: "10.31.103.22"
+    k8sServicePort: 6443
+    ipamMode: kubernetes
+    operatorReplicas: 2
+  # Raw Helm values are merged last and win over everything above — the escape
+  # hatch for anything the schema does not model.
+  values:
+    hubble:
+      enabled: true
+      relay:
+        enabled: true
+    routingMode: native
+    ipv4NativeRoutingCIDR: 10.244.0.0/16
+    autoDirectNodeRoutes: true

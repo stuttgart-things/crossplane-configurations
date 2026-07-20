@@ -1,0 +1,11 @@
+---
+# Only what the XRD requires — exercises every default.
+# clusterName alone resolves the Helm provider config (kind-test1-helm), the
+# API server address (kind-test1-control-plane) and the observe gate.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cni
+metadata:
+  name: kind-test1-cni
+  namespace: crossplane-system
+spec:
+  clusterName: kind-test1

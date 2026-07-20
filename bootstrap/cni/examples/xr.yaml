@@ -1,0 +1,20 @@
+---
+# The realistic case: cilium on a kind cluster registered as a RemoteCluster,
+# with the chart version pinned rather than tracking the module's default.
+# This is the copy-paste template.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cni
+metadata:
+  name: kind-test1-cni
+  namespace: crossplane-system
+spec:
+  clusterName: kind-test1
+  provider: cilium
+  chart:
+    version: "1.19.6"
+  cilium:
+    # kind builds no kube-proxy, so cilium must replace it — and then needs a
+    # direct API server address, since nothing programs the 10.96.0.1 VIP until
+    # cilium is up. The default derives kind-test1-control-plane.
+    kubeProxyReplacement: true
+    operatorReplicas: 1

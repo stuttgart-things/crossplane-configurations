@@ -62,3 +62,40 @@ subjects:
   - kind: ServiceAccount
     name: provider-kubernetes
     namespace: crossplane-system
+---
+# Separate grant, because this one is on the MANAGEMENT cluster, not the target:
+# both flux-init and cni observe the target's RemoteCluster through the
+# in-cluster provider config, to gate their install until the derived
+# ClusterProviderConfigs exist. Only needed when XRs use spec.clusterName.
+#
+# Without it the observe Object stalls on:
+#   observe failed: ... cannot get resource "remoteclusters" in API group
+#   "kubeconfig.stuttgart-things.com" ... is forbidden
+# and the gate never opens — so nothing is emitted and the XR sits not-ready
+# with no obvious cause.
+#
+# Read-only on purpose: RemoteClusters are owned by whoever registers the
+# cluster (provider-kubeconfig), not by these Configurations. patch/update are
+# included only because provider-kubernetes writes its own status/annotations
+# back onto observed objects.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provider-kubernetes-remoteclusters
+rules:
+  - apiGroups: ["kubeconfig.stuttgart-things.com"]
+    resources: ["remoteclusters", "remoteclusters/status"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: provider-kubernetes-remoteclusters
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: provider-kubernetes-remoteclusters
+subjects:
+  - kind: ServiceAccount
+    name: provider-kubernetes
+    namespace: crossplane-system
