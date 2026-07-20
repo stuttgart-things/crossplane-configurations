@@ -1,0 +1,89 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: packer-build
+  annotations:
+    # Local convention used by `task push` to bump and re-publish.
+    # Not a Crossplane-standard field — the true package version is the OCI tag.
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Builds a machine image with HashiCorp Packer by emitting a Tekton
+      PipelineRun from a namespaced `PackerBuild` XR. The PipelineRun
+      manifest is rendered by `function-kcl` from
+      `ghcr.io/stuttgart-things/kcl-tekton-pr-packer` and applied via
+      `provider-kubernetes`.
+    meta.crossplane.io/readme: |
+      # packer-build
+
+      A Crossplane Configuration that turns a `PackerBuild` namespaced
+      XR (group `resources.stuttgart-things.com`) into a Tekton
+      `PipelineRun` on a target cluster. The packer sibling of
+      `ansible-run`.
+
+      The Composition pipeline:
+
+      - `function-environment-configs` loads shared per-environment
+        defaults from the `EnvironmentConfig` selected by the XR's
+        `spec.environmentConfig` (config-scoped label
+        `packer-build.resources.stuttgart-things.com/environment`) into
+        the pipeline context.
+      - `function-kcl` renders a Tekton `PipelineRun` from the KCL
+        module `oci://ghcr.io/stuttgart-things/kcl-tekton-pr-packer`
+        using the XR spec (with EnvironmentConfig values as defaults) as
+        input. The KCL module wraps the PipelineRun in a
+        `kubernetes.m.crossplane.io/v1alpha1` Object that targets the
+        XR's `spec.crossplaneProviderConfig` ClusterProviderConfig.
+      - A second `function-kcl` step (`derive-status`) reads the observed
+        Object (which mirrors the live PipelineRun under
+        `status.atProvider.manifest`) and surfaces the PipelineRun's
+        `Succeeded` condition, reason/message, start/completion times and
+        child TaskRuns onto the `PackerBuild` status.
+      - `function-auto-ready` marks the XR ready once the composed Object
+        reports ready. With `spec.deriveReadiness: true` (default) the
+        Object's readiness is derived from the PipelineRun's `Succeeded`
+        condition, so the XR is Ready only once the build succeeds.
+
+      ## The two-repo split
+
+      Unlike `ansible-run`, this Configuration deals with TWO git repos:
+
+      - `pipelineRepoUrl` / `pipelineRevision` / `pipelinePath` — where
+        the pipeline definition lives (stage-time).
+      - `gitRepoUrl` / `gitRevision` / `gitWorkspaceSubdirectory` — where
+        the `.pkr.hcl` templates live.
+
+      ## Preconditions
+
+      On the target cluster:
+
+      - A `ClusterProviderConfig` for `provider-kubernetes` whose name
+        matches `spec.crossplaneProviderConfig` on the XR.
+      - The pipeline namespace (`spec.namespace`, default `tekton-ci`)
+        containing: a `vault` Secret with `VAULT_ADDR` + `VAULT_TOKEN`, a
+        basic-auth Secret for cloning the private template repo, and — if
+        the Vault endpoint uses a private CA — a ConfigMap holding that CA
+        for the `caCerts` workspace.
+      - RBAC permitting the `provider-kubernetes` service account to
+        manage `tekton.dev` resources (PipelineRun/Pipeline/Task) plus
+        PVCs, Secrets and ServiceAccounts in the pipeline namespace.
+
+      See the per-Configuration README for ready-to-apply manifests.
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+      version: ">=v1.2.0,<v2.0.0"
+    # Functions used by this Configuration's Composition pipeline.
+    - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
+      version: ">=v0.12.0,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"
+    # Loads shared per-environment defaults from EnvironmentConfig(s)
+    # into the pipeline context for the KCL module to consume.
+    - function: xpkg.crossplane.io/crossplane-contrib/function-environment-configs
+      version: ">=v0.7.0,<v0.8.0"

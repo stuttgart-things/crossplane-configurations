@@ -1,0 +1,38 @@
+---
+# Minimum example: the single XRD-required field (pipelineRunName) plus the
+# build selectors that are NOT environment properties, plus the wrap-Object
+# input that bare `crossplane render` needs.
+#
+# Everything else falls through to the EnvironmentConfig and/or the
+# kcl-tekton-pr-packer module defaults:
+#   - namespace, storageClass, pipelineRepoUrl, pipelineRevision, pipelinePath,
+#     gitRepoUrl, gitBasicAuthSecretName, caCertsConfigMapName, lab, hypervisor,
+#     packerWorkingImage, credentialsSecretName
+#       -> EnvironmentConfig (see environmentconfig.yaml)
+#   - storage=5Gi/ReadWriteOnce, packerAction=build, gitRevision=main,
+#     vaultSecretName=vault, userHome=/home/nonroot  -> KCL module defaults
+#
+# osVersion + provisioning are set here because they identify THIS build;
+# lab and hypervisor come from the EnvironmentConfig. Together they compose
+# gitWorkspaceSubdirectory = packer/builds/ubuntu24-labul-vsphere-base-os.
+#
+# packerTemplate is named explicitly rather than left at the default ".":
+# that build dir contains two byte-identical *.pkr.hcl files, so "." fails
+# with "Duplicate local definition".
+#
+# On a cluster the API server also applies the XRD defaults
+# (wrapInCrossplane=true, crossplaneProviderConfig=in-cluster), so there
+# you could omit wrapInCrossplane too. `crossplane render` does NOT apply
+# XRD defaults, and the KCL module's own wrapInCrossplane default is false,
+# so it is set explicitly here to exercise the wrapping-Object path.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerBuild
+metadata:
+  name: packer-build-min
+  namespace: default
+spec:
+  pipelineRunName: build-ubuntu24-min
+  osVersion: ubuntu24
+  provisioning: base-os
+  packerTemplate: ubuntu24-base-os.pkr.hcl
+  wrapInCrossplane: true

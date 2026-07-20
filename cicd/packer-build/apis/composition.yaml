@@ -1,0 +1,121 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: packer-build
+  labels:
+    crossplane.io/xrd: packerbuilds.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: PackerBuild
+  mode: Pipeline
+  pipeline:
+    # Load shared per-environment defaults from an EnvironmentConfig into
+    # the pipeline context. The EnvironmentConfig is selected by the
+    # CONFIG-SCOPED label `packer-build.resources.stuttgart-things.com/environment`,
+    # whose value is taken from the XR's `spec.environmentConfig` field. The
+    # key is namespaced to this Configuration on purpose: a generic shared key
+    # (e.g. `resources.stuttgart-things.com/environment`) collides with other
+    # Configurations' EnvironmentConfigs carrying the same value, and
+    # function-environment-configs requires EXACTLY ONE Selector match
+    # (otherwise: "expected exactly one required resource, got 2"). In
+    # particular the sibling `ansible-run` Configuration ships an
+    # EnvironmentConfig labelled `default` — sharing a key with it would break
+    # both.
+    # When `spec.environmentConfig` is ABSENT the matcher is skipped
+    # (fromFieldPathPolicy: Optional), the selector matches nothing and the
+    # step is a no-op — the KCL module then falls back to XR spec / its own
+    # defaults. When the field IS set, the Selector requires exactly one
+    # matching EnvironmentConfig: if none exists the step fails. Offline
+    # `crossplane render` therefore needs the EnvironmentConfig supplied via
+    # --extra-resources (the verify harness does this from examples/).
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: packer-build.resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    # Optional: when spec.environmentConfig is absent (e.g. a
+                    # minimal XR before XRD defaulting) skip this matcher
+                    # instead of erroring; the step then becomes a no-op.
+                    fromFieldPathPolicy: Optional
+    # Renders the PipelineRun for build-packer-template.yaml. This is the
+    # packer sibling of kcl-tekton-pr — a DIFFERENT module, because packer
+    # keeps the pipeline-definition repo and the template-source repo separate
+    # (kcl-tekton-pr conflates them into one gitRepoUrl).
+    #
+    # PIN COUPLING: the tag below must be published to ghcr BEFORE verify can
+    # pass, otherwise it fails with
+    #   failed to resolve <v>: ...kcl-tekton-pr-packer:<v>: not found
+    # Order: bump stage-time/kcl/packer/kcl.mod -> kcl mod push -> bump here.
+    - step: render-pipelinerun
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: packerbuild
+        spec:
+          source: oci://ghcr.io/stuttgart-things/kcl-tekton-pr-packer:0.4.0
+    # Surface the live Tekton PipelineRun status onto the PackerBuild XR.
+    # The wrapped provider-kubernetes Object mirrors the PipelineRun under
+    # status.atProvider.manifest; this inline KCL reads it (observed
+    # composed resources) and patches the composite status. Returning only
+    # the desired XR (dxr) leaves the rendered Object from the previous
+    # step untouched — function-kcl carries forward prior desired state.
+    # Identical to ansible-run's: it reads only generic PipelineRun status, so
+    # nothing here is packer-specific.
+    - step: derive-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: packerbuild-status
+        spec:
+          source: |
+            _params = option("params") or {}
+            _ocds = _params?.ocds or {}
+
+            # Locate the observed wrapped Object regardless of its
+            # composition-resource-name, and read the live PipelineRun.
+            _objs = [
+                v.Resource for _, v in _ocds if v?.Resource?.kind == "Object"
+            ]
+            _manifest = _objs[0]?.status?.atProvider?.manifest if _objs else {}
+            _pr = _manifest?.status or {}
+
+            _succeeded = [c for c in (_pr?.conditions or []) if c?.type == "Succeeded"]
+            _sc = _succeeded[0] if _succeeded else {}
+            _children = _pr?.childReferences or []
+
+            _statusPatch = {
+                installed = True if _manifest else False
+                succeeded = _sc?.status or "Unknown"
+                if _sc?.reason: reason = _sc.reason
+                if _sc?.message: message = _sc.message
+                if _manifest?.metadata?.name: pipelineRunName = _manifest.metadata.name
+                if _pr?.startTime: startTime = _pr.startTime
+                if _pr?.completionTime: completionTime = _pr.completionTime
+                taskRuns = [
+                    {name = c?.name, pipelineTaskName = c?.pipelineTaskName}
+                    for c in _children
+                ]
+            }
+
+            _dxr = _params?.dxr or {}
+            items = [_dxr | {status = (_dxr?.status or {}) | _statusPatch}]
+    - step: ready
+      functionRef:
+        name: function-auto-ready

@@ -1,0 +1,56 @@
+---
+# Shared per-environment defaults for PackerBuild XRs.
+#
+# The `packer-build` Composition selects this EnvironmentConfig via the
+# config-scoped label `packer-build.resources.stuttgart-things.com/environment`,
+# matched against the XR's `spec.environmentConfig` (default "default"). The
+# key is namespaced to this Configuration so it never collides with another
+# Configuration's EnvironmentConfig — note `ansible-run` ships one also
+# labelled "default", and function-environment-configs requires exactly one
+# Selector match. The `data` values are merged into the pipeline context and
+# consumed by the `kcl-tekton-pr-packer` KCL module as defaults. Anything set
+# explicitly on the XR spec wins over the values here.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: packer-build-defaults
+  labels:
+    packer-build.resources.stuttgart-things.com/environment: default
+data:
+  # Pipeline DEFINITION location (stage-time).
+  # pipelineRevision is a PINNED TAG, not a branch: the git resolver fetches
+  # at render time, so "main" would silently change what runs.
+  pipelineRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  pipelineRevision: v0.9.0
+  pipelinePath: pipelines/build-packer-template.yaml
+
+  # Template SOURCE repo (private — hence gitBasicAuthSecretName)
+  gitRepoUrl: https://github.com/stuttgart-things/stuttgart-things.git
+  gitBasicAuthSecretName: packer-git-basicauth # pragma: allowlist secret
+
+  # ConfigMap holding the Vault CA. The LabUL Vault is behind a private CA, so
+  # without this the build dies at "x509: certificate signed by unknown
+  # authority". Populate it with:
+  #   curl -sk https://vault-vsphere.labul.sva.de:8200/v1/pki/ca/pem \
+  #     -o labul-vsphere-ca.crt
+  #   kubectl create configmap packer-ca-certs --from-file=labul-vsphere-ca.crt
+  caCertsConfigMapName: packer-ca-certs
+
+  # Infra defaults
+  storageClass: openebs-hostpath
+  namespace: tekton-ci
+
+  # Build-directory segments that are properties of the ENVIRONMENT rather
+  # than of an individual build.
+  lab: labul
+  hypervisor: vsphere
+
+  # Working image. Must provide packer, xorriso, ansible-playbook and the
+  # hashi_vault python deps (hvac) — a plain alpine packer image fails at
+  # "could not find a supported CD ISO creation command" or on the
+  # community.hashi_vault lookup.
+  packerWorkingImage: ghcr.io/stuttgart-things/sthings-packer:1.15.1
+
+  # Credentials Secret (pre-created in the pipeline namespace).
+  # Consumed via envFrom, so EVERY key becomes an env var — scope it tightly.
+  credentialsSecretName: packer-credentials # pragma: allowlist secret
