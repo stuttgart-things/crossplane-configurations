@@ -2,7 +2,7 @@
 
 A Crossplane v2 Configuration that wraps the bootstrap building-block Configurations behind a single namespaced `Platform` XR (group `config.stuttgart-things.com`).
 
-The Composition is a `function-kcl` step that composes one **child XR** per enabled component — today a `FluxInit` (the [flux-init](../flux-init/) Configuration), with further Configurations to follow. The wrapped Configurations stay independently usable; `platform` supplies the shared inputs and aggregates the results.
+The Composition is a `function-kcl` step that composes one **child XR** per enabled component — today a `Cni` (the [cni](../cni/) Configuration, opt-in) and a `FluxInit` (the [flux-init](../flux-init/) Configuration), with further Configurations to follow. The wrapped Configurations stay independently usable; `platform` supplies the shared inputs and aggregates the results.
 
 ## Why
 
@@ -15,7 +15,11 @@ A `Platform` composes **child XRs**, not managed resources — the managed resou
 ```mermaid
 flowchart TD
     P["Platform<br/>the XR you apply"]
+    C["Cni<br/>{platform}-cni<br/>opt-in; gates the rest"]
     F["FluxInit<br/>{platform}-flux-init"]
+
+    CRC["Object: RemoteCluster<br/>...-observe-rc<br/>Observe only, gates the install"]
+    CR["Release<br/>...-cilium<br/>CNI Helm chart"]
 
     RC["Object: RemoteCluster<br/>...-observe-rc<br/>Observe only, gates the install"]
     R["Release<br/>...-flux-operator<br/>flux-operator Helm chart"]
@@ -24,6 +28,10 @@ flowchart TD
     S["Object: OCIRepository / GitRepository<br/>...-source-{name}"]
     SA["Object: Secret<br/>...-sops-age<br/>age decryption key"]
 
+    P -.->|"only if spec.cni.enabled"| C
+    C -.->|"only if spec.clusterName"| CRC
+    C --> CR
+    C ==>|"held until status.ready"| F
     P -->|"composes, per enabled component"| F
     F -.->|"only if spec.clusterName"| RC
     RC -.->|"unblocks once clusterType resolves"| R
@@ -38,9 +46,9 @@ flowchart TD
     classDef xr fill:#e8f0fe,stroke:#4285f4,color:#000
     classDef mr fill:#f1f3f4,stroke:#9aa0a6,color:#000
     classDef opt fill:#ffffff,stroke:#9aa0a6,stroke-dasharray:4 3,color:#000
-    class P,F xr
-    class R,I,U mr
-    class RC,S,SA opt
+    class P,C,F xr
+    class R,I,U,CR mr
+    class RC,S,SA,CRC opt
 ```
 
 Blue is an XR (Crossplane composes it further), grey a managed resource, dashed-white conditional. Double arrows are ordering (`crossplane.io/uses`): operator → instance → sources.
@@ -48,6 +56,9 @@ Blue is an XR (Crossplane composes it further), grey a managed resource, dashed-
 | Depth | Resource | Name | Emitted by | When |
 |---|---|---|---|---|
 | 0 | `Platform` | *yours* | you | — |
+| 1 | `Cni` | `{platform}-cni` | **platform** | `spec.cni.enabled` (default `false`) |
+| 2 | `kubernetes.m…/Object` → `RemoteCluster` | `{platform}-cni-observe-rc` | cni | only with `spec.clusterName` |
+| 2 | `helm.m…/Release` | `{platform}-cni-cilium` | cni | once the gate opens |
 | 1 | `FluxInit` | `{platform}-flux-init` | **platform** | `spec.fluxInit.enabled` (default `true`) |
 | 2 | `kubernetes.m…/Object` → `RemoteCluster` | `{platform}-flux-init-observe-rc` | flux-init | only with `spec.clusterName` |
 | 2 | `helm.m…/Release` | `{platform}-flux-init-flux-operator` | flux-init | always |
@@ -194,16 +205,29 @@ spec:
           path: clusters/staging
 ```
 
-See [`examples/`](examples/): `xr-min.yaml` (defaults only), `xr.yaml` (the copy-paste template), `xr-max.yaml` (every field).
+See [`examples/`](examples/): `xr-min.yaml` (defaults only), `xr.yaml` (the copy-paste template), `xr-max.yaml` (every field), `xr-blank-cluster.yaml` (a cluster with no CNI yet).
 
 ## Components
 
 | Component | `spec` block | Child XR | Configuration |
 |---|---|---|---|
+| Networking | `spec.cni` | `Cni` | [cni](../cni/) |
 | Flux bootstrap | `spec.fluxInit` | `FluxInit` | [flux-init](../flux-init/) |
 | Apps | `spec.apps` | `FluxApps` | [flux-apps](../flux-apps/) |
 
 Each component block mirrors the child XR's own spec (minus the shared identity, which is injected) and is passed through verbatim — `operatorChart`, `instance`, `kustomize` and `sops` all reach `FluxInit` unchanged. `enabled: false` omits the child entirely.
+
+### Networking is the exception, twice over
+
+`spec.cni` defaults to **`enabled: false`** — the inverse of every other component. Most clusters already have a CNI, and installing a second one breaks them. It exists for clusters provisioned deliberately blank: this fleet's ansible-built kind clusters, which come up with NotReady nodes on purpose so the platform can own networking (see [`examples/xr-blank-cluster.yaml`](examples/xr-blank-cluster.yaml)).
+
+When it *is* enabled, it **gates the other children**. A cluster with no CNI schedules nothing, and a Helm install aimed at it does not fail fast — it times out and retries, which merely looks broken for several minutes. So `FluxInit` and `FluxApps` are not emitted until the `Cni` child reports ready.
+
+> A `protection.crossplane.io` `Usage` cannot express this. Usage orders *deletion* — it blocks removal of the `of` resource while the `by` exists — and has no effect on creation. Creation ordering has to be a render gate.
+
+The gate is **one-way**: once a child exists it keeps being emitted even if the CNI blips not-Ready during a chart upgrade. Not emitting an existing child is what makes Crossplane delete it, so a re-closing gate would tear Flux down over a transient. The gate is about install ordering, not continuous dependency enforcement.
+
+`spec.cni.namespace` is deliberately *not* wired to `spec.namespace`: that one is the Flux namespace, and a CNI belongs in `kube-system` (which the `cni` Configuration defaults to).
 
 ## Apps
 

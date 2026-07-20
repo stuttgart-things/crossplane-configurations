@@ -1,0 +1,17 @@
+---
+# Short Function names on purpose — a long-named CR pointing at the same package
+# adds a duplicate node to Crossplane's package lock graph and freezes dependency
+# resolution for every package on the cluster. See the repo CLAUDE.md.
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: function-kcl
+spec:
+  package: xpkg.crossplane.io/crossplane-contrib/function-kcl:v0.12.0
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: function-auto-ready
+spec:
+  package: xpkg.crossplane.io/crossplane-contrib/function-auto-ready:v0.6.5

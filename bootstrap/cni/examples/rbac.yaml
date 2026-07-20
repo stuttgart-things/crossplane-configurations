@@ -1,0 +1,43 @@
+---
+# Cluster precondition for cni when the XR uses spec.clusterName.
+#
+# The Composition observes the target cluster's RemoteCluster on the MANAGEMENT
+# cluster (through the in-cluster provider-kubernetes config) to gate the
+# install until the derived {clusterName}-helm ClusterProviderConfig exists.
+# Without this grant the observe Object stalls on:
+#   observe failed: ... cannot get resource "remoteclusters" in API group
+#   "kubeconfig.stuttgart-things.com" ... is forbidden
+# and the gate never opens — nothing is emitted and the XR sits not-ready with
+# no obvious cause.
+#
+# Read-only on purpose: RemoteClusters are owned by provider-kubeconfig, not by
+# this Configuration. patch/update are included only because
+# provider-kubernetes writes status/annotations back onto observed objects.
+#
+# The subject assumes the provider ServiceAccount name is pinned to
+# `provider-kubernetes` via a DeploymentRuntimeConfig — see
+# ../../platform/examples/rbac.yaml, which applies this grant together with the
+# Flux CRD grants in one file and is the recommended way to do it. Without that
+# pin the SA name carries the package-revision hash and the binding breaks on
+# every provider upgrade.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provider-kubernetes-remoteclusters
+rules:
+  - apiGroups: ["kubeconfig.stuttgart-things.com"]
+    resources: ["remoteclusters", "remoteclusters/status"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: provider-kubernetes-remoteclusters
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: provider-kubernetes-remoteclusters
+subjects:
+  - kind: ServiceAccount
+    name: provider-kubernetes
+    namespace: crossplane-system

@@ -22,6 +22,12 @@ spec:
     # a component may not depend on a disabled sibling, dependsOn is rewritten to
     # the emitted names — are exactly the logic that should be tested before it
     # reaches a cluster. Same pattern as flux-init and flux-apps.
+    #
+    # The Cni child (opt-in) additionally GATES the others: until it reports
+    # ready the target cluster's nodes are NotReady, so a Helm install aimed at
+    # it times out and retries rather than failing fast. The gate is one-way —
+    # once a child exists it keeps being emitted, since not emitting it is what
+    # makes Crossplane delete it.
     - step: platform
       functionRef:
         name: function-kcl
@@ -31,7 +37,7 @@ spec:
         metadata:
           name: platform
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-platform:0.2.0
+          source: oci://ghcr.io/stuttgart-things/xplane-platform:0.3.0
     - step: automatically-detect-ready-composed-resources
       functionRef:
         name: function-auto-ready

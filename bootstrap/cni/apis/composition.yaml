@@ -1,0 +1,33 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: cni
+  labels:
+    crossplane.io/xrd: cnis.config.stuttgart-things.com
+    provider-helm: "true"
+    provider-kubernetes: "true"
+    service: cni
+spec:
+  compositeTypeRef:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: Cni
+  mode: Pipeline
+  pipeline:
+    # Render managed resources and patch XR status (single pass) via the
+    # xplane-cni KCL module pulled from OCI. No environment-configs step: unlike
+    # flux-init this Configuration has no fleet-wide defaults to load, so it
+    # adds no EnvironmentConfig precondition.
+    - step: cni
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: cni
+        spec:
+          source: oci://ghcr.io/stuttgart-things/xplane-cni:0.1.0
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

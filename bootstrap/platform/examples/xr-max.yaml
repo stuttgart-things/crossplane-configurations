@@ -14,6 +14,24 @@ spec:
   kubernetesProviderConfigRef: production-kubernetes
   observeProviderConfigRef: in-cluster
   namespace: flux-system
+  # Off in most real platforms — a production cluster already has a CNI and a
+  # second one breaks it. Set here only because this example sets every field.
+  cni:
+    enabled: false
+    provider: cilium
+    namespace: kube-system
+    chart:
+      version: "1.19.6"
+      repository: https://helm.cilium.io/
+    cilium:
+      kubeProxyReplacement: true
+      k8sServiceHost: production-control-plane
+      k8sServicePort: 6443
+      ipamMode: kubernetes
+      operatorReplicas: 2
+    values:
+      hubble:
+        enabled: true
   fluxInit:
     enabled: true
     operatorChart:

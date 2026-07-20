@@ -1,0 +1,43 @@
+---
+# Taking over a cluster that was provisioned deliberately BLANK — no CNI, so
+# its nodes are NotReady and nothing schedules on it yet.
+#
+# This is the end of the stuttgart-things kind-cluster chain: a NativeVsphereVM
+# builds the VM and an AnsibleRun builds kind on it *without* a CNI, publishing
+# the kubeconfig to Vault; a provider-kubeconfig RemoteCluster picks it up and
+# emits the {clusterName}-helm / -kubernetes ClusterProviderConfigs. From that
+# point the cluster is just a clusterName, and this XR owns everything else.
+#
+# Order matters and is enforced by the Composition, not by the reader: the
+# FluxInit child is not emitted until the Cni child reports ready. Flux's Helm
+# install on a CNI-less cluster does not fail fast — it times out and retries —
+# so racing them merely looks broken for several minutes.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: kind-test1
+  namespace: crossplane-system
+spec:
+  clusterName: kind-test1
+  cni:
+    # Opt-in: only correct because this cluster was built without one.
+    enabled: true
+    chart:
+      version: "1.19.6"
+    cilium:
+      # kind builds no kube-proxy, so cilium must replace it — and then needs a
+      # direct API server address, because nothing programs the 10.96.0.1 VIP
+      # until cilium is up. Defaults to kind-test1-control-plane, the container
+      # kind creates.
+      kubeProxyReplacement: true
+      operatorReplicas: 1
+  fluxInit:
+    enabled: true
+  apps:
+    dapr:
+      substitute:
+        DAPR_NAMESPACE: dapr-system
+        DAPR_VERSION: "1.17.4"
+      components:
+        template-execution:
+          enabled: false

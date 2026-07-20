@@ -1,0 +1,126 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: cnis.config.stuttgart-things.com
+spec:
+  group: config.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: Cni
+    plural: cnis
+    singular: cni
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              x-kubernetes-validations:
+                - rule: "has(self.clusterName) || has(self.helmProviderConfigRef)"
+                  message: either clusterName or helmProviderConfigRef must be set
+              properties:
+                clusterName:
+                  type: string
+                  description: >-
+                    Target cluster's RemoteCluster name. When set, the Helm
+                    provider config ref defaults to {clusterName}-helm and the
+                    API server address to {clusterName}-control-plane, and the
+                    RemoteCluster is observed to gate the install until it
+                    resolves.
+                helmProviderConfigRef:
+                  type: string
+                  description: >-
+                    Helm ClusterProviderConfig for the target cluster. Optional
+                    when clusterName is set (defaults to {clusterName}-helm).
+                observeProviderConfigRef:
+                  type: string
+                  default: in-cluster
+                  description: >-
+                    Kubernetes ClusterProviderConfig (InjectedIdentity) used to
+                    observe the RemoteCluster on the management cluster.
+                namespace:
+                  type: string
+                  default: kube-system
+                  description: >-
+                    Namespace on the target cluster the CNI is installed into.
+                    Distinct from metadata.namespace (where the XR itself lives).
+                provider:
+                  type: string
+                  default: cilium
+                  enum:
+                    - cilium
+                  description: >-
+                    Which CNI to install. An enum rather than free text so an
+                    unsupported value is rejected at apply time; more may follow.
+                chart:
+                  type: object
+                  description: Chart coordinates. Both fields default per provider.
+                  properties:
+                    version:
+                      type: string
+                    repository:
+                      type: string
+                cilium:
+                  type: object
+                  description: >-
+                    Cilium settings that are cluster-shape facts rather than
+                    free-form Helm values — getting them wrong deadlocks the
+                    cluster silently, so they are named fields with defaults.
+                    Ignored unless provider is cilium.
+                  properties:
+                    kubeProxyReplacement:
+                      type: boolean
+                      default: true
+                      description: >-
+                        Let cilium replace kube-proxy. Required on clusters built
+                        without one (this fleet's kind clusters).
+                    k8sServiceHost:
+                      type: string
+                      description: >-
+                        How cilium reaches the API server while it is replacing
+                        kube-proxy. Defaults to {clusterName}-control-plane —
+                        the container kind creates. Without a direct address
+                        cilium waits on the 10.96.0.1 service VIP that only
+                        cilium can program, and never starts.
+                    k8sServicePort:
+                      type: integer
+                      default: 6443
+                    ipamMode:
+                      type: string
+                      default: kubernetes
+                    operatorReplicas:
+                      type: integer
+                      default: 1
+                      description: 1 suits single-node and kind clusters; raise for HA.
+                values:
+                  type: object
+                  description: >-
+                    Raw Helm values, merged last — they win over everything
+                    computed above. The escape hatch for anything not modelled.
+                  x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              properties:
+                provider:
+                  type: string
+                version:
+                  type: string
+                  description: Resolved chart version actually installed
+                releaseReady:
+                  type: boolean
+                clusterType:
+                  type: string
+                  description: Distribution observed from the target RemoteCluster
+                ready:
+                  type: boolean
+                  description: >-
+                    True once the CNI Release is Ready. Components that need to
+                    schedule pods on the target cluster should gate on this.
