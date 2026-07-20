@@ -1,0 +1,39 @@
+---
+# Representative example: the shape a real vSphere base-OS build takes.
+#
+# This mirrors the PipelineRun that was validated end to end against the LabUL
+# vCenter (template ubuntu24-base-20260720-1118, ~22 minutes), expressed as an
+# XR instead of a hand-written PipelineRun.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerBuild
+metadata:
+  name: packer-build-ubuntu24-labul
+  namespace: default
+spec:
+  pipelineRunName: build-ubuntu24-labul-base-os
+  environmentConfig: default
+
+  # Build selection. lab + hypervisor come from the EnvironmentConfig, so the
+  # composed subdirectory is packer/builds/ubuntu24-labul-vsphere-base-os.
+  osVersion: ubuntu24
+  provisioning: base-os
+
+  # NOT "." — that build dir ships two byte-identical templates and packer
+  # init fails with "Duplicate local definition".
+  packerTemplate: ubuntu24-base-os.pkr.hcl
+  packerAction: build
+
+  # A real base-OS build runs ~20 minutes and pulls a full guest ISO.
+  storageSize: 5Gi
+
+  # Vault: the templates call packer's vault() function, which needs
+  # VAULT_ADDR + VAULT_TOKEN. VAULT_ROLE_ID/VAULT_SECRET_ID are inert here —
+  # packer never performs an AppRole login.
+  vaultSecretName: vault # pragma: allowlist secret
+
+  wrapInCrossplane: true
+  crossplaneObjectName: packer-build-ubuntu24-labul
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
+  # Ready only once the build actually succeeds, not when the Object applies.
+  deriveReadiness: true
