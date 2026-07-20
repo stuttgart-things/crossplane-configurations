@@ -29,7 +29,7 @@ spec:
   # Vault: the templates call packer's vault() function, which needs
   # VAULT_ADDR + VAULT_TOKEN. VAULT_ROLE_ID/VAULT_SECRET_ID are inert here —
   # packer never performs an AppRole login.
-  vaultSecretName: vault
+  vaultSecretName: vault # pragma: allowlist secret
 
   wrapInCrossplane: true
   crossplaneObjectName: packer-build-ubuntu24-labul
