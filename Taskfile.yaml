@@ -519,14 +519,55 @@ tasks:
           gum confirm "push?" || { gum style --foreground 3 "aborted"; exit 1; }
         fi
 
+        # --- redaction ---
+        # `--progress plain` echoes every DAG op's ARGUMENTS, and the crossplane
+        # module writes the registry credential into /root/.docker/config.json
+        # with withNewFile — so base64("<user>:<token>") lands in the progress
+        # log verbatim. That leaked a live PAT into two session transcripts.
+        #
+        # We keep plain progress (it is what makes a failing push debuggable —
+        # see the stale SSH_AUTH_SOCK hunt) and scrub the value instead.
+        #
+        # Value-based rules come FIRST and matter most: the secret is known at
+        # runtime, so redacting the literal and its base64 forms catches any leak
+        # path regardless of how dagger or the module happens to format it. The
+        # pattern rules after them are a fallback for shapes we did not predict.
+        #
+        # Built with printf into a newline-separated sed script — no bash arrays
+        # (task runs mvdan/sh) and no literal newline in this block scalar.
+        sed_esc() { printf '%s' "$1" | sed -e 's/[][\.*^$/&]/\\&/g'; }
+        add_rule() { REDACT=$(printf '%s\n%s' "$REDACT" "$1"); }
+
+        SECRET="${!PASSWORD_ENV:-}"
+        REDACT=""
+        if [ -n "$SECRET" ]; then
+          # The literal token, and the two base64 encodings a docker config or an
+          # Authorization header would carry. An empty pattern would make sed
+          # reuse the PREVIOUS regex, hence the non-empty guards throughout.
+          add_rule "s/$(sed_esc "$SECRET")/<redacted>/g"
+          B64_PAIR=$(printf '%s:%s' "$USERNAME" "$SECRET" | base64 -w0 2>/dev/null || true)
+          if [ -n "$B64_PAIR" ]; then add_rule "s/$(sed_esc "$B64_PAIR")/<redacted>/g"; fi
+          B64_TOK=$(printf '%s' "$SECRET" | base64 -w0 2>/dev/null || true)
+          if [ -n "$B64_TOK" ]; then add_rule "s/$(sed_esc "$B64_TOK")/<redacted>/g"; fi
+        fi
+        # Fallbacks: docker-config auth fields (escaped and unescaped) and bare
+        # GitHub token shapes, in case a secret we did NOT pass shows up.
+        add_rule 's/(\\"auth\\"[[:space:]]*:[[:space:]]*\\")[^\\]*/\1<redacted>/g'
+        add_rule 's/("auth"[[:space:]]*:[[:space:]]*")[^"]*/\1<redacted>/g'
+        add_rule 's/gh[pousr]_[A-Za-z0-9]{20,}/<redacted>/g'
+        add_rule 's/github_pat_[A-Za-z0-9_]{20,}/<redacted>/g'
+
         # --- push ---
+        # 2>&1 so stderr is scrubbed too. `set -o pipefail` (top of this script)
+        # is what preserves dagger's exit code through the pipe — without it a
+        # failed push would report success.
         dagger call -m "$DAGGER_MOD" push \
           --src "$CONFIG" \
           --registry "$REGISTRY" \
           --username "$USERNAME" \
           --password "env:$PASSWORD_ENV" \
           --destination "$DESTINATION" \
-          --progress plain
+          --progress plain 2>&1 | sed -E "$REDACT"
 
         # --- bump annotation in crossplane.yaml ---
         yq -i ".metadata.annotations.\"meta.crossplane.io/version\" = \"$NEW\"" "$META"
@@ -612,6 +653,10 @@ tasks:
         # ttl.sh accepts anonymous, but the dagger Push function expects a
         # *Secret password — pass a harmless env reference; the resulting
         # docker-config blob is ignored by ttl.sh.
+        #
+        # No output redaction here, unlike `push`: the only credential in play is
+        # the literal string "anonymous", so there is nothing for
+        # `--progress plain` to leak.
         TTLSH_DUMMY_PASS=anonymous
         export TTLSH_DUMMY_PASS
 
