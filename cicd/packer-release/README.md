@@ -44,15 +44,28 @@ See [`examples/`](examples/) for the full and build-only variants.
 
 ## Lifecycle
 
-| Phase | Composed | XR Ready |
-|---|---|---|
-| `Building` | PackerBuild | no |
-| `Testing` | PackerBuild + test VM | no |
-| `Tested` | PackerBuild | **yes** |
-| `TestSkipped` | PackerBuild | once the build succeeds |
+| Phase | Composed | XR Ready | Terminal |
+|---|---|---|---|
+| `Building` | PackerBuild | no | no |
+| `BuildFailed` | PackerBuild | no | **yes** |
+| `BuildIncomplete` | PackerBuild | no | **yes** |
+| `Testing` | PackerBuild + test VM | no | no |
+| `Tested` | PackerBuild | **yes** | yes |
+| `TestSkipped` | PackerBuild | once the build succeeds | yes |
 
 Ready therefore means *built and verified*, which is the only reading that
 makes a release safe to promote from.
+
+The two terminal failure phases exist because nothing here retries. A failed
+build leaves a PipelineRun in `Failed`, the gate never opens and no test VM is
+created — correct behaviour, but for a while it reported as `Building`, so the
+one column you would watch claimed work was still in flight. `BuildFailed`
+says otherwise; `buildPipelineRunName` points at the logs.
+
+`BuildIncomplete` is the narrower case the `packer-build >=v0.3.0` dependency
+floor guards: the build genuinely succeeded, but its status carries no
+`template-name`, so there is nothing to clone or promote and the gate can
+never open.
 
 ### The gate
 
@@ -107,9 +120,9 @@ several sibling Configurations ship an EnvironmentConfig whose value is also
 
 **`packer-build` must be >= v0.3.0.** The gate reads the `template-name`
 PipelineRun result off its status, which older versions do not surface.
-Against an older `packer-build` the gate never opens and the XR sits in
-`phase: Building` behind a successful build — a failure mode with no error
-message anywhere.
+Against an older `packer-build` the gate never opens behind a successful
+build; the XR reports `phase: BuildIncomplete`, which is the only signal
+that anything is wrong — no condition or event says so.
 
 On the target cluster, additionally:
 
@@ -145,7 +158,8 @@ On the target cluster, additionally:
 
 | Symptom | Cause |
 |---|---|
-| `phase: Building` forever, build succeeded | `packer-build` older than v0.3.0 — no `template-name` on its status |
+| `phase: BuildIncomplete` | `packer-build` older than v0.3.0 — no `template-name` on its status |
+| `phase: BuildFailed` | the build PipelineRun failed; nothing retries. `kubectl logs -n <ns> -l tekton.dev/pipelineRun=<buildPipelineRunName> -c step-packer-action` |
 | `error fetching virtual machine: vm '<name>' not found`, looping | the template does not exist, or this vCenter account cannot see it. Check with `govc find /<dc> -type m -name '<name>'` |
 | Test VM never boots after a clean build | firmware mismatch — `spec.test.firmware` must match what the template was built with |
 | Test VM up but Ansible fails to connect | the template lacks the user in `vm_ssh_user`; a base-OS build creates it, a vanilla OS image does not |

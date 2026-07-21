@@ -285,9 +285,28 @@ spec:
             _tested = (oxr?.status?.tested or False) or (True if _vmReady else False)
 
             _buildDone = _buildSucceeded == "True" and _templateName != ""
-            _phaseAfterBuild = "Testing" if _buildDone else "Building"
-            _phaseIfTesting = "Tested" if _tested else _phaseAfterBuild
-            _phase = "TestSkipped" if not _testEnabled else _phaseIfTesting
+
+            # Phases for a build that has NOT produced a usable template.
+            # A build that failed must not read as "Building" — nothing is
+            # running, nothing will change, and a caller polling that column
+            # waits forever for a state that cannot arrive.
+            _buildFailed = _buildSucceeded == "False"
+            # Succeeded but no template-name: the gate can never open (see the
+            # load-bearing packer-build >=v0.3.0 floor in crossplane.yaml).
+            # Distinct from BuildFailed because the build itself was fine —
+            # what is missing is the result that carries the template out.
+            _buildStalled = _buildSucceeded == "True" and _templateName == ""
+            _phaseStalled = "BuildIncomplete" if _buildStalled else "Building"
+            _phaseNotDone = "BuildFailed" if _buildFailed else _phaseStalled
+
+            # Phases once a template exists. TestSkipped is deliberately gated
+            # on _buildDone too: applied unconditionally it reports a build-only
+            # XR as TestSkipped from the first reconcile, so a failed build in
+            # that mode also read as a benign terminal state.
+            _phaseTesting = "Tested" if _tested else "Testing"
+            _phaseDone = _phaseTesting if _testEnabled else "TestSkipped"
+
+            _phase = _phaseDone if _buildDone else _phaseNotDone
 
             _statusPatch = {
                 phase = _phase
