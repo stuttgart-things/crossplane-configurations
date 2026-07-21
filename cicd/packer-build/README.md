@@ -224,7 +224,7 @@ build has actually succeeded.
 | `x509: certificate signed by unknown authority` | Vault behind a private CA and no `caCertsConfigMapName`; fetch the CA from Vault itself at `/v1/pki/ca/pem` |
 | `Duplicate local definition` | `packerTemplate: "."` on a dir with more than one template — name a single file |
 
-`ghcr.io/stuttgart-things/sthings-packer:1.15.1` carries the full stack and is
+`ghcr.io/stuttgart-things/sthings-packer:2.0.0` carries the full stack and is
 the image these examples assume.
 
 ## Status
