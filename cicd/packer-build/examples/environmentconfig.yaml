@@ -49,7 +49,13 @@ data:
   # hashi_vault python deps (hvac) — a plain alpine packer image fails at
   # "could not find a supported CD ISO creation command" or on the
   # community.hashi_vault lookup.
-  packerWorkingImage: ghcr.io/stuttgart-things/sthings-packer:1.15.1
+  #
+  # The tag is the IMAGE version, not the packer version. Those were the same
+  # number up to 1.15.1, which meant an image change republished an existing
+  # tag with different contents; from 2.0.0 they are separate, and the packer
+  # binary version is a floating `:packer-<version>` alias instead. Pin the
+  # image version, not the alias.
+  packerWorkingImage: ghcr.io/stuttgart-things/sthings-packer:2.0.0
 
   # Credentials Secret (pre-created in the pipeline namespace).
   # Consumed via envFrom, so EVERY key becomes an env var — scope it tightly.
