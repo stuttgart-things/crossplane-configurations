@@ -4,4 +4,4 @@ kind: Configuration
 metadata:
   name: packer-build
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/packer-build:v0.2.0
+  package: ghcr.io/stuttgart-things/crossplane-configurations/packer-build:v0.3.0
