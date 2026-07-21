@@ -4,4 +4,4 @@ kind: Configuration
 metadata:
   name: platform
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/platform:v0.2.2
+  package: ghcr.io/stuttgart-things/crossplane-configurations/platform:v0.3.1

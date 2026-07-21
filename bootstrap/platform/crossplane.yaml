@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.3.0
+    meta.crossplane.io/version: v0.3.1
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -15,8 +15,8 @@ metadata:
       bootstrap building blocks. A namespaced `Platform` XR carries the
       shared cluster identity (clusterName, provider config refs, namespace)
       once and composes one child XR per enabled component — today `cni`
-      (`Cni`, opt-in) and `flux-init` (`FluxInit`), with further
-      Configurations to follow.
+      (`Cni`, opt-in), `flux-init` (`FluxInit`) and `flux-apps` (`FluxApps`,
+      driven by `spec.apps`), with further Configurations to follow.
       The XR status publishes the resolved shared contract plus per-component
       readiness and outputs.
     meta.crossplane.io/readme: |
@@ -29,10 +29,13 @@ metadata:
       The Composition is a `function-kcl` step that composes one **child XR**
       per enabled component — currently a `Cni` (the
       [cni](https://github.com/stuttgart-things/crossplane-configurations/tree/main/bootstrap/cni)
-      Configuration, opt-in) and a `FluxInit` (the
+      Configuration, opt-in), a `FluxInit` (the
       [flux-init](https://github.com/stuttgart-things/crossplane-configurations/tree/main/bootstrap/flux-init)
-      Configuration). The wrapped Configurations stay independently usable;
-      `platform` only supplies the shared inputs and aggregates the results.
+      Configuration) and a `FluxApps` (the
+      [flux-apps](https://github.com/stuttgart-things/crossplane-configurations/tree/main/bootstrap/flux-apps)
+      Configuration, one child per `spec.apps` entry). The wrapped
+      Configurations stay independently usable; `platform` only supplies the
+      shared inputs and aggregates the results.
 
       ## Blank clusters
 
@@ -75,6 +78,8 @@ spec:
       version: ">=v0.1.0"
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/flux-init
       version: ">=v0.3.0"
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/flux-apps
+      version: ">=v0.1.2"
     # Providers the composed Configurations apply managed resources with.
     # Pulled transitively via the Configurations above; pinned here too so the
     # package states its full runtime surface.
