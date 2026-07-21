@@ -120,12 +120,16 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.2.2` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-platform` KCL module | `0.2.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `platform` Configuration | `v0.3.1` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-platform` KCL module | `0.3.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
 | `xplane-flux-catalog` KCL module | `0.2.1` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
+| `cni` Configuration | `>=v0.1.0` | `dependsOn` — pulled automatically |
+| `xplane-cni` KCL module | `0.1.0` | cni's Composition (OCI, pulled at render time) |
 | `flux-init` Configuration | `>=v0.3.0` | `dependsOn` — pulled automatically |
 | `xplane-flux-init` KCL module | `0.3.0` | flux-init's Composition (OCI, pulled at render time) |
+| `flux-apps` Configuration | `>=v0.1.2` | `dependsOn` — pulled automatically |
+| `xplane-flux-apps` KCL module | `0.1.0` | flux-apps' Composition (OCI, pulled at render time) |
 | provider-helm | `>=v1.0.0,<v2.0.0` | `dependsOn` |
 | provider-kubernetes | `>=v1.2.0,<v2.0.0` | `dependsOn` |
 | function-kcl | `>=v0.12.0,<v0.13.0` | `dependsOn` |
