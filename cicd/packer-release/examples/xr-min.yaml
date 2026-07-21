@@ -1,0 +1,19 @@
+---
+# Minimum: build a template and smoke-test it. Everything else — repos,
+# pipeline revision, CA, credentials, placement — comes from the three
+# EnvironmentConfigs (packer-release, packer-build, vsphere-vm).
+#
+# `environmentConfig` is set explicitly because `crossplane render` does not
+# apply XRD defaults, so leaving it out makes an offline render skip the
+# selector and silently lose every environment value.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerRelease
+metadata:
+  name: ubuntu24-labul
+  namespace: default
+spec:
+  environmentConfig: default
+  build:
+    osVersion: ubuntu24
+    provisioning: base-os
+    packerTemplate: ubuntu24-base-os.pkr.hcl

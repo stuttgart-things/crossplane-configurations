@@ -1,0 +1,18 @@
+---
+# Build without the smoke test. Equivalent to using `packer-build` directly,
+# but keeps the same API when a build is known-good or the lab has no capacity
+# for a test VM. The XR is Ready as soon as the build succeeds, and
+# status.templateName still carries the result.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerRelease
+metadata:
+  name: ubuntu24-labul-buildonly
+  namespace: default
+spec:
+  environmentConfig: default
+  build:
+    osVersion: ubuntu24
+    provisioning: base-os
+    packerTemplate: ubuntu24-base-os.pkr.hcl
+  test:
+    enabled: false
