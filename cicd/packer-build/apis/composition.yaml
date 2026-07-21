@@ -100,6 +100,21 @@ spec:
             _sc = _succeeded[0] if _succeeded else {}
             _children = _pr?.childReferences or []
 
+            # Pipeline results, verbatim. build-packer-template emits
+            # `template-name`; without lifting it here nothing downstream can
+            # know which template a build produced. Kept generic (name/value
+            # pairs) rather than hoisting one well-known key, so this block
+            # stays identical to ansible-run's.
+            #
+            # Tekton v1 results may be array- or object-typed, which would not
+            # satisfy the string-typed schema, so non-string values are skipped
+            # rather than stringified into something no consumer can parse.
+            _results = [
+                {name = r.name, value = r.value}
+                for r in (_pr?.results or [])
+                if r?.name and typeof(r?.value) == "str"
+            ]
+
             _statusPatch = {
                 installed = True if _manifest else False
                 succeeded = _sc?.status or "Unknown"
@@ -112,6 +127,7 @@ spec:
                     {name = c?.name, pipelineTaskName = c?.pipelineTaskName}
                     for c in _children
                 ]
+                results = _results
             }
 
             _dxr = _params?.dxr or {}
