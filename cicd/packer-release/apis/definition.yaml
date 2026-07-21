@@ -1,0 +1,292 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: packerreleases.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: PackerRelease
+    plural: packerreleases
+    singular: packerrelease
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                environmentConfig:
+                  type: string
+                  description: |
+                    Selects the EnvironmentConfig providing defaults for the
+                    TEST VM, by the config-scoped label
+                    `packer-release.resources.stuttgart-things.com/environment=<value>`.
+                    Supported `data` keys: folderPath, datacenter, datastore,
+                    resourcePool, network, firmware, tfvarsSecretName,
+                    tfvarsSecretKey, providerConfigName, providerConfigKind,
+                    and an `ansible` block with `playbooks` / `varsFile`.
+
+                    Scope matters: this environment covers ONLY the test VM.
+                    Build settings come from the nested PackerBuild's own
+                    EnvironmentConfig (`build.environmentConfig`), and any
+                    placement field left unset here falls back to the
+                    VsphereVM/ProxmoxVM one. Set a given field in exactly one
+                    of the three.
+                  default: default
+
+                # ------------------------------------------------------------
+                # Build phase — emitted as a nested PackerBuild XR.
+                #
+                # Only the fields that identify a BUILD live here. Everything
+                # that is a property of the environment (repo URLs, pipeline
+                # revision, CA ConfigMap, credentials Secret names, working
+                # image, storage class, lab, hypervisor) is deliberately NOT
+                # duplicated: PackerBuild resolves those from its OWN
+                # EnvironmentConfig, selected by `build.environmentConfig`.
+                # Re-declaring them here would create a second place to keep
+                # in sync, and an XRD default would mask the EnvironmentConfig
+                # entirely (defaults are applied before the Composition runs).
+                # ------------------------------------------------------------
+                build:
+                  type: object
+                  description: What to build. Infrastructure settings come from packer-build's EnvironmentConfig.
+                  properties:
+                    environmentConfig:
+                      type: string
+                      description: |
+                        EnvironmentConfig selector value handed to the nested
+                        PackerBuild (its own config-scoped label, NOT this
+                        Configuration's).
+                      default: default
+                    pipelineRunName:
+                      type: string
+                      description: |
+                        Name of the Tekton PipelineRun. Defaults to
+                        "<xr-name>-build". A PipelineRun is immutable, so
+                        re-running a build means recreating this XR.
+                    osVersion:
+                      type: string
+                      description: OS segment of the build directory, e.g. "ubuntu24"
+                    provisioning:
+                      type: string
+                      description: Provisioning segment of the build directory, e.g. "base-os"
+                    packerTemplate:
+                      type: string
+                      description: |
+                        Packer template file to build, e.g.
+                        "ubuntu24-base-os.pkr.hcl". Name a single FILE — "."
+                        fails with "Duplicate local definition" on any build
+                        directory holding more than one template.
+                    gitRevision:
+                      type: string
+                      description: Branch or revision of the template source repo
+                      default: main
+                    lab:
+                      type: string
+                      description: |
+                        Lab segment of the build directory. No default on
+                        purpose — normally an EnvironmentConfig property.
+                    hypervisor:
+                      type: string
+                      description: Hypervisor segment of the build directory
+                      enum:
+                        - vsphere
+                        - proxmox
+                        - qemu
+                    gitWorkspaceSubdirectory:
+                      type: string
+                      description: |
+                        Build directory, set explicitly instead of being
+                        composed from osVersion/lab/hypervisor/provisioning.
+                    namespace:
+                      type: string
+                      description: Namespace the build PipelineRun runs in
+                    storageClass:
+                      type: string
+                      description: StorageClass for the build workspace PVC
+                    vaultSecretName:
+                      type: string
+                      description: Name of the Vault Secret the build reads
+                      default: vault
+                  required:
+                    - osVersion
+                    - provisioning
+                    - packerTemplate
+
+                # ------------------------------------------------------------
+                # Test phase — emitted as a nested VMProvision XR, but ONLY
+                # once the build has succeeded and reported a template name.
+                #
+                # VMProvision already sequences internally: it emits its
+                # AnsibleRun only after the VM is Ready and its IP is known.
+                # So this Configuration gates exactly one edge (build -> test)
+                # and lets VMProvision own the rest.
+                # ------------------------------------------------------------
+                test:
+                  type: object
+                  description: How to smoke-test the built template.
+                  properties:
+                    enabled:
+                      type: boolean
+                      description: |
+                        Run the smoke test. When false the XR is a plain build
+                        wrapper and is Ready as soon as the build succeeds.
+                      default: true
+                    provider:
+                      type: string
+                      enum:
+                        - vsphere
+                        - proxmox
+                      default: vsphere
+                    environmentConfig:
+                      type: string
+                      description: |
+                        EnvironmentConfig selector value handed to the nested
+                        VMProvision (which passes it to VsphereVM/ProxmoxVM).
+                      default: default
+                    cpu:
+                      type: string
+                      default: "4"
+                    ram:
+                      type: string
+                      description: Memory in MB
+                      default: "4096"
+                    disk:
+                      type: string
+                      description: |
+                        Disk size. Must be >= the template's own disk, or the
+                        clone fails.
+                      default: "64"
+                    firmware:
+                      type: string
+                      description: Must match what the template was built with.
+                      default: bios
+                    vsphere:
+                      type: object
+                      description: |
+                        vSphere placement for the test VM. Each field falls
+                        back to the VsphereVM EnvironmentConfig when unset.
+                      properties:
+                        folderPath:
+                          type: string
+                        datacenter:
+                          type: string
+                        datastore:
+                          type: string
+                        resourcePool:
+                          type: string
+                        network:
+                          type: string
+                    proxmox:
+                      type: object
+                      description: Proxmox placement for the test VM.
+                      properties:
+                        node:
+                          type: string
+                        datastore:
+                          type: string
+                        folderPath:
+                          type: string
+                        network:
+                          type: string
+                    tfvars:
+                      type: object
+                      description: Secret holding the hypervisor credentials as tfvars.
+                      properties:
+                        secretName:
+                          type: string
+                        secretKey:
+                          type: string
+                    providerRef:
+                      type: object
+                      description: |
+                        The OPENTOFU provider config the test VM's Workspace
+                        runs through — not the provider-kubernetes one. Its
+                        name is a per-cluster choice; check with
+                        `kubectl get clusterproviderconfigs.opentofu.m.upbound.io`.
+                      properties:
+                        name:
+                          type: string
+                        kind:
+                          type: string
+                    ansible:
+                      type: object
+                      description: |
+                        Ansible provisioning run against the test VM. This is
+                        what actually proves the image is usable rather than
+                        merely bootable — a template can clone and get an IP
+                        and still be missing the user or packages every later
+                        consumer expects.
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: true
+                        playbooks:
+                          type: array
+                          items:
+                            type: string
+                        varsFile:
+                          type: array
+                          description: Extra vars as key+-value pairs
+                          items:
+                            type: string
+              required:
+                - build
+
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  description: |
+                    Building — the build PipelineRun has not succeeded yet.
+                    Testing — a test VM is up (or coming up) against the
+                      freshly built template.
+                    Tested — the smoke test passed; the test VM has been torn
+                      down and the template is a promotion candidate.
+                    TestSkipped — spec.test.enabled is false.
+                templateName:
+                  type: string
+                  description: |
+                    The template the build produced, lifted from the nested
+                    PackerBuild's `template-name` pipeline result. This is the
+                    handle every later step needs — it is what the test VM is
+                    cloned from and what a promote step would rename.
+                buildSucceeded:
+                  type: string
+                  description: '"True", "False" or "Unknown" from the build PipelineRun'
+                buildPipelineRunName:
+                  type: string
+                  description: Name of the build PipelineRun
+                tested:
+                  type: boolean
+                  description: |
+                    Latch. Set once the test VM reported Ready and never
+                    cleared. The Composition stops rendering the test VM after
+                    this, which is what tears it down — so without the latch a
+                    later reconcile would build the VM again, forever.
+                testVmIp:
+                  type: array
+                  description: IP(s) the test VM had. Kept after teardown for the record.
+                  items:
+                    type: string
+      additionalPrinterColumns:
+        - name: PHASE
+          type: string
+          jsonPath: .status.phase
+        - name: TEMPLATE
+          type: string
+          jsonPath: .status.templateName
+        - name: BUILT
+          type: string
+          jsonPath: .status.buildSucceeded
+        - name: TESTED
+          type: boolean
+          jsonPath: .status.tested

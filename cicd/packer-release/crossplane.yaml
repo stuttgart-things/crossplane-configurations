@@ -1,0 +1,94 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: packer-release
+  annotations:
+    # Local convention used by `task push` to bump and re-publish.
+    # Not a Crossplane-standard field — the true package version is the OCI tag.
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Builds a machine image and proves it works: a namespaced
+      `PackerRelease` XR composes a `PackerBuild` and, once that
+      succeeds, a `VMProvision` that clones the freshly built template
+      and runs Ansible against the clone.
+    meta.crossplane.io/readme: |
+      # packer-release
+
+      A Crossplane Configuration that turns a `PackerRelease` namespaced
+      XR (group `resources.stuttgart-things.com`) into a build followed
+      by a smoke test, by composing two existing XRs rather than by
+      re-implementing either.
+
+      ## Why a layer above packer-build
+
+      `packer-build` answers "did packer exit 0", which is not the same
+      question as "is this image usable". A template can build cleanly
+      and still fail to boot, come up without a network, or lack the
+      user every later consumer logs in as. The only way to know is to
+      clone it and drive it.
+
+      The Composition pipeline:
+
+      - `function-environment-configs` loads test-VM defaults from the
+        EnvironmentConfig selected by `spec.environmentConfig`
+        (config-scoped label
+        `packer-release.resources.stuttgart-things.com/environment`).
+      - `function-kcl` (`render`) always composes a nested `PackerBuild`,
+        and composes a nested `VMProvision` only while the gate is open:
+        the build succeeded, it reported a `template-name`, and the
+        `tested` latch is not yet set.
+      - `function-kcl` (`derive-status`) lifts the template name, build
+        state and test-VM IP onto the XR status and sets the latch.
+      - `function-auto-ready` marks the XR Ready. Because the test VM
+        stops being composed once the latch is set, Ready means "built
+        AND verified".
+
+      ## Teardown without a cleanup step
+
+      The test VM disappears because the Composition stops rendering it,
+      not because anything deletes it imperatively. A `finally`-style
+      teardown only runs while the thing driving it is still alive; a
+      composed resource is removed by the same garbage collector that
+      owns it. A test VM that never reaches Ready deliberately keeps the
+      gate open, so a FAILED smoke test leaves the VM up for inspection
+      instead of destroying the evidence.
+
+      ## Preconditions
+
+      Both nested Configurations must be installed — declared as
+      `dependsOn`, so the package manager pulls them. `packer-build` must
+      be **>= v0.3.0**: the gate reads the `template-name` PipelineRun
+      result off its status, which older versions do not surface.
+
+      Plus, on the target cluster: the packer-build preconditions (Vault
+      Secret, git basic-auth Secret, CA ConfigMap in the pipeline
+      namespace), an OpenTofu `ClusterProviderConfig`, and the tfvars
+      Secret holding the hypervisor credentials. See the
+      per-Configuration README.
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    # Functions used by this Configuration's Composition pipeline.
+    - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
+      version: ">=v0.12.0,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-environment-configs
+      version: ">=v0.7.0,<v0.8.0"
+    # The build half. The >=v0.3.0 floor is LOAD-BEARING, not hygiene: the
+    # gate keys off the `template-name` PipelineRun result on the PackerBuild
+    # status, which v0.2.0 and earlier do not surface. Against an older
+    # packer-build the gate never opens and the XR sits in phase=Building with
+    # a successful build behind it — a failure mode with no error message.
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/packer-build
+      version: ">=v0.3.0"
+    # The test half. Pulls vsphere-vm, proxmox-vm and ansible-run transitively;
+    # VMProvision already emits its AnsibleRun only once the VM is Ready and
+    # its IP is known, so that edge is not re-implemented here.
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/vm-provision
+      version: ">=v0.1.1"

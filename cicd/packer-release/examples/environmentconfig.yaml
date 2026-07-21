@@ -1,0 +1,55 @@
+---
+# Per-environment defaults for the TEST VM of a PackerRelease.
+#
+# Selected by the config-scoped label
+# `packer-release.resources.stuttgart-things.com/environment`, matched against
+# the XR's `spec.environmentConfig` (default "default"). The key is namespaced
+# to this Configuration because function-environment-configs requires exactly
+# one Selector match, and sibling Configurations ship EnvironmentConfigs whose
+# value is also "default".
+#
+# This environment covers ONLY the test VM. Build settings come from the
+# packer-build EnvironmentConfig, and any placement field left unset here falls
+# back to the vsphere-vm one. Set a field in exactly one of the three.
+#
+# Values below describe LabUL, verified 2026-07-21.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: packer-release-defaults
+  labels:
+    packer-release.resources.stuttgart-things.com/environment: default
+data:
+  # Test VM placement. `folderPath` is deliberately a scratch folder: these VMs
+  # are created and destroyed per release and must not sit among real ones.
+  folderPath: stuttgart-things/testing
+  datacenter: /LabUL
+  datastore: /LabUL/datastore/UL-ESX-SAS-02
+  resourcePool: /LabUL/host/Cluster-V6.7/Resources
+  network: /LabUL/network/LAB-10.31.102
+
+  # Must match the firmware the template was built with, or it will not boot.
+  firmware: bios
+
+  # Hypervisor credentials, as tfvars, pre-created in the XR's namespace.
+  tfvarsSecretName: vsphere-tfvars # pragma: allowlist secret
+  tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
+
+  # The OPENTOFU provider config the test VM's Workspace runs through -- NOT
+  # the provider-kubernetes one that ansible-run/packer-build call
+  # `crossplaneProviderConfig`. This name is a per-cluster choice; check it
+  # with `kubectl get clusterproviderconfigs.opentofu.m.upbound.io` before
+  # trusting the default.
+  providerConfigName: default
+  providerConfigKind: ClusterProviderConfig
+
+  # Ansible run against the test VM. Overridable per environment so a host
+  # without an LVM data disk expresses that here rather than by editing an XR.
+  ansible:
+    playbooks:
+      - sthings.baseos.setup
+    varsFile:
+      - manage_filesystem+-true
+      - update_packages+-true
+      - ansible_become+-true
+      - ansible_become_method+-sudo

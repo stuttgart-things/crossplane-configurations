@@ -410,7 +410,14 @@ tasks:
         ' "$META" 2>/dev/null | head -n1)
         [ -z "$PROV_VER" ] && PROV_VER="v1.2.0"
 
-        DAGGER_MOD="${DAGGER_MOD:-github.com/stuttgart-things/dagger/crossplane@v0.115.0}"
+        # Keep in step with CI (.github/workflows/verify.yaml). v0.115.0 ran
+        # `crossplane render` WITHOUT --extra-resources, so every Configuration
+        # whose Composition selects an EnvironmentConfig failed locally with
+        #   cannot process environment config "environment-config-0" by
+        #   selector: expected exactly one required resource, got 0
+        # while the same Configuration was green in CI — which reads as a
+        # problem with the Configuration, not with the pin.
+        DAGGER_MOD="${DAGGER_MOD:-github.com/stuttgart-things/dagger/crossplane@v0.118.1}"
 
         gum style --foreground 4 "→ verify $CONFIG"
         echo "  provider-kubernetes: $PROV_VER"

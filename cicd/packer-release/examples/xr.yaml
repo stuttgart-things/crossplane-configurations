@@ -1,0 +1,36 @@
+---
+# Realistic usage: build ubuntu24 base-os in LabUL and verify the result by
+# cloning it and running the base-OS playbook against the clone.
+#
+# The test VM is named <xr-name>-test and exists only while the smoke test
+# runs; it is destroyed by the Composition ceasing to render it once the test
+# passes. A test that FAILS leaves the VM up on purpose, for inspection.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerRelease
+metadata:
+  name: ubuntu24-labul
+  namespace: default
+spec:
+  environmentConfig: default
+  build:
+    environmentConfig: default
+    osVersion: ubuntu24
+    provisioning: base-os
+    packerTemplate: ubuntu24-base-os.pkr.hcl
+    gitRevision: main
+  test:
+    enabled: true
+    provider: vsphere
+    cpu: "4"
+    ram: "4096"
+    disk: "64"
+    firmware: bios
+    ansible:
+      enabled: true
+      playbooks:
+        - sthings.baseos.setup
+      varsFile:
+        - manage_filesystem+-true
+        - update_packages+-true
+        - ansible_become+-true
+        - ansible_become_method+-sudo
