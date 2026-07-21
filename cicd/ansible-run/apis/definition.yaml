@@ -336,3 +336,22 @@ spec:
                       pipelineTaskName:
                         type: string
                         description: The pipeline task this TaskRun runs
+                results:
+                  type: array
+                  description: |
+                    The PipelineRun's results, so a composing XR can consume
+                    what the run produced without reading the PipelineRun
+                    itself.
+
+                    Only string-valued results appear here; Tekton also allows
+                    array- and object-typed results, which this schema cannot
+                    represent.
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: Result name as declared by the pipeline
+                      value:
+                        type: string
+                        description: Result value

@@ -358,3 +358,24 @@ spec:
                       pipelineTaskName:
                         type: string
                         description: The pipeline task this TaskRun runs
+                results:
+                  type: array
+                  description: |
+                    The PipelineRun's results. `build-packer-template` emits
+                    `template-name` — the vSphere template the build produced
+                    (e.g. `ubuntu24-base-20260721-0742`). That is what a
+                    downstream smoke-test or promote step consumes, so it has
+                    to leave the PipelineRun and land on the XR.
+
+                    Only string-valued results appear here; Tekton also allows
+                    array- and object-typed results, which this schema cannot
+                    represent.
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: Result name as declared by the pipeline
+                      value:
+                        type: string
+                        description: Result value

@@ -242,6 +242,20 @@ the child `taskRuns`. With `deriveReadiness: true` (default) the XR is Ready
 only once the build actually succeeds — a real vSphere base-OS build takes
 roughly 20 minutes.
 
+`status.results` carries the PipelineRun's results. The one that matters is
+`template-name` — the vSphere template the build produced:
+
+```bash
+kubectl get packerbuild packer-build-ubuntu24-labul \
+  -o jsonpath='{.status.results[?(@.name=="template-name")].value}'
+# ubuntu24-base-20260721-0742
+```
+
+Without this the name only exists inside the PipelineRun, so nothing composing
+this XR could know which template to smoke-test or promote. Only string-valued
+results are surfaced; Tekton also permits array- and object-typed results,
+which the status schema cannot represent.
+
 ## Local render
 
 ```bash
