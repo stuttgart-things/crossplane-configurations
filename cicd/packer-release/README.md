@@ -209,6 +209,7 @@ On the target cluster, additionally:
 | `phase: BuildIncomplete` | `packer-build` older than v0.3.0 — no `template-name` on its status |
 | `phase: BuildFailed` | the build PipelineRun failed; nothing retries. `kubectl logs -n <ns> -l tekton.dev/pipelineRun=<buildPipelineRunName> -c step-packer-action` |
 | `phase: PromoteFailed` | the govc run failed. It refuses to touch a half-promoted inventory, so check the golden folder for a stray `<goldenName>-previous` before rerunning |
+| Stuck in `Promoting` behind a PipelineRun that already succeeded | the promote Object lost its `readiness` CEL query. Without it provider-kubernetes treats creation as completion, stops re-observing, and `status.atProvider.manifest` freezes before the results exist |
 | `promote.enabled: true` but nothing happens | the smoke test is off, so the `tested` latch never closes — the phase is `TestSkipped`, not `Promoting` |
 | `error fetching virtual machine: vm '<name>' not found`, looping | the template does not exist, or this vCenter account cannot see it. Check with `govc find /<dc> -type m -name '<name>'` |
 | Test VM never boots after a clean build | firmware mismatch — `spec.test.firmware` must match what the template was built with |

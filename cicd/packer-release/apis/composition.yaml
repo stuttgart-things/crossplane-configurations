@@ -317,6 +317,24 @@ spec:
                         kind = "ClusterProviderConfig"
                         name = _promote?.crossplaneProviderConfig or _promoteEnv?.crossplaneProviderConfig or "in-cluster"
                     }
+                    # Both halves of this are load-bearing, and the default
+                    # (SuccessfulCreate) gets both wrong:
+                    #
+                    #   1. Readiness would mean "the PipelineRun object was
+                    #      created", so the XR reports Ready while promotion is
+                    #      still running -- or after it failed.
+                    #   2. provider-kubernetes stops re-observing a resource it
+                    #      considers done, so status.atProvider.manifest freezes
+                    #      at the first observation ("ResolvingPipelineRef") and
+                    #      the pipeline RESULTS never arrive. derive-status then
+                    #      has nothing to read and the XR sits in Promoting
+                    #      behind a promotion that actually succeeded.
+                    #
+                    # Same query packer-build's own Object uses.
+                    readiness = {
+                        policy = "DeriveFromCelQuery"
+                        celQuery = 'has(object.status) && has(object.status.conditions) && object.status.conditions.exists(c, c.type == "Succeeded" && c.status == "True")'
+                    }
                     forProvider = {
                         manifest = {
                             apiVersion = "tekton.dev/v1"
