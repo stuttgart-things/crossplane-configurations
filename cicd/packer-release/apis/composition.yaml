@@ -276,7 +276,12 @@ spec:
                 c for c in (_vm?.status?.conditions or [])
                 if c?.type == "Ready" and c?.status == "True"
             ]
-            _vmIp = _vm?.status?.share?.ip or []
+            # Latched like `tested`, and for the same reason: the IP is read
+            # off the test VM, and the test VM is gone the moment the latch
+            # closes. Recomputed each reconcile it would survive exactly one
+            # pass and then vanish from a status field documented as kept.
+            _vmIpNow = _vm?.status?.share?.ip or []
+            _vmIp = _vmIpNow or (oxr?.status?.testVmIp or [])
 
             # The latch, set here and read by the render step on the NEXT
             # reconcile. Sticky by construction: once true it is never
