@@ -4,4 +4,4 @@ kind: Configuration
 metadata:
   name: packer-release
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/packer-release:v0.1.0
+  package: ghcr.io/stuttgart-things/crossplane-configurations/packer-release:v0.1.1
