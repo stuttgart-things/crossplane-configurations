@@ -237,6 +237,111 @@ spec:
                           description: Extra vars as key+-value pairs
                           items:
                             type: string
+                # ------------------------------------------------------------
+                # Promote phase — emitted as a provider-kubernetes Object
+                # wrapping a promote-packer-template PipelineRun, but ONLY once
+                # the smoke test has passed.
+                #
+                # This is the one step here that MUTATES shared state: it
+                # renames the golden image every other consumer clones from.
+                # Hence `enabled: false` by default — an existing PackerRelease
+                # upgraded to a version that knows about promotion must not
+                # start overwriting golden images because a default changed.
+                #
+                # It is also the only composed resource that is NOT torn down
+                # again. The test VM disappears because the Composition stops
+                # rendering it; the promote PipelineRun is the record of what
+                # was promoted and from what, so it stays.
+                # ------------------------------------------------------------
+                promote:
+                  type: object
+                  description: |
+                    Promote the tested template to the golden image, via govc
+                    (rename the golden image aside, rename the fresh build in).
+
+                    Requires `test.enabled`. Promotion is gated on
+                    `status.tested`, and that latch is only ever set by a test
+                    VM reaching Ready — so with the smoke test off, promotion
+                    never fires. That is deliberate: the entire claim this
+                    Configuration makes is that a promoted image was proven to
+                    work first.
+                  properties:
+                    enabled:
+                      type: boolean
+                      description: |
+                        Off by default. Promotion overwrites the image every
+                        later consumer clones, so it is opt-in per release.
+                      default: false
+                    goldenName:
+                      type: string
+                      description: |
+                        Name the golden image is published under, e.g.
+                        "sthings-u24". No default and not derivable from
+                        osVersion — the mapping is a platform convention, so
+                        set it here or in the EnvironmentConfig's `promote`
+                        block. Missing when promotion is enabled is a hard
+                        error rather than a guess.
+                    buildFolder:
+                      type: string
+                      description: |
+                        Inventory path packer builds into, e.g.
+                        "/LabUL/vm/stuttgart-things/packer".
+                    goldenFolder:
+                      type: string
+                      description: |
+                        Inventory path golden images live in, e.g.
+                        "/LabUL/vm/stuttgart-things/vm-templates".
+                    previousSuffix:
+                      type: string
+                      description: |
+                        Suffix for the retained previous generation. Exactly
+                        one is kept, so a bad golden image is one rename away
+                        from being rolled back.
+                      default: "-previous"
+                    datacenter:
+                      type: string
+                      description: vCenter datacenter, e.g. "/LabUL"
+                    insecureSkipVerify:
+                      type: string
+                      description: Skip vCenter TLS verification (self-signed lab certs)
+                      default: "true"
+                    pipelineRunName:
+                      type: string
+                      description: |
+                        Name of the promote PipelineRun. Defaults to
+                        "<xr-name>-promote". Immutable like any PipelineRun —
+                        re-promoting means recreating this XR.
+                    namespace:
+                      type: string
+                      description: Namespace the promote PipelineRun runs in
+                    caCertsConfigMapName:
+                      type: string
+                      description: |
+                        ConfigMap of PEM CA certificates, mounted as the
+                        pipeline's optional `caCerts` workspace. Required when
+                        the Vault holding the vCenter credentials sits behind a
+                        private CA — which is the case in the labs, so leaving
+                        this unset there fails at the Vault call, not at TLS
+                        setup, and the error names neither.
+                    vaultSecretName:
+                      type: string
+                      description: Secret carrying VAULT_ADDR / VAULT_TOKEN
+                      default: vault
+                    vaultSecretPath:
+                      type: string
+                      description: Vault KV v2 path holding the vCenter credentials
+                    workingImage:
+                      type: string
+                      description: |
+                        Image providing govc. Must be >= 2.0.0 — govc was added
+                        in that image version.
+                    crossplaneProviderConfig:
+                      type: string
+                      description: |
+                        The provider-KUBERNETES ClusterProviderConfig the Object
+                        targets — not the OpenTofu one the test VM uses.
+                      default: in-cluster
+
               required:
                 - build
 
@@ -257,10 +362,20 @@ spec:
                     Testing — a test VM is up (or coming up) against the
                       freshly built template.
                     Tested — the smoke test passed; the test VM has been torn
-                      down and the template is a promotion candidate.
+                      down and the template is a promotion candidate. Terminal
+                      when spec.promote.enabled is false.
+                    Promoting — the promote PipelineRun is running.
+                    Promoted — the golden image now points at this build.
+                      status.previousTemplate names what it superseded.
+                    PromoteFailed — the promote PipelineRun failed. Terminal;
+                      nothing retries. The task refuses to run against a
+                      half-promoted inventory, so a rerun needs the golden
+                      folder looked at first.
                     TestSkipped — spec.test.enabled is false AND the build
                       produced a template. A build-only XR still reports
                       Building/BuildFailed while the build is in flight.
+                      Promotion cannot follow this phase — it is gated on the
+                      `tested` latch, which only a test VM sets.
                 templateName:
                   type: string
                   description: |
@@ -283,9 +398,36 @@ spec:
                     later reconcile would build the VM again, forever.
                 testVmIp:
                   type: array
-                  description: IP(s) the test VM had. Kept after teardown for the record.
+                  description: |
+                    IP(s) the test VM had. Latched, so it survives the teardown
+                    that the `tested` latch triggers — otherwise the only trace
+                    of what was actually verified would vanish one reconcile
+                    after the test passed.
                   items:
                     type: string
+                promoted:
+                  type: boolean
+                  description: |
+                    Latch. Set once the promote PipelineRun succeeded. Unlike
+                    `tested` it does not gate anything off — the promote Object
+                    stays composed either way, because it IS the record.
+                promoteSucceeded:
+                  type: string
+                  description: '"True", "False" or "Unknown" from the promote PipelineRun'
+                promotePipelineRunName:
+                  type: string
+                  description: Name of the promote PipelineRun
+                goldenTemplate:
+                  type: string
+                  description: |
+                    Inventory path the golden image now lives at, from the
+                    promote pipeline's `promoted-template` result.
+                previousTemplate:
+                  type: string
+                  description: |
+                    Inventory path the superseded golden image was renamed to,
+                    from the `previous-template` result. Empty on a first
+                    promotion. Roll back by renaming it back to goldenName.
       additionalPrinterColumns:
         - name: PHASE
           type: string
@@ -296,6 +438,9 @@ spec:
         - name: BUILT
           type: string
           jsonPath: .status.buildSucceeded
+        - name: GOLDEN
+          type: string
+          jsonPath: .status.goldenTemplate
         - name: TESTED
           type: boolean
           jsonPath: .status.tested

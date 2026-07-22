@@ -1,0 +1,49 @@
+---
+# The full release: build, smoke-test, and — only if the test passes — replace
+# the golden image every other consumer clones from.
+#
+# `promote.enabled` is off by default for a reason. Promotion is the one step
+# here that mutates shared state, and it is not undone by deleting this XR: the
+# golden image stays renamed. Exactly one previous generation is retained, as
+# `<goldenName>-previous`, so a bad promotion is one rename away from rollback.
+#
+# Promotion is gated on `status.tested`, which only a test VM reaching Ready
+# ever sets. Setting `test.enabled: false` here would not skip the gate — it
+# would mean the golden image is never touched at all.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerRelease
+metadata:
+  name: ubuntu24-labul-release
+  namespace: default
+spec:
+  environmentConfig: default
+  build:
+    environmentConfig: default
+    osVersion: ubuntu24
+    provisioning: base-os
+    packerTemplate: ubuntu24-base-os.pkr.hcl
+    gitRevision: main
+  test:
+    enabled: true
+    provider: vsphere
+    cpu: "4"
+    ram: "4096"
+    disk: "64"
+    firmware: bios
+    ansible:
+      enabled: true
+      playbooks:
+        - sthings.baseos.setup
+      varsFile:
+        - manage_filesystem+-true
+        - update_packages+-true
+        - ansible_become+-true
+        - ansible_become_method+-sudo
+  promote:
+    enabled: true
+    # Which image this build supersedes. No default and not derivable from
+    # osVersion — the mapping is a platform naming convention, so it is stated
+    # per release rather than guessed.
+    goldenName: sthings-u24
+    # Folders, CA bundle, Vault path and the pipeline pin all come from the
+    # packer-release EnvironmentConfig; see examples/environmentconfig.yaml.

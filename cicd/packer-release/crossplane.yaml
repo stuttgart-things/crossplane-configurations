@@ -41,11 +41,16 @@ metadata:
         and composes a nested `VMProvision` only while the gate is open:
         the build succeeded, it reported a `template-name`, and the
         `tested` latch is not yet set.
+      - the same step composes a `provider-kubernetes` Object wrapping a
+        promote PipelineRun, but only when `spec.promote.enabled` is set
+        AND the `tested` latch is closed — the golden image is replaced
+        only by a template a VM actually booted from.
       - `function-kcl` (`derive-status`) lifts the template name, build
-        state and test-VM IP onto the XR status and sets the latch.
+        state, test-VM IP and promotion result onto the XR status and
+        sets the latches.
       - `function-auto-ready` marks the XR Ready. Because the test VM
         stops being composed once the latch is set, Ready means "built
-        AND verified".
+        AND verified" — and with promotion enabled, also promoted.
 
       ## Teardown without a cleanup step
 
@@ -69,10 +74,20 @@ metadata:
       namespace), an OpenTofu `ClusterProviderConfig`, and the tfvars
       Secret holding the hypervisor credentials. See the
       per-Configuration README.
+
+      Promotion additionally needs a provider-KUBERNETES
+      `ClusterProviderConfig` (a different object from the OpenTofu one
+      the test VM uses) and a stage-time pipeline revision >= v0.10.0 —
+      the tag that first contains `promote-packer-template.yaml`.
 spec:
   crossplane:
     version: ">=v2.1.3"
   dependsOn:
+    # Declared directly, not left to packer-build's transitive pull: the
+    # promote step renders a provider-kubernetes Object from THIS Composition,
+    # so the dependency is first-hand.
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+      version: ">=v1.2.0,<v2.0.0"
     # Functions used by this Configuration's Composition pipeline.
     - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
       version: ">=v0.12.0,<v0.13.0"

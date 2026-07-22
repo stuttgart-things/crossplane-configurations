@@ -6,9 +6,10 @@ by composing two existing XRs rather than re-implementing either.
 ```
 PackerRelease XR
   ├─ PackerBuild        (cicd/packer-build)   -> status.results[template-name]
-  └─ VMProvision        (machinery/vm-provision)
-       ├─ VsphereVM     clone that template
-       └─ AnsibleRun    run playbooks against the clone
+  ├─ VMProvision        (machinery/vm-provision)
+  │    ├─ VsphereVM     clone that template
+  │    └─ AnsibleRun    run playbooks against the clone
+  └─ Object             promote PipelineRun (govc) — opt-in, gated on tested
 ```
 
 ## Why a layer above packer-build
@@ -50,11 +51,14 @@ See [`examples/`](examples/) for the full and build-only variants.
 | `BuildFailed` | PackerBuild | no | **yes** |
 | `BuildIncomplete` | PackerBuild | no | **yes** |
 | `Testing` | PackerBuild + test VM | no | no |
-| `Tested` | PackerBuild | **yes** | yes |
+| `Tested` | PackerBuild | **yes** | yes, unless promotion is on |
 | `TestSkipped` | PackerBuild | once the build succeeds | yes |
+| `Promoting` | PackerBuild + promote run | no | no |
+| `Promoted` | PackerBuild + promote run | **yes** | yes |
+| `PromoteFailed` | PackerBuild + promote run | no | **yes** |
 
-Ready therefore means *built and verified*, which is the only reading that
-makes a release safe to promote from.
+Ready therefore means *built and verified* — and, with promotion enabled,
+*published*.
 
 The two terminal failure phases exist because nothing here retries. A failed
 build leaves a PipelineRun in `Failed`, the gate never opens and no test VM is
@@ -85,6 +89,46 @@ condition again — without the latch the next reconcile would rebuild it, and
 the loop would never settle. Re-running a release means recreating the XR, not
 clearing a field.
 
+## Promotion
+
+Off by default. `spec.promote.enabled: true` adds a third composed resource: a
+`provider-kubernetes` Object wrapping a
+[`promote-packer-template`](https://github.com/stuttgart-things/stage-time/blob/main/pipelines/promote-packer-template.yaml)
+PipelineRun, which uses govc to rename the current golden image aside and the
+fresh build into its place.
+
+```yaml
+  promote:
+    enabled: true
+    goldenName: sthings-u24
+```
+
+Everything else — build and golden folders, datacenter, CA bundle, Vault path,
+the pipeline pin — is environment, and lives in the EnvironmentConfig.
+`goldenName` does not: which image a build supersedes is a per-release
+decision, and it is not derivable from `osVersion` (the `ubuntu24` →
+`sthings-u24` mapping is a naming convention, not a rule).
+
+Exactly one previous generation is kept, as `<goldenName>-previous`, so a bad
+promotion is one rename away from rollback. `status.previousTemplate` holds its
+full inventory path.
+
+**It is gated on `status.tested`, not on `spec.test.enabled`.** Since only a
+test VM reaching Ready ever sets that latch, promotion with the smoke test
+disabled does not skip the gate — it means the golden image is never touched.
+That combination reports `TestSkipped` and composes nothing.
+
+**Promotion is the one thing here that outlives the XR.** The test VM is
+garbage-collected with its owner; a renamed template is not. Deleting a
+`PackerRelease` after a successful promotion leaves the golden image pointing
+at the new build.
+
+Consequently the promote Object is *not* torn down the way the test VM is.
+There is no "already promoted" clause in its gate: the PipelineRun is the
+record of which template was promoted and what it superseded, and removing the
+Object would delete it. Re-rendering costs nothing — a PipelineRun is immutable
+and the name is fixed, so the provider converges on the existing one.
+
 ### Teardown without a cleanup step
 
 The test VM disappears because the Composition stops rendering it, not because
@@ -103,7 +147,7 @@ Nothing is duplicated between them; set each field in exactly one place.
 
 | EnvironmentConfig | Selector label | Owns |
 |---|---|---|
-| `packer-release` | `packer-release.resources.stuttgart-things.com/environment` | test-VM placement, tfvars Secret, OpenTofu provider config, Ansible playbooks |
+| `packer-release` | `packer-release.resources.stuttgart-things.com/environment` | test-VM placement, tfvars Secret, OpenTofu provider config, Ansible playbooks, the `promote` block |
 | `packer-build` | `packer-build.resources.stuttgart-things.com/environment` | repos, pipeline revision, CA ConfigMap, credentials, working image, lab, hypervisor |
 | `vsphere-vm` | `vsphere-vm.resources.stuttgart-things.com/environment` | placement fallbacks for any field the two above leave unset |
 
@@ -129,6 +173,10 @@ On the target cluster, additionally:
 - Everything `packer-build` needs — see [its README](../packer-build/README.md):
   the `vault` Secret, the git basic-auth Secret and the CA ConfigMap in the
   pipeline namespace.
+- For promotion only: a provider-**kubernetes** `ClusterProviderConfig`
+  (`kubectl get clusterproviderconfigs.kubernetes.m.crossplane.io`), and a
+  stage-time `pipelineRevision` >= `v0.10.0` — the first tag containing
+  `promote-packer-template.yaml`.
 - An OpenTofu `ClusterProviderConfig`. Its name is a per-cluster choice — check
   with `kubectl get clusterproviderconfigs.opentofu.m.upbound.io` and set
   `providerConfigName` in the EnvironmentConfig to match. This is **not** the
@@ -160,6 +208,8 @@ On the target cluster, additionally:
 |---|---|
 | `phase: BuildIncomplete` | `packer-build` older than v0.3.0 — no `template-name` on its status |
 | `phase: BuildFailed` | the build PipelineRun failed; nothing retries. `kubectl logs -n <ns> -l tekton.dev/pipelineRun=<buildPipelineRunName> -c step-packer-action` |
+| `phase: PromoteFailed` | the govc run failed. It refuses to touch a half-promoted inventory, so check the golden folder for a stray `<goldenName>-previous` before rerunning |
+| `promote.enabled: true` but nothing happens | the smoke test is off, so the `tested` latch never closes — the phase is `TestSkipped`, not `Promoting` |
 | `error fetching virtual machine: vm '<name>' not found`, looping | the template does not exist, or this vCenter account cannot see it. Check with `govc find /<dc> -type m -name '<name>'` |
 | Test VM never boots after a clean build | firmware mismatch — `spec.test.firmware` must match what the template was built with |
 | Test VM up but Ansible fails to connect | the template lacks the user in `vm_ssh_user`; a base-OS build creates it, a vanilla OS image does not |
