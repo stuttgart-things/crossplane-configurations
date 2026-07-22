@@ -246,12 +246,21 @@ spec:
                 phase:
                   type: string
                   description: |
-                    Building — the build PipelineRun has not succeeded yet.
+                    Building — the build PipelineRun is still running.
+                    BuildFailed — the build PipelineRun failed. Terminal: the
+                      gate never opens, no test VM is created, and nothing is
+                      retried. Read buildPipelineRunName for the logs.
+                    BuildIncomplete — the build succeeded but reported no
+                      `template-name`, so there is nothing to test or promote.
+                      In practice this means the nested packer-build predates
+                      v0.3.0, which is what the dependency floor guards against.
                     Testing — a test VM is up (or coming up) against the
                       freshly built template.
                     Tested — the smoke test passed; the test VM has been torn
                       down and the template is a promotion candidate.
-                    TestSkipped — spec.test.enabled is false.
+                    TestSkipped — spec.test.enabled is false AND the build
+                      produced a template. A build-only XR still reports
+                      Building/BuildFailed while the build is in flight.
                 templateName:
                   type: string
                   description: |
