@@ -147,6 +147,14 @@ spec:
                 spec = {
                     environmentConfig = _build?.environmentConfig or "default"
                     pipelineRunName = _build?.pipelineRunName or "{}-build".format(_name)
+                    # Named per release, because packer-build's KCL module
+                    # defaults this to the literal "packer-build-run". Two
+                    # PackerBuilds in one namespace then compose the same
+                    # Object, and the second one never syncs:
+                    #   ReconcileError: Unsynced resources: packer-build-run
+                    # Nothing else reports the collision -- the XR simply sits
+                    # in Building with no PipelineRun behind it.
+                    crossplaneObjectName = "{}-build-run".format(_name)
                     osVersion = _build.osVersion
                     provisioning = _build.provisioning
                     packerTemplate = _build.packerTemplate
