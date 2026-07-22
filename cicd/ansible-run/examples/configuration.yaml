@@ -4,4 +4,4 @@ kind: Configuration
 metadata:
   name: ansible-run
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/ansible-run:v0.2.1
+  package: ghcr.io/stuttgart-things/crossplane-configurations/ansible-run:v0.2.2
