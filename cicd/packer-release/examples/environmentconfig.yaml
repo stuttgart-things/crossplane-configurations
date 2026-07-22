@@ -43,6 +43,44 @@ data:
   providerConfigName: default
   providerConfigKind: ClusterProviderConfig
 
+  # Promotion of a tested template to the golden image. Everything here is
+  # environment, not release: the folders, the CA bundle and the pipeline pin
+  # are properties of LabUL. What is NOT here is `goldenName` -- which image a
+  # given build supersedes is a per-release decision, so it lives on the XR.
+  #
+  # None of this takes effect unless an XR sets `spec.promote.enabled: true`.
+  promote:
+    # Where packer builds land, and where golden images live. Full inventory
+    # paths, since govc addresses objects by path.
+    buildFolder: /LabUL/vm/stuttgart-things/packer
+    goldenFolder: /LabUL/vm/stuttgart-things/vm-templates
+    previousSuffix: "-previous"
+    datacenter: /LabUL
+    insecureSkipVerify: "true"
+
+    # Vault holds the vCenter credentials and sits behind the lab's private CA,
+    # so the CA bundle is not optional here despite the pipeline treating the
+    # workspace as optional. Without it the run fails at the Vault call, and
+    # the error mentions neither TLS nor this ConfigMap.
+    caCertsConfigMapName: packer-ca-certs
+    vaultSecretName: vault # pragma: allowlist secret
+    vaultSecretPath: cloud/data/vsphere # pragma: allowlist secret
+
+    # Namespace the promote PipelineRun runs in, and the provider-KUBERNETES
+    # ClusterProviderConfig the wrapping Object targets -- not the OpenTofu one
+    # above. Per-cluster: check with
+    # `kubectl get clusterproviderconfigs.kubernetes.m.crossplane.io`.
+    namespace: tekton-ci
+    crossplaneProviderConfig: in-cluster
+
+    # Must be a stage-time tag CONTAINING promote-packer-template.yaml, i.e.
+    # >= v0.10.0. Pinned rather than "main" because the git resolver fetches at
+    # render time, so an unpinned revision silently changes what runs.
+    pipelineRevision: v0.10.0
+
+    # govc ships in the packer image from 2.0.0 onwards.
+    workingImage: ghcr.io/stuttgart-things/sthings-packer:2.0.0
+
   # Ansible run against the test VM. Overridable per environment so a host
   # without an LVM data disk expresses that here rather than by editing an XR.
   ansible:

@@ -102,6 +102,19 @@ spec:
             _buildDone = _buildSucceeded == "True" and _templateName != ""
             _gateOpen = _testEnabled and _buildDone and not _alreadyTested
 
+            # --- Promote gate ------------------------------------------------
+            # Keyed off the SAME `tested` latch, which is the whole point: the
+            # golden image is only ever replaced by a template a VM actually
+            # booted from. There is deliberately no "and not already promoted"
+            # clause — unlike the test VM, this resource must NOT be torn down
+            # once its work is done. Removing it would delete the PipelineRun
+            # that records which template was promoted and what it superseded.
+            # Re-rendering is harmless: a PipelineRun is immutable and the name
+            # is fixed, so provider-kubernetes converges on the existing one.
+            _promote = _spec?.promote or {}
+            _promoteEnabled = _promote?.enabled if "enabled" in _promote else False
+            _promoteOpen = _promoteEnabled and _alreadyTested and _templateName != ""
+
             # --- Secret NAMES (not values) ----------------------------------
             # Defaults are resolved into locals here and assigned by variable
             # below, and the locals avoid secret-ish words. A literal default
@@ -236,7 +249,90 @@ spec:
                 }
             }
 
-            items = [_packerBuild] + ([_vmProvision] if _gateOpen else [])
+            # --- Promote PipelineRun ----------------------------------------
+            # Wrapped in a provider-kubernetes Object rather than composed as
+            # an XR, because promotion has no resource to manage — it is one
+            # imperative govc sequence whose whole result is two names. The
+            # pipeline takes everything as parameters; there is no git clone
+            # and no workspace beyond the CA bundle.
+            _promoteEnv = _env?.promote or {}
+            _promoteRunName = _promote?.pipelineRunName or "{}-promote".format(_name)
+            _promoteNs = _promote?.namespace or _promoteEnv?.namespace or _env?.namespace or "tekton-ci"
+            _goldenName = _promote?.goldenName or _promoteEnv?.goldenName or ""
+            _caCerts = _promote?.caCertsConfigMapName or _promoteEnv?.caCertsConfigMapName or ""
+
+            # Params are emitted only when non-empty so the pipeline's own
+            # defaults survive. Passing "" would override them with nothing —
+            # the same masking trap the nested-XR block above avoids.
+            _promoteParams = [
+                {name = "templateName", value = _templateName}
+                {name = "goldenName", value = _goldenName}
+            ]
+            _optionalParams = [
+                {name = "buildFolder", value = _promote?.buildFolder or _promoteEnv?.buildFolder or ""}
+                {name = "goldenFolder", value = _promote?.goldenFolder or _promoteEnv?.goldenFolder or ""}
+                {name = "previousSuffix", value = _promote?.previousSuffix or _promoteEnv?.previousSuffix or ""}
+                {name = "datacenter", value = _promote?.datacenter or _promoteEnv?.datacenter or _env?.datacenter or ""}
+                {name = "insecureSkipVerify", value = _promote?.insecureSkipVerify or _promoteEnv?.insecureSkipVerify or ""}
+                {name = "vaultSecretPath", value = _promote?.vaultSecretPath or _promoteEnv?.vaultSecretPath or ""}
+                {name = "vaultSecretName", value = _promote?.vaultSecretName or _promoteEnv?.vaultSecretName or ""}
+                {name = "workingImage", value = _promote?.workingImage or _promoteEnv?.workingImage or ""}
+            ]
+            _promoteAllParams = _promoteParams + [p for p in _optionalParams if p.value != ""]
+
+            _promotePipelineRef = {
+                resolver = "git"
+                params = [
+                    {name = "url", value = _promoteEnv?.pipelineRepoUrl or "https://github.com/stuttgart-things/stage-time.git"}
+                    # Pinned, never "main": the git resolver fetches at render
+                    # time, so an unpinned revision silently changes what runs.
+                    # Must be a tag that CONTAINS promote-packer-template.yaml,
+                    # i.e. >= v0.10.0.
+                    {name = "revision", value = _promoteEnv?.pipelineRevision or "v0.10.0"}
+                    {name = "pathInRepo", value = _promoteEnv?.pipelinePath or "pipelines/promote-packer-template.yaml"}
+                ]
+            }
+
+            _promoteRunSpec = {
+                pipelineRef = _promotePipelineRef
+                params = _promoteAllParams
+                if _caCerts:
+                    workspaces = [{name = "caCerts", configMap = {name = _caCerts}}]
+                taskRunTemplate = {serviceAccountName = "default"}
+                timeouts = {pipeline = "30m0s"}
+            }
+
+            _promoteObject = {
+                apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                kind = "Object"
+                metadata = {
+                    name = "{}-promote".format(_name)
+                    namespace = _namespace
+                    annotations = {
+                        "crossplane.io/composition-resource-name" = "promote"
+                    }
+                }
+                spec = {
+                    providerConfigRef = {
+                        kind = "ClusterProviderConfig"
+                        name = _promote?.crossplaneProviderConfig or _promoteEnv?.crossplaneProviderConfig or "in-cluster"
+                    }
+                    forProvider = {
+                        manifest = {
+                            apiVersion = "tekton.dev/v1"
+                            kind = "PipelineRun"
+                            metadata = {
+                                name = _promoteRunName
+                                namespace = _promoteNs
+                            }
+                            spec = _promoteRunSpec
+                        }
+                    }
+                }
+            }
+
+            _withTest = [_packerBuild] + ([_vmProvision] if _gateOpen else [])
+            items = _withTest + ([_promoteObject] if _promoteOpen else [])
 
     # -------------------------------------------------------------------------
     # Step 2: lift the two children's state onto this XR and set the latch.
@@ -283,6 +379,32 @@ spec:
             _vmIpNow = _vm?.status?.share?.ip or []
             _vmIp = _vmIpNow or (oxr?.status?.testVmIp or [])
 
+            # --- Observed promote --------------------------------------------
+            # The wrapped Object mirrors the live PipelineRun under
+            # status.atProvider.manifest; read the pipeline-level results and
+            # the Succeeded condition off it. Same shape packer-build's own
+            # derive-status reads.
+            _objs = [v.Resource for _, v in _ocds if v?.Resource?.kind == "Object"]
+            _promoteObj = _objs[0] if _objs else {}
+            _promoteRun = _promoteObj?.status?.atProvider?.manifest?.status or {}
+            _promoteResults = _promoteRun?.results or []
+            _goldens = [r.value for r in _promoteResults if r?.name == "promoted-template"]
+            _previouses = [r.value for r in _promoteResults if r?.name == "previous-template"]
+            _promoteConds = [
+                c for c in (_promoteRun?.conditions or []) if c?.type == "Succeeded"
+            ]
+            _promoteSucceeded = _promoteConds[0].status if _promoteConds else "Unknown"
+            _promoted = (oxr?.status?.promoted or False) or (_promoteSucceeded == "True")
+            _golden = (_goldens[0] if _goldens else "") or (oxr?.status?.goldenTemplate or "")
+            _previous = (_previouses[0] if _previouses else "") or (oxr?.status?.previousTemplate or "")
+
+            _promoteSpec = _spec?.promote or {}
+            _promoteOn = _promoteSpec?.enabled if "enabled" in _promoteSpec else False
+            # Recomputed rather than read off the Object: this step is a
+            # separate KCL program, and the name must be reportable before the
+            # Object exists.
+            _promoteRunName = _promoteSpec?.pipelineRunName or "{}-promote".format(oxr.metadata.name)
+
             # The latch, set here and read by the render step on the NEXT
             # reconcile. Sticky by construction: once true it is never
             # recomputed from the (by then deleted) test VM.
@@ -308,7 +430,16 @@ spec:
             # on _buildDone too: applied unconditionally it reports a build-only
             # XR as TestSkipped from the first reconcile, so a failed build in
             # that mode also read as a benign terminal state.
-            _phaseTesting = "Tested" if _tested else "Testing"
+            # Promotion phases hang off the END of the tested branch, never off
+            # TestSkipped: the promote gate reads the `tested` latch, which only
+            # a test VM reaching Ready ever sets. Promotion with the smoke test
+            # disabled therefore cannot happen, and must not be reported as if
+            # it were pending.
+            _phasePromoting = "PromoteFailed" if _promoteSucceeded == "False" else "Promoting"
+            _phasePromote = "Promoted" if _promoted else _phasePromoting
+            _phaseAfterTest = _phasePromote if _promoteOn else "Tested"
+
+            _phaseTesting = _phaseAfterTest if _tested else "Testing"
             _phaseDone = _phaseTesting if _testEnabled else "TestSkipped"
 
             _phase = _phaseDone if _buildDone else _phaseNotDone
@@ -322,6 +453,12 @@ spec:
                 # Retained after teardown on purpose: once the test VM is gone
                 # its IP is the only trace of what was actually verified.
                 if _vmIp: testVmIp = _vmIp
+                if _promoteOn:
+                    promoted = _promoted
+                    promoteSucceeded = _promoteSucceeded
+                    if _promoteRunName: promotePipelineRunName = _promoteRunName
+                    if _golden: goldenTemplate = _golden
+                    if _previous: previousTemplate = _previous
             }
 
             _dxr = _params?.dxr or {}
