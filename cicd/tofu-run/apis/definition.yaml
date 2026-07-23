@@ -1,11 +1,12 @@
 ---
-apiVersion: apiextensions.crossplane.io/v1
+apiVersion: apiextensions.crossplane.io/v2
 kind: CompositeResourceDefinition
 metadata:
   name: tofuruns.resources.stuttgart-things.com
 spec:
-  scope: Namespaced
   group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
   names:
     kind: TofuRun
     plural: tofuruns
