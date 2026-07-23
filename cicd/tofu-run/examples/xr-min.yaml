@@ -1,0 +1,16 @@
+---
+# Minimal TofuRun — clone stage-time, run the vault-k8sauth proof config, apply.
+# Needs `vault` (VAULT_ADDR) and `terraform-credentials`
+# (TF_VAR_vault_role_id / TF_VAR_vault_secret_id) Secrets in spec.namespace.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: TofuRun
+metadata:
+  name: tofu-vault-k8sauth
+  namespace: default
+spec:
+  pipelineRunName: tofu-vault-k8sauth
+  namespace: tekton-ci
+  gitWorkspaceSubdirectory: st
+  subDirectory: st/tests/tofu-vault-k8sauth
+  tofuAction: apply
+  crossplaneProviderConfig: in-cluster

@@ -1,0 +1,185 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: tofuruns.resources.stuttgart-things.com
+spec:
+  scope: Namespaced
+  group: resources.stuttgart-things.com
+  names:
+    kind: TofuRun
+    plural: tofuruns
+    singular: tofurun
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                # --- identity / run ---
+                pipelineRunName:
+                  type: string
+                  description: Name of the Tekton PipelineRun (and, by default, of the wrapping Object; must be unique per XR in a namespace)
+                namespace:
+                  type: string
+                  description: Namespace the PipelineRun runs in
+                  default: tekton-ci
+                # --- content source (the repo holding the OpenTofu config) ---
+                gitRepoUrl:
+                  type: string
+                  description: Git repo holding the OpenTofu configuration (cloned by fetch-repository)
+                  default: https://github.com/stuttgart-things/stage-time.git
+                gitRevision:
+                  type: string
+                  description: Revision of the content repo
+                  default: main
+                gitWorkspaceSubdirectory:
+                  type: string
+                  description: Subdirectory the repo is cloned into on the workspace
+                subDirectory:
+                  type: string
+                  description: Subdirectory of the workspace holding the tofu configuration
+                # --- pipeline definition source ---
+                pipelineRepoUrl:
+                  type: string
+                  description: Git repo holding the execute-tofu Pipeline definition
+                  default: https://github.com/stuttgart-things/stage-time.git
+                pipelineRevision:
+                  type: string
+                  description: Tag/revision of the pipeline definition repo (pin to a stage-time release)
+                  default: main
+                gitPath:
+                  type: string
+                  description: Path to the pipeline YAML in the pipeline-definition repo
+                  default: pipelines/execute-tofu.yaml
+                # --- tofu ---
+                tofuAction:
+                  type: string
+                  description: OpenTofu action
+                  enum: ["plan", "apply", "destroy"]
+                  default: plan
+                autoApprove:
+                  type: string
+                  description: Skip interactive approval for apply/destroy
+                  default: "true"
+                tfVars:
+                  type: array
+                  description: Extra variables as key+-value pairs
+                  items:
+                    type: string
+                tfVarsFile:
+                  type: string
+                  description: tfvars file as a base64 string (merged via *.auto.tfvars)
+                backendConfig:
+                  type: array
+                  description: backend-config key+-value pairs passed to tofu init
+                  items:
+                    type: string
+                initExtraArgs:
+                  type: string
+                  description: Extra args appended to tofu init
+                planExtraArgs:
+                  type: string
+                  description: Extra args appended to tofu plan
+                tofuLog:
+                  type: string
+                  description: TF_LOG level (TRACE/DEBUG/INFO/WARN/ERROR or empty)
+                tofuWorkingImage:
+                  type: string
+                  description: OpenTofu working image (ghcr.io / docker.io / quay.io)
+                # --- storage ---
+                storageSize:
+                  type: string
+                  description: Size of the PipelineRun workspace PVC
+                  default: 500Mi
+                storageClass:
+                  type: string
+                  description: StorageClass for the workspace PVC
+                storageAccessModes:
+                  type: string
+                  description: Access mode for the workspace PVC
+                  default: ReadWriteOnce
+                userHome:
+                  type: string
+                  description: Absolute path to the user's home directory
+                # --- credentials ---
+                vaultSecretName:
+                  type: string
+                  description: Secret with VAULT_ADDR (and optional VAULT_ROLE_ID/SECRET_ID/NAMESPACE)
+                  default: vault
+                credentialsSecretName:
+                  type: string
+                  description: Secret injected wholesale as env (TF_VAR_vault_role_id / TF_VAR_vault_secret_id for AppRole)
+                  default: terraform-credentials
+                # --- environment / crossplane wrap ---
+                environmentConfig:
+                  type: string
+                  description: Selects the EnvironmentConfig supplying per-environment defaults
+                  default: default
+                wrapInCrossplane:
+                  type: boolean
+                  description: Wrap the PipelineRun in a provider-kubernetes Object (targets crossplaneProviderConfig)
+                  default: true
+                crossplaneObjectName:
+                  type: string
+                  description: Name of the wrapping Object (defaults to pipelineRunName)
+                crossplaneNamespace:
+                  type: string
+                  description: Namespace of the wrapping Object
+                  default: default
+                crossplaneProviderConfig:
+                  type: string
+                  description: ClusterProviderConfig the wrapped Object is applied through
+                  default: in-cluster
+                crossplaneTimeout:
+                  type: string
+                  description: uptest timeout annotation on the Object
+                  default: "60"
+                deriveReadiness:
+                  type: boolean
+                  description: When true the XR is Ready only once the PipelineRun's Succeeded condition is True
+                  default: true
+              required:
+                - pipelineRunName
+            status:
+              type: object
+              properties:
+                installed:
+                  type: boolean
+                  description: Whether the wrapped PipelineRun Object exists
+                pipelineRunName:
+                  type: string
+                succeeded:
+                  type: string
+                  description: The PipelineRun's Succeeded condition status (True/False/Unknown)
+                reason:
+                  type: string
+                message:
+                  type: string
+                startTime:
+                  type: string
+                completionTime:
+                  type: string
+                taskRuns:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      pipelineTaskName:
+                        type: string
+                results:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      value:
+                        type: string

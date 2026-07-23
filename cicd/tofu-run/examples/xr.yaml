@@ -1,0 +1,23 @@
+---
+# TofuRun with tfVars and a pinned pipeline revision, targeting a remote cluster.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: TofuRun
+metadata:
+  name: tofu-example
+  namespace: default
+spec:
+  pipelineRunName: tofu-example
+  namespace: tekton-ci
+  gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  gitRevision: main
+  gitWorkspaceSubdirectory: st
+  subDirectory: st/tests/tofu-vault-k8sauth
+  tofuAction: apply
+  tfVars:
+    - "mount_path+-kind-test1-certmanager"
+  pipelineRevision: main
+  vaultSecretName: vault # pragma: allowlist secret
+  credentialsSecretName: terraform-credentials # pragma: allowlist secret
+  wrapInCrossplane: true
+  crossplaneProviderConfig: in-cluster
+  deriveReadiness: true

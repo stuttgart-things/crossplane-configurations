@@ -1,0 +1,106 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: tofu-run
+  labels:
+    crossplane.io/xrd: tofuruns.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: TofuRun
+  mode: Pipeline
+  pipeline:
+    # Load shared per-environment defaults from an EnvironmentConfig selected by
+    # the config-scoped label `tofu-run.resources.stuttgart-things.com/environment`
+    # (value from spec.environmentConfig). Namespaced to this Configuration so it
+    # never collides with another Configuration's EnvironmentConfig; Optional so an
+    # absent field is a no-op (KCL then falls back to XR spec / its own defaults).
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: tofu-run.resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    fromFieldPathPolicy: Optional
+    - step: render-pipelinerun
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: tofurun
+        spec:
+          source: oci://ghcr.io/stuttgart-things/kcl-tofu-pr:0.1.0
+    # Surface the live Tekton PipelineRun status onto the TofuRun XR. Identical to
+    # ansible-run's derive-status — it reads the observed wrapped Object's mirrored
+    # PipelineRun and is pipeline-agnostic.
+    - step: derive-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: tofurun-status
+        spec:
+          source: |
+            _params = option("params") or {}
+            _ocds = _params?.ocds or {}
+
+            # Locate the observed wrapped Object regardless of its
+            # composition-resource-name, and read the live PipelineRun.
+            _objs = [
+                v.Resource for _, v in _ocds if v?.Resource?.kind == "Object"
+            ]
+            _manifest = _objs[0]?.status?.atProvider?.manifest if _objs else {}
+            _pr = _manifest?.status or {}
+
+            _succeeded = [c for c in (_pr?.conditions or []) if c?.type == "Succeeded"]
+            _sc = _succeeded[0] if _succeeded else {}
+            _children = _pr?.childReferences or []
+
+            # Pipeline results, verbatim. build-packer-template emits
+            # `template-name`; without lifting it here nothing downstream can
+            # know which template a build produced. Kept generic (name/value
+            # pairs) rather than hoisting one well-known key, so this block
+            # stays identical to packer-build's.
+            #
+            # Tekton v1 results may be array- or object-typed, which would not
+            # satisfy the string-typed schema, so non-string values are skipped
+            # rather than stringified into something no consumer can parse.
+            _results = [
+                {name = r.name, value = r.value}
+                for r in (_pr?.results or [])
+                if r?.name and typeof(r?.value) == "str"
+            ]
+
+            _statusPatch = {
+                installed = True if _manifest else False
+                succeeded = _sc?.status or "Unknown"
+                if _sc?.reason: reason = _sc.reason
+                if _sc?.message: message = _sc.message
+                if _manifest?.metadata?.name: pipelineRunName = _manifest.metadata.name
+                if _pr?.startTime: startTime = _pr.startTime
+                if _pr?.completionTime: completionTime = _pr.completionTime
+                taskRuns = [
+                    {name = c?.name, pipelineTaskName = c?.pipelineTaskName}
+                    for c in _children
+                ]
+                results = _results
+            }
+
+            _dxr = _params?.dxr or {}
+            items = [_dxr | {status = (_dxr?.status or {}) | _statusPatch}]
+    - step: ready
+      functionRef:
+        name: function-auto-ready

@@ -1,0 +1,14 @@
+---
+# Per-environment defaults for TofuRun. Selected by spec.environmentConfig
+# (here "default") via the config-scoped label below. Anything set on the XR
+# spec wins over these.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: tofu-run-defaults
+  labels:
+    tofu-run.resources.stuttgart-things.com/environment: default
+data:
+  storageClass: openebs-hostpath
+  tofuWorkingImage: ghcr.io/opentofu/opentofu:1.9.0
+  credentialsSecretName: terraform-credentials # pragma: allowlist secret
