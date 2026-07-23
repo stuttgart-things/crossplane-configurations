@@ -16,8 +16,8 @@ spec:
   tfVars:
     - "mount_path+-kind-test1-certmanager"
   pipelineRevision: main
-  vaultSecretName: vault
-  credentialsSecretName: terraform-credentials
+  vaultSecretName: vault # pragma: allowlist secret
+  credentialsSecretName: terraform-credentials # pragma: allowlist secret
   wrapInCrossplane: true
   crossplaneProviderConfig: in-cluster
   deriveReadiness: true

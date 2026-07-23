@@ -11,4 +11,4 @@ metadata:
 data:
   storageClass: openebs-hostpath
   tofuWorkingImage: ghcr.io/opentofu/opentofu:1.9.0
-  credentialsSecretName: terraform-credentials
+  credentialsSecretName: terraform-credentials # pragma: allowlist secret
