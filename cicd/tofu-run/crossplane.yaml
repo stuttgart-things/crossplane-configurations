@@ -1,0 +1,51 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: tofu-run
+  annotations:
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Runs OpenTofu on a target cluster by emitting a Tekton PipelineRun
+      from a namespaced `TofuRun` XR. The PipelineRun manifest is rendered
+      by `function-kcl` from `ghcr.io/stuttgart-things/kcl-tofu-pr` and
+      applied via `provider-kubernetes`. Vault auth is AppRole — each run
+      exchanges role_id/secret_id for a short-lived policy token.
+    meta.crossplane.io/readme: |
+
+      A Crossplane Configuration that turns a `TofuRun` namespaced XR
+      (group `resources.stuttgart-things.com`) into a Tekton `PipelineRun`
+      running the stage-time `execute-tofu` pipeline on a target cluster.
+
+      The Composition pipeline:
+
+      - `function-environment-configs` loads per-environment defaults from
+        the `EnvironmentConfig` selected by `spec.environmentConfig`
+        (config-scoped label `tofu-run.resources.stuttgart-things.com/environment`).
+      - `function-kcl` renders a `PipelineRun` from
+        `oci://ghcr.io/stuttgart-things/kcl-tofu-pr`, wrapped in a
+        `kubernetes.m.crossplane.io/v1alpha1` Object targeting
+        `spec.crossplaneProviderConfig`.
+      - `derive-status` surfaces the PipelineRun's Succeeded condition,
+        reason/message, times and child TaskRuns onto the TofuRun status.
+      - `function-auto-ready` marks the XR ready; with
+        `spec.deriveReadiness: true` (default) only once the pipeline
+        succeeds.
+
+      Prerequisites on the target cluster: a `ClusterProviderConfig` for
+      provider-kubernetes matching `spec.crossplaneProviderConfig`, Tekton
+      with the stage-time tasks reachable via the git resolver, and the
+      `vault` + `terraform-credentials` Secrets in `spec.namespace`.
+spec:
+  dependsOn:
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+      version: ">=v1.2.0,<v2.0.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
+      version: ">=v0.12.0,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-environment-configs
+      version: ">=v0.7.0,<v0.8.0"
