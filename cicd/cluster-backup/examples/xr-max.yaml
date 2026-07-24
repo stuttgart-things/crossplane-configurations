@@ -1,0 +1,58 @@
+---
+# Maximum: every XRD spec field set at least once, to catch templating
+# breakage when the Composition changes.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ClusterBackup
+metadata:
+  name: cluster-backup-max
+  namespace: default
+spec:
+  clusterName: machinery-e2e
+
+  # What is captured. resourceKinds and resourceGroups must stay in sync —
+  # a kind whose group is missing here is skipped with a WARN, not a failure.
+  resourceKinds:
+    - virtualmachines.virtualmachine.vspherevm.m.stuttgart-things.com
+    - virtualmachines.vm.proxmoxbpg.m.crossplane.io
+    - workspaces.opentofu.m.upbound.io
+    - objects.kubernetes.m.crossplane.io
+    - releases.helm.m.crossplane.io
+    - remoteclusters.kubeconfig.stuttgart-things.com
+  resourceGroups:
+    - virtualmachine.vspherevm.m.stuttgart-things.com
+    - vm.proxmoxbpg.m.crossplane.io
+    - opentofu.m.upbound.io
+    - kubernetes.m.crossplane.io
+    - helm.m.crossplane.io
+    - kubeconfig.stuttgart-things.com
+  includeTfState: true
+  tfStateNamespace: crossplane-system
+
+  # Destination
+  registry: ghcr.io/stuttgart-things/backups
+  registryCredentialsSecretName: backup-registry # pragma: allowlist secret
+  artifactType: application/vnd.stuttgart-things.cluster-backup.v1
+
+  # Retention: bounded tag set (h00..h23 + d01..d31 + latest = 56 max), and
+  # skip the push entirely when nothing changed since the last backup.
+  tagStrategy: rolling
+  skipUnchanged: true
+
+  # Encryption — age PUBLIC key, required.
+  ageRecipient: age19vgzvmpt9tdlcsu8rzaacj397yz8gguz38nsmuy6eeelt5vjsyms542xtm # pragma: allowlist secret (age PUBLIC key)
+
+  # Schedule
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  suspend: false
+
+  # Runtime
+  image: ghcr.io/stuttgart-things/machineshop:v2.6.13
+  serviceAccountName: cluster-backup
+  namespace: crossplane-system
+
+  # Crossplane wiring
+  crossplaneProviderConfig: in-cluster
+  environmentConfig: default

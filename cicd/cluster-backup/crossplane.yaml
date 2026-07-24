@@ -1,0 +1,105 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: cluster-backup
+  annotations:
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Exports the state a Crossplane cluster cannot rebuild from git —
+      managed-resource external-names and OpenTofu state — encrypts it to an
+      age public key and pushes it to an OCI registry on a schedule. A
+      namespaced `ClusterBackup` XR composes a ServiceAccount, least-privilege
+      RBAC and a CronJob via provider-kubernetes.
+    meta.crossplane.io/readme: |
+
+      ## What this backs up, and why that is the interesting part
+
+      A machinery cluster is already reconstructible: the bootstrap play
+      rebuilds it, git holds the XRs, Configurations are pinned to OCI
+      versions. Two things are NOT in git and cannot be recomputed:
+
+      - **`crossplane.io/external-name` annotations.** That annotation is the
+        only link between a managed resource and the real object — e.g. a
+        vSphere VM's UUID. Lose it and Crossplane does not adopt the existing
+        VM, it builds a second one.
+      - **OpenTofu state.** With the fleet's `backend "kubernetes"` the state
+        lives only as `tfstate-*` Secrets in `crossplane-system`. It is in no
+        external backend, so losing the cluster orphans everything those
+        Workspaces created.
+
+      Together that is a few hundred KB — which is why this is a CronJob
+      pushing an OCI artifact rather than a cluster backup product.
+
+      ## Shape
+
+      `ClusterBackup` composes, through provider-kubernetes:
+
+      - a ServiceAccount,
+      - a ClusterRole/Binding with `get,list` on `spec.resourceGroups` only,
+      - a Role/Binding for Secrets in `spec.tfStateNamespace` only (so the job
+        can never read every Secret on the cluster),
+      - a CronJob running kubectl -> tar -> `sops --encrypt` -> `oras push`.
+
+      The artifact lands at `<registry>/<clusterName>:<timestamp>` with a
+      moving `:latest`.
+
+      ## Encryption is not optional
+
+      `spec.ageRecipient` is an age **public** key and is required. The job can
+      encrypt but never decrypt, so compromising it yields neither plaintext
+      nor a key; restoring needs the private key held by the
+      sops-secrets-operator. The bundle carries OpenTofu state, which contains
+      credentials in plaintext by construction — registry privacy is access
+      control, not encryption.
+
+      ## Artifact count is bounded by design
+
+      The data only changes when a managed resource or the OpenTofu state
+      changes, so most runs have nothing new to say. `skipUnchanged` (default)
+      compares the sha256 of the PLAINTEXT bundle — carried as an OCI
+      annotation and read back from `:latest` — and exits without pushing when
+      it matches. The plaintext digest is required: sops picks a fresh data key
+      per run, so the ciphertext always differs.
+
+      `tagStrategy: rolling` (default) reuses at most 56 tags (h00..h23,
+      d01..d31, latest) for hourly-for-a-day plus daily-for-a-month.
+      `timestamp` keeps every push forever. Note that overwriting a tag leaves
+      the old manifest untagged rather than deleted, so this bounds tags, not
+      storage — prune with an out-of-cluster job, since deleting needs a token
+      that must not live on the cluster being backed up.
+
+      ## What this is not
+
+      Not disaster recovery on its own. An OCI registry has no object-lock and
+      no lifecycle policy: a token that can push can also delete. Treat this as
+      the convenient primary copy and keep an immutable offsite one.
+
+      Restoring is deliberately not automated — reviving external-names and
+      tfstate into a live cluster can duplicate or destroy real
+      infrastructure. See the README's restore notes.
+
+      ## Cluster preconditions
+
+      - a provider-kubernetes `ClusterProviderConfig` named by
+        `spec.crossplaneProviderConfig`,
+      - `spec.namespace` exists,
+      - a `kubernetes.io/dockerconfigjson` Secret named by
+        `spec.registryCredentialsSecretName` in that namespace, with push
+        access to `spec.registry`,
+      - an image providing `kubectl`, `sops`, `oras` and a POSIX shell.
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+      version: ">=v1.2.0,<v2.0.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
+      version: ">=v0.12.0,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-environment-configs
+      version: ">=v0.7.0,<v0.8.0"
