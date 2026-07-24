@@ -126,6 +126,31 @@ spec:
                   type: string
                   description: Key for the Ansible password in the credentials secret
                   default: ANSIBLE_PASSWORD
+                extraEnvSecretName:
+                  type: string
+                  description: |
+                    Name of a Secret in the PipelineRun namespace whose keys
+                    are injected verbatim as environment variables into the
+                    ansible step. Each key becomes an env var of the same
+                    name, for playbooks that read credentials via
+                    `lookup('env', 'FOO')` — e.g. SOPS_AGE_KEY and
+                    SOPS_GIT_TOKEN for the machinery bootstrap, which the
+                    file-oriented SOPS fields below cannot supply.
+
+                    Deliberately one Secret name rather than a list of
+                    {envVar, secretName, key}: Tekton cannot render a variable
+                    number of `env` entries from an array param.
+
+                    A missing Secret is a no-op, not a failure. Keys must be
+                    valid environment variable names or the Pod is rejected.
+                    Kubernetes applies `envFrom` before `env`, so the named
+                    credentials (ANSIBLE_USER/ANSIBLE_PASSWORD, VAULT_*) still
+                    win on a key collision.
+
+                    No XRD default on purpose so the EnvironmentConfig's
+                    `extraEnvSecretName` is authoritative; precedence is
+                    explicit XR value > EnvironmentConfig > unset (no
+                    injection).
 
                 # Runtime
                 userHome:
@@ -238,7 +263,7 @@ spec:
                     Supported `data` keys: gitRepoUrl, gitRevision, gitPath,
                     storageClass, ansibleWorkingImage, namespace,
                     ansibleExtraCollections, ansibleCredentialsSecretName,
-                    sopsAgeKeySecretName.
+                    sopsAgeKeySecretName, extraEnvSecretName.
                     Any value set explicitly on this XR's spec overrides the
                     EnvironmentConfig. When no EnvironmentConfig matches, the
                     XR spec / built-in defaults are used.
