@@ -87,9 +87,25 @@ metadata:
       no lifecycle policy: a token that can push can also delete. Treat this as
       the convenient primary copy and keep an immutable offsite one.
 
-      Restoring is deliberately not automated — reviving external-names and
-      tfstate into a live cluster can duplicate or destroy real
-      infrastructure. See the README's restore notes.
+      ## Restore (summary; full runbook in the README)
+
+      Deliberately manual — a wrong external-name duplicates infrastructure, a
+      wrong deletionPolicy destroys it. In order:
+
+      1. `oras pull` + `sops --decrypt` the bundle (verified end to end).
+      2. Restore ProviderConfigs/credentials AND the tfstate-* Secrets FIRST —
+         with backend "kubernetes" those Secrets ARE the OpenTofu state, and a
+         Workspace reconciling against empty state re-creates what it owns.
+      3. Apply every managed resource with `crossplane.io/paused: "true"`.
+      4. Verify each `crossplane.io/external-name` against the real provider
+         object BEFORE unpausing — this manual check is the whole point.
+      5. Unpause cheapest-first (Objects/Releases before VirtualMachine/
+         Workspace), watching each settle.
+      6. Confirm no duplicate was created provider-side; if one was, pause and
+         fix the external-name.
+
+      Steps 3-6 (applying into a live target) are not yet exercised end to end
+      — rehearse on a throwaway cluster first.
 
       ## Cluster preconditions
 

@@ -57,14 +57,80 @@ Not disaster recovery on its own. **An OCI registry has no object-lock and no li
 
 Restore is deliberately not automated — see below.
 
-## Restore notes (read before you need them)
+## Restore (read before you need it)
 
-Restoring external-names and tfstate into a live cluster can duplicate or destroy real infrastructure. The order matters:
+Restoring is **deliberately manual**. The bundle is a set of external-names and OpenTofu state; applying it wrong duplicates or destroys real infrastructure. There is no "restore button" by design — a human verifies each external-name against reality before Crossplane is allowed to act.
 
-1. **Pause first.** Apply `crossplane.io/paused: "true"` to the managed resources *before* restoring anything. Otherwise the providers race the restore and may reconcile against half-applied state.
-2. Restore ProviderConfigs and credentials **before** the managed resources, or the MRs error out and can strand in `crossplane.io/external-create-pending`.
-3. Verify `crossplane.io/external-name` on every restored MR against the real infrastructure before unpausing. A wrong or missing external-name means Crossplane creates a duplicate; a `deletionPolicy: Delete` on a mis-restored MR can delete the real thing.
-4. Unpause.
+> **Tested boundary, stated honestly.** Steps 1–2 (fetch + decrypt) are verified end to end on kind1 — the plaintext sha256 round-trips and the bundle contains the real UUIDs. Steps 3–6 (applying into a live target) are **not yet exercised end to end**; treat this runbook as the intended procedure, and rehearse it on a throwaway cluster before trusting it in anger.
+
+### 1. Fetch and decrypt
+
+```bash
+oras pull ghcr.io/stuttgart-things/backups/<cluster>:latest      # or :h14, :d24, a timestamp
+# The private half of spec.ageRecipient — held by the sops-secrets-operator,
+# e.g. its --global-age-key-secret. NEVER commit or export it further.
+export SOPS_AGE_KEY="$(kubectl -n sops-secrets-operator-system get secret sops-age-key -o jsonpath='{.data.age\.agekey}' | base64 -d)"
+sops --decrypt --input-type binary --output-type binary bundle.tar.gz.sops > bundle.tar.gz
+tar xzf bundle.tar.gz
+# -> one <kind>.yaml per resource kind, plus tfstate.yaml
+```
+
+Confirm you have the right snapshot: the manifest's `com.stuttgart-things.backup.plaintext-sha256` annotation must equal `sha256sum` of the *normalized* projection, and `org.opencontainers.image.created` tells you when it was taken.
+
+```bash
+oras manifest fetch ghcr.io/stuttgart-things/backups/<cluster>:latest | jq '.annotations'
+```
+
+### 2. Restore prerequisites first
+
+Before any managed resource, the target cluster needs the things those MRs depend on, or they strand:
+
+- the **ProviderConfigs / ClusterProviderConfigs** and their credential Secrets — restore these first, or every MR errors and can stick in `crossplane.io/external-create-pending`;
+- the **OpenTofu state**, applied *before* any `Workspace` reconciles:
+
+  ```bash
+  # tfstate.yaml holds the tfstate-* Secrets. With backend "kubernetes" these
+  # ARE the state. Apply them before the Workspaces below, or OpenTofu starts
+  # from empty state and re-creates (or collides with) the Vault auth backends
+  # and roles those Workspaces already own.
+  kubectl apply -n crossplane-system -f tfstate.yaml
+  ```
+
+### 3. Pause every managed resource *before* it goes live
+
+This is the step that makes the difference between adoption and a duplicate. Apply the MRs **paused**, so nothing reconciles until you have checked it:
+
+```bash
+# For each <kind>.yaml, add the annotation before applying. Example with yq:
+for f in *.yaml; do
+  [ "$f" = tfstate.yaml ] && continue
+  yq -i '.items[].metadata.annotations."crossplane.io/paused" = "true"' "$f"
+  kubectl apply -f "$f"
+done
+```
+
+### 4. Verify external-names against reality
+
+For every managed resource, the `crossplane.io/external-name` in the backup must match the object that still exists in the provider (vSphere, Proxmox, Vault, …):
+
+```bash
+kubectl get managed -o custom-columns=\
+KIND:.kind,NAME:.metadata.name,EXT:.metadata.annotations.crossplane\\.io/external-name
+```
+
+A **wrong or missing** external-name means Crossplane will not adopt the existing object — on unpause it creates a **second** one. A `deletionPolicy: Delete` on a mis-restored MR can **delete the real thing**. This check is the whole reason restore is manual; do not skip it.
+
+### 5. Unpause, one blast radius at a time
+
+Remove the pause annotation deliberately — ideally the cheapest / most reversible resources first (Objects, Releases), the destructive ones (VirtualMachine, Workspace) last, watching each settle to `SYNCED=True READY=True` before the next:
+
+```bash
+kubectl annotate <kind>/<name> crossplane.io/paused- --overwrite
+```
+
+### 6. Confirm no duplicates were created
+
+After each unpause, check the provider side (vSphere/Proxmox console, `vault list auth`) that the count of real objects did not grow. If it did, an external-name was wrong — pause again immediately and reconcile the annotation before more damage.
 
 ## Usage
 
