@@ -1,0 +1,242 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: clusterbackups.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: ClusterBackup
+    plural: clusterbackups
+    singular: clusterbackup
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                # What is captured
+                clusterName:
+                  type: string
+                  description: |
+                    Identifies the cluster in the artifact reference
+                    (<registry>/<clusterName>:<timestamp>). Required — a
+                    backup that cannot be attributed to a cluster is worse
+                    than no backup, because restoring it into the wrong one
+                    duplicates external resources.
+                resourceKinds:
+                  type: array
+                  description: |
+                    Resources to export, as "<plural>.<group>" strings passed
+                    verbatim to `kubectl get -A -o yaml`.
+
+                    Deliberately an explicit list rather than Crossplane's
+                    `managed` category: the RBAC below is generated from
+                    `resourceGroups`, and a category cannot be expressed in a
+                    ClusterRole. Keep the two in sync — a kind whose group is
+                    not in resourceGroups is skipped with a logged error, not
+                    a failed backup.
+
+                    The default covers what a machinery cluster holds today.
+                    Re-check it when a new provider is added.
+                  items:
+                    type: string
+                  default:
+                    - virtualmachines.virtualmachine.vspherevm.m.stuttgart-things.com
+                    - virtualmachines.vm.proxmoxbpg.m.crossplane.io
+                    - workspaces.opentofu.m.upbound.io
+                    - objects.kubernetes.m.crossplane.io
+                    - releases.helm.m.crossplane.io
+                    - remoteclusters.kubeconfig.stuttgart-things.com
+                resourceGroups:
+                  type: array
+                  description: |
+                    API groups the backup ServiceAccount may get/list
+                    cluster-wide (read-only). Must contain the group of every
+                    entry in resourceKinds.
+                  items:
+                    type: string
+                  default:
+                    - virtualmachine.vspherevm.m.stuttgart-things.com
+                    - vm.proxmoxbpg.m.crossplane.io
+                    - opentofu.m.upbound.io
+                    - kubernetes.m.crossplane.io
+                    - helm.m.crossplane.io
+                    - kubeconfig.stuttgart-things.com
+                includeTfState:
+                  type: boolean
+                  description: |
+                    Also capture the OpenTofu state. With the provider's
+                    `backend "kubernetes"` (the fleet default) the state lives
+                    ONLY as `tfstate-*` Secrets in tfStateNamespace — it is not
+                    in any external backend, so losing the cluster loses it,
+                    and every resource those Workspaces created becomes an
+                    orphan Crossplane can no longer adopt. This is the single
+                    most valuable thing in the bundle; leave it on.
+                  default: true
+                tfStateNamespace:
+                  type: string
+                  description: Namespace holding the tfstate-* Secrets.
+                  default: crossplane-system
+
+                # Destination
+                registry:
+                  type: string
+                  description: |
+                    OCI repository prefix, e.g.
+                    ghcr.io/stuttgart-things/backups. The artifact is pushed
+                    as <registry>/<clusterName>:<timestamp> plus a moving
+                    :latest tag. No XRD default on purpose so the
+                    EnvironmentConfig is authoritative.
+                registryCredentialsSecretName:
+                  type: string
+                  description: |
+                    Name of a kubernetes.io/dockerconfigjson Secret in the XR's
+                    namespace, mounted as DOCKER_CONFIG for `oras push`.
+                    Needs push access to `registry` only.
+                artifactType:
+                  type: string
+                  description: OCI artifactType recorded on the manifest.
+                  default: application/vnd.stuttgart-things.cluster-backup.v1
+
+                # Retention. An OCI registry has no lifecycle policy, so the
+                # only things bounding artifact count are these two.
+                tagStrategy:
+                  type: string
+                  enum: ["rolling", "timestamp"]
+                  default: rolling
+                  description: |
+                    How pushes are tagged, which is what decides how many
+                    artifacts ever exist.
+
+                    `rolling` (default) reuses a bounded tag set — hour-of-day
+                    (h00..h23) plus day-of-month (d01..d31) plus `latest`, so
+                    at most 56 tags. That yields hourly granularity for a day
+                    and daily for a month, and never grows.
+
+                    `timestamp` tags every push with its UTC timestamp and
+                    keeps it forever. Combined with skipUnchanged that is one
+                    artifact per actual infrastructure change — but nothing
+                    bounds it, so pair it with an external pruner.
+
+                    Note: overwriting a tag leaves the previous manifest
+                    UNTAGGED rather than deleting it. ghcr keeps untagged
+                    versions, so `rolling` bounds tags, not storage — see the
+                    README on pruning.
+                skipUnchanged:
+                  type: boolean
+                  default: true
+                  description: |
+                    Skip the push when the exported state is byte-identical to
+                    the last one. The comparison is on the sha256 of the
+                    PLAINTEXT bundle, carried as an OCI annotation on the
+                    manifest and read back from `:latest` before pushing —
+                    content-addressing the encrypted artifact would never
+                    match, because sops picks a fresh data key every run.
+
+                    This is what makes a frequent schedule cheap: the backed-up
+                    data only changes when a managed resource or the OpenTofu
+                    state changes, which is rare, so most runs exit without
+                    pushing anything.
+
+                # Encryption
+                ageRecipient:
+                  type: string
+                  description: |
+                    age PUBLIC key the bundle is encrypted to before it leaves
+                    the cluster. Public on purpose and load-bearing: the backup
+                    job can encrypt but never decrypt, so compromising it
+                    yields no plaintext and no key. Restoring requires the
+                    private key, which stays with the sops-secrets-operator.
+
+                    Non-optional by design — the bundle contains OpenTofu state,
+                    which holds credentials in plaintext by construction.
+                    Registry privacy is access control, not encryption.
+
+                # Schedule
+                schedule:
+                  type: string
+                  description: Cron schedule, in the cluster's timezone.
+                  default: "17 * * * *"
+                concurrencyPolicy:
+                  type: string
+                  enum: ["Allow", "Forbid", "Replace"]
+                  default: Forbid
+                  description: |
+                    Forbid by default: two exports racing produce two artifacts
+                    of the same state and waste registry tags.
+                successfulJobsHistoryLimit:
+                  type: integer
+                  default: 3
+                failedJobsHistoryLimit:
+                  type: integer
+                  default: 3
+                suspend:
+                  type: boolean
+                  default: false
+                  description: Suspend the CronJob without deleting the XR.
+
+                # Runtime
+                image:
+                  type: string
+                  description: |
+                    Image running the export. Must provide kubectl, sops, oras
+                    and a POSIX shell. No XRD default so the EnvironmentConfig
+                    is authoritative.
+                serviceAccountName:
+                  type: string
+                  description: ServiceAccount created for the job.
+                  default: cluster-backup
+                namespace:
+                  type: string
+                  description: |
+                    Namespace the CronJob, ServiceAccount and registry Secret
+                    live in. Not created here — use the `namespace`
+                    Configuration or an existing one.
+                  default: crossplane-system
+
+                # Crossplane wiring
+                crossplaneProviderConfig:
+                  type: string
+                  description: ClusterProviderConfig for provider-kubernetes.
+                  default: in-cluster
+                environmentConfig:
+                  type: string
+                  description: |
+                    Selects the EnvironmentConfig providing shared defaults,
+                    matched on the config-scoped label
+                    `cluster-backup.resources.stuttgart-things.com/environment`.
+                    Supported `data` keys: registry, image,
+                    registryCredentialsSecretName, ageRecipient, schedule,
+                    namespace.
+                  default: default
+
+              required:
+                - clusterName
+                - ageRecipient
+
+            status:
+              type: object
+              properties:
+                cronJobName:
+                  type: string
+                artifactRepository:
+                  type: string
+                  description: Where artifacts are pushed (<registry>/<clusterName>).
+                lastScheduleTime:
+                  type: string
+                  description: From the live CronJob's status.
+                lastSuccessfulTime:
+                  type: string
+                  description: |
+                    From the live CronJob's status. This — not XR readiness —
+                    is what tells you a backup actually ran: the XR is Ready
+                    once the CronJob exists, which says nothing about whether
+                    a push ever succeeded.

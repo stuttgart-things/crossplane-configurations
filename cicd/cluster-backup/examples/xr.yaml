@@ -1,0 +1,16 @@
+---
+# Realistic usage — the copy-paste template for a machinery cluster.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ClusterBackup
+metadata:
+  name: cluster-backup
+  namespace: default
+spec:
+  clusterName: kind1
+  registry: ghcr.io/stuttgart-things/backups
+  registryCredentialsSecretName: backup-registry # pragma: allowlist secret
+  ageRecipient: age19vgzvmpt9tdlcsu8rzaacj397yz8gguz38nsmuy6eeelt5vjsyms542xtm # pragma: allowlist secret (age PUBLIC key)
+  image: ghcr.io/stuttgart-things/github.com/stuttgart-things/machineshop:v2.6.13
+  schedule: "17 * * * *"
+  namespace: crossplane-system
+  crossplaneProviderConfig: in-cluster

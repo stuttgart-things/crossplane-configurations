@@ -1,0 +1,32 @@
+---
+# Shared per-environment defaults for ClusterBackup XRs, selected by the
+# config-scoped label `cluster-backup.resources.stuttgart-things.com/environment`
+# matched against spec.environmentConfig. Anything set on the XR wins.
+#
+# The four fields here deliberately have NO XRD default: an XRD default is
+# applied by the API server before the Composition runs, so it would always
+# look like an explicit XR value and mask this EnvironmentConfig.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: cluster-backup-defaults
+  labels:
+    cluster-backup.resources.stuttgart-things.com/environment: default
+data:
+  registry: ghcr.io/stuttgart-things/backups
+  # Needs kubectl, sops, oras and a POSIX shell.
+  # NOTE: the image path is nested like this on purpose - that is where
+  # machineshop actually lives; ghcr.io/stuttgart-things/machineshop does
+  # NOT exist.
+  # KNOWN GAP: as of 2026-07-24 no image in the stuttgart-things catalog
+  # ships kubectl AND sops AND oras together (machineshop and
+  # sthings-workflow have kubectl; none has oras). Add oras to an existing
+  # image, or split the CronJob into initContainers using the upstream
+  # kubectl / getsops / oras images, before pointing a cluster at this.
+  image: ghcr.io/stuttgart-things/github.com/stuttgart-things/machineshop:v2.6.13
+  registryCredentialsSecretName: backup-registry # pragma: allowlist secret
+  # age PUBLIC key — the project recipient. The private half stays with the
+  # sops-secrets-operator; this job encrypts and can never decrypt.
+  ageRecipient: age19vgzvmpt9tdlcsu8rzaacj397yz8gguz38nsmuy6eeelt5vjsyms542xtm # pragma: allowlist secret (age PUBLIC key)
+  schedule: "17 * * * *"
+  namespace: crossplane-system
