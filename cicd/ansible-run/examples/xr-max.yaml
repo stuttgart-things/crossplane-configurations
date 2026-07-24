@@ -42,6 +42,11 @@ spec:
   ansibleCredentialsUserKey: ANSIBLE_USER # pragma: allowlist secret
   ansibleCredentialsPasswordKey: ANSIBLE_PASSWORD # pragma: allowlist secret
 
+  # Bulk env injection: every key of this Secret becomes an env var in the
+  # ansible step, for playbooks reading `lookup('env', ...)`. A missing Secret
+  # is a no-op, so this is safe to leave set in an example.
+  extraEnvSecretName: ansible-extra-env # pragma: allowlist secret
+
   # Runtime
   userHome: /home/nonroot
   vaultSecretName: vault # pragma: allowlist secret
