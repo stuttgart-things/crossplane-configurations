@@ -20,9 +20,25 @@ A namespaced `ClusterBackup` XR renders, through `provider-kubernetes`:
 | `ServiceAccount` | identity for the job |
 | `ClusterRole` + binding | `get,list` on `spec.resourceGroups` **only** |
 | `Role` + binding in `spec.tfStateNamespace` | `get,list` on Secrets **in that one namespace** |
-| `CronJob` | kubectl → tar → `sops --encrypt` → `oras push` |
+| `CronJob` | three ordered stages: export → encrypt → push |
 
 The Secret permission is deliberately a namespaced Role rather than part of the ClusterRole: this job must never be able to read every Secret on the cluster.
+
+### Why initContainers, and one image per stage
+
+The three stages are **initContainers** plus one final container, not three containers: a Pod's containers run in *parallel*, while these are strictly ordered and hand files to each other through a shared `emptyDir` at `/work`. initContainers are the only shape that guarantees the order.
+
+Each stage runs on the image published by the tool's own project, rather than one image carrying all three:
+
+| stage | image (default) | needs a shell? |
+|---|---|---|
+| `export` (init) | `alpine/k8s` — kubectl | yes |
+| `encrypt` (init) | `ghcr.io/getsops/sops:*-alpine` | **no** — the entrypoint *is* sops, so the stage is a pure argv |
+| `push` | `ghcr.io/oras-project/oras` | yes — provided by busybox; its `/bin/oras` entrypoint is overridden |
+
+That avoids maintaining and patching a fourth image just to hold three binaries. Override any of them per XR via `spec.images.{kubectl,sops,oras}`.
+
+Registry credentials are mounted on the **push stage only** — the export and encrypt stages have no business holding them. The Pod sets `fsGroup: 65532` so the non-root stages can write to the shared volume.
 
 Artifacts land at `<registry>/<clusterName>:<timestamp>` plus a moving `:latest`.
 
@@ -63,9 +79,9 @@ spec:
   ageRecipient: age1...              # PUBLIC key
   registry: ghcr.io/stuttgart-things/backups
   registryCredentialsSecretName: backup-registry
-  # note the nested path — ghcr.io/stuttgart-things/machineshop does not exist
-  image: ghcr.io/stuttgart-things/github.com/stuttgart-things/machineshop:v2.6.13
 ```
+
+Images are optional — each stage falls back to the Composition's default.
 
 See [`examples/xr-min.yaml`](examples/xr-min.yaml) (EnvironmentConfig-driven), [`examples/xr.yaml`](examples/xr.yaml) and [`examples/xr-max.yaml`](examples/xr-max.yaml).
 
@@ -78,8 +94,7 @@ See [`examples/xr-min.yaml`](examples/xr-min.yaml) (EnvironmentConfig-driven), [
 1. A provider-kubernetes `ClusterProviderConfig` named by `spec.crossplaneProviderConfig`.
 2. `spec.namespace` exists (use the `namespace` Configuration, or an existing one).
 3. A `kubernetes.io/dockerconfigjson` Secret named by `spec.registryCredentialsSecretName` in that namespace, with **push access to `spec.registry` only**.
-4. An image providing `kubectl`, `sops`, `oras`, `sha256sum` and a POSIX shell.
-   **This does not exist in the stuttgart-things catalog yet** (checked 2026-07-24): `machineshop` and `sthings-workflow` carry `kubectl`, none carries `oras`. Either add `oras` to one of them, or split the CronJob into initContainers using the upstream `kubectl` / `getsops/sops` / `oras` images — the latter needs no image maintenance at all. Note the registry path is nested: `ghcr.io/stuttgart-things/github.com/stuttgart-things/machineshop`, not `ghcr.io/stuttgart-things/machineshop`.
+4. Nothing else — the three stage images are pulled from upstream registries (`alpine/k8s`, `ghcr.io/getsops/sops`, `ghcr.io/oras-project/oras`). Override them via `spec.images` if the cluster mirrors or pins its own.
 
 ## Notes
 

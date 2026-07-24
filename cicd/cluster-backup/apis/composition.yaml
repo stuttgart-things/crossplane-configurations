@@ -11,7 +11,7 @@ spec:
     kind: ClusterBackup
   mode: Pipeline
   pipeline:
-    # Shared per-environment defaults (registry, image, age recipient, …).
+    # Shared per-environment defaults (registry, images, age recipient, …).
     # Config-scoped label so it never collides with another Configuration's
     # EnvironmentConfig; Optional so an absent spec.environmentConfig is a
     # no-op rather than an error.
@@ -53,11 +53,10 @@ spec:
             # Precedence: explicit XR spec -> EnvironmentConfig -> default.
             # Fields with an XRD default never reach the EnvironmentConfig
             # (the API server defaults them before this runs), which is why
-            # registry/image/ageRecipient/registryCredentialsSecretName have
-            # NO XRD default.
+            # registry/ageRecipient/registryCredentialsSecretName and the
+            # image fields have NO XRD default.
             _clusterName = _spec?.clusterName
             _registry = _spec?.registry or _env?.registry or ""
-            _image = _spec?.image or _env?.image or ""
             _ageRecipient = _spec?.ageRecipient or _env?.ageRecipient or ""
             _regSecret = _spec?.registryCredentialsSecretName or _env?.registryCredentialsSecretName or ""
             _schedule = _spec?.schedule or _env?.schedule or "17 * * * *"
@@ -65,6 +64,17 @@ spec:
             _artifactType = _spec?.artifactType or "application/vnd.stuttgart-things.cluster-backup.v1"
             _sa = _spec?.serviceAccountName or "cluster-backup"
             _tagStrategy = _spec?.tagStrategy or "rolling"
+
+            # One upstream image per tool instead of one image carrying all
+            # three. No image in the stuttgart-things catalog ships
+            # kubectl+sops+oras together, and building one would be a fourth
+            # artifact to maintain and patch. Each step runs on the image whose
+            # project publishes the tool.
+            _images = _spec?.images or {}
+            _envImages = _env?.images or {}
+            _imgKubectl = _images?.kubectl or _envImages?.kubectl or "alpine/k8s:1.31.0"
+            _imgSops = _images?.sops or _envImages?.sops or "ghcr.io/getsops/sops:v3.13.3-alpine"
+            _imgOras = _images?.oras or _envImages?.oras or "ghcr.io/oras-project/oras:v1.3.0"
 
             # Mirrored from the XRD defaults ON PURPOSE. `crossplane render`
             # does not apply XRD defaults (it never sees the XRD), so without
@@ -90,6 +100,7 @@ spec:
             ]
             _kinds = _spec?.resourceKinds or _default_kinds
             _groups = _spec?.resourceGroups or _default_groups
+
             # Presence checks via `in`, not `or` fallbacks and not `!= None`.
             #
             # `x or default` collapses an explicit falsy value into the
@@ -116,7 +127,6 @@ spec:
             # An empty ageRecipient would otherwise ship OpenTofu state — which
             # carries credentials in plaintext — to a registry unencrypted.
             assert _registry != "", "registry must be set on the XR or its EnvironmentConfig"
-            assert _image != "", "image must be set on the XR or its EnvironmentConfig"
             assert _ageRecipient != "", "ageRecipient must be set on the XR or its EnvironmentConfig"
             assert _ageRecipient.startswith("age1"), "ageRecipient must be an age PUBLIC key (age1...), never a private AGE-SECRET-KEY"
             assert _regSecret != "", "registryCredentialsSecretName must be set on the XR or its EnvironmentConfig"
@@ -132,13 +142,15 @@ spec:
 
             _repo = _registry + "/" + _clusterName
 
-            # NOTE for future edits: this is a KCL string, so "$" followed by
-            # "{" is interpolation. The script therefore uses bare $VAR only.
-            _script = """set -eu
+            # NOTE for future edits: these are KCL strings, so "$" followed by
+            # "{" is interpolation. The scripts therefore use bare $VAR only.
 
-            TS=$(date -u +%Y%m%dT%H%M%SZ)
-            WORK=$(mktemp -d)
-            cd "$WORK"
+            # Step 1 (initContainer, kubectl image): export + bundle. Writes
+            # everything into the shared /work volume. Also computes the
+            # plaintext digest and the tag here, because this is the step that
+            # has both a shell and `date` — the later steps only consume files.
+            _script_export = """set -eu
+            cd /work
 
             echo "== exporting resources"
             for k in $KINDS; do
@@ -169,30 +181,15 @@ spec:
 
             echo "== bundling"
             tar czf bundle.tar.gz ./*.yaml
+            rm -f ./*.yaml
 
             # Dedup on the PLAINTEXT digest, not the artifact. sops picks a
             # fresh data key per run, so the ciphertext differs every time even
             # when nothing changed - content-addressing the encrypted blob
-            # would never dedup. The digest is carried as an OCI annotation on
-            # the manifest so the next run can read it back with one HTTP call.
-            SUM=$(sha256sum bundle.tar.gz | cut -d' ' -f1)
-            echo "== plaintext sha256 $SUM"
-
-            if [ "$SKIP_UNCHANGED" = "true" ]; then
-              PREV=$(oras manifest fetch "$REPO:latest" 2>/dev/null \
-                | grep -o '"com.stuttgart-things.backup.plaintext-sha256":"[^"]*"' \
-                | cut -d'"' -f4 || true)
-              if [ -n "$PREV" ] && [ "$PREV" = "$SUM" ]; then
-                echo "== unchanged since last backup - skipping push"
-                exit 0
-              fi
-            fi
-
-            echo "== encrypting to $AGE_RECIPIENT"
-            sops --encrypt --age "$AGE_RECIPIENT" \\
-              --input-type binary --output-type binary \\
-              bundle.tar.gz > bundle.tar.gz.sops
-            rm -f bundle.tar.gz
+            # would never dedup. The push step compares this against the
+            # annotation on :latest.
+            sha256sum bundle.tar.gz | cut -d' ' -f1 > plaintext.sha256
+            echo "== plaintext sha256 $(cat plaintext.sha256)"
 
             # Tagging decides how many artifacts ever exist. `rolling` reuses a
             # bounded set of tags - hour-of-day plus day-of-month, so at most
@@ -200,12 +197,36 @@ spec:
             # daily for a month without growing. `timestamp` keeps every push
             # forever; combined with SKIP_UNCHANGED that is one artifact per
             # actual infrastructure change, but nothing bounds it.
+            date -u +%Y%m%dT%H%M%SZ > created
             if [ "$TAG_STRATEGY" = "rolling" ]; then
-              TAG="h$(date -u +%H)"
-              SECOND_TAG="d$(date -u +%d)"
+              date -u +h%H > tag
+              date -u +d%d > second-tag
             else
-              TAG="$TS"
-              SECOND_TAG=""
+              cp created tag
+              : > second-tag
+            fi
+            echo "== tag $(cat tag)"
+            """
+
+            # Step 3 (main container, oras image): compare, push, tag. The oras
+            # image ships busybox, so a shell is available; its entrypoint is
+            # /bin/oras, hence the explicit command override below.
+            _script_push = """set -eu
+            cd /work
+
+            SUM=$(cat plaintext.sha256)
+            TAG=$(cat tag)
+            SECOND_TAG=$(cat second-tag)
+            CREATED=$(cat created)
+
+            if [ "$SKIP_UNCHANGED" = "true" ]; then
+              PREV=$(oras manifest fetch "$REPO:latest" 2>/dev/null \\
+                | grep -o '"com.stuttgart-things.backup.plaintext-sha256":"[^"]*"' \\
+                | cut -d'"' -f4 || true)
+              if [ -n "$PREV" ] && [ "$PREV" = "$SUM" ]; then
+                echo "== unchanged since last backup - skipping push"
+                exit 0
+              fi
             fi
 
             echo "== pushing $REPO:$TAG"
@@ -213,7 +234,7 @@ spec:
               --artifact-type "$ARTIFACT_TYPE" \\
               --annotation "com.stuttgart-things.backup.plaintext-sha256=$SUM" \\
               --annotation "com.stuttgart-things.backup.cluster=$CLUSTER" \\
-              --annotation "org.opencontainers.image.created=$TS" \\
+              --annotation "org.opencontainers.image.created=$CREATED" \\
               "$REPO:$TAG" bundle.tar.gz.sops
             oras tag "$REPO:$TAG" latest
             if [ -n "$SECOND_TAG" ]; then
@@ -221,19 +242,6 @@ spec:
             fi
             echo "== done"
             """
-
-            _env_vars = [
-                {name = "KINDS", value = " ".join(_kinds)}
-                {name = "INCLUDE_TFSTATE", value = "true" if _includeTfState else "false"}
-                {name = "TFSTATE_NS", value = _tfStateNs}
-                {name = "AGE_RECIPIENT", value = _ageRecipient}
-                {name = "REPO", value = _repo}
-                {name = "ARTIFACT_TYPE", value = _artifactType}
-                {name = "SKIP_UNCHANGED", value = "true" if _skipUnchanged else "false"}
-                {name = "TAG_STRATEGY", value = _tagStrategy}
-                {name = "CLUSTER", value = _clusterName}
-                {name = "DOCKER_CONFIG", value = "/oras-auth"}
-            ]
 
             _serviceAccount = {
                 apiVersion = "v1"
@@ -293,6 +301,8 @@ spec:
                 subjects = [{kind = "ServiceAccount", name = _sa, namespace = _namespace}]
             }
 
+            _workMount = {name = "work", mountPath = "/work"}
+
             _cronJob = {
                 apiVersion = "batch/v1"
                 kind = "CronJob"
@@ -314,28 +324,88 @@ spec:
                             securityContext = {
                                 runAsNonRoot = True
                                 runAsUser = 65532
+                                # Without fsGroup the shared emptyDir is
+                                # root-owned and the non-root steps cannot
+                                # write to it.
+                                fsGroup = 65532
                             }
+                            # initContainers, not multiple containers: a Pod's
+                            # containers run in PARALLEL, and these three
+                            # stages are strictly ordered (export -> encrypt ->
+                            # push) and hand files to each other through /work.
+                            # initContainers are the only shape that guarantees
+                            # the order.
+                            initContainers = [
+                                {
+                                    name = "export"
+                                    image = _imgKubectl
+                                    command = ["/bin/sh", "-c"]
+                                    args = [_script_export]
+                                    env = [
+                                        {name = "KINDS", value = " ".join(_kinds)}
+                                        {name = "INCLUDE_TFSTATE", value = "true" if _includeTfState else "false"}
+                                        {name = "TFSTATE_NS", value = _tfStateNs}
+                                        {name = "TAG_STRATEGY", value = _tagStrategy}
+                                    ]
+                                    volumeMounts = [_workMount]
+                                    resources.requests = {cpu = "50m", memory = "128Mi"}
+                                }
+                                {
+                                    name = "encrypt"
+                                    image = _imgSops
+                                    # No shell needed and none used: the sops
+                                    # image's entrypoint IS sops, so this is a
+                                    # pure argv. $(AGE_RECIPIENT) is Kubernetes
+                                    # env substitution, not a subshell.
+                                    args = [
+                                        "--encrypt"
+                                        "--age"
+                                        "$(AGE_RECIPIENT)"
+                                        "--input-type"
+                                        "binary"
+                                        "--output-type"
+                                        "binary"
+                                        "--output"
+                                        "/work/bundle.tar.gz.sops"
+                                        "/work/bundle.tar.gz"
+                                    ]
+                                    env = [{name = "AGE_RECIPIENT", value = _ageRecipient}]
+                                    volumeMounts = [_workMount]
+                                    resources.requests = {cpu = "50m", memory = "64Mi"}
+                                }
+                            ]
                             containers = [{
-                                name = "backup"
-                                image = _image
+                                name = "push"
+                                image = _imgOras
+                                # Overrides the image's /bin/oras entrypoint;
+                                # busybox provides the shell.
                                 command = ["/bin/sh", "-c"]
-                                args = [_script]
-                                env = _env_vars
-                                volumeMounts = [
-                                    {name = "oras-auth", mountPath = "/oras-auth", readOnly = True}
-                                    {name = "work", mountPath = "/tmp"}
+                                args = [_script_push]
+                                env = [
+                                    {name = "REPO", value = _repo}
+                                    {name = "CLUSTER", value = _clusterName}
+                                    {name = "ARTIFACT_TYPE", value = _artifactType}
+                                    {name = "SKIP_UNCHANGED", value = "true" if _skipUnchanged else "false"}
+                                    {name = "DOCKER_CONFIG", value = "/oras-auth"}
                                 ]
-                                resources.requests = {cpu = "50m", memory = "128Mi"}
+                                volumeMounts = [
+                                    _workMount
+                                    {name = "oras-auth", mountPath = "/oras-auth", readOnly = True}
+                                ]
+                                resources.requests = {cpu = "50m", memory = "64Mi"}
                             }]
                             volumes = [
+                                {name = "work", emptyDir = {}}
                                 {
+                                    # Mounted on the push step only — the
+                                    # export and encrypt steps have no business
+                                    # holding registry credentials.
                                     name = "oras-auth"
                                     secret = {
                                         secretName = _regSecret
                                         items = [{key = ".dockerconfigjson", path = "config.json"}]
                                     }
                                 }
-                                {name = "work", emptyDir = {}}
                             ]
                         }
                     }

@@ -184,12 +184,32 @@ spec:
                   description: Suspend the CronJob without deleting the XR.
 
                 # Runtime
-                image:
-                  type: string
+                images:
+                  type: object
                   description: |
-                    Image running the export. Must provide kubectl, sops, oras
-                    and a POSIX shell. No XRD default so the EnvironmentConfig
-                    is authoritative.
+                    One upstream image per tool, instead of one image carrying
+                    all three. No image in the stuttgart-things catalog ships
+                    kubectl+sops+oras together, and building one would be a
+                    fourth artifact to maintain and patch — so each stage runs
+                    on the image published by the tool's own project.
+
+                    All three need a shell. The oras image provides one via
+                    busybox (its entrypoint is /bin/oras, which the Composition
+                    overrides); the sops step needs no shell at all, since that
+                    image's entrypoint IS sops and the stage is a pure argv.
+
+                    No XRD defaults, so the EnvironmentConfig stays
+                    authoritative; the Composition carries the same fallbacks.
+                  properties:
+                    kubectl:
+                      type: string
+                      description: 'Export stage. Needs kubectl + a shell. Default: alpine/k8s:1.31.0'
+                    sops:
+                      type: string
+                      description: 'Encrypt stage. Default: ghcr.io/getsops/sops:v3.13.3-alpine'
+                    oras:
+                      type: string
+                      description: 'Push stage. Default: ghcr.io/oras-project/oras:v1.3.0'
                 serviceAccountName:
                   type: string
                   description: ServiceAccount created for the job.

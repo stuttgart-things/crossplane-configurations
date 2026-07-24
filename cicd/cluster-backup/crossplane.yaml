@@ -42,7 +42,16 @@ metadata:
       - a ClusterRole/Binding with `get,list` on `spec.resourceGroups` only,
       - a Role/Binding for Secrets in `spec.tfStateNamespace` only (so the job
         can never read every Secret on the cluster),
-      - a CronJob running kubectl -> tar -> `sops --encrypt` -> `oras push`.
+      - a CronJob whose three stages are ORDERED initContainers plus a final
+        container: export (kubectl) -> encrypt (sops) -> push (oras). A Pod's
+        containers run in parallel, so initContainers are the only shape that
+        guarantees the order; the stages hand files through a shared emptyDir.
+
+      Each stage runs on the image its own project publishes rather than one
+      image carrying all three - no image in the stuttgart-things catalog has
+      kubectl+sops+oras together, and building one would be a fourth artifact
+      to patch. Override per XR via `spec.images.{kubectl,sops,oras}`. Registry
+      credentials are mounted on the push stage only.
 
       The artifact lands at `<registry>/<clusterName>:<timestamp>` with a
       moving `:latest`.
@@ -89,8 +98,7 @@ metadata:
       - `spec.namespace` exists,
       - a `kubernetes.io/dockerconfigjson` Secret named by
         `spec.registryCredentialsSecretName` in that namespace, with push
-        access to `spec.registry`,
-      - an image providing `kubectl`, `sops`, `oras` and a POSIX shell.
+        access to `spec.registry`.
 spec:
   crossplane:
     version: ">=v2.1.3"

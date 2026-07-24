@@ -14,16 +14,10 @@ metadata:
     cluster-backup.resources.stuttgart-things.com/environment: default
 data:
   registry: ghcr.io/stuttgart-things/backups
-  # Needs kubectl, sops, oras and a POSIX shell.
-  # NOTE: the image path is nested like this on purpose - that is where
-  # machineshop actually lives; ghcr.io/stuttgart-things/machineshop does
-  # NOT exist.
-  # KNOWN GAP: as of 2026-07-24 no image in the stuttgart-things catalog
-  # ships kubectl AND sops AND oras together (machineshop and
-  # sthings-workflow have kubectl; none has oras). Add oras to an existing
-  # image, or split the CronJob into initContainers using the upstream
-  # kubectl / getsops / oras images, before pointing a cluster at this.
-  image: ghcr.io/stuttgart-things/github.com/stuttgart-things/machineshop:v2.6.13
+  # NOTE: no image defaults here. EnvironmentConfig `data` holds strings, so
+  # the per-tool `images` object cannot be expressed in one. The Composition
+  # carries the defaults (alpine/k8s, getsops/sops, oras) and an XR can
+  # override them per tool.
   registryCredentialsSecretName: backup-registry # pragma: allowlist secret
   # age PUBLIC key — the project recipient. The private half stays with the
   # sops-secrets-operator; this job encrypts and can never decrypt.
