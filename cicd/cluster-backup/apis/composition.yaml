@@ -152,10 +152,40 @@ spec:
             _script_export = """set -eu
             cd /work
 
+            # Two views per kind, and both are needed:
+            #
+            #   <kind>.yaml   the FULL export - what actually gets backed up.
+            #   normalized    a stripped, sorted projection used ONLY for the
+            #                 skipUnchanged digest.
+            #
+            # Hashing the full export does not work: `kubectl get -o yaml`
+            # carries status, resourceVersion, managedFields and Crossplane's
+            # own `external-create-succeeded` timestamp, all of which churn on
+            # every reconcile. The digest would then differ on every run and
+            # skipUnchanged would never skip - measured, not assumed: three
+            # consecutive runs against an idle cluster each pushed.
+            #
+            # The projection keeps exactly what a restore needs to be correct:
+            # identity, labels, annotations (crossplane.io/external-name lives
+            # here) and spec.
+            : > normalized
             echo "== exporting resources"
             for k in $KINDS; do
               if kubectl get "$k" -A -o yaml > "$k.yaml" 2>/dev/null; then
                 echo "   ok   $k"
+                kubectl get "$k" -A -o json 2>/dev/null | jq -S --arg k "$k" '
+                  {kind: $k, items: [.items[] | {
+                    apiVersion, kind,
+                    name: .metadata.name,
+                    namespace: .metadata.namespace,
+                    labels: .metadata.labels,
+                    annotations: (.metadata.annotations // {} | del(
+                      .["crossplane.io/external-create-pending"],
+                      .["crossplane.io/external-create-succeeded"],
+                      .["crossplane.io/external-create-failed"],
+                      .["kubectl.kubernetes.io/last-applied-configuration"])),
+                    spec: .spec
+                  }]}' >> normalized
               else
                 echo "   WARN could not export $k (missing CRD or RBAC)"
                 rm -f "$k.yaml"
@@ -167,6 +197,8 @@ spec:
               kubectl -n "$TFSTATE_NS" get secret -o name | grep '^secret/tfstate-' > names.txt || true
               if [ -s names.txt ]; then
                 xargs -r kubectl -n "$TFSTATE_NS" get -o yaml < names.txt > tfstate.yaml
+                xargs -r kubectl -n "$TFSTATE_NS" get -o json < names.txt \
+                  | jq -S '{kind: "tfstate", items: [(.items // [.])[] | {name: .metadata.name, data: .data}]}' >> normalized
                 echo "   ok   $(wc -l < names.txt) secret(s)"
               else
                 echo "   WARN no tfstate-* secrets in $TFSTATE_NS"
@@ -183,12 +215,15 @@ spec:
             tar czf bundle.tar.gz ./*.yaml
             rm -f ./*.yaml
 
-            # Dedup on the PLAINTEXT digest, not the artifact. sops picks a
-            # fresh data key per run, so the ciphertext differs every time even
-            # when nothing changed - content-addressing the encrypted blob
-            # would never dedup. The push step compares this against the
-            # annotation on :latest.
-            sha256sum bundle.tar.gz | cut -d' ' -f1 > plaintext.sha256
+            # Digest of the NORMALIZED projection, not of the bundle. Two
+            # separate reasons it cannot be the artifact's own digest:
+            #   - sops picks a fresh data key per run, so the ciphertext always
+            #     differs;
+            #   - the full export carries churning status/resourceVersion
+            #     fields, so even the plaintext tarball differs every run.
+            # The push step compares this against the annotation on :latest.
+            sha256sum normalized | cut -d' ' -f1 > plaintext.sha256
+            rm -f normalized
             echo "== plaintext sha256 $(cat plaintext.sha256)"
 
             # Tagging decides how many artifacts ever exist. `rolling` reuses a
@@ -197,12 +232,17 @@ spec:
             # daily for a month without growing. `timestamp` keeps every push
             # forever; combined with SKIP_UNCHANGED that is one artifact per
             # actual infrastructure change, but nothing bounds it.
-            date -u +%Y%m%dT%H%M%SZ > created
+            # Two different formats on purpose, and they cannot be merged:
+            # `org.opencontainers.image.created` is validated by oras as
+            # RFC3339, which contains colons - and a colon is illegal in an OCI
+            # TAG. So the annotation gets the RFC3339 form and the timestamp
+            # tag gets the compact one.
+            date -u +%Y-%m-%dT%H:%M:%SZ > created
             if [ "$TAG_STRATEGY" = "rolling" ]; then
               date -u +h%H > tag
               date -u +d%d > second-tag
             else
-              cp created tag
+              date -u +%Y%m%dT%H%M%SZ > tag
               : > second-tag
             fi
             echo "== tag $(cat tag)"

@@ -98,9 +98,15 @@ spec:
                 registryCredentialsSecretName:
                   type: string
                   description: |
-                    Name of a kubernetes.io/dockerconfigjson Secret in the XR's
-                    namespace, mounted as DOCKER_CONFIG for `oras push`.
-                    Needs push access to `registry` only.
+                    Name of a kubernetes.io/dockerconfigjson Secret mounted as
+                    DOCKER_CONFIG for `oras push`. Needs push access to
+                    `registry` only.
+
+                    It must live in `spec.namespace` — where the CronJob's Pod
+                    runs — NOT in the XR's own namespace. The two are different
+                    by default (the XR sits wherever you apply it; the CronJob
+                    defaults to crossplane-system), and a Pod can only mount a
+                    Secret from its own namespace.
                 artifactType:
                   type: string
                   description: OCI artifactType recorded on the manifest.

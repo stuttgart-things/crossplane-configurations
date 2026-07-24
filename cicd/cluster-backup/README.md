@@ -93,8 +93,11 @@ See [`examples/xr-min.yaml`](examples/xr-min.yaml) (EnvironmentConfig-driven), [
 
 1. A provider-kubernetes `ClusterProviderConfig` named by `spec.crossplaneProviderConfig`.
 2. `spec.namespace` exists (use the `namespace` Configuration, or an existing one).
-3. A `kubernetes.io/dockerconfigjson` Secret named by `spec.registryCredentialsSecretName` in that namespace, with **push access to `spec.registry` only**.
-4. Nothing else — the three stage images are pulled from upstream registries (`alpine/k8s`, `ghcr.io/getsops/sops`, `ghcr.io/oras-project/oras`). Override them via `spec.images` if the cluster mirrors or pins its own.
+3. A `kubernetes.io/dockerconfigjson` Secret named by `spec.registryCredentialsSecretName` **in `spec.namespace`** (where the CronJob's Pod runs — *not* the XR's namespace; a Pod can only mount a Secret from its own namespace), with **push access to `spec.registry` only**.
+4. The provider-kubernetes ServiceAccount must be allowed to create the composed objects — ServiceAccounts, CronJobs and RBAC — **and** to `get,list` the backed-up groups (granting RBAC requires holding the permissions granted). On a fleet cluster where the provider SA is `cluster-admin` this is automatic; on a scoped cluster (e.g. kind1) it is not, and every composed `Object` sits `Synced=False` with `forbidden` until a ClusterRole grants it. See `docs/provider-rbac.yaml`.
+5. Nothing else — the three stage images are pulled from upstream registries (`alpine/k8s`, `ghcr.io/getsops/sops`, `ghcr.io/oras-project/oras`). Override them via `spec.images` if the cluster mirrors or pins its own.
+
+> **EnvironmentConfig timing:** when you apply the XR and its EnvironmentConfig together, the first reconcile can fail with `expected exactly one required resource, got 0` even though the label matches — the composite is cached before the EnvironmentConfig is indexed. It clears on the next reconcile; force one with `kubectl annotate clusterbackup <name> nudge=$(date +%s) --overwrite` if you don't want to wait.
 
 ## Notes
 
