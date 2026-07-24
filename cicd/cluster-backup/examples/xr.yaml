@@ -10,7 +10,7 @@ spec:
   registry: ghcr.io/stuttgart-things/backups
   registryCredentialsSecretName: backup-registry # pragma: allowlist secret
   ageRecipient: age19vgzvmpt9tdlcsu8rzaacj397yz8gguz38nsmuy6eeelt5vjsyms542xtm # pragma: allowlist secret (age PUBLIC key)
-  image: ghcr.io/stuttgart-things/machineshop:v2.6.13
+  image: ghcr.io/stuttgart-things/github.com/stuttgart-things/machineshop:v2.6.13
   schedule: "17 * * * *"
   namespace: crossplane-system
   crossplaneProviderConfig: in-cluster

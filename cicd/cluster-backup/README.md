@@ -63,7 +63,8 @@ spec:
   ageRecipient: age1...              # PUBLIC key
   registry: ghcr.io/stuttgart-things/backups
   registryCredentialsSecretName: backup-registry
-  image: ghcr.io/stuttgart-things/machineshop:v2.6.13
+  # note the nested path — ghcr.io/stuttgart-things/machineshop does not exist
+  image: ghcr.io/stuttgart-things/github.com/stuttgart-things/machineshop:v2.6.13
 ```
 
 See [`examples/xr-min.yaml`](examples/xr-min.yaml) (EnvironmentConfig-driven), [`examples/xr.yaml`](examples/xr.yaml) and [`examples/xr-max.yaml`](examples/xr-max.yaml).
@@ -77,7 +78,8 @@ See [`examples/xr-min.yaml`](examples/xr-min.yaml) (EnvironmentConfig-driven), [
 1. A provider-kubernetes `ClusterProviderConfig` named by `spec.crossplaneProviderConfig`.
 2. `spec.namespace` exists (use the `namespace` Configuration, or an existing one).
 3. A `kubernetes.io/dockerconfigjson` Secret named by `spec.registryCredentialsSecretName` in that namespace, with **push access to `spec.registry` only**.
-4. An image providing `kubectl`, `sops`, `oras` and a POSIX shell.
+4. An image providing `kubectl`, `sops`, `oras`, `sha256sum` and a POSIX shell.
+   **This does not exist in the stuttgart-things catalog yet** (checked 2026-07-24): `machineshop` and `sthings-workflow` carry `kubectl`, none carries `oras`. Either add `oras` to one of them, or split the CronJob into initContainers using the upstream `kubectl` / `getsops/sops` / `oras` images — the latter needs no image maintenance at all. Note the registry path is nested: `ghcr.io/stuttgart-things/github.com/stuttgart-things/machineshop`, not `ghcr.io/stuttgart-things/machineshop`.
 
 ## Notes
 
