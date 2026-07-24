@@ -10,7 +10,7 @@ The actual playbook execution lives in the upstream Tekton pipeline (`spec.gitRe
 
 ## Features
 
-- **PipelineRun rendering via KCL** — the [`kcl-tekton-pr`](https://github.com/stuttgart-things/kcl-tekton-pr) module is pinned in the Composition (`oci://ghcr.io/stuttgart-things/kcl-tekton-pr:0.6.0`) and consumes the XR spec verbatim.
+- **PipelineRun rendering via KCL** — the [`kcl-tekton-pr`](https://github.com/stuttgart-things/kcl-tekton-pr) module is pinned in the Composition (`oci://ghcr.io/stuttgart-things/kcl-tekton-pr:0.14.0`) and consumes the XR spec verbatim.
 - **Shared defaults via EnvironmentConfig** — `spec.environmentConfig` (default `default`) selects a Crossplane `EnvironmentConfig` (matched by the config-scoped label `ansible-run.resources.stuttgart-things.com/environment`) whose `data` supplies per-environment defaults for `gitRepoUrl`, `gitRevision`, `gitPath`, `storageClass`, `ansibleWorkingImage`, `namespace`, `ansibleExtraCollections`, `ansibleCredentialsSecretName` and `extraEnvSecretName`. Anything set explicitly on the XR spec wins; if no EnvironmentConfig matches, XR spec / built-in defaults apply. The label key is namespaced to this Configuration so it never collides with another Configuration's EnvironmentConfig. See [`examples/environmentconfig.yaml`](examples/environmentconfig.yaml).
 - **Playbooks + extra roles/collections** — `ansiblePlaybooks`, `ansibleExtraRoles`, `ansibleExtraCollections` are passed straight through to the pipeline.
 - **Per-host vars + inventory** — `ansibleVarsFile` and `ansibleVarsInventory` use the upstream pipeline's `key+-value` / `host+[...]` syntax.
