@@ -151,6 +151,34 @@ Images are optional — each stage falls back to the Composition's default.
 
 See [`examples/xr-min.yaml`](examples/xr-min.yaml) (EnvironmentConfig-driven), [`examples/xr.yaml`](examples/xr.yaml) and [`examples/xr-max.yaml`](examples/xr-max.yaml).
 
+### Settings reference
+
+Every field can be set on the XR, or defaulted from the EnvironmentConfig for the ones marked *(env)*. Precedence is always explicit XR value → EnvironmentConfig → default.
+
+| `spec` field | default | what it does |
+|---|---|---|
+| `clusterName` | — (required) | names the artifact repo (`<registry>/<clusterName>`) and the CronJob |
+| `ageRecipient` | — (required) | age **public** key the bundle is encrypted to; must start with `age1` |
+| `registry` *(env)* | — (required) | OCI repo prefix, e.g. `ghcr.io/stuttgart-things/backups` |
+| `registryCredentialsSecretName` *(env)* | — (required) | dockerconfigjson Secret in `spec.namespace` (see [Registry credential](#registry-credential)) |
+| `namespace` *(env)* | `crossplane-system` | where the CronJob, ServiceAccount and registry Secret live |
+| `schedule` *(env)* | `17 * * * *` | cron schedule |
+| `skipUnchanged` | `true` | skip the push when the normalized state is unchanged since `:latest` |
+| `tagStrategy` | `rolling` | `rolling` (≤56 tags) or `timestamp` (unbounded) |
+| `includeTfState` | `true` | also capture the `tfstate-*` Secrets |
+| `tfStateNamespace` | `crossplane-system` | where those Secrets live |
+| `resourceKinds` | see XRD | `<plural>.<group>` list to export |
+| `resourceGroups` | see XRD | API groups the ClusterRole grants (must cover `resourceKinds`) |
+| `images.{kubectl,sops,oras}` | upstream pins | per-stage image overrides |
+| `concurrencyPolicy` | `Forbid` | CronJob concurrency |
+| `successfulJobsHistoryLimit` / `failedJobsHistoryLimit` | `3` / `3` | CronJob history |
+| `suspend` | `false` | pause the schedule without deleting the XR |
+| `crossplaneProviderConfig` | `in-cluster` | provider-kubernetes ClusterProviderConfig |
+| `artifactType` | `application/vnd.stuttgart-things.cluster-backup.v1` | OCI artifactType on the manifest |
+| `environmentConfig` | `default` | which EnvironmentConfig supplies the *(env)* defaults |
+
+The four required fields with no default (`registry`, `ageRecipient`, `registryCredentialsSecretName`, and the *(env)* ones) have **no XRD default on purpose**: an XRD default is applied before the Composition runs and would mask the EnvironmentConfig. Set them on the XR or the EnvironmentConfig.
+
 ### Keeping `resourceKinds` and `resourceGroups` in sync
 
 `resourceKinds` is what gets exported; `resourceGroups` is what the ClusterRole grants. They are separate because a ClusterRole cannot express Crossplane's `managed` category. A kind whose group is missing from `resourceGroups` would be silently skipped at runtime, so the Composition **asserts** the consistency at render time and names the offending groups. Add a provider → update both.
@@ -159,7 +187,7 @@ See [`examples/xr-min.yaml`](examples/xr-min.yaml) (EnvironmentConfig-driven), [
 
 1. A provider-kubernetes `ClusterProviderConfig` named by `spec.crossplaneProviderConfig`.
 2. `spec.namespace` exists (use the `namespace` Configuration, or an existing one).
-3. A `kubernetes.io/dockerconfigjson` Secret named by `spec.registryCredentialsSecretName` **in `spec.namespace`** (where the CronJob's Pod runs — *not* the XR's namespace; a Pod can only mount a Secret from its own namespace), with **push access to `spec.registry` only**.
+3. A `kubernetes.io/dockerconfigjson` Secret named by `spec.registryCredentialsSecretName` **in `spec.namespace`** (where the CronJob's Pod runs — *not* the XR's namespace; a Pod can only mount a Secret from its own namespace), holding a push credential for `spec.registry`. See [Registry credential](#registry-credential) below for the exact token and scopes.
 4. The provider-kubernetes ServiceAccount must be allowed to create the composed objects — ServiceAccounts, CronJobs and RBAC — **and** to `get,list` the backed-up groups (granting RBAC requires holding the permissions granted). On a fleet cluster where the provider SA is `cluster-admin` this is automatic; on a scoped cluster (e.g. kind1) it is not, and every composed `Object` sits `Synced=False` with `forbidden` until a ClusterRole grants it. Apply once per such cluster:
 
    ```yaml
@@ -210,6 +238,35 @@ See [`examples/xr-min.yaml`](examples/xr-min.yaml) (EnvironmentConfig-driven), [
 5. Nothing else — the three stage images are pulled from upstream registries (`alpine/k8s`, `ghcr.io/getsops/sops`, `ghcr.io/oras-project/oras`). Override them via `spec.images` if the cluster mirrors or pins its own.
 
 > **EnvironmentConfig timing:** when you apply the XR and its EnvironmentConfig together, the first reconcile can fail with `expected exactly one required resource, got 0` even though the label matches — the composite is cached before the EnvironmentConfig is indexed. It clears on the next reconcile; force one with `kubectl annotate clusterbackup <name> nudge=$(date +%s) --overwrite` if you don't want to wait.
+
+## Registry credential
+
+The push credential (precondition #3) needs exactly one capability: **push (write) to the one registry path in `spec.registry`, and nothing else**. It never reads or deletes — pruning old backups is a separate out-of-cluster job with its own token (see below). A leaked backup-push token can overwrite backups but cannot read cluster state or delete history.
+
+**ghcr (the default target).** Use a **fine-grained token**, not a classic PAT:
+
+| | |
+|---|---|
+| Token type | GitHub **fine-grained personal access token** (or a GitHub App installation token) |
+| Resource owner | the `stuttgart-things` org |
+| Permission | **Packages: Read and write** — this is the only permission needed |
+| Everything else | leave at *No access* (no repo contents, no `delete:packages`, no admin) |
+
+A classic PAT works too but only has the coarse `write:packages` scope, which on classic tokens also implies `read:packages` and cannot be narrowed to a single package — prefer the fine-grained token.
+
+Create the Secret in `spec.namespace` (default `crossplane-system`):
+
+```bash
+kubectl create secret docker-registry backup-registry \
+  --namespace crossplane-system \
+  --docker-server=ghcr.io \
+  --docker-username=<github-username-or-app> \
+  --docker-password='<the-token>'
+```
+
+The Secret key is `.dockerconfigjson` (what `create secret docker-registry` produces) — the Composition mounts exactly that key.
+
+**Pruning token (separate, do NOT put on the cluster).** Deleting old backup versions needs `delete:packages`, which must never live on the cluster being backed up — a compromised backup job could then erase its own history. Run pruning as a scheduled GitHub Action with a token scoped to **Packages: Read and write** *plus* the ability to delete package versions, held in Actions secrets, outside every machinery cluster.
 
 ## Notes
 
