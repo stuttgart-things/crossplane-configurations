@@ -27,6 +27,11 @@ spec:
           environmentConfigs:
             - type: Selector
               selector:
+                # Multiple tolerates zero matches: a fully-specified XR (or one
+                # relying on built-in defaults) needs no EnvironmentConfig. The
+                # default mode Single fatals with "expected exactly one required
+                # resource, got 0" on any cluster without the defaults ConfigMap.
+                mode: Multiple
                 matchLabels:
                   - key: vault-pki-secrets.config.stuttgart-things.com/environment
                     type: FromCompositeFieldPath
@@ -56,45 +61,49 @@ spec:
             {{- $tokenName := $spec.tokenSecretName | default $env.tokenSecretName | default "vault-pki-token" }}
             {{- $tokenKey := $spec.tokenSecretKey | default $env.tokenSecretKey | default "token" }}
             {{- /* SOURCE secret references — read values from here, never inline them in the XR */}}
+            {{- /* tokenSecretRef is OPTIONAL: omit it for the Kubernetes-auth
+                   issuer model, and only the CA bundle is provisioned. */}}
             {{- $tokenRef := $spec.tokenSecretRef }}
+            {{- $wantToken := not (empty $tokenRef) }}
             {{- $caRef := $spec.caBundleSecretRef }}
-            {{- $tokenSrcName := $tokenRef.name }}
-            {{- $tokenSrcNs := $tokenRef.namespace | default $xrNs }}
-            {{- $tokenSrcKey := $tokenRef.key | default "token" }}
+            {{- $tokenSrcName := "" }}{{- $tokenSrcNs := "" }}{{- $tokenSrcKey := "token" }}
+            {{- if $wantToken }}
+            {{-   $tokenSrcName = $tokenRef.name }}
+            {{-   $tokenSrcNs = ($tokenRef.namespace | default $xrNs) }}
+            {{-   $tokenSrcKey = ($tokenRef.key | default "token") }}
+            {{- end }}
             {{- $caSrcName := $caRef.name }}
             {{- $caSrcNs := $caRef.namespace | default $xrNs }}
             {{- $caSrcKey := $caRef.key | default "ca.crt" }}
             ---
-            # Fetch the two source Secrets into the pipeline so their token + CA
-            # values can be copied onto the target cluster. Values stay base64
-            # the whole way (a k8s Secret's data is base64), so the token is
-            # never materialised in plaintext.
+            # Fetch the source Secret(s) into the pipeline so their CA (and,
+            # optionally, token) values can be copied onto the target cluster.
+            # Values stay base64 the whole way (a k8s Secret's data is base64),
+            # so the token is never materialised in plaintext.
             apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
             kind: ExtraResources
             requirements:
-              token-secret:
-                apiVersion: v1
-                kind: Secret
-                matchName: {{ $tokenSrcName }}
-                namespace: {{ $tokenSrcNs }}
               ca-secret:
                 apiVersion: v1
                 kind: Secret
                 matchName: {{ $caSrcName }}
                 namespace: {{ $caSrcNs }}
+            {{- if $wantToken }}
+              token-secret:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $tokenSrcName }}
+                namespace: {{ $tokenSrcNs }}
+            {{- end }}
             {{- with .extraResources }}
-            {{- $tokenObj := index . "token-secret" }}
             {{- $caObj := index . "ca-secret" }}
-            {{- if and $tokenObj $caObj }}
-            {{- $tokenItems := $tokenObj.items }}
+            {{- if $caObj }}
             {{- $caItems := $caObj.items }}
-            {{- if and $tokenItems $caItems }}
-            {{- $tokenData := (index $tokenItems 0).resource.data }}
+            {{- if $caItems }}
             {{- $caData := (index $caItems 0).resource.data }}
-            {{- if and $tokenData $caData }}
-            {{- $tokenVal := index $tokenData $tokenSrcKey }}
+            {{- if $caData }}
             {{- $caVal := index $caData $caSrcKey }}
-            {{- if and $caVal $tokenVal }}
+            {{- if $caVal }}
             ---
             # TARGET NAMESPACE — ensure the cert-manager controller namespace
             # exists on the target cluster BEFORE the Secrets land; a brand-new
@@ -160,6 +169,17 @@ spec:
                   type: Opaque
                   data:
                     {{ $caKey }}: {{ $caVal | quote }}
+            {{- /* TOKEN SECRET — only for the static-token issuer model. Skipped
+                   entirely when tokenSecretRef is omitted (Kubernetes-auth). */}}
+            {{- if $wantToken }}
+            {{-   $tokenObj := index . "token-secret" }}
+            {{-   if $tokenObj }}
+            {{-     $tokenItems := $tokenObj.items }}
+            {{-     if $tokenItems }}
+            {{-       $tokenData := (index $tokenItems 0).resource.data }}
+            {{-       if $tokenData }}
+            {{-         $tokenVal := index $tokenData $tokenSrcKey }}
+            {{-         if $tokenVal }}
             ---
             # VAULT-TOKEN SECRET — referenced by the ClusterIssuer's
             # auth.tokenSecretRef (default vault-pki-token / token). Source
@@ -189,6 +209,11 @@ spec:
                   type: Opaque
                   data:
                     {{ $tokenKey }}: {{ $tokenVal | quote }}
+            {{-         end }}
+            {{-       end }}
+            {{-     end }}
+            {{-   end }}
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- end }}
