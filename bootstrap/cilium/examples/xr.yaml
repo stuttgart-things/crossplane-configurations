@@ -1,0 +1,25 @@
+---
+# Full Cilium + LoadBalancer (dynamic IP from an XIPReservation) + Gateway.
+# The LB pool block is read from the named XIPReservation's reserved IPs, and a
+# wildcard Gateway terminates TLS with the given Secret — the reserved lab IP
+# becomes an advertised, TLS-terminating VIP.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cilium
+metadata:
+  name: u26-kind1
+  namespace: crossplane-system
+spec:
+  clusterName: u26-kind1
+  install:
+    # k3s ships Cilium already — set false to render only LB + Gateway.
+    enabled: false
+  loadBalancer:
+    enabled: true
+    ipMode: dynamic
+    reservationRef: u26-kind1
+  gateway:
+    enabled: true
+    name: cilium-gateway
+    namespace: default
+    domain: u26-kind1.sthings-vsphere.labul.sva.de
+    tlsSecretName: wildcard-tls

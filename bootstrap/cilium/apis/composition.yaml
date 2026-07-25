@@ -1,0 +1,409 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: cilium
+  labels:
+    crossplane.io/xrd: ciliums.config.stuttgart-things.com
+    provider-helm: "true"
+    provider-kubernetes: "true"
+    service: cilium
+spec:
+  compositeTypeRef:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: Cilium
+  mode: Pipeline
+  pipeline:
+    - step: render
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        spec:
+          source: |
+            # NOTE: items is assembled as ONE functional concatenation of
+            # conditional sublists — deliberately NOT via top-level
+            # `_resources += [...]` accumulation. That mutable pattern
+            # double-emitted every group once the Gateway block was present
+            # (a KCL top-level-accumulation evaluation quirk); a single-
+            # expression list cannot double-append. All resource dicts are
+            # therefore defined unconditionally (pure values) and selected in
+            # the final `items = (...)`.
+            oxr  = option("params").oxr
+            ocds = option("params").ocds
+
+            _name    = oxr.metadata.name
+            _clusterName = oxr.spec.clusterName
+            # Same derivation as cni / flux-init: refs default to
+            # {clusterName}-helm / {clusterName}-kubernetes.
+            _helmPcr = oxr.spec?.helmProviderConfigRef or "{}-helm".format(_clusterName)
+            _k8sPcr  = oxr.spec?.kubernetesProviderConfigRef or "{}-kubernetes".format(_clusterName)
+
+            # ── Defaults ────────────────────────────────────
+            _install = oxr.spec?.install or {}
+            _installEnabled     = _install?.enabled if _install?.enabled != None else True
+            _version            = _install?.version or "1.19.2"
+            _namespace          = _install?.namespace or "kube-system"
+            _kubeProxyRepl      = _install?.kubeProxyReplacement if _install?.kubeProxyReplacement != None else True
+            _k8sHost            = _install?.k8sServiceHost or ""
+            _k8sPort            = _install?.k8sServicePort or 6443
+            _gatewayAPIEnabled  = _install?.gatewayAPI?.enabled if _install?.gatewayAPI?.enabled != None else True
+            _l2Enabled          = _install?.l2Announcements?.enabled if _install?.l2Announcements?.enabled != None else True
+            _extIPsEnabled      = _install?.externalIPs?.enabled if _install?.externalIPs?.enabled != None else True
+            _operatorReplicas   = _install?.operator?.replicas or 1
+            _routingMode        = _install?.routingMode or "native"
+            _nativeRoutingCIDR  = _install?.ipv4NativeRoutingCIDR or "10.244.0.0/16"
+            _autoDirectRoutes   = _install?.autoDirectNodeRoutes if _install?.autoDirectNodeRoutes != None else (_routingMode == "native")
+            _devices            = _install?.devices or []
+
+            _lb = oxr.spec?.loadBalancer or {}
+            _lbEnabled       = _lb?.enabled or False
+            _ipMode          = _lb?.ipMode or "static"
+            _ipStart         = _lb?.ipRange?.start or ""
+            _ipEnd           = _lb?.ipRange?.end or ""
+            _reservationRef  = _lb?.reservationRef or ""
+            _poolName        = _lb?.poolName or "default-pool"
+            _l2PolicyName    = _lb?.l2PolicyName or "default-l2-announcement-policy"
+
+            _gw = oxr.spec?.gateway or {}
+            _gwEnabled       = _gw?.enabled or False
+            _gwName          = _gw?.name or "cilium-gateway"
+            _gwNamespace     = _gw?.namespace or "default"
+            _gwDomain        = _gw?.domain or ""
+            _gwTlsSecret     = _gw?.tlsSecretName or ""
+
+            # ── Dynamic IP: resolve the LB pool block from an observed
+            # XIPReservation (dynamic mode) or the static ipRange. ──
+            _wantObserve = _lbEnabled and _ipMode == "dynamic" and _reservationRef != ""
+            _ipObsKey = "{}-observe-ip".format(_name)
+            _dynIPs = ocds[_ipObsKey].Resource?.status?.atProvider?.manifest?.status?.ipAddresses or [] if (_wantObserve and _ipObsKey in ocds) else []
+            _effIpStart = _dynIPs[0] if _dynIPs else _ipStart
+            _effIpEnd   = (_dynIPs[-1] if len(_dynIPs) > 1 else _dynIPs[0]) if _dynIPs else _ipEnd
+
+            # ── Usage lambdas (teardown ordering) ───────────
+            # Cilium CRD objects / Gateway must delete BEFORE the Helm Release
+            # that owns their CRDs, or they orphan on stuck finalizers.
+            _ciliumUsage = lambda objName: str -> any {
+                {
+                    apiVersion = "protection.crossplane.io/v1beta1"
+                    kind = "Usage"
+                    metadata = {
+                        name = "{}-uses-cilium".format(objName)
+                        annotations = {
+                            "krm.kcl.dev/composition-resource-name" = "{}-uses-cilium".format(objName)
+                        }
+                    }
+                    spec = {
+                        replayDeletion = True
+                        of = {
+                            apiVersion = "helm.m.crossplane.io/v1beta1"
+                            kind = "Release"
+                            resourceRef.name = "{}-cilium".format(_name)
+                        }
+                        by = {
+                            apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                            kind = "Object"
+                            resourceRef.name = objName
+                        }
+                    }
+                }
+            }
+            _gwApiUsage = lambda objName: str -> any {
+                {
+                    apiVersion = "protection.crossplane.io/v1beta1"
+                    kind = "Usage"
+                    metadata = {
+                        name = "{}-uses-gw-api".format(objName)
+                        annotations = {
+                            "krm.kcl.dev/composition-resource-name" = "{}-uses-gw-api".format(objName)
+                        }
+                    }
+                    spec = {
+                        replayDeletion = True
+                        of = {
+                            apiVersion = "helm.m.crossplane.io/v1beta1"
+                            kind = "Release"
+                            resourceRef.name = "{}-gateway-api".format(_name)
+                        }
+                        by = {
+                            apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                            kind = "Object"
+                            resourceRef.name = objName
+                        }
+                    }
+                }
+            }
+            _gwClassUsage = lambda objName: str -> any {
+                {
+                    apiVersion = "protection.crossplane.io/v1beta1"
+                    kind = "Usage"
+                    metadata = {
+                        name = "{}-uses-gw-class".format(objName)
+                        annotations = {
+                            "krm.kcl.dev/composition-resource-name" = "{}-uses-gw-class".format(objName)
+                        }
+                    }
+                    spec = {
+                        replayDeletion = True
+                        of = {
+                            apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                            kind = "Object"
+                            resourceRef.name = "{}-gateway-class".format(_name)
+                        }
+                        by = {
+                            apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                            kind = "Object"
+                            resourceRef.name = objName
+                        }
+                    }
+                }
+            }
+
+            # ── Resource dicts (defined unconditionally; selected below) ──
+
+            # 1. Cilium Helm Release
+            _helmRelease = {
+                apiVersion = "helm.m.crossplane.io/v1beta1"
+                kind = "Release"
+                metadata = {
+                    name = "{}-cilium".format(_name)
+                    annotations = {
+                        "crossplane.io/external-name" = "cilium"
+                        "krm.kcl.dev/composition-resource-name" = "{}-cilium".format(_name)
+                    }
+                }
+                spec = {
+                    providerConfigRef = { name = _helmPcr, kind = "ClusterProviderConfig" }
+                    forProvider = {
+                        chart = { name = "cilium", repository = "https://helm.cilium.io", version = _version }
+                        namespace = _namespace
+                        values = {
+                            kubeProxyReplacement = _kubeProxyRepl
+                            k8sServiceHost = _k8sHost
+                            k8sServicePort = _k8sPort
+                            routingMode = _routingMode
+                            ipv4NativeRoutingCIDR = _nativeRoutingCIDR
+                            autoDirectNodeRoutes = _autoDirectRoutes
+                            **({"devices": _devices} if _devices else {})
+                            gatewayAPI = { enabled = _gatewayAPIEnabled }
+                            l2announcements = { enabled = _l2Enabled }
+                            externalIPs = { enabled = _extIPsEnabled }
+                            operator = { replicas = _operatorReplicas }
+                        }
+                    }
+                    rollbackLimit = 3
+                }
+            }
+
+            # 2. Observe XIPReservation (dynamic LB IP)
+            _observeIP = {
+                apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                kind = "Object"
+                metadata = {
+                    name = "{}-observe-ip".format(_name)
+                    annotations = { "krm.kcl.dev/composition-resource-name" = "{}-observe-ip".format(_name) }
+                }
+                spec = {
+                    managementPolicies = ["Observe"]
+                    forProvider = {
+                        manifest = {
+                            apiVersion = "resources.stuttgart-things.com/v1alpha1"
+                            kind = "XIPReservation"
+                            metadata = { name = _reservationRef, namespace = oxr.metadata?.namespace or "crossplane-system" }
+                        }
+                    }
+                    providerConfigRef = { name = "in-cluster", kind = "ClusterProviderConfig" }
+                }
+            }
+
+            # 3. CiliumLoadBalancerIPPool
+            _ipPool = {
+                apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                kind = "Object"
+                metadata = {
+                    name = "{}-lb-pool".format(_name)
+                    annotations = { "krm.kcl.dev/composition-resource-name" = "{}-lb-pool".format(_name) }
+                }
+                spec = {
+                    forProvider = {
+                        manifest = {
+                            apiVersion = "cilium.io/v2"
+                            kind = "CiliumLoadBalancerIPPool"
+                            metadata = { name = _poolName }
+                            spec = { blocks = [{ start = _effIpStart, stop = _effIpEnd }] }
+                        }
+                    }
+                    providerConfigRef = { name = _k8sPcr, kind = "ClusterProviderConfig" }
+                }
+            }
+
+            # 4. CiliumL2AnnouncementPolicy
+            _l2Policy = {
+                apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                kind = "Object"
+                metadata = {
+                    name = "{}-l2-policy".format(_name)
+                    annotations = { "krm.kcl.dev/composition-resource-name" = "{}-l2-policy".format(_name) }
+                }
+                spec = {
+                    forProvider = {
+                        manifest = {
+                            apiVersion = "cilium.io/v2alpha1"
+                            kind = "CiliumL2AnnouncementPolicy"
+                            metadata = { name = _l2PolicyName, namespace = _namespace }
+                            spec = { externalIPs = True, loadBalancerIPs = True }
+                        }
+                    }
+                    providerConfigRef = { name = _k8sPcr, kind = "ClusterProviderConfig" }
+                }
+            }
+
+            # 5. Gateway API CRDs (Helm) + GatewayClass
+            _gwApiRelease = {
+                apiVersion = "helm.m.crossplane.io/v1beta1"
+                kind = "Release"
+                metadata = {
+                    name = "{}-gateway-api".format(_name)
+                    annotations = {
+                        "crossplane.io/external-name" = "gateway-api"
+                        "krm.kcl.dev/composition-resource-name" = "{}-gateway-api".format(_name)
+                    }
+                }
+                spec = {
+                    providerConfigRef = { name = _helmPcr, kind = "ClusterProviderConfig" }
+                    forProvider = {
+                        chart = { name = "gateway-api", repository = "https://gateway-api-charts.sigs.k8s.io", version = "1.2.1" }
+                        namespace = _namespace
+                        values = {}
+                    }
+                    rollbackLimit = 3
+                }
+            }
+            _gwClass = {
+                apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                kind = "Object"
+                metadata = {
+                    name = "{}-gateway-class".format(_name)
+                    annotations = { "krm.kcl.dev/composition-resource-name" = "{}-gateway-class".format(_name) }
+                }
+                spec = {
+                    forProvider = {
+                        manifest = {
+                            apiVersion = "gateway.networking.k8s.io/v1"
+                            kind = "GatewayClass"
+                            metadata = { name = "cilium" }
+                            spec = { controllerName = "io.cilium/gateway-controller" }
+                        }
+                    }
+                    providerConfigRef = { name = _k8sPcr, kind = "ClusterProviderConfig" }
+                }
+            }
+
+            # 6. Gateway (HTTP + optional HTTPS/TLS listener)
+            _httpListener = {
+                name = "http"
+                hostname = "*.{}".format(_gwDomain)
+                port = 80
+                protocol = "HTTP"
+                allowedRoutes = { namespaces = { **{"from" = "All"} } }
+            }
+            _httpsListener = {
+                name = "https"
+                hostname = "*.{}".format(_gwDomain)
+                port = 443
+                protocol = "HTTPS"
+                allowedRoutes = { namespaces = { **{"from" = "All"} } }
+                tls = {
+                    mode = "Terminate"
+                    certificateRefs = [{ kind = "Secret", group = "", name = _gwTlsSecret }]
+                }
+            }
+            _gwListeners = [_httpsListener, _httpListener] if _gwTlsSecret else [_httpListener]
+            _gateway = {
+                apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                kind = "Object"
+                metadata = {
+                    name = "{}-gateway".format(_name)
+                    annotations = { "krm.kcl.dev/composition-resource-name" = "{}-gateway".format(_name) }
+                }
+                spec = {
+                    forProvider = {
+                        manifest = {
+                            apiVersion = "gateway.networking.k8s.io/v1"
+                            kind = "Gateway"
+                            metadata = { name = _gwName, namespace = _gwNamespace }
+                            spec = { gatewayClassName = "cilium", listeners = _gwListeners }
+                        }
+                    }
+                    providerConfigRef = { name = _k8sPcr, kind = "ClusterProviderConfig" }
+                }
+            }
+
+            # ── Assemble items by flattening conditional groups (no mutable
+            # accumulation — sum(list-of-lists, []) is deterministic) ──
+            _gwUsageForGateway = [_gwClassUsage("{}-gateway".format(_name))] if (_installEnabled and _gatewayAPIEnabled) else []
+            _groups = [
+                [_helmRelease] if _installEnabled else []
+                [_ciliumUsage("{}-lb-pool".format(_name)), _ciliumUsage("{}-l2-policy".format(_name))] if (_installEnabled and _lbEnabled) else []
+                [_ciliumUsage("{}-gateway".format(_name))] if (_installEnabled and _gwEnabled) else []
+                [_observeIP] if _wantObserve else []
+                [_ipPool, _l2Policy] if (_lbEnabled and _effIpStart != "") else []
+                [_gwApiRelease, _gwClass, _ciliumUsage("{}-gateway-class".format(_name)), _gwApiUsage("{}-gateway-class".format(_name))] if (_installEnabled and _gatewayAPIEnabled) else []
+                ([_gateway] + _gwUsageForGateway) if (_gwEnabled and _gwDomain != "") else []
+            ]
+            items = sum(_groups, [])
+
+    - step: patch-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        spec:
+          source: |
+            oxr  = option("params").oxr
+            ocds = option("params").ocds
+
+            _name = oxr.metadata.name
+
+            _install = oxr.spec?.install or {}
+            _installEnabled = _install?.enabled if _install?.enabled != None else True
+            _lbEnabled = oxr.spec?.loadBalancer?.enabled or False
+            _gwEnabled = oxr.spec?.gateway?.enabled or False
+            _ipMode = oxr.spec?.loadBalancer?.ipMode or "static"
+
+            _isReady = lambda resourceName: str -> bool {
+                _found = resourceName in ocds
+                _conds = ocds[resourceName].Resource?.status?.conditions or [] if _found else []
+                any_true = len([c for c in _conds if c.type == "Ready" and c.status == "True"]) > 0
+                any_true if _found else False
+            }
+
+            _installReady = _isReady("{}-cilium".format(_name)) if _installEnabled else True
+            _lbReady = (_isReady("{}-lb-pool".format(_name)) and _isReady("{}-l2-policy".format(_name))) if _lbEnabled else True
+            _gwReady = _isReady("{}-gateway".format(_name)) if _gwEnabled else True
+
+            _networkKey = ""
+            if _lbEnabled and _ipMode == "dynamic":
+                _ipObsKey = "{}-observe-ip".format(_name)
+                _dynIPs = ocds[_ipObsKey].Resource?.status?.atProvider?.manifest?.status?.ipAddresses or [] if _ipObsKey in ocds else []
+                if _dynIPs:
+                    _networkKey = _dynIPs[0]
+
+            _oxr = oxr | {
+                status = {
+                    ready = _installReady and _lbReady and _gwReady
+                    installReady = _installReady
+                    loadBalancerReady = _lbReady
+                    gatewayReady = _gwReady
+                    networkKey = _networkKey
+                    ciliumVersion = oxr.spec?.install?.version or "1.19.2"
+                }
+            }
+
+            items = [_oxr]
+
+    - step: ready
+      functionRef:
+        name: function-auto-ready

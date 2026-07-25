@@ -1,0 +1,63 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: cilium
+  annotations:
+    # Local convention used by `task push` to bump and re-publish.
+    # Not a Crossplane-standard field — the true package version is the OCI tag.
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Installs Cilium and, optionally, its LoadBalancer (CiliumLoadBalancerIPPool
+      + CiliumL2AnnouncementPolicy) and a Gateway API Gateway on a target cluster
+      from a namespaced `Cilium` XR. The LB IP range can be static or read from an
+      XIPReservation (clusterbook), turning a reserved lab IP into an advertised
+      Gateway VIP.
+    meta.crossplane.io/readme: |
+      # cilium
+
+      A Crossplane v2 Configuration that installs Cilium (Helm) plus its
+      LoadBalancer and a Gateway on a target cluster, from a namespaced `Cilium`
+      XR (group `config.stuttgart-things.com`). Superset of the `cni`
+      Configuration: it adds `loadBalancer` (CiliumLoadBalancerIPPool +
+      CiliumL2AnnouncementPolicy) and `gateway` (gateway-api CRDs + GatewayClass +
+      Gateway) on top of the Cilium install.
+
+      The Composition is inline `function-kcl` — no external OCI module. Provider
+      config refs derive from `spec.clusterName` (`{clusterName}-helm` /
+      `{clusterName}-kubernetes`), matching the cni / flux-init Configurations, so
+      the platform can compose it from a bare clusterName.
+
+      ## LoadBalancer IP
+
+      `loadBalancer.ipMode: static` takes `ipRange.{start,end}`;
+      `loadBalancer.ipMode: dynamic` Observes the named `XIPReservation`
+      (`resources.stuttgart-things.com`, on the management cluster) and uses its
+      reserved IPs as the pool block. This is the seam that turns an
+      ip-reservation into an advertised VIP.
+
+      ## Already-installed Cilium
+
+      Set `install.enabled: false` to skip the Cilium Helm install (e.g. k3s that
+      already ships Cilium) and render only the LB/Gateway resources — the
+      existing Cilium must have gatewayAPI / l2announcements enabled for them to
+      function.
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    # Cilium + gateway-api Helm Releases go on the target cluster via the
+    # namespaced Helm provider; the CR Objects + XIPReservation observe use
+    # provider-kubernetes.
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-helm
+      version: ">=v1.0.0,<v2.0.0"
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+      version: ">=v1.2.0,<v2.0.0"
+    # Functions used by this Configuration's Composition pipeline.
+    - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
+      version: ">=v0.12.0,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"
