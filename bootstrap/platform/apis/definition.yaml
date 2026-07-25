@@ -233,6 +233,58 @@ spec:
                       type: object
                       description: Passed through verbatim to FluxInit.spec.sops.
                       x-kubernetes-preserve-unknown-fields: true
+                ipReservation:
+                  type: object
+                  description: >-
+                    Reserve a clusterbook IP for this cluster, delegated to the
+                    ip-reservation Configuration (composes an XIPReservation on
+                    the management cluster). Opt-in. When cilium's dynamic
+                    LoadBalancer is also enabled, its reservationRef auto-wires to
+                    this reservation so the reserved IP becomes the LB pool block.
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                      description: Compose an XIPReservation for this platform
+                    count:
+                      type: integer
+                      description: Number of IPs to reserve (default 1)
+                    ip:
+                      type: string
+                      description: Explicit IP — skips auto-reservation
+                    createDNS:
+                      type: boolean
+                      description: Create a PDNS wildcard record for the reserved IP
+                    clusterbookProviderConfigRef:
+                      type: string
+                      description: clusterbook ClusterProviderConfig name (default "default")
+                cilium:
+                  type: object
+                  description: >-
+                    Cilium LoadBalancer + Gateway services, delegated to the
+                    cilium Configuration (composes a Cilium XR). Superset of cni.
+                    Opt-in and defaults install.enabled=false — it layers the
+                    LB/Gateway services on top of the CNI (installed by cni or
+                    already on the cluster), so it is gated on the network being
+                    up. install/loadBalancer/gateway are passed through verbatim
+                    to the Cilium XR (which validates them).
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                      description: Compose a Cilium XR for this platform
+                    install:
+                      type: object
+                      description: Cilium install (defaults enabled=false in the platform). Passed to Cilium.spec.install.
+                      x-kubernetes-preserve-unknown-fields: true
+                    loadBalancer:
+                      type: object
+                      description: Passed to Cilium.spec.loadBalancer. reservationRef auto-wires to ipReservation when dynamic and unset.
+                      x-kubernetes-preserve-unknown-fields: true
+                    gateway:
+                      type: object
+                      description: Passed to Cilium.spec.gateway.
+                      x-kubernetes-preserve-unknown-fields: true
             status:
               type: object
               properties:
@@ -303,6 +355,32 @@ spec:
                           type: integer
                         readyCount:
                           type: integer
+                    ipReservation:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                        ready:
+                          type: boolean
+                        ipAddresses:
+                          type: array
+                          items:
+                            type: string
+                        networkKey:
+                          type: string
+                    cilium:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                        ready:
+                          type: boolean
+                        loadBalancerReady:
+                          type: boolean
+                        gatewayReady:
+                          type: boolean
+                        networkKey:
+                          type: string
                 componentCount:
                   type: integer
                   description: Number of enabled components
