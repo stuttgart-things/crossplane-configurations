@@ -1,0 +1,23 @@
+---
+# Minimum: the two XRD-required fields, plus everything else from the
+# EnvironmentConfig (registry, image, credentials Secret, schedule, namespace)
+# or XRD defaults (resourceKinds, tfstate capture, history limits).
+#
+# `environmentConfig: default` is spelled out even though the XRD defaults it
+# to exactly that. On a cluster it is redundant — but `crossplane render` never
+# sees the XRD and applies no defaults, so the field stays absent, the
+# Composition's Optional selector becomes a no-op, and the pipeline never
+# receives the EnvironmentConfig. The render then fails on the Composition's
+# `registry must be set ...` assert. Spelling it out keeps this example
+# renderable locally and in `verify` CI.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ClusterBackup
+metadata:
+  name: cluster-backup-min
+  namespace: default
+spec:
+  clusterName: kind1
+  # age PUBLIC key. XRD-required on purpose: there is no safe default for
+  # "who may decrypt this", and the bundle contains OpenTofu state.
+  ageRecipient: age19vgzvmpt9tdlcsu8rzaacj397yz8gguz38nsmuy6eeelt5vjsyms542xtm # pragma: allowlist secret (age PUBLIC key)
+  environmentConfig: default

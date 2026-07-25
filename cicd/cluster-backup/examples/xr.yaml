@@ -1,0 +1,21 @@
+---
+# Realistic usage — the copy-paste template for a machinery cluster.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ClusterBackup
+metadata:
+  name: cluster-backup
+  namespace: default
+spec:
+  clusterName: kind1
+  registry: ghcr.io/stuttgart-things/backups
+  registryCredentialsSecretName: backup-registry # pragma: allowlist secret
+  ageRecipient: age19vgzvmpt9tdlcsu8rzaacj397yz8gguz38nsmuy6eeelt5vjsyms542xtm # pragma: allowlist secret (age PUBLIC key)
+  # One upstream image per stage; each is optional and falls back to the
+  # Composition default.
+  images:
+    kubectl: alpine/k8s:1.31.0
+    sops: ghcr.io/getsops/sops:v3.13.3-alpine
+    oras: ghcr.io/oras-project/oras:v1.3.0
+  schedule: "17 * * * *"
+  namespace: crossplane-system
+  crossplaneProviderConfig: in-cluster

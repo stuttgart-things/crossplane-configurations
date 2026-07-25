@@ -1,0 +1,523 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: cluster-backup
+  labels:
+    crossplane.io/xrd: clusterbackups.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: ClusterBackup
+  mode: Pipeline
+  pipeline:
+    # Shared per-environment defaults (registry, images, age recipient, …).
+    # Config-scoped label so it never collides with another Configuration's
+    # EnvironmentConfig; Optional so an absent spec.environmentConfig is a
+    # no-op rather than an error.
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: cluster-backup.resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    fromFieldPathPolicy: Optional
+
+    # Renders the RBAC + CronJob inline rather than from an OCI KCL module.
+    # Deliberate: an external module would reintroduce the publish-before-pin
+    # coupling (the tag must exist in ghcr before `verify` can pass), and this
+    # Composition renders plain core/batch objects that no other consumer
+    # needs. ansible-run/tofu-run use a module because kcl-tekton-pr is shared.
+    - step: render-backup
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: clusterbackup
+        spec:
+          source: | # pragma: allowlist secret (KCL below names Secret FIELDS, holds no secret)
+            _params = option("params") or {}
+            _spec = _params?.oxr?.spec or {}
+            _env = _params?.ctx?["apiextensions.crossplane.io/environment"] or {}
+
+            # Precedence: explicit XR spec -> EnvironmentConfig -> default.
+            # Fields with an XRD default never reach the EnvironmentConfig
+            # (the API server defaults them before this runs), which is why
+            # registry/ageRecipient/registryCredentialsSecretName and the
+            # image fields have NO XRD default.
+            _clusterName = _spec?.clusterName
+            _registry = _spec?.registry or _env?.registry or ""
+            _ageRecipient = _spec?.ageRecipient or _env?.ageRecipient or ""
+            _regSecret = _spec?.registryCredentialsSecretName or _env?.registryCredentialsSecretName or ""
+            _schedule = _spec?.schedule or _env?.schedule or "17 * * * *"
+            _namespace = _spec?.namespace or _env?.namespace or "crossplane-system"
+            _artifactType = _spec?.artifactType or "application/vnd.stuttgart-things.cluster-backup.v1"
+            _sa = _spec?.serviceAccountName or "cluster-backup"
+            _tagStrategy = _spec?.tagStrategy or "rolling"
+
+            # One upstream image per tool instead of one image carrying all
+            # three. No image in the stuttgart-things catalog ships
+            # kubectl+sops+oras together, and building one would be a fourth
+            # artifact to maintain and patch. Each step runs on the image whose
+            # project publishes the tool.
+            _images = _spec?.images or {}
+            _envImages = _env?.images or {}
+            _imgKubectl = _images?.kubectl or _envImages?.kubectl or "alpine/k8s:1.31.0"
+            _imgSops = _images?.sops or _envImages?.sops or "ghcr.io/getsops/sops:v3.13.3-alpine"
+            _imgOras = _images?.oras or _envImages?.oras or "ghcr.io/oras-project/oras:v1.3.0"
+
+            # Mirrored from the XRD defaults ON PURPOSE. `crossplane render`
+            # does not apply XRD defaults (it never sees the XRD), so without
+            # these the local render emits `apiGroups: []` — a valid ClusterRole
+            # that grants nothing — while the cluster renders the real list.
+            # Keeping both copies means render and cluster agree; keep them in
+            # sync when adding a provider.
+            _default_kinds = [
+                "virtualmachines.virtualmachine.vspherevm.m.stuttgart-things.com"
+                "virtualmachines.vm.proxmoxbpg.m.crossplane.io"
+                "workspaces.opentofu.m.upbound.io"
+                "objects.kubernetes.m.crossplane.io"
+                "releases.helm.m.crossplane.io"
+                "remoteclusters.kubeconfig.stuttgart-things.com"
+            ]
+            _default_groups = [
+                "virtualmachine.vspherevm.m.stuttgart-things.com"
+                "vm.proxmoxbpg.m.crossplane.io"
+                "opentofu.m.upbound.io"
+                "kubernetes.m.crossplane.io"
+                "helm.m.crossplane.io"
+                "kubeconfig.stuttgart-things.com"
+            ]
+            _kinds = _spec?.resourceKinds or _default_kinds
+            _groups = _spec?.resourceGroups or _default_groups
+
+            # Presence checks via `in`, not `or` fallbacks and not `!= None`.
+            #
+            # `x or default` collapses an explicit falsy value into the
+            # default: `includeTfState: false` would silently become true and
+            # `successfulJobsHistoryLimit: 0` ("keep none") would become 3.
+            #
+            # `_spec?.x != None` does NOT work either: a missing key yields
+            # Undefined, and Undefined != None is TRUE in KCL, so that test
+            # always takes the "present" branch and hands on Undefined.
+            # `"x" in _spec` is the idiom that actually distinguishes the two.
+            #
+            # The defaults mirror the XRD's because `crossplane render` applies
+            # no XRD defaults — without them, local renders and the cluster
+            # would disagree about whether tfstate is captured.
+            _includeTfState = _spec.includeTfState if "includeTfState" in _spec else True
+            _suspend = _spec.suspend if "suspend" in _spec else False
+            _skipUnchanged = _spec.skipUnchanged if "skipUnchanged" in _spec else True
+            _okHistory = _spec.successfulJobsHistoryLimit if "successfulJobsHistoryLimit" in _spec else 3
+            _failHistory = _spec.failedJobsHistoryLimit if "failedJobsHistoryLimit" in _spec else 3
+            _tfStateNs = _spec?.tfStateNamespace or "crossplane-system"
+            _pc = _spec?.crossplaneProviderConfig or "in-cluster"
+
+            # Fail here rather than emit a CronJob that cannot possibly work.
+            # An empty ageRecipient would otherwise ship OpenTofu state — which
+            # carries credentials in plaintext — to a registry unencrypted.
+            assert _registry != "", "registry must be set on the XR or its EnvironmentConfig"
+            assert _ageRecipient != "", "ageRecipient must be set on the XR or its EnvironmentConfig"
+            assert _ageRecipient.startswith("age1"), "ageRecipient must be an age PUBLIC key (age1...), never a private AGE-SECRET-KEY"
+            assert _regSecret != "", "registryCredentialsSecretName must be set on the XR or its EnvironmentConfig"
+            assert len(_kinds) > 0, "resourceKinds must not be empty - a backup that exports nothing is not a backup"
+
+            # Catch the drift the README warns about at render time rather than
+            # as a WARN line in a CronJob log nobody reads: a kind whose group
+            # is missing from resourceGroups has no RBAC and is silently
+            # skipped, so the backup quietly stops covering it.
+            _kind_groups = [k.split(".", 1)[1] for k in _kinds if "." in k]
+            _missing = [g for g in _kind_groups if g not in _groups]
+            assert len(_missing) == 0, "resourceKinds reference API groups missing from resourceGroups (no RBAC would be granted for them): ${_missing}"
+
+            _repo = _registry + "/" + _clusterName
+
+            # NOTE for future edits: these are KCL strings, so "$" followed by
+            # "{" is interpolation. The scripts therefore use bare $VAR only.
+
+            # Step 1 (initContainer, kubectl image): export + bundle. Writes
+            # everything into the shared /work volume. Also computes the
+            # plaintext digest and the tag here, because this is the step that
+            # has both a shell and `date` — the later steps only consume files.
+            _script_export = """set -eu
+            cd /work
+
+            # Two views per kind, and both are needed:
+            #
+            #   <kind>.yaml   the FULL export - what actually gets backed up.
+            #   normalized    a stripped, sorted projection used ONLY for the
+            #                 skipUnchanged digest.
+            #
+            # Hashing the full export does not work: `kubectl get -o yaml`
+            # carries status, resourceVersion, managedFields and Crossplane's
+            # own `external-create-succeeded` timestamp, all of which churn on
+            # every reconcile. The digest would then differ on every run and
+            # skipUnchanged would never skip - measured, not assumed: three
+            # consecutive runs against an idle cluster each pushed.
+            #
+            # The projection keeps exactly what a restore needs to be correct:
+            # identity, labels, annotations (crossplane.io/external-name lives
+            # here) and spec.
+            : > normalized
+            echo "== exporting resources"
+            for k in $KINDS; do
+              if kubectl get "$k" -A -o yaml > "$k.yaml" 2>/dev/null; then
+                echo "   ok   $k"
+                kubectl get "$k" -A -o json 2>/dev/null | jq -S --arg k "$k" '
+                  {kind: $k, items: [.items[] | {
+                    apiVersion, kind,
+                    name: .metadata.name,
+                    namespace: .metadata.namespace,
+                    labels: .metadata.labels,
+                    annotations: (.metadata.annotations // {} | del(
+                      .["crossplane.io/external-create-pending"],
+                      .["crossplane.io/external-create-succeeded"],
+                      .["crossplane.io/external-create-failed"],
+                      .["kubectl.kubernetes.io/last-applied-configuration"])),
+                    spec: .spec
+                  }]}' >> normalized
+              else
+                echo "   WARN could not export $k (missing CRD or RBAC)"
+                rm -f "$k.yaml"
+              fi
+            done
+
+            if [ "$INCLUDE_TFSTATE" = "true" ]; then
+              echo "== exporting tfstate secrets from $TFSTATE_NS"
+              kubectl -n "$TFSTATE_NS" get secret -o name | grep '^secret/tfstate-' > names.txt || true
+              if [ -s names.txt ]; then
+                xargs -r kubectl -n "$TFSTATE_NS" get -o yaml < names.txt > tfstate.yaml
+                xargs -r kubectl -n "$TFSTATE_NS" get -o json < names.txt \
+                  | jq -S '{kind: "tfstate", items: [(.items // [.])[] | {name: .metadata.name, data: .data}]}' >> normalized
+                echo "   ok   $(wc -l < names.txt) secret(s)"
+              else
+                echo "   WARN no tfstate-* secrets in $TFSTATE_NS"
+              fi
+              rm -f names.txt
+            fi
+
+            if [ -z "$(ls -A ./*.yaml 2>/dev/null)" ]; then
+              echo "ERROR: nothing was exported - refusing to push an empty backup"
+              exit 1
+            fi
+
+            echo "== bundling"
+            tar czf bundle.tar.gz ./*.yaml
+            rm -f ./*.yaml
+
+            # Digest of the NORMALIZED projection, not of the bundle. Two
+            # separate reasons it cannot be the artifact's own digest:
+            #   - sops picks a fresh data key per run, so the ciphertext always
+            #     differs;
+            #   - the full export carries churning status/resourceVersion
+            #     fields, so even the plaintext tarball differs every run.
+            # The push step compares this against the annotation on :latest.
+            sha256sum normalized | cut -d' ' -f1 > plaintext.sha256
+            rm -f normalized
+            echo "== plaintext sha256 $(cat plaintext.sha256)"
+
+            # Tagging decides how many artifacts ever exist. `rolling` reuses a
+            # bounded set of tags - hour-of-day plus day-of-month, so at most
+            # 24 + 31 + latest = 56 - giving hourly granularity for a day and
+            # daily for a month without growing. `timestamp` keeps every push
+            # forever; combined with SKIP_UNCHANGED that is one artifact per
+            # actual infrastructure change, but nothing bounds it.
+            # Two different formats on purpose, and they cannot be merged:
+            # `org.opencontainers.image.created` is validated by oras as
+            # RFC3339, which contains colons - and a colon is illegal in an OCI
+            # TAG. So the annotation gets the RFC3339 form and the timestamp
+            # tag gets the compact one.
+            date -u +%Y-%m-%dT%H:%M:%SZ > created
+            if [ "$TAG_STRATEGY" = "rolling" ]; then
+              date -u +h%H > tag
+              date -u +d%d > second-tag
+            else
+              date -u +%Y%m%dT%H%M%SZ > tag
+              : > second-tag
+            fi
+            echo "== tag $(cat tag)"
+            """
+
+            # Step 3 (main container, oras image): compare, push, tag. The oras
+            # image ships busybox, so a shell is available; its entrypoint is
+            # /bin/oras, hence the explicit command override below.
+            _script_push = """set -eu
+            cd /work
+
+            SUM=$(cat plaintext.sha256)
+            TAG=$(cat tag)
+            SECOND_TAG=$(cat second-tag)
+            CREATED=$(cat created)
+
+            if [ "$SKIP_UNCHANGED" = "true" ]; then
+              PREV=$(oras manifest fetch "$REPO:latest" 2>/dev/null \\
+                | grep -o '"com.stuttgart-things.backup.plaintext-sha256":"[^"]*"' \\
+                | cut -d'"' -f4 || true)
+              if [ -n "$PREV" ] && [ "$PREV" = "$SUM" ]; then
+                echo "== unchanged since last backup - skipping push"
+                exit 0
+              fi
+            fi
+
+            echo "== pushing $REPO:$TAG"
+            oras push \\
+              --artifact-type "$ARTIFACT_TYPE" \\
+              --annotation "com.stuttgart-things.backup.plaintext-sha256=$SUM" \\
+              --annotation "com.stuttgart-things.backup.cluster=$CLUSTER" \\
+              --annotation "org.opencontainers.image.created=$CREATED" \\
+              "$REPO:$TAG" bundle.tar.gz.sops
+            oras tag "$REPO:$TAG" latest
+            if [ -n "$SECOND_TAG" ]; then
+              oras tag "$REPO:$TAG" "$SECOND_TAG"
+            fi
+            echo "== done"
+            """
+
+            _serviceAccount = {
+                apiVersion = "v1"
+                kind = "ServiceAccount"
+                metadata = {name = _sa, namespace = _namespace}
+            }
+
+            # Read-only, and scoped to the configured groups rather than "*":
+            # the job needs to enumerate managed resources, not read the whole
+            # cluster. Secrets are NOT in here — they get a namespaced Role.
+            _clusterRole = {
+                apiVersion = "rbac.authorization.k8s.io/v1"
+                kind = "ClusterRole"
+                metadata = {name = _sa + "-read"}
+                rules = [{
+                    apiGroups = _groups
+                    resources = ["*"]
+                    verbs = ["get", "list"]
+                }]
+            }
+
+            _clusterRoleBinding = {
+                apiVersion = "rbac.authorization.k8s.io/v1"
+                kind = "ClusterRoleBinding"
+                metadata = {name = _sa + "-read"}
+                roleRef = {
+                    apiGroup = "rbac.authorization.k8s.io"
+                    kind = "ClusterRole"
+                    name = _sa + "-read"
+                }
+                subjects = [{kind = "ServiceAccount", name = _sa, namespace = _namespace}]
+            }
+
+            # Secret read access is a namespaced Role in tfStateNamespace, not
+            # part of the ClusterRole above: this job must never be able to
+            # read every Secret on the cluster.
+            _tfRole = {
+                apiVersion = "rbac.authorization.k8s.io/v1"
+                kind = "Role"
+                metadata = {name = _sa + "-tfstate", namespace = _tfStateNs}
+                rules = [{
+                    apiGroups = [""]
+                    resources = ["secrets"]
+                    verbs = ["get", "list"]
+                }]
+            }
+
+            _tfRoleBinding = {
+                apiVersion = "rbac.authorization.k8s.io/v1"
+                kind = "RoleBinding"
+                metadata = {name = _sa + "-tfstate", namespace = _tfStateNs}
+                roleRef = {
+                    apiGroup = "rbac.authorization.k8s.io"
+                    kind = "Role"
+                    name = _sa + "-tfstate"
+                }
+                subjects = [{kind = "ServiceAccount", name = _sa, namespace = _namespace}]
+            }
+
+            _workMount = {name = "work", mountPath = "/work"}
+
+            _cronJob = {
+                apiVersion = "batch/v1"
+                kind = "CronJob"
+                metadata = {name = _clusterName + "-backup", namespace = _namespace}
+                spec = {
+                    schedule = _schedule
+                    concurrencyPolicy = _spec?.concurrencyPolicy or "Forbid"
+                    successfulJobsHistoryLimit = _okHistory
+                    failedJobsHistoryLimit = _failHistory
+                    suspend = _suspend
+                    jobTemplate.spec = {
+                        # One attempt per schedule tick: a failed export is
+                        # better retried by the next tick than hammered at,
+                        # and a stuck run would otherwise hold the Forbid lock.
+                        backoffLimit = 1
+                        template.spec = {
+                            serviceAccountName = _sa
+                            restartPolicy = "Never"
+                            securityContext = {
+                                runAsNonRoot = True
+                                runAsUser = 65532
+                                # Without fsGroup the shared emptyDir is
+                                # root-owned and the non-root steps cannot
+                                # write to it.
+                                fsGroup = 65532
+                            }
+                            # initContainers, not multiple containers: a Pod's
+                            # containers run in PARALLEL, and these three
+                            # stages are strictly ordered (export -> encrypt ->
+                            # push) and hand files to each other through /work.
+                            # initContainers are the only shape that guarantees
+                            # the order.
+                            initContainers = [
+                                {
+                                    name = "export"
+                                    image = _imgKubectl
+                                    command = ["/bin/sh", "-c"]
+                                    args = [_script_export]
+                                    env = [
+                                        {name = "KINDS", value = " ".join(_kinds)}
+                                        {name = "INCLUDE_TFSTATE", value = "true" if _includeTfState else "false"}
+                                        {name = "TFSTATE_NS", value = _tfStateNs}
+                                        {name = "TAG_STRATEGY", value = _tagStrategy}
+                                    ]
+                                    volumeMounts = [_workMount]
+                                    resources.requests = {cpu = "50m", memory = "128Mi"}
+                                }
+                                {
+                                    name = "encrypt"
+                                    image = _imgSops
+                                    # No shell needed and none used: the sops
+                                    # image's entrypoint IS sops, so this is a
+                                    # pure argv. $(AGE_RECIPIENT) is Kubernetes
+                                    # env substitution, not a subshell.
+                                    args = [
+                                        "--encrypt"
+                                        "--age"
+                                        "$(AGE_RECIPIENT)"
+                                        "--input-type"
+                                        "binary"
+                                        "--output-type"
+                                        "binary"
+                                        "--output"
+                                        "/work/bundle.tar.gz.sops"
+                                        "/work/bundle.tar.gz"
+                                    ]
+                                    env = [{name = "AGE_RECIPIENT", value = _ageRecipient}]
+                                    volumeMounts = [_workMount]
+                                    resources.requests = {cpu = "50m", memory = "64Mi"}
+                                }
+                            ]
+                            containers = [{
+                                name = "push"
+                                image = _imgOras
+                                # Overrides the image's /bin/oras entrypoint;
+                                # busybox provides the shell.
+                                command = ["/bin/sh", "-c"]
+                                args = [_script_push]
+                                env = [
+                                    {name = "REPO", value = _repo}
+                                    {name = "CLUSTER", value = _clusterName}
+                                    {name = "ARTIFACT_TYPE", value = _artifactType}
+                                    {name = "SKIP_UNCHANGED", value = "true" if _skipUnchanged else "false"}
+                                    {name = "DOCKER_CONFIG", value = "/oras-auth"}
+                                ]
+                                volumeMounts = [
+                                    _workMount
+                                    {name = "oras-auth", mountPath = "/oras-auth", readOnly = True}
+                                ]
+                                resources.requests = {cpu = "50m", memory = "64Mi"}
+                            }]
+                            volumes = [
+                                {name = "work", emptyDir = {}}
+                                {
+                                    # Mounted on the push step only — the
+                                    # export and encrypt steps have no business
+                                    # holding registry credentials.
+                                    name = "oras-auth"
+                                    secret = {
+                                        secretName = _regSecret
+                                        items = [{key = ".dockerconfigjson", path = "config.json"}]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+
+            _wrap = lambda name: str, manifest: any -> any {
+                {
+                    apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                    kind = "Object"
+                    metadata = {
+                        name = _clusterName + "-backup-" + name
+                        annotations = {"krm.kcl.dev/composition-resource-name" = name}
+                    }
+                    spec = {
+                        forProvider.manifest = manifest
+                        providerConfigRef = {kind = "ClusterProviderConfig", name = _pc}
+                    }
+                }
+            }
+
+            items = [
+                _wrap("serviceaccount", _serviceAccount)
+                _wrap("clusterrole", _clusterRole)
+                _wrap("clusterrolebinding", _clusterRoleBinding)
+                _wrap("cronjob", _cronJob)
+            ] + ([
+                _wrap("tfstate-role", _tfRole)
+                _wrap("tfstate-rolebinding", _tfRoleBinding)
+            ] if _includeTfState else [])
+
+    # Surface the live CronJob's schedule times. lastSuccessfulTime is the
+    # field that actually answers "did a backup run?" — XR readiness only
+    # means the CronJob object exists.
+    - step: derive-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: clusterbackup-status
+        spec:
+          source: |
+            _params = option("params") or {}
+            _ocds = _params?.ocds or {}
+            _spec = _params?.oxr?.spec or {}
+
+            _cronjobs = [
+                v.Resource for _, v in _ocds
+                if v?.Resource?.spec?.forProvider?.manifest?.kind == "CronJob"
+            ]
+            _live = _cronjobs[0]?.status?.atProvider?.manifest if _cronjobs else None
+
+            _registry = _spec?.registry or ""
+            _repo = (_registry + "/" + _spec.clusterName) if _registry else ""
+
+            items = [{
+                apiVersion = "resources.stuttgart-things.com/v1alpha1"
+                kind = "ClusterBackup"
+                status = {
+                    if _live:
+                        cronJobName = _live?.metadata?.name
+                        if _live?.status?.lastScheduleTime:
+                            lastScheduleTime = _live.status.lastScheduleTime
+                        if _live?.status?.lastSuccessfulTime:
+                            lastSuccessfulTime = _live.status.lastSuccessfulTime
+                    if _repo:
+                        artifactRepository = _repo
+                }
+            }]
+
+    - step: ready
+      functionRef:
+        name: function-auto-ready
