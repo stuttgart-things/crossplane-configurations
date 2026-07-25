@@ -48,11 +48,14 @@ spec:
                 tokenSecretRef:
                   type: object
                   description: >-
-                    Reference to the SOURCE Secret (on the control-plane cluster)
-                    holding the Vault token. The Composition reads its value
-                    (never inlined in the XR) and copies it into the target
+                    OPTIONAL reference to the SOURCE Secret (on the control-plane
+                    cluster) holding the Vault token. The Composition reads its
+                    value (never inlined in the XR) and copies it into the target
                     cluster's token Secret. The control-plane's Crossplane SA
-                    must be able to read it.
+                    must be able to read it. OMIT this for the Kubernetes-auth
+                    issuer model, where cert-manager authenticates via its
+                    ServiceAccount and needs no token Secret — only the CA bundle
+                    is then provisioned.
                   properties:
                     name:
                       type: string
@@ -98,7 +101,6 @@ spec:
                   type: string
                   description: "Key under which the token is stored (matches tokenSecretRef.key). Defaults from the EnvironmentConfig, then `token`."
               required:
-                - tokenSecretRef
                 - caBundleSecretRef
             status:
               type: object

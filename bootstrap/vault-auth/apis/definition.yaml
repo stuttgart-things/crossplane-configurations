@@ -37,7 +37,7 @@ spec:
                   default: "https://kubernetes.default.svc:443"
                 vaultTokenSecret:
                   type: string
-                  description: "Name of the Secret (co-located with the Workspace) holding terraform.tfvars with vault_token."
+                  description: "Name of the Secret (co-located with the Workspace) holding terraform.tfvars with the Vault AppRole login material (vault_role_id + vault_secret_id). AppRole, not a static token: each reconcile mints a fresh short-lived token, so the Workspace never wedges on an expired credential."
                   default: "vault"
                 vaultTokenSecretKey:
                   type: string
