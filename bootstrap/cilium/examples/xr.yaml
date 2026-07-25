@@ -22,4 +22,4 @@ spec:
     name: cilium-gateway
     namespace: default
     domain: u26-kind1.sthings-vsphere.labul.sva.de
-    tlsSecretName: wildcard-tls
+    tlsSecretName: wildcard-tls # pragma: allowlist secret

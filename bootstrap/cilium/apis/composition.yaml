@@ -21,7 +21,7 @@ spec:
         apiVersion: krm.kcl.dev/v1alpha1
         kind: KCLInput
         spec:
-          source: |
+          source: | # pragma: allowlist secret
             # NOTE: items is assembled as ONE functional concatenation of
             # conditional sublists — deliberately NOT via top-level
             # `_resources += [...]` accumulation. That mutable pattern
