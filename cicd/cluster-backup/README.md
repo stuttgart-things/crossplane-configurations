@@ -241,18 +241,17 @@ The four required fields with no default (`registry`, `ageRecipient`, `registryC
 
 ## Registry credential
 
-The push credential (precondition #3) needs exactly one capability: **push (write) to the one registry path in `spec.registry`, and nothing else**. It never reads or deletes — pruning old backups is a separate out-of-cluster job with its own token (see below). A leaked backup-push token can overwrite backups but cannot read cluster state or delete history.
+The push credential (precondition #3) needs exactly one capability: **push (write) to the registry, and nothing else**. It never deletes — pruning old backups is a separate out-of-cluster job with its own token (see below). A leaked backup-push token can overwrite backups but cannot read cluster state or delete history.
 
-**ghcr (the default target).** Use a **fine-grained token**, not a classic PAT:
+**ghcr (the default target).** ghcr push does **not** work with a fine-grained PAT — the fine-grained token UI has no "Packages" permission to grant, which is why you can't find it there. Use a **classic** PAT:
 
 | | |
 |---|---|
-| Token type | GitHub **fine-grained personal access token** (or a GitHub App installation token) |
-| Resource owner | the `stuttgart-things` org |
-| Permission | **Packages: Read and write** — this is the only permission needed |
-| Everything else | leave at *No access* (no repo contents, no `delete:packages`, no admin) |
+| Token type | GitHub **personal access token (classic)** — *Settings → Developer settings → Tokens (classic)* |
+| Scope | check **`write:packages`** only — it implies `read:packages` |
+| Do **not** check | `delete:packages` (that is the pruning token, kept off-cluster), `repo`, `admin:*` |
 
-A classic PAT works too but only has the coarse `write:packages` scope, which on classic tokens also implies `read:packages` and cannot be narrowed to a single package — prefer the fine-grained token.
+The one limitation, stated plainly: a classic token's `write:packages` cannot be narrowed to a single package — it can push to any package the account/org can. If that blast radius matters, the only tighter option is a **GitHub App** installation token with `packages: write` (more setup; overkill for a single push credential).
 
 Create the Secret in `spec.namespace` (default `crossplane-system`):
 
@@ -266,7 +265,7 @@ kubectl create secret docker-registry backup-registry \
 
 The Secret key is `.dockerconfigjson` (what `create secret docker-registry` produces) — the Composition mounts exactly that key.
 
-**Pruning token (separate, do NOT put on the cluster).** Deleting old backup versions needs `delete:packages`, which must never live on the cluster being backed up — a compromised backup job could then erase its own history. Run pruning as a scheduled GitHub Action with a token scoped to **Packages: Read and write** *plus* the ability to delete package versions, held in Actions secrets, outside every machinery cluster.
+**Pruning token (separate, do NOT put on the cluster).** Deleting old backup versions needs a classic PAT with `delete:packages`, which must never live on the cluster being backed up — a compromised backup job could then erase its own history. Run pruning as a scheduled GitHub Action with that token held in Actions secrets, outside every machinery cluster.
 
 ## Notes
 
