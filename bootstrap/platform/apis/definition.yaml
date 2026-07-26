@@ -301,6 +301,14 @@ spec:
                       type: boolean
                       default: false
                       description: Compose the vault-issuer children for this platform
+                    autoReviewer:
+                      type: boolean
+                      default: true
+                      description: >-
+                        Auto-provision the Vault token_reviewer_jwt: an
+                        auth-delegator SA + token Secret on the target, observed
+                        and copied into a mgmt Secret the Workspace reads. When
+                        false, supply reviewerSecret instead.
                     vaultAddr:
                       type: string
                       description: Vault server URL (required when enabled)
