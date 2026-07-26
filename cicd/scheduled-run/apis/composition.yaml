@@ -13,8 +13,7 @@ spec:
   pipeline:
     # Shared per-environment defaults (schedule, image, namespace, …).
     # Config-scoped label so it never collides with another Configuration's
-    # EnvironmentConfig; Optional so an absent spec.environmentConfig is a
-    # no-op rather than an error.
+    # EnvironmentConfig.
     - step: load-environment
       functionRef:
         name: function-environment-configs
@@ -25,6 +24,15 @@ spec:
           environmentConfigs:
             - type: Selector
               selector:
+                # Multiple tolerates zero matches: a fully-specified XR (or one
+                # relying on built-in defaults) needs no EnvironmentConfig. The
+                # default mode Single fatals with "expected exactly one required
+                # resource, got 0" on any cluster without the defaults object —
+                # and `fromFieldPathPolicy: Optional` does NOT save you there,
+                # because it only governs an absent FIELD, while the XRD defaults
+                # spec.environmentConfig to `default` so the field is always set.
+                # Same fix as bootstrap/vault-pki-secrets.
+                mode: Multiple
                 matchLabels:
                   - key: scheduled-run.resources.stuttgart-things.com/environment
                     type: FromCompositeFieldPath
