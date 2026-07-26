@@ -21,7 +21,7 @@ spec:
         apiVersion: krm.kcl.dev/v1alpha1
         kind: KCLInput
         spec:
-          source: | # pragma: allowlist secret
+          source: |
             # NOTE: items is assembled as ONE functional concatenation of
             # conditional sublists — deliberately NOT via top-level
             # `_resources += [...]` accumulation. That mutable pattern
@@ -80,6 +80,14 @@ spec:
             _dynIPs = ocds[_ipObsKey].Resource?.status?.atProvider?.manifest?.status?.ipAddresses or [] if (_wantObserve and _ipObsKey in ocds) else []
             _effIpStart = _dynIPs[0] if _dynIPs else _ipStart
             _effIpEnd   = (_dynIPs[-1] if len(_dynIPs) > 1 else _dynIPs[0]) if _dynIPs else _ipEnd
+
+            # Gateway domain: prefer an explicit gateway.domain, else derive it
+            # from the observed XIPReservation's fqdn (clusterbook createDNS emits
+            # a wildcard "*.<cluster>.<zone>"; strip the "*." for the bare domain).
+            # This lets a cluster reserve its own DNS name instead of hardcoding it.
+            _fqdn = (ocds[_ipObsKey].Resource?.status?.atProvider?.manifest?.status?.fqdn or "") if (_wantObserve and _ipObsKey in ocds) else ""
+            _derivedDomain = _fqdn[2:] if _fqdn.startswith("*.") else _fqdn
+            _effGwDomain = _gwDomain if _gwDomain else _derivedDomain
 
             # ── Usage lambdas (teardown ordering) ───────────
             # Cilium CRD objects / Gateway must delete BEFORE the Helm Release
@@ -303,14 +311,14 @@ spec:
             # 6. Gateway (HTTP + optional HTTPS/TLS listener)
             _httpListener = {
                 name = "http"
-                hostname = "*.{}".format(_gwDomain)
+                hostname = "*.{}".format(_effGwDomain)
                 port = 80
                 protocol = "HTTP"
                 allowedRoutes = { namespaces = { **{"from" = "All"} } }
             }
             _httpsListener = {
                 name = "https"
-                hostname = "*.{}".format(_gwDomain)
+                hostname = "*.{}".format(_effGwDomain)
                 port = 443
                 protocol = "HTTPS"
                 allowedRoutes = { namespaces = { **{"from" = "All"} } }
@@ -350,7 +358,7 @@ spec:
                 [_observeIP] if _wantObserve else []
                 [_ipPool, _l2Policy] if (_lbEnabled and _effIpStart != "") else []
                 [_gwApiRelease, _gwClass, _ciliumUsage("{}-gateway-class".format(_name)), _gwApiUsage("{}-gateway-class".format(_name))] if (_installEnabled and _gatewayAPIEnabled) else []
-                ([_gateway] + _gwUsageForGateway) if (_gwEnabled and _gwDomain != "") else []
+                ([_gateway] + _gwUsageForGateway) if (_gwEnabled and _effGwDomain != "") else []
             ]
             items = sum(_groups, [])
 
