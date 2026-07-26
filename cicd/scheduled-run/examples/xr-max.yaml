@@ -1,0 +1,40 @@
+---
+# Maximum: every spec field set. Exercises an explicit image, all history and
+# concurrency knobs, keepHistory, and a plain namespaced Job as the target
+# (the simplest thing to schedule — no XR round-trip needed to see it work).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ScheduledRun
+metadata:
+  name: scheduled-run-max
+  namespace: default
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  suspend: false
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  keepHistory: 10
+  image: alpine/k8s:1.31.0
+  namespace: crossplane-system
+  serviceAccountName: scheduled-run
+  crossplaneProviderConfig: in-cluster
+  environmentConfig: default
+  targetScope: Namespaced
+  targetNamespace: tekton-ci
+  uniqueFields:
+    - metadata.name
+  manifest:
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: heartbeat
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: heartbeat
+              image: alpine/k8s:1.31.0
+              command: ["/bin/sh", "-c"]
+              args:
+                - echo "scheduled heartbeat $(date -u)"
