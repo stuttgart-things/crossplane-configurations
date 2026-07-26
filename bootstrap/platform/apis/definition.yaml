@@ -285,6 +285,69 @@ spec:
                       type: object
                       description: Passed to Cilium.spec.gateway.
                       x-kubernetes-preserve-unknown-fields: true
+                vaultIssuer:
+                  type: object
+                  description: >-
+                    Tokenless cert-manager -> Vault-PKI issuer (opt-in). Composes
+                    a VaultK8sAuth (Vault k8s-auth mount), a VaultPkiSecret (CA
+                    bundle -> target cert-manager ns), and the k8s-auth
+                    ClusterIssuer + TokenRequest RBAC. The cert-manager CONTROLLER
+                    comes via apps.cert-manager (FluxApps); this only wires the
+                    issuer. Prereqs on the mgmt cluster in the Platform namespace:
+                    approleSecret, reviewerSecret, caSourceSecret (referenced by
+                    name, not created here).
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                      description: Compose the vault-issuer children for this platform
+                    vaultAddr:
+                      type: string
+                      description: Vault server URL (required when enabled)
+                    skipTlsVerify:
+                      type: boolean
+                      default: true
+                    authName:
+                      type: string
+                      default: certmanager
+                      description: k8s auth mount suffix; mountPath = /v1/auth/{clusterName}-{authName}
+                    pkiMount:
+                      type: string
+                      default: pki
+                    pkiRole:
+                      type: string
+                      description: PKI role; issuer sign path = {pkiMount}/sign/{pkiRole}
+                    tokenPolicies:
+                      type: array
+                      items:
+                        type: string
+                      description: Vault policies for the auth role (default ["pki-issue"])
+                    kubernetesHost:
+                      type: string
+                      description: Target API host for the Vault mount config (kubernetes_host)
+                    approleSecret:
+                      type: string
+                      default: vault-approle
+                      description: Secret (mgmt ns) with terraform.tfvars = vault_role_id + vault_secret_id
+                    reviewerSecret:
+                      type: string
+                      description: backendConfig secret (mgmt ns) with target ca.crt + reviewer token
+                    caSourceSecret:
+                      type: string
+                      default: vault-pki-source-ca
+                      description: Source CA secret (mgmt ns) copied to the target as caSecretName
+                    caSecretName:
+                      type: string
+                      default: vault-pki-ca
+                    certManagerNamespace:
+                      type: string
+                      default: cert-manager
+                    issuerName:
+                      type: string
+                      default: vault-pki-k8s
+                    opentofuProviderConfigRef:
+                      type: string
+                      default: in-cluster
             status:
               type: object
               properties:
@@ -381,6 +444,19 @@ spec:
                           type: boolean
                         networkKey:
                           type: string
+                    vaultIssuer:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                        ready:
+                          type: boolean
+                        authReady:
+                          type: boolean
+                        caReady:
+                          type: boolean
+                        issuerReady:
+                          type: boolean
                 componentCount:
                   type: integer
                   description: Number of enabled components
