@@ -40,6 +40,15 @@ config refs derive from `spec.clusterName` (`{clusterName}-helm` /
 Dynamic mode needs the provider-kubernetes RBAC in
 [`examples/rbac.yaml`](examples/rbac.yaml).
 
+## Gateway domain
+
+`gateway.domain` is optional. When it is unset, the domain is **derived from the
+observed `XIPReservation`'s `fqdn`** (clusterbook `createDNS` emits a wildcard
+`*.<cluster>.<zone>`; the `*.` is stripped for the bare domain). So a cluster
+that reserves its own DNS name never has to restate it here. An explicit
+`gateway.domain` always wins; with neither an explicit domain nor an observed
+fqdn, the Gateway is withheld until one appears.
+
 ## Already-installed Cilium
 
 Set `install.enabled: false` to skip the Cilium Helm install (e.g. k3s that
