@@ -58,7 +58,7 @@ spec:
     # Installing virtual-machine pulls vm-provision (and transitively
     # vsphere-vm, proxmox-vm, ansible-run and their providers/functions).
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/vm-provision
-      version: ">=v0.1.1"
+      version: ">=v0.1.2"
     # provider: harvester emits a HarvesterVM directly into this Configuration
     # (which transitively pulls volume-claim, cloud-config, ansible-run,
     # provider-kubernetes). Pinned forward (>=v0.1.4) so this is the single
