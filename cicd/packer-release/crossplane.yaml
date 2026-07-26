@@ -106,4 +106,4 @@ spec:
     # VMProvision already emits its AnsibleRun only once the VM is Ready and
     # its IP is known, so that edge is not re-implemented here.
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/vm-provision
-      version: ">=v0.1.1"
+      version: ">=v0.1.2"
