@@ -10,6 +10,13 @@ spec:
   # Pipeline Configuration
   pipelineRunName: run-ansible-max
   namespace: tekton-ci
+  # Deliberate re-run knob: suffixes BOTH pipelineRunName and
+  # crossplaneObjectName. This example sets crossplaneObjectName to the same
+  # value further down, so PipelineRun and Object both render as
+  # `run-ansible-max-1`. Bump it to re-run; a completed PipelineRun is
+  # immutable and the wrapped Object has no Update policy, so editing anything
+  # else is a silent no-op. Unset (see xr.yaml / xr-min.yaml) = no suffix.
+  runID: "1"
 
   # Storage Configuration
   storageSize: 100Mi

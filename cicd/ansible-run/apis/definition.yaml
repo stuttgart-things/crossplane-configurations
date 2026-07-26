@@ -316,6 +316,25 @@ spec:
                         - Namespaced
                         - Cluster
 
+                runID:
+                  type: string
+                  pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                  description: |
+                    Opt-in suffix for a DELIBERATE re-run. A Tekton PipelineRun
+                    is one-shot and the wrapped Object excludes `Update` from
+                    its managementPolicies, so editing a completed run's spec is
+                    a SILENT no-op — the XR carries the new spec, Tekton keeps
+                    running the old one, and nothing reports Synced=False.
+                    Bumping runID suffixes both `pipelineRunName` and
+                    `crossplaneObjectName` (e.g. `run-k3s` -> `run-k3s-2`),
+                    which is what makes provider-kubernetes create a NEW
+                    PipelineRun. Leaving it unset reproduces the previous names
+                    exactly, so upgrading never forces a re-run.
+
+                    Deliberately not derived from the spec: a hash would make an
+                    innocuous edit (a collection pin, an extra var) silently
+                    re-execute a play against a live machine. For SCHEDULED
+                    re-runs use the scheduled-run Configuration instead.
               required:
                 - pipelineRunName
                 - ansiblePlaybooks
