@@ -1,0 +1,12 @@
+---
+# Minimal Cilium — just the CNI install, no LoadBalancer, no Gateway.
+# clusterName alone resolves the Helm provider config (demo-helm) and the
+# kubernetes provider config (demo-kubernetes). gatewayAPI defaults on, so the
+# gateway-api CRDs + a Cilium GatewayClass are installed even without a Gateway.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cilium
+metadata:
+  name: demo
+  namespace: crossplane-system
+spec:
+  clusterName: demo
