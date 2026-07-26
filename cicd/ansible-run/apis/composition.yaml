@@ -37,13 +37,20 @@ spec:
           environmentConfigs:
             - type: Selector
               selector:
+                # Multiple tolerates zero matches: a fully-specified XR (or one
+                # relying on the KCL defaults below) needs no EnvironmentConfig.
+                # The default mode Single fatals with "expected exactly one
+                # required resource, got 0" on any cluster without the defaults
+                # object — and fromFieldPathPolicy: Optional does NOT save you
+                # there, because it only governs an absent FIELD, while the XRD
+                # defaults spec.environmentConfig to `default` so the field is
+                # always set. Same fix as bootstrap/vault-pki-secrets and
+                # cicd/scheduled-run.
+                mode: Multiple
                 matchLabels:
                   - key: ansible-run.resources.stuttgart-things.com/environment
                     type: FromCompositeFieldPath
                     valueFromFieldPath: spec.environmentConfig
-                    # Optional: when spec.environmentConfig is absent (e.g. a
-                    # minimal XR before XRD defaulting) skip this matcher
-                    # instead of erroring; the step then becomes a no-op.
                     fromFieldPathPolicy: Optional
     - step: render-pipelinerun
       functionRef:
