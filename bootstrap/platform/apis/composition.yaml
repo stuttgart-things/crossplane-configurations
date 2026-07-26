@@ -37,7 +37,7 @@ spec:
         metadata:
           name: platform
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-platform:0.3.0
+          source: oci://ghcr.io/stuttgart-things/xplane-platform:0.4.0
     - step: automatically-detect-ready-composed-resources
       functionRef:
         name: function-auto-ready
