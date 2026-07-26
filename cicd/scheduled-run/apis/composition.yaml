@@ -1,0 +1,327 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: scheduled-run
+  labels:
+    crossplane.io/xrd: scheduledruns.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: ScheduledRun
+  mode: Pipeline
+  pipeline:
+    # Shared per-environment defaults (schedule, image, namespace, …).
+    # Config-scoped label so it never collides with another Configuration's
+    # EnvironmentConfig; Optional so an absent spec.environmentConfig is a
+    # no-op rather than an error.
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                matchLabels:
+                  - key: scheduled-run.resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    fromFieldPathPolicy: Optional
+
+    # Renders the ServiceAccount, RBAC, a ConfigMap holding the target
+    # manifest, and the CronJob — inline rather than from an OCI KCL module.
+    # Deliberate, same reasoning as cluster-backup: an external module would
+    # reintroduce the publish-before-pin coupling (the tag must exist in ghcr
+    # before `verify` can pass), and this renders plain core/batch/rbac
+    # objects no other consumer needs.
+    - step: render-scheduler
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: scheduledrun
+        spec:
+          source: |
+            import yaml
+
+            _params = option("params") or {}
+            _oxr = _params?.oxr or {}
+            _spec = _oxr?.spec or {}
+            _env = _params?.ctx?["apiextensions.crossplane.io/environment"] or {}
+
+            _xrName = _oxr?.metadata?.name or "scheduled-run"
+
+            # Precedence: explicit XR spec -> EnvironmentConfig -> default.
+            # Fields with an XRD default never reach the EnvironmentConfig (the
+            # API server defaults them before this runs), which is why schedule,
+            # image and targetNamespace have NO XRD default.
+            _schedule = _spec?.schedule or _env?.schedule or "0 * * * *"
+            _image = _spec?.image or _env?.image or "alpine/k8s:1.31.0"
+            _namespace = _spec?.namespace or _env?.namespace or "crossplane-system"
+            _sa = _spec?.serviceAccountName or "scheduled-run"
+            _scope = _spec?.targetScope or "Namespaced"
+            _targetNs = _spec?.targetNamespace or _env?.targetNamespace or _namespace
+            _pc = _spec?.crossplaneProviderConfig or "in-cluster"
+
+            _manifest = _spec?.manifest or {}
+            assert _manifest != {}, "spec.manifest must be set"
+            _targetApiVersion = _manifest?.apiVersion
+            assert _targetApiVersion, "spec.manifest.apiVersion must be set"
+            _targetKind = _manifest?.kind
+            assert _targetKind, "spec.manifest.kind must be set"
+
+            # RBAC is scoped to the target's own API group, not "*": the job
+            # creates/prunes one kind of resource, not the whole cluster. The
+            # group is the part of apiVersion before "/"; a core-group object
+            # ("v1", no slash) yields "".
+            _group = _targetApiVersion.split("/")[0] if "/" in _targetApiVersion else ""
+
+            # The query kubectl uses to prune old instances. "<kind>.<group>"
+            # (lowercased) is resolved by kubectl to the right resource; for a
+            # core-group object it is just the kind.
+            _targetResource = "${_targetKind}.${_group}".lower() if _group else _targetKind.lower()
+
+            _uniqueFields = _spec?.uniqueFields or ["metadata.name"]
+            _keepHistory = _spec.keepHistory if "keepHistory" in _spec else 3
+            _suspend = _spec.suspend if "suspend" in _spec else False
+            _okHistory = _spec.successfulJobsHistoryLimit if "successfulJobsHistoryLimit" in _spec else 3
+            _failHistory = _spec.failedJobsHistoryLimit if "failedJobsHistoryLimit" in _spec else 3
+
+            _ownerLabelKey = "scheduled-run.resources.stuttgart-things.com/owner"
+
+            # NOTE: these are KCL strings, so "$" followed by "{" is
+            # interpolation. The script therefore uses bare $VAR only, and the
+            # single interpolations it DOES need (the owner label key, the
+            # unique-field loop values) are injected by KCL below.
+            _script = """set -eu
+            cd /work
+            cp /target/manifest.yaml /work/manifest.yaml
+
+            # Unique per tick. Cron granularity is one minute, so a
+            # second-resolution UTC timestamp is unique across ticks.
+            SUFFIX=$(date -u +%Y%m%d%H%M%S)
+            echo "== tick $SUFFIX"
+
+            # Suffix each configured unique field. A missing field is skipped,
+            # so the same ScheduledRun works whether the target uses a fixed
+            # name or generateName.
+            for p in $UNIQUE_FIELDS; do
+              cur=$(yq eval ".$p" manifest.yaml)
+              if [ "$cur" != "null" ] && [ -n "$cur" ]; then
+                yq eval -i ".$p = \\"$cur-$SUFFIX\\"" manifest.yaml
+                echo "   unique  .$p = $cur-$SUFFIX"
+              fi
+            done
+
+            # Owner label lets the prune step below find this ScheduledRun's
+            # own instances and nothing else.
+            yq eval -i ".metadata.labels.\\"$OWNER_KEY\\" = \\"$OWNER\\"" manifest.yaml
+
+            if [ "$SCOPE" = "Namespaced" ]; then
+              yq eval -i ".metadata.namespace = \\"$TARGET_NS\\"" manifest.yaml
+              NSARG="-n $TARGET_NS"
+            else
+              yq eval -i "del(.metadata.namespace)" manifest.yaml
+              NSARG=""
+            fi
+
+            echo "== creating $TARGET_RESOURCE"
+            kubectl create -f manifest.yaml
+
+            # Prune: keep the newest $KEEP_HISTORY instances, delete the rest.
+            # busybox head has no negative-count form, so compute the slice.
+            if [ "$KEEP_HISTORY" -gt 0 ]; then
+              names=$(kubectl get "$TARGET_RESOURCE" $NSARG \\
+                -l "$OWNER_KEY=$OWNER" \\
+                --sort-by=.metadata.creationTimestamp -o name 2>/dev/null || true)
+              total=$(printf '%s\\n' "$names" | grep -c . || true)
+              remove=$((total - KEEP_HISTORY))
+              if [ "$remove" -gt 0 ]; then
+                echo "== pruning $remove old instance(s)"
+                printf '%s\\n' "$names" | head -n "$remove" \\
+                  | xargs -r kubectl delete $NSARG
+              fi
+            fi
+            echo "== done"
+            """
+
+            _serviceAccount = {
+                apiVersion = "v1"
+                kind = "ServiceAccount"
+                metadata = {name = _sa, namespace = _namespace}
+            }
+
+            # Namespaced target -> Role in targetNamespace; cluster target ->
+            # ClusterRole. Either way scoped to the target's API group only.
+            _rules = [{
+                apiGroups = [_group]
+                resources = ["*"]
+                verbs = ["create", "get", "list", "delete"]
+            }]
+
+            _rbac = [
+                {
+                    apiVersion = "rbac.authorization.k8s.io/v1"
+                    kind = "Role"
+                    metadata = {name = _sa + "-run", namespace = _targetNs}
+                    rules = _rules
+                }
+                {
+                    apiVersion = "rbac.authorization.k8s.io/v1"
+                    kind = "RoleBinding"
+                    metadata = {name = _sa + "-run", namespace = _targetNs}
+                    roleRef = {
+                        apiGroup = "rbac.authorization.k8s.io"
+                        kind = "Role"
+                        name = _sa + "-run"
+                    }
+                    subjects = [{kind = "ServiceAccount", name = _sa, namespace = _namespace}]
+                }
+            ] if _scope == "Namespaced" else [
+                {
+                    apiVersion = "rbac.authorization.k8s.io/v1"
+                    kind = "ClusterRole"
+                    metadata = {name = _sa + "-run-" + _xrName}
+                    rules = _rules
+                }
+                {
+                    apiVersion = "rbac.authorization.k8s.io/v1"
+                    kind = "ClusterRoleBinding"
+                    metadata = {name = _sa + "-run-" + _xrName}
+                    roleRef = {
+                        apiGroup = "rbac.authorization.k8s.io"
+                        kind = "ClusterRole"
+                        name = _sa + "-run-" + _xrName
+                    }
+                    subjects = [{kind = "ServiceAccount", name = _sa, namespace = _namespace}]
+                }
+            ]
+
+            _configMap = {
+                apiVersion = "v1"
+                kind = "ConfigMap"
+                metadata = {name = _xrName + "-manifest", namespace = _namespace}
+                data = {"manifest.yaml" = yaml.encode(_manifest)}
+            }
+
+            _cronJob = {
+                apiVersion = "batch/v1"
+                kind = "CronJob"
+                metadata = {name = _xrName, namespace = _namespace}
+                spec = {
+                    schedule = _schedule
+                    concurrencyPolicy = _spec?.concurrencyPolicy or "Forbid"
+                    successfulJobsHistoryLimit = _okHistory
+                    failedJobsHistoryLimit = _failHistory
+                    suspend = _suspend
+                    jobTemplate.spec = {
+                        # One attempt per tick: a failed create is better
+                        # retried by the next schedule tick than hammered at.
+                        backoffLimit = 1
+                        template.spec = {
+                            serviceAccountName = _sa
+                            restartPolicy = "Never"
+                            containers = [{
+                                name = "run"
+                                image = _image
+                                command = ["/bin/sh", "-c"]
+                                args = [_script]
+                                env = [
+                                    {name = "UNIQUE_FIELDS", value = " ".join(_uniqueFields)}
+                                    {name = "OWNER", value = _xrName}
+                                    {name = "OWNER_KEY", value = _ownerLabelKey}
+                                    {name = "SCOPE", value = _scope}
+                                    {name = "TARGET_NS", value = _targetNs}
+                                    {name = "TARGET_RESOURCE", value = _targetResource}
+                                    {name = "KEEP_HISTORY", value = str(_keepHistory)}
+                                ]
+                                volumeMounts = [
+                                    {name = "target", mountPath = "/target", readOnly = True}
+                                    # Writable scratch: the ConfigMap mount is
+                                    # read-only, and the script edits the
+                                    # manifest (unique suffix, owner label,
+                                    # namespace) before creating it.
+                                    {name = "work", mountPath = "/work"}
+                                ]
+                                resources.requests = {cpu = "50m", memory = "64Mi"}
+                            }]
+                            volumes = [
+                                {name = "target", configMap = {name = _xrName + "-manifest"}}
+                                {name = "work", emptyDir = {}}
+                            ]
+                        }
+                    }
+                }
+            }
+
+            _wrap = lambda name: str, manifest: any -> any {
+                {
+                    apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                    kind = "Object"
+                    metadata = {
+                        name = _xrName + "-" + name
+                        annotations = {"krm.kcl.dev/composition-resource-name" = name}
+                    }
+                    spec = {
+                        forProvider.manifest = manifest
+                        providerConfigRef = {kind = "ClusterProviderConfig", name = _pc}
+                    }
+                }
+            }
+
+            items = [
+                _wrap("serviceaccount", _serviceAccount)
+                _wrap("configmap", _configMap)
+                _wrap("cronjob", _cronJob)
+            ] + [
+                _wrap(r.kind.lower(), r) for r in _rbac
+            ]
+
+    # Surface the live CronJob's schedule times. lastSuccessfulTime is the
+    # field that actually answers "did a tick run?" — XR readiness only means
+    # the CronJob object exists.
+    - step: derive-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: scheduledrun-status
+        spec:
+          source: |
+            _params = option("params") or {}
+            _ocds = _params?.ocds or {}
+            _spec = _params?.oxr?.spec or {}
+
+            _cronjobs = [
+                v.Resource for _, v in _ocds
+                if v?.Resource?.spec?.forProvider?.manifest?.kind == "CronJob"
+            ]
+            _live = _cronjobs[0]?.status?.atProvider?.manifest if _cronjobs else None
+
+            _targetKind = _spec?.manifest?.kind
+
+            items = [{
+                apiVersion = "resources.stuttgart-things.com/v1alpha1"
+                kind = "ScheduledRun"
+                status = {
+                    if _targetKind:
+                        targetKind = _targetKind
+                    if _live:
+                        cronJobName = _live?.metadata?.name
+                        if _live?.status?.lastScheduleTime:
+                            lastScheduleTime = _live.status.lastScheduleTime
+                        if _live?.status?.lastSuccessfulTime:
+                            lastSuccessfulTime = _live.status.lastSuccessfulTime
+                }
+            }]
+
+    - step: ready
+      functionRef:
+        name: function-auto-ready

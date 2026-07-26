@@ -1,0 +1,23 @@
+---
+# Minimum: the two XRD-required fields — a target manifest and a schedule.
+# Everything else falls back to the EnvironmentConfig or XRD/Composition
+# defaults (uniqueFields=[metadata.name], targetScope=Namespaced,
+# keepHistory=3, namespace=crossplane-system, image=alpine/k8s).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ScheduledRun
+metadata:
+  name: scheduled-run-min
+  namespace: default
+spec:
+  schedule: "0 2 * * *"
+  manifest:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: AnsibleRun
+    metadata:
+      name: nightly-baseos
+    spec:
+      pipelineRunName: nightly-baseos
+      ansiblePlaybooks:
+        - sthings.baseos.setup
+      crossplaneObjectName: nightly-baseos
+      crossplaneProviderConfig: in-cluster

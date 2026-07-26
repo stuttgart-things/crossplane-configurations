@@ -1,0 +1,38 @@
+---
+# Realistic usage — the copy-paste template: run an AnsibleRun every night.
+#
+# uniqueFields is the important part. metadata.name alone is not enough: the
+# AnsibleRun renders a Tekton PipelineRun named from spec.pipelineRunName and
+# wraps it in an Object named from spec.crossplaneObjectName — both must be
+# unique per tick or the second run collides. All three get a per-tick
+# timestamp suffix.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ScheduledRun
+metadata:
+  name: nightly-baseos
+  namespace: default
+spec:
+  schedule: "0 2 * * *"
+  targetNamespace: tekton-ci
+  namespace: crossplane-system
+  crossplaneProviderConfig: in-cluster
+  keepHistory: 5
+  uniqueFields:
+    - metadata.name
+    - spec.pipelineRunName
+    - spec.crossplaneObjectName
+  manifest:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: AnsibleRun
+    metadata:
+      name: nightly-baseos
+    spec:
+      pipelineRunName: nightly-baseos
+      namespace: tekton-ci
+      gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+      ansiblePlaybooks:
+        - sthings.baseos.setup
+      ansibleVarsInventory:
+        - all+["10.31.102.107"]
+      crossplaneObjectName: nightly-baseos
+      crossplaneProviderConfig: in-cluster

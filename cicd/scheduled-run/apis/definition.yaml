@@ -1,0 +1,166 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: scheduledruns.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: ScheduledRun
+    plural: scheduledruns
+    singular: scheduledrun
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                # What to run
+                manifest:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                  description: |
+                    The resource to (re)create on every schedule tick. Opaque
+                    to Crossplane — an arbitrary Kubernetes object, typically
+                    another XR such as an AnsibleRun or TofuRun, but any kind
+                    works. Its apiVersion group determines the RBAC the job is
+                    granted, and `uniqueFields` decides which of its fields get
+                    a per-tick suffix so each tick produces a genuinely new
+                    run rather than a no-op re-apply.
+                uniqueFields:
+                  type: array
+                  items:
+                    type: string
+                  description: |
+                    Dot-paths inside `manifest` that receive a per-tick unique
+                    suffix (a UTC timestamp) before the object is created. This
+                    is what makes scheduling a declarative XR actually re-run:
+                    re-creating the same AnsibleRun is a no-op, and even a
+                    freshly-NAMED AnsibleRun still renders a PipelineRun whose
+                    name is `spec.pipelineRunName` — identical every tick, so it
+                    collides. List every field that must be unique per run, e.g.
+                    `["metadata.name", "spec.pipelineRunName",
+                    "spec.crossplaneObjectName"]`.
+
+                    A path whose value is absent is skipped. If the manifest
+                    uses `metadata.generateName` instead of a fixed name, leave
+                    this empty and let the API server generate the suffix.
+                  default:
+                    - metadata.name
+                targetScope:
+                  type: string
+                  enum: ["Namespaced", "Cluster"]
+                  default: Namespaced
+                  description: |
+                    Whether `manifest` is a namespaced or cluster-scoped kind.
+                    Namespaced → the job sets `metadata.namespace` to
+                    `targetNamespace` and is granted a namespaced Role there.
+                    Cluster → `metadata.namespace` is stripped and the job is
+                    granted a ClusterRole.
+                targetNamespace:
+                  type: string
+                  description: |
+                    Namespace the `manifest` is created in when
+                    targetScope=Namespaced. Defaults to `namespace` (where the
+                    CronJob runs) when unset. Ignored for Cluster scope.
+                keepHistory:
+                  type: integer
+                  default: 3
+                  minimum: 0
+                  description: |
+                    How many past instances of `manifest` to keep. After each
+                    create, the job deletes older instances carrying this
+                    ScheduledRun's owner label, keeping the newest N. 0 disables
+                    pruning (instances accumulate — pair with a target whose own
+                    lifecycle bounds them). Pruning needs `delete` on the target
+                    group, which the generated RBAC grants.
+
+                # Schedule
+                schedule:
+                  type: string
+                  description: |
+                    Cron schedule, in the cluster's timezone. No XRD default so
+                    the EnvironmentConfig stays authoritative; the Composition
+                    falls back to "0 * * * *" (hourly) when neither sets it.
+                concurrencyPolicy:
+                  type: string
+                  enum: ["Allow", "Forbid", "Replace"]
+                  default: Forbid
+                  description: |
+                    Forbid by default: a still-running tick should not be
+                    stacked on by the next one.
+                successfulJobsHistoryLimit:
+                  type: integer
+                  default: 3
+                failedJobsHistoryLimit:
+                  type: integer
+                  default: 3
+                suspend:
+                  type: boolean
+                  default: false
+                  description: Suspend the CronJob without deleting the XR.
+
+                # Runtime
+                image:
+                  type: string
+                  description: |
+                    Image for the create/prune job. Needs kubectl + yq + a
+                    shell. No XRD default so the EnvironmentConfig stays
+                    authoritative; the Composition falls back to
+                    "alpine/k8s:1.31.0" (ships kubectl, yq and busybox).
+                serviceAccountName:
+                  type: string
+                  default: scheduled-run
+                  description: ServiceAccount created for the job.
+                namespace:
+                  type: string
+                  default: crossplane-system
+                  description: |
+                    Namespace the CronJob and ServiceAccount live in. Not
+                    created here — use the `namespace` Configuration or an
+                    existing one.
+
+                # Crossplane wiring
+                crossplaneProviderConfig:
+                  type: string
+                  default: in-cluster
+                  description: ClusterProviderConfig for provider-kubernetes.
+                environmentConfig:
+                  type: string
+                  default: default
+                  description: |
+                    Selects the EnvironmentConfig providing shared defaults,
+                    matched on the config-scoped label
+                    `scheduled-run.resources.stuttgart-things.com/environment`.
+                    Supported `data` keys: schedule, image, namespace,
+                    targetNamespace.
+
+              required:
+                - manifest
+                - schedule
+
+            status:
+              type: object
+              properties:
+                cronJobName:
+                  type: string
+                targetKind:
+                  type: string
+                  description: The kind of `manifest`, echoed for convenience.
+                lastScheduleTime:
+                  type: string
+                  description: From the live CronJob's status.
+                lastSuccessfulTime:
+                  type: string
+                  description: |
+                    From the live CronJob's status. This — not XR readiness —
+                    is what tells you a run actually happened: the XR is Ready
+                    once the CronJob exists, which says nothing about whether a
+                    tick has fired yet.

@@ -1,0 +1,77 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: scheduled-run
+  annotations:
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Runs an arbitrary Kubernetes object — typically another XR such as an
+      AnsibleRun or TofuRun — on a cron schedule. A namespaced `ScheduledRun`
+      XR composes a ServiceAccount, least-privilege RBAC, a ConfigMap holding
+      the target manifest and a CronJob (via provider-kubernetes) that
+      (re)creates the target on every tick, injecting a per-tick unique suffix
+      so a declarative XR actually re-runs instead of no-op re-applying.
+    meta.crossplane.io/readme: |
+
+      ## Why this exists
+
+      A Crossplane XR is declarative and one-shot. An `AnsibleRun` renders a
+      Tekton `PipelineRun` and stops; re-applying the same XR does nothing —
+      the object already exists and matches. So there is nothing in Crossplane
+      itself that says "run this every night". `ScheduledRun` is that missing
+      piece, kept generic: it schedules ANY manifest, not just one kind.
+
+      ## The one hard part: making a declarative XR re-run
+
+      Re-creating the same AnsibleRun is a no-op. Even a freshly-NAMED
+      AnsibleRun still renders a PipelineRun whose name is
+      `spec.pipelineRunName` — identical every tick, so the wrapped Object
+      collides. `spec.uniqueFields` names the paths inside `manifest` that get
+      a per-tick UTC-timestamp suffix, e.g.
+      `["metadata.name", "spec.pipelineRunName", "spec.crossplaneObjectName"]`,
+      so each tick is a genuinely new run. A field that is absent is skipped,
+      so a manifest using `metadata.generateName` can leave `uniqueFields`
+      empty and let the API server generate the suffix.
+
+      ## Shape
+
+      `ScheduledRun` composes, through provider-kubernetes:
+
+      - a ServiceAccount,
+      - a Role/Binding (or ClusterRole/Binding for `targetScope: Cluster`)
+        scoped to the target's own API group only — `create,get,list,delete`,
+      - a ConfigMap holding `spec.manifest`,
+      - a CronJob (`spec.schedule`) whose single container (kubectl + yq)
+        suffixes `uniqueFields`, stamps an owner label, `kubectl create`s the
+        manifest, then prunes older owned instances down to
+        `spec.keepHistory`.
+
+      ## What it does NOT own
+
+      The instances the CronJob creates are made imperatively, so they are not
+      Crossplane-managed: deleting the ScheduledRun removes the CronJob and
+      RBAC but leaves already-created instances. `keepHistory` bounds them
+      while it runs; suspend + a manual sweep is the clean teardown.
+
+      ## Cluster preconditions
+
+      - a provider-kubernetes `ClusterProviderConfig` named by
+        `spec.crossplaneProviderConfig`,
+      - `spec.namespace` exists (CronJob + ServiceAccount live there),
+      - `spec.targetNamespace` exists (where the manifest is created).
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+      version: ">=v1.2.0,<v2.0.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
+      version: ">=v0.12.0,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-environment-configs
+      version: ">=v0.7.0,<v0.8.0"
