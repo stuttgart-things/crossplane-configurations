@@ -61,9 +61,17 @@ spec:
       version: ">=v0.1.2"
     # provider: harvester emits a HarvesterVM directly into this Configuration
     # (which transitively pulls volume-claim, cloud-config, ansible-run,
-    # provider-kubernetes). Pinned forward (>=v0.1.4) so this is the single
-    # place harvester-vm's version is managed — there is no explicit harvester-vm
+    # provider-kubernetes). Pinned forward so this is the single place
+    # harvester-vm's version is managed — there is no explicit harvester-vm
     # install on the fleet clusters (an explicit + dependency install of the same
     # package collide in the package Lock). Bump this floor to roll harvester-vm.
+    #
+    # v0.1.9 carries the sticky AnsibleRun gate (#163/#174), and the floor is
+    # what rolls it: harvester-vm's gate additionally keys on the VMI `phase ==
+    # Running`, which sthings.baseos.setup leaves itself by rebooting the guest
+    # (update_packages) — so on v0.1.8 the play's own reboot drops the
+    # AnsibleRun out of the desired state, Crossplane deletes it, and the
+    # recreated one runs the play again. A `>=v0.1.8` floor would let a cluster
+    # keep satisfying the dependency with exactly that build.
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/harvester-vm
-      version: ">=v0.1.8,<v0.2.0"
+      version: ">=v0.1.9,<v0.2.0"
