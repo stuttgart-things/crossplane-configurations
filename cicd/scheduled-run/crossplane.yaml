@@ -4,7 +4,7 @@ kind: Configuration
 metadata:
   name: scheduled-run
   annotations:
-    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/version: v0.1.1
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -15,7 +15,7 @@ metadata:
       the target manifest and a CronJob (via provider-kubernetes) that
       (re)creates the target on every tick, injecting a per-tick unique suffix
       so a declarative XR actually re-runs instead of no-op re-applying.
-    meta.crossplane.io/readme: |
+    meta.crossplane.io/readme: |2
 
       ## Why this exists
 
