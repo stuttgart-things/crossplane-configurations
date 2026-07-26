@@ -192,7 +192,42 @@ spec:
             _vmConds = _vmObserved?.conditions or []
             _vmReady = len([c for c in _vmConds if c.type == "Ready" and c.status == "True"]) > 0
 
-            if _ansibleEnabled and _vmReady and _vmIP != "":
+            # STICKY GATE. Not emitting a composed resource is what makes
+            # Crossplane DELETE it, so a gate that re-derives its condition on
+            # every reconcile deletes and recreates the AnsibleRun whenever the
+            # VM blips — and a recreated AnsibleRun re-runs the play against a
+            # live machine. defaultIpAddress comes from VMware Tools, so a
+            # momentarily empty value is normal, not exceptional.
+            #
+            # Once the AnsibleRun exists it is therefore re-emitted VERBATIM from
+            # ocds rather than rebuilt: rebuilding from live values would rewrite
+            # the inventory on that same blip, and the wrapped PipelineRun is
+            # one-shot (kcl-tekton-pr excludes Update from its
+            # managementPolicies), so a rewritten spec would silently never
+            # reach Tekton anyway. That matters more here than on proxmoxvm —
+            # this Configuration runs the WHOLE chain (baseos + kind + kubeconfig
+            # upload) in one AnsibleRun, so a spurious re-run rebuilds a cluster.
+            #
+            # Setting `ansible.enabled: false` still removes it — the stickiness
+            # absorbs involuntary flaps, not an explicit opt-out.
+            _ansibleObserved = [v.Resource for _, v in ocds if v?.Resource?.kind == "AnsibleRun"]
+            _prevAnsible = _ansibleObserved[0] if len(_ansibleObserved) > 0 else {}
+            _prevAnsibleSpec = _prevAnsible?.spec or {}
+
+            if _ansibleEnabled and (_prevAnsibleSpec?.pipelineRunName or "") != "":
+                _resources += [{
+                    apiVersion = _prevAnsible.apiVersion
+                    kind = _prevAnsible.kind
+                    metadata = {
+                        name = _prevAnsible?.metadata?.name or "{}-ansible-run".format(_name)
+                        namespace = _prevAnsible?.metadata?.namespace or _namespace
+                        annotations = {
+                            "crossplane.io/composition-resource-name" = "ansible-run"
+                        }
+                    }
+                    spec = _prevAnsibleSpec
+                }]
+            elif _ansibleEnabled and _vmReady and _vmIP != "":
                 _playbooks = _ansible?.playbooks or _envAnsible?.playbooks or ["sthings.baseos.setup"]
                 _varsFile = _ansible?.varsFile or _envAnsible?.varsFile or []
                 _varsInventory = _ansible?.varsInventory or ['all+["{}"]'.format(_vmIP)]
@@ -261,6 +296,13 @@ spec:
             _ansibleConds = _ansibleSt?.conditions or []
             _ansibleReady = len([c for c in _ansibleConds if c.type == "Ready" and c.status == "True"]) > 0
 
+            # Completion latch. `ansibleReady` only says the AnsibleRun XR is
+            # Ready; these two carry the PipelineRun's own verdict, which is what
+            # a parent XR must gate its next stage on — a Ready AnsibleRun whose
+            # run failed must not unblock anything downstream.
+            _ansibleSucceeded = _ansibleSt?.succeeded or ""
+            _ansibleCompletionTime = _ansibleSt?.completionTime or ""
+
             _oxr = oxr | {
                 status = {
                     share = {
@@ -268,6 +310,8 @@ spec:
                         moid = _ap?.moid or ""
                         powerState = _ap?.powerState or ""
                         ansibleReady = _ansibleReady
+                        ansibleSucceeded = _ansibleSucceeded
+                        ansibleCompletionTime = _ansibleCompletionTime
                     }
                 }
             }

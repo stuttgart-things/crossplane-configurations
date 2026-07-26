@@ -497,8 +497,41 @@ spec:
                     namespace: {{ $ns }}
             {{- /* Optional AnsibleRun (Tekton PipelineRun), gated on the VM
                    being Running with a resolved IP — so it never appears under
-                   offline render. Inventory auto-populates with the VM IP. */}}
-            {{- if and $ansEnabled (eq $phase "Running") (ne $ip "") }}
+                   offline render. Inventory auto-populates with the VM IP.
+
+                   STICKY GATE. Not emitting a composed resource is what makes
+                   Crossplane DELETE it, so this gate must not be re-derived
+                   from live state once the AnsibleRun exists. It is the
+                   sharpest case in the repo: `phase == Running` leaves Running
+                   on a guest REBOOT, and sthings.baseos.setup reboots the
+                   machine itself (update_packages) — so the play's own reboot
+                   would delete the AnsibleRun, and its recreation would run the
+                   play again, rebooting again.
+
+                   Once it exists the AnsibleRun is therefore re-emitted
+                   VERBATIM from observed state rather than rebuilt: rebuilding
+                   would rewrite the inventory from a now-empty IP, and the
+                   wrapped PipelineRun is one-shot (kcl-tekton-pr excludes
+                   Update from its managementPolicies), so a rewritten spec
+                   would silently never reach Tekton anyway.
+
+                   Setting `ansible.enabled: false` still removes it — the
+                   stickiness absorbs involuntary flaps, not an explicit
+                   opt-out. */}}
+            {{- $prevAns := index (.observed.resources | default dict) (print $vmName "-ansible-run") }}
+            {{- if and $ansEnabled $prevAns (dig "spec" "pipelineRunName" "" $prevAns.resource) }}
+            ---
+            apiVersion: {{ dig "apiVersion" "resources.stuttgart-things.com/v1alpha1" $prevAns.resource }}
+            kind: AnsibleRun
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $vmName "-ansible-run") }}
+              labels:
+                app.kubernetes.io/name: harvester-vm
+                app.kubernetes.io/instance: {{ $vmName }}
+                app.kubernetes.io/managed-by: crossplane
+            spec: {{ toYaml (dig "spec" dict $prevAns.resource) | nindent 2 }}
+            {{- else if and $ansEnabled (eq $phase "Running") (ne $ip "") }}
             ---
             apiVersion: resources.stuttgart-things.com/v1alpha1
             kind: AnsibleRun

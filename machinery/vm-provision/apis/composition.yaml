@@ -153,7 +153,39 @@ spec:
 
             # --- Ansible Provisioning (gated on VM readiness) ---
 
-            if _ansibleEnabled and _vmReady and _vmIP != "":
+            # STICKY GATE. Not emitting a composed resource is what makes
+            # Crossplane DELETE it, so a gate that re-derives its condition on
+            # every reconcile deletes and recreates the AnsibleRun whenever the
+            # nested VM XR blips — and a recreated AnsibleRun re-runs the play
+            # against a live machine.
+            #
+            # Once the AnsibleRun exists it is therefore re-emitted VERBATIM from
+            # ocds rather than rebuilt: rebuilding from live values would rewrite
+            # the inventory on that same blip, and the wrapped PipelineRun is
+            # one-shot (kcl-tekton-pr excludes Update from its
+            # managementPolicies), so a rewritten spec would silently never
+            # reach Tekton anyway.
+            #
+            # Setting `ansible.enabled: false` still removes it — the stickiness
+            # absorbs involuntary flaps, not an explicit opt-out.
+            _ansibleObserved = [v.Resource for _, v in ocds if v?.Resource?.kind == "AnsibleRun"]
+            _prevAnsible = _ansibleObserved[0] if len(_ansibleObserved) > 0 else {}
+            _prevAnsibleSpec = _prevAnsible?.spec or {}
+
+            if _ansibleEnabled and (_prevAnsibleSpec?.pipelineRunName or "") != "":
+                _resources += [{
+                    apiVersion = _prevAnsible.apiVersion
+                    kind = _prevAnsible.kind
+                    metadata = {
+                        name = _prevAnsible?.metadata?.name or "{}-ansible-run".format(_name)
+                        namespace = _prevAnsible?.metadata?.namespace or _namespace
+                        annotations = {
+                            "crossplane.io/composition-resource-name" = "ansible-run"
+                        }
+                    }
+                    spec = _prevAnsibleSpec
+                }]
+            elif _ansibleEnabled and _vmReady and _vmIP != "":
                 _playbooks = _ansible?.playbooks or ["sthings.baseos.setup"]
                 _varsFile = _ansible?.varsFile or []
                 # Auto-populate inventory with VM IP if not specified
