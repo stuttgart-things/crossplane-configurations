@@ -1,0 +1,293 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: clusterstacks.config.stuttgart-things.com
+spec:
+  group: config.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    # NOT `Cluster`. The plural `clusters` is claimed by
+    # `provisioning.cattle.io` (which machinery/rancher-cluster composes) and by
+    # CAPI wherever either is installed, so `kubectl get clusters` would be
+    # ambiguous on exactly the clusters this XR is meant to build. `ClusterStack`
+    # says what it is: the whole stack for one cluster — machine, distribution,
+    # access, platform — as opposed to `Platform`, which is only the top layer.
+    kind: ClusterStack
+    plural: clusterstacks
+    singular: clusterstack
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - provider
+              x-kubernetes-validations:
+                # --- Immutability -------------------------------------------
+                # These are create-only in effect, and the failure mode of
+                # letting them change is silent: a new template UUID or a
+                # different node count tears the machine down and rebuilds it
+                # rather than converging in place. Rejected at admission, where
+                # the message can say so, instead of surfacing as a delete on a
+                # managed resource nobody asked to delete.
+                - rule: "self.provider == oldSelf.provider"
+                  message: provider is immutable — changing it would destroy the VM and rebuild it on the other platform; delete and recreate the ClusterStack instead
+                - rule: "!has(self.clusterName) || !has(oldSelf.clusterName) || self.clusterName == oldSelf.clusterName"
+                  message: clusterName is immutable — it is the Vault path and the stem of every derived ClusterProviderConfig name
+                - rule: "!has(self.distribution) || !has(oldSelf.distribution) || self.distribution == oldSelf.distribution"
+                  message: distribution is immutable — switching it would re-run an install play against a live cluster; delete and recreate instead
+                # size is immutable for a blunt reason worth stating: a size
+                # carries a control-plane node count, and CEL cannot see the
+                # catalog to tell a cpu/memory change (in place) from a masters
+                # change (a rebuild). Relaxing this is crossplane-configurations#172.
+                - rule: "!has(self.size) || !has(oldSelf.size) || self.size == oldSelf.size"
+                  message: size is immutable in v0.1.0 — a size carries a node count, and day-2 scaling is not supported yet (see issue #172)
+              properties:
+                # --- What the user actually chooses -------------------------
+                provider:
+                  type: string
+                  enum:
+                    - proxmox
+                    - vsphere
+                  description: >-
+                    Which machine platform to build on. Selects the VM XR kind
+                    (NativeProxmoxVM / NativeVsphereVM) and nothing else — the
+                    ansible staging is identical for both.
+                size:
+                  type: string
+                  default: medium
+                  description: >-
+                    T-shirt size from the xplane-cluster-catalog module
+                    (small | medium | large | medium-ha). Resolves to cpu,
+                    memory, disk and the node counts. An unknown name fails the
+                    render with the list of known sizes rather than silently
+                    building a default.
+                distribution:
+                  type: string
+                  default: k3s
+                  description: >-
+                    Kubernetes distribution from the catalog (k3s | kind).
+                    Determines the install playbooks, the required inventory
+                    groups, and WHO OWNS THE CNI — which is why
+                    `platform.cni.enabled` must not be set by hand: a k3s role
+                    installs cilium itself, a kind cluster is built without one.
+                clusterName:
+                  type: string
+                  description: >-
+                    Cluster identity. Defaults to metadata.name. This one value
+                    becomes the VM name, the guest hostname, the ansible
+                    cluster_name, the Vault kubeconfig path, the ClusterAccess
+                    name and Platform.clusterName — the eight hand-copies this
+                    Configuration exists to remove.
+                environmentConfig:
+                  type: string
+                  default: labul
+                  description: >-
+                    Per-environment placement, passed to the VM XR. Placement
+                    itself (node, datastore, bridge, vlan, pool / the vSphere
+                    MOIDs) deliberately has NO field here — it lives in the
+                    EnvironmentConfig, which is what keeps `provider` a one-word
+                    switch instead of a second placement API.
+
+                # --- Narrow escape hatches ----------------------------------
+                vm:
+                  type: object
+                  description: >-
+                    Per-VM overrides for the few things a size cannot express.
+                    Deliberately small: anything that belongs to an environment
+                    belongs in the EnvironmentConfig.
+                  properties:
+                    templateVmId:
+                      type: string
+                      description: >-
+                        Proxmox clone source (template VMID), overriding the
+                        EnvironmentConfig. CREATE-ONLY in bpg — changing it on a
+                        live VM forces delete+recreate, it does not re-clone in
+                        place.
+                    templateUuid:
+                      type: string
+                      description: >-
+                        vSphere clone source (template BIOS config.uuid),
+                        overriding the EnvironmentConfig. Same create-only
+                        caveat as templateVmId.
+                    ipv4Address:
+                      type: string
+                      description: >-
+                        Static address in CIDR form, or `dhcp`. PROXMOX ONLY —
+                        NativeVsphereVM has no cloudInit block at all (its
+                        cloud-init is baked into the template's guestinfo), so
+                        on vSphere this is ignored. Multi-node will require
+                        static addressing, which is why the asymmetry is called
+                        out here rather than discovered later (issue #170).
+                ansible:
+                  type: object
+                  description: >-
+                    Overrides for the base-OS stage, which runs from the VM XR's
+                    own spec.ansible. The distribution and kubeconfig stages get
+                    their playbooks and vars from the catalog.
+                  properties:
+                    extraCollections:
+                      type: array
+                      items:
+                        type: string
+                    extraVars:
+                      type: array
+                      description: Additional varsFile entries in `key+-value` form, merged over the catalog's.
+                      items:
+                        type: string
+                    ansibleWorkingImage:
+                      type: string
+                    crossplaneProviderConfig:
+                      type: string
+                      default: in-cluster
+                    pipelineNamespace:
+                      type: string
+                      default: tekton-ci
+                runIDs:
+                  type: object
+                  description: >-
+                    Per-stage re-run identifiers, keyed by stage
+                    (`distribution`, `kubeconfig`). Bumping one suffixes that
+                    stage's PipelineRun and wrapped Object, which is what makes
+                    provider-kubernetes create a NEW run — a completed Tekton
+                    PipelineRun is immutable and the wrapped Object has no
+                    Update policy, so editing anything else is a silent no-op.
+
+                    A MAP, not a single value, and deliberately so: one global id
+                    renames every stage, so repairing the kubeconfig upload also
+                    re-runs the k3s install against a live cluster. That is the
+                    hazard the fleet's hand-written XRs warn about in their
+                    headers, and it happened on the first live build. A re-run
+                    has to name its stage.
+
+                    The base-OS stage is absent on purpose — it runs from the VM
+                    XR's own spec.ansible, whose XRD has no re-run knob.
+                  properties:
+                    distribution:
+                      type: string
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                    kubeconfig:
+                      type: string
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+
+                # --- Downstream passthrough ---------------------------------
+                kubeconfig:
+                  type: object
+                  description: Passed to the ClusterAccess child (remote-cluster Configuration).
+                  properties:
+                    vaultPath:
+                      type: string
+                      description: Defaults to clusterName.
+                    secretNamespace:
+                      type: string
+                      default: crossplane-system
+                    vaultSecretName:
+                      type: string
+                      default: vault-kubeconfigs
+                      description: >-
+                        Secret in the pipeline namespace holding the Vault
+                        address and AppRole the kubeconfig UPLOAD authenticates
+                        with. Not the same thing as providerConfigRef below,
+                        and not the same Vault as `vault`: in this fleet that
+                        default points at the infra Vault and carries no
+                        AppRole, so leaving it unset fails the upload with
+                        "failed to determine alias name from login request".
+                    providerConfigRef:
+                      type: string
+                      default: vault-kubeconfigs
+                platformEnabled:
+                  type: boolean
+                  default: true
+                  description: >-
+                    Compose a Platform child at all. false stops once the cluster
+                    is targetable (ClusterAccess ready), which is the useful
+                    shape for a machine that only needs to exist and be
+                    reachable. Deliberately a SIBLING of `platform` rather than a
+                    key inside it: `platform` is a verbatim passthrough of
+                    another XRD's spec, and `enabled` is this Configuration's own
+                    switch, not a Platform field.
+                platform:
+                  type: object
+                  description: >-
+                    Passed through to the Platform child verbatim (fluxInit,
+                    apps, ipReservation, cilium, vaultIssuer, …), so nothing in
+                    the platform Configuration needs to know this one exists.
+                    `clusterName` and `cni.enabled` are supplied by this
+                    Composition and must NOT be set here — cni.enabled follows
+                    from the distribution's CNI ownership, and setting it by hand
+                    is how a cluster ends up with two CNIs.
+
+                    No properties are declared on purpose: a block that preserves
+                    unknown fields must not also declare known ones, or schema
+                    converters emit `additionalProperties: false` and reject
+                    every passthrough key. Same shape as platform's own
+                    `cni.cilium` and `apps.*.substitute`.
+                  x-kubernetes-preserve-unknown-fields: true
+
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+                stage:
+                  type: string
+                  description: >-
+                    The stage the stack is currently waiting on — vm, baseos,
+                    distribution, kubeconfig, access, platform, or ready. The
+                    single field to look at when a build is stuck.
+                share:
+                  type: object
+                  description: Facts, resolved or discovered, republished for consumers.
+                  x-kubernetes-preserve-unknown-fields: true
+                  properties:
+                    clusterName:
+                      type: string
+                    ip:
+                      type: string
+                      description: The VM's address, discovered from the VM child.
+                    apiEndpoint:
+                      type: string
+                      description: >-
+                        From the ClusterAccess child. What a Platform's
+                        vaultIssuer.kubernetesHost should derive from instead of
+                        restating a node IP by hand.
+                    clusterType:
+                      type: string
+                      description: Discovered from the running cluster, not the requested distribution — they can disagree, and that is worth seeing.
+                    serverVersion:
+                      type: string
+                    cniOwnership:
+                      type: string
+                      description: Resolved from the catalog; explains the cni.enabled the Platform child received.
+                stages:
+                  type: object
+                  description: Per-stage readiness, in build order.
+                  x-kubernetes-preserve-unknown-fields: true
+      additionalPrinterColumns:
+        - name: READY
+          type: boolean
+          jsonPath: .status.ready
+        - name: STAGE
+          type: string
+          jsonPath: .status.stage
+        - name: PROVIDER
+          type: string
+          jsonPath: .spec.provider
+        - name: DISTRIBUTION
+          type: string
+          jsonPath: .spec.distribution
+        - name: ENDPOINT
+          type: string
+          jsonPath: .status.share.apiEndpoint
+        - name: AGE
+          type: date
+          jsonPath: .metadata.creationTimestamp

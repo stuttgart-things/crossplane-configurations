@@ -1,0 +1,12 @@
+---
+# Minimum: only the XRD-required field. Everything else defaults — size medium,
+# distribution k3s, environmentConfig labul, clusterName from metadata.name,
+# platform enabled. This variant exists to prove those defaults, so do not add
+# fields to it.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: cluster-min
+  namespace: crossplane-system
+spec:
+  provider: proxmox

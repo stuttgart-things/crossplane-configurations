@@ -1,0 +1,64 @@
+---
+# Realistic usage — the copy-paste template.
+#
+# This one XR replaces the five hand-written XRs that build u26-kind1 today
+# (crossplane/xrs/proxmoxvm/labul/kind1/ + xrs/ansiblerun/labul/kind1/): the VM,
+# the k3s AnsibleRun, the kubeconfig-upload AnsibleRun, the RemoteCluster and the
+# Platform — ~250 lines in which the cluster name appears 8 times and the VM IP
+# 3 times, by hand, after the fact.
+#
+# Here neither is written down more than once:
+#   - the VM IP is discovered from the VM child and threaded into both ansible
+#     inventories (and, via ClusterAccess, into status.share.apiEndpoint)
+#   - clusterName becomes the VM name, the guest hostname, the ansible
+#     cluster_name, the Vault path, the ClusterAccess name and
+#     Platform.clusterName
+#
+# Note what is NOT here: cni.enabled. It follows from the distribution — k3s
+# installs cilium itself, so the Platform child gets cni.enabled=false
+# automatically. Setting it by hand is how a cluster ends up with two CNIs.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: u26-kind1
+  namespace: crossplane-system
+spec:
+  provider: proxmox
+  size: medium
+  distribution: k3s
+  environmentConfig: labul
+
+  platform:
+    fluxInit:
+      enabled: true
+    apps:
+      cert-manager:
+        enabled: true
+        # REQUIRED even though every var has a default — xplane-flux-apps only
+        # emits postBuild when the XR supplies substitute.
+        substitute:
+          CERT_MANAGER_NAMESPACE: cert-manager
+        components:
+          install:
+            enabled: true
+    ipReservation:
+      enabled: true
+      createDNS: true
+    cilium:
+      enabled: true
+      loadBalancer:
+        enabled: true
+        ipMode: dynamic
+      gateway:
+        enabled: true
+        name: cilium-gateway
+        namespace: default
+        tlsSecretName: wildcard-tls  # pragma: allowlist secret
+    vaultIssuer:
+      enabled: true
+      vaultAddr: https://vault.infra.sthings-vsphere.labul.sva.de
+      pkiRole: sthings-vsphere
+      approleSecret: cert-vault-approle  # pragma: allowlist secret
+      # kubernetesHost is deliberately omitted: ClusterAccess discovers the API
+      # endpoint from the cluster itself and republishes it, so the platform no
+      # longer needs a hand-copied node IP.
