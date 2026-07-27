@@ -343,6 +343,144 @@ tasks:
           crossplane beta trace "$XR_KIND" "$XR_NAME" -n "$XR_NS" || true
         fi
 
+  teardown-cluster:
+    desc: "Tear down a ClusterStack in the two phases its teardown requires (non-interactive: KUBECONFIG=... NAME=<clusterstack> [NS=crossplane-system] YES=1 task teardown-cluster)"
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+
+        # WHY TWO PHASES. Deleting a ClusterStack that has a Platform child in
+        # one step leaves resources behind: the whole tree is deleted in
+        # parallel, so the ClusterAccess's RemoteCluster (owner of the kubeconfig
+        # Secret and both ClusterProviderConfigs) can go while the Platform's own
+        # Objects still need those credentials to finalize. Measured: four
+        # leftovers, two of them permanent (crossplane-configurations#185).
+        #
+        # The Usage resources cannot prevent it — they are composed children of
+        # the same XR, so they are swept away with everything else, and the
+        # admission webhook that enforces them needs its rule object to exist.
+        # The Composition cannot sequence it either: Crossplane does not invoke
+        # the function while the XR is being deleted.
+        #
+        # Hence: remove the Platform child first, while the cluster is still
+        # reachable, then delete the stack.
+
+        # --- pick kubeconfig (env: KUBECONFIG=<path>) ---
+        if [ -n "${KUBECONFIG:-}" ]; then
+          if [ ! -f "$KUBECONFIG" ]; then gum style --foreground 1 "KUBECONFIG=$KUBECONFIG: file not found"; exit 1; fi
+        else
+          KUBE_DIR="${KUBE_DIR:-$HOME/.kube}"
+          KUBECONFIGS=$(find "$KUBE_DIR" -maxdepth 1 -type f -not -name 'cache*' 2>/dev/null | sort)
+          if [ -z "$KUBECONFIGS" ]; then gum style --foreground 1 "no kubeconfigs found in $KUBE_DIR"; exit 1; fi
+          KUBECONFIG=$(echo "$KUBECONFIGS" | gum choose --header "select kubeconfig:")
+          if [ -z "$KUBECONFIG" ]; then gum style --foreground 3 "no selection"; exit 1; fi
+        fi
+        export KUBECONFIG
+
+        NS="${NS:-crossplane-system}"
+
+        # --- pick the ClusterStack (env: NAME=<name>) ---
+        if [ -z "${NAME:-}" ]; then
+          STACKS=$(kubectl get clusterstack -n "$NS" -o name 2>/dev/null | sed 's|.*/||' | sort)
+          if [ -z "$STACKS" ]; then gum style --foreground 1 "no ClusterStacks in namespace $NS"; exit 1; fi
+          NAME=$(echo "$STACKS" | gum choose --header "select ClusterStack to tear down:")
+          if [ -z "$NAME" ]; then gum style --foreground 3 "no selection"; exit 1; fi
+        fi
+        if ! kubectl get clusterstack "$NAME" -n "$NS" >/dev/null 2>&1; then
+          gum style --foreground 1 "ClusterStack $NAME not found in $NS"; exit 1
+        fi
+
+        # `|| true` on EVERY kubectl-into-pipe: kubectl exits non-zero when the
+        # object (or its CRD) does not exist, and with `set -o pipefail` that
+        # kills the whole task before it prints anything. Absence is the normal
+        # case here — it is what the teardown is checking for.
+        HAS_PLATFORM=$( { kubectl get platform "${NAME}-platform" -n "$NS" --no-headers 2>/dev/null || true; } | wc -l)
+
+        gum style --foreground 4 "→ teardown $NAME (namespace $NS)"
+        echo "  platform child:  $(if [ "$HAS_PLATFORM" = "0" ]; then echo "none — phase 1 is a no-op"; else echo "present"; fi)"
+        echo "  phase 1:         platformEnabled=false, wait for the Platform child to go"
+        echo "  phase 2:         delete the ClusterStack"
+        echo
+        echo "  THIS DESTROYS THE CLUSTER AND ITS VM."
+        echo
+        if [ "${YES:-}" = "1" ] || [ "${YES:-}" = "true" ]; then
+          gum style --foreground 8 "  (YES=$YES — skipping confirmation)"
+        else
+          gum confirm "tear down $NAME?" || { gum style --foreground 3 "aborted"; exit 1; }
+        fi
+
+        # --- phase 1 ---
+        if [ "$HAS_PLATFORM" = "0" ]; then
+          gum style --foreground 8 "phase 1: no Platform child, skipping"
+        else
+          gum style --foreground 4 "phase 1: removing the Platform child"
+          kubectl patch clusterstack "$NAME" -n "$NS" --type=merge -p '{"spec":{"platformEnabled":false}}' >/dev/null
+          i=0
+          while [ "$i" -lt 60 ]; do
+            LEFT=$( { kubectl get platform -n "$NS" --no-headers 2>/dev/null || true; } | grep -c "$NAME" || true)
+            OWNED=$( { kubectl get object.kubernetes.m.crossplane.io,release.helm.m.crossplane.io -A --no-headers 2>/dev/null || true; } | grep -c "${NAME}-platform" || true)
+            if [ "$LEFT" = "0" ] && [ "$OWNED" = "0" ]; then break; fi
+            sleep 10
+            i=$((i + 1))
+          done
+          if [ "$LEFT" != "0" ] || [ "$OWNED" != "0" ]; then
+            gum style --foreground 1 "phase 1 did not finish in 10m — NOT deleting the stack"
+            gum style --foreground 8 "  a stack deleted now would strand the Platform's resources, which is the whole point of phase 1"
+            kubectl get platform,object.kubernetes.m.crossplane.io,release.helm.m.crossplane.io -A --no-headers 2>/dev/null | grep "$NAME" || true
+            exit 1
+          fi
+          gum style --foreground 2 "  ✓ platform child gone"
+        fi
+
+        # --- phase 2 ---
+        gum style --foreground 4 "phase 2: deleting the ClusterStack"
+        kubectl delete clusterstack "$NAME" -n "$NS" --wait=false >/dev/null 2>&1 || true
+        i=0
+        while [ "$i" -lt 60 ]; do
+          GONE=$( { kubectl get clusterstack "$NAME" -n "$NS" --no-headers 2>/dev/null || true; } | wc -l)
+          if [ "$GONE" = "0" ]; then break; fi
+          sleep 10
+          i=$((i + 1))
+        done
+        sleep 15
+
+        # --- leftover sweep -------------------------------------------------
+        # Reported rather than assumed: a clean end state is the only evidence
+        # that the ordering held, and it is cheap to check.
+        gum style --foreground 4 "leftovers"
+        FOUND=0
+        for pair in \
+          "objects:object.kubernetes.m.crossplane.io" \
+          "releases:release.helm.m.crossplane.io" \
+          "clusteraccess:clusteraccess" \
+          "nativeproxmoxvm:nativeproxmoxvm" \
+          "nativevspherevm:nativevspherevm" \
+          "ansibleruns:ansiblerun" ; do
+          LABEL="${pair%%:*}"; KIND="${pair#*:}"
+          N=$( { kubectl get "$KIND" -A --no-headers 2>/dev/null || true; } | grep -c "$NAME" || true)
+          printf "  %-18s %s\n" "$LABEL" "$N"
+          if [ "$N" != "0" ]; then FOUND=1; fi
+        done
+        for pair in \
+          "remotecluster:remoteclusters.kubeconfig.stuttgart-things.com" \
+          "clusterproviderconfigs:clusterproviderconfigs.kubernetes.m.crossplane.io" ; do
+          LABEL="${pair%%:*}"; KIND="${pair#*:}"
+          N=$( { kubectl get "$KIND" --no-headers 2>/dev/null || true; } | grep -c "$NAME" || true)
+          printf "  %-18s %s\n" "$LABEL" "$N"
+          if [ "$N" != "0" ]; then FOUND=1; fi
+        done
+
+        echo
+        if [ "$FOUND" = "0" ]; then
+          gum style --foreground 2 --bold "✓ teardown clean — no leftovers"
+        else
+          gum style --foreground 3 --bold "⚠ leftovers remain"
+          gum style --foreground 8 "  Clear anything wedged on a finalizer with:"
+          gum style --foreground 8 "    kubectl patch <resource> -n $NS --type=merge -p '{\"metadata\":{\"finalizers\":[]}}'"
+          gum style --foreground 8 "  and report it on crossplane-configurations#185 — a clean two-phase teardown is the expectation."
+        fi
+
   pre-commit:
     desc: Run pre-commit hooks across the repo (via the Dagger linting module)
     silent: true
