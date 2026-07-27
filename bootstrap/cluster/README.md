@@ -125,6 +125,20 @@ Beyond the wrapped Configurations' own (see each):
 - **`provider-kubeconfig`** with a `vault-kubeconfigs` ClusterProviderConfig — see [remote-cluster](../remote-cluster/).
 - A per-environment **`EnvironmentConfig`** for the chosen provider (`proxmoxvm.…/environment` or `vspherevm.…/environment`) matching `spec.environmentConfig`.
 
+## Verification status
+
+Be precise about what has and has not been proven, because the gaps are where the next surprise lives.
+
+**Proven on a real cluster** (kind1 → Proxmox LabUL, 2026-07-27): the full build chain. One `ClusterStack` produced a VM, ran base-OS provisioning, installed k3s, uploaded the kubeconfig to Vault, and had `ClusterAccess` read it back and emit both ClusterProviderConfigs — `status.ready: true`, endpoint discovered, cluster targetable by name. Deleting the `ClusterStack` removed every resource with no permanent finalizer hangs, and the Proxmox VM was destroyed.
+
+**NOT proven — teardown *ordering*.** The teardown finished faster than it was sampled, so what was observed is a clean *end state*, not an ordered sequence. The `Usage` resources may or may not have done anything. Worse, that run had `platformEnabled: false`, so only one of the three pairs existed at all (`access-uses-vm`); the two Platform pairs — precisely the ones whose absence strands Objects against a dead API server — were never exercised. Treat the ordering as designed-but-unverified until a run with a Platform child says otherwise.
+
+**Known litter:** bumping a stage's `runIDs` entry strands the *previous* wrapped Object on its finalizer. provider-kubernetes dry-runs an SSA while deleting, and Tekton rejects any update to a completed `PipelineRun` (`Once the PipelineRun is complete, no updates are allowed`). Clear it with:
+
+```bash
+kubectl patch object.kubernetes.m.crossplane.io <name> -n <ns> --type=merge -p '{"metadata":{"finalizers":[]}}'
+```
+
 ## Not supported yet
 
 - **Multi-node.** `size: medium-ha` renders an error, by design: no distribution in the catalog declares a verified multi-node path. Tracked as [#170](https://github.com/stuttgart-things/crossplane-configurations/issues/170) (static addressing + aggregate gate) and [#171](https://github.com/stuttgart-things/crossplane-configurations/issues/171) (the API endpoint is a single node IP, so three masters would be HA in name only).
