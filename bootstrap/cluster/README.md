@@ -131,7 +131,28 @@ Be precise about what has and has not been proven, because the gaps are where th
 
 **Proven on a real cluster** (kind1 → Proxmox LabUL, 2026-07-27): the full build chain. One `ClusterStack` produced a VM, ran base-OS provisioning, installed k3s, uploaded the kubeconfig to Vault, and had `ClusterAccess` read it back and emit both ClusterProviderConfigs — `status.ready: true`, endpoint discovered, cluster targetable by name. Deleting the `ClusterStack` removed every resource with no permanent finalizer hangs, and the Proxmox VM was destroyed.
 
-**NOT proven — teardown *ordering*.** The teardown finished faster than it was sampled, so what was observed is a clean *end state*, not an ordered sequence. The `Usage` resources may or may not have done anything. Worse, that run had `platformEnabled: false`, so only one of the three pairs existed at all (`access-uses-vm`); the two Platform pairs — precisely the ones whose absence strands Objects against a dead API server — were never exercised. Treat the ordering as designed-but-unverified until a run with a Platform child says otherwise.
+**DISPROVEN — teardown *ordering* does not hold.** A second live run with `platformEnabled: true`, so all three Usage pairs existed and were `Ready` before the delete, tore the whole stack down **in parallel within about three seconds**. The `ClusterAccess`'s `RemoteCluster` — which owns the kubeconfig Secret and both ClusterProviderConfigs — was deleted while the Platform's own resources still needed those credentials, which is precisely what the Usages were added to prevent.
+
+Four resources were left behind and needed manual cleanup:
+
+| resource | state |
+|---|---|
+| `Object/…-flux-init-flux-instance` | stuck on its finalizer, `cannot get credentials secret` |
+| `Release/…-flux-init-flux-operator` | never deleted at all — orphaned with its finalizer |
+| `ClusterProviderConfig/{cluster}-kubernetes` | orphaned |
+| `ClusterProviderConfig/{cluster}-helm` | orphaned |
+
+The likely cause is that **the Usages are composed siblings of the resources they order**: deleting the `ClusterStack` deletes them in the same parallel sweep, and a Usage that is already gone protects nothing. Tracked in [#185](https://github.com/stuttgart-things/crossplane-configurations/issues/185) with the event timeline and the options.
+
+Until that is fixed, **plan for a manual sweep after deleting a `ClusterStack` that had a Platform child**:
+
+```bash
+kubectl patch <stuck-resource> -n <ns> --type=merge -p '{"metadata":{"finalizers":[]}}'
+kubectl delete clusterproviderconfig.kubernetes.m.crossplane.io {cluster}-kubernetes
+kubectl delete clusterproviderconfig.helm.m.crossplane.io {cluster}-helm
+```
+
+A `ClusterStack` with `platformEnabled: false` does tear down cleanly — that case was verified separately.
 
 **Known litter:** bumping a stage's `runIDs` entry strands the *previous* wrapped Object on its finalizer. provider-kubernetes dry-runs an SSA while deleting, and Tekton rejects any update to a completed `PipelineRun` (`Once the PipelineRun is complete, no updates are allowed`). Clear it with:
 
