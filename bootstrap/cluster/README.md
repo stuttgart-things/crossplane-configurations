@@ -92,6 +92,14 @@ u26-kind1   true    ready      proxmox    k3s            https://10.31.102.108:6
 
 `spec.platformEnabled: false` stops once the cluster is targetable (ClusterAccess ready) — the useful shape for a machine that only needs to exist and be reachable. It is deliberately a **sibling** of `spec.platform` rather than a key inside it: `platform` is a verbatim passthrough of the `Platform` XRD's spec, and a block that preserves unknown fields must not also declare known ones, or schema converters emit `additionalProperties: false` and reject every passthrough key.
 
+## The API endpoint is derived, not copied
+
+When `platform.vaultIssuer` is enabled and `kubernetesHost` is unset, it is injected from `ClusterAccess`'s discovered `status.share.apiEndpoint`. Every `Platform` in the fleet states it by hand today — a literal node IP that goes stale the moment the machine is rebuilt with a new DHCP lease, and nothing notices until an issuer stops working.
+
+An explicit value always wins, so pointing at a VIP or a load balancer stays possible.
+
+This does **not** make the endpoint highly available: it is one node's address, and with multi-node it will be the *first* node's. That is a deliberate interim choice — HA for the control plane's state, not for its reachability — tracked in [#171](https://github.com/stuttgart-things/crossplane-configurations/issues/171) along with the one thing that has to happen early: `--tls-san` is set at **install** time, so a VIP introduced later needs its name in the certificate from the start or every existing cluster needs new certs.
+
 ## What you cannot set
 
 - **`platform.cni.enabled`** — derived from the distribution's CNI ownership. k3s installs cilium itself (its config disables flannel and kube-proxy, so the role *must*); kind is built deliberately without one. Setting it by hand is how a cluster ends up with two CNIs. Your other `cni` keys (chart version, values) pass through untouched.
