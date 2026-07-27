@@ -1,0 +1,223 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: remote-cluster
+  labels:
+    crossplane.io/xrd: clusteraccesses.config.stuttgart-things.com
+    provider-kubernetes: "true"
+    service: remote-cluster
+spec:
+  compositeTypeRef:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: ClusterAccess
+  mode: Pipeline
+  pipeline:
+    # The logic is INLINE rather than an OCI KCL module (unlike flux-init /
+    # ip-reservation / platform): it is one templated resource plus N observe
+    # stubs, with no rules worth unit-testing. Same call as bootstrap/cilium and
+    # bootstrap/vault-pki-secrets. If provider-selection ever grows real logic,
+    # move it out — that is the line those other Configurations draw.
+    - step: render
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: remote-cluster
+        spec:
+          source: | # pragma: allowlist secret
+            oxr = option("params").oxr
+
+            _name = oxr.metadata.name
+            _ns = oxr.metadata?.namespace or "crossplane-system"
+            _spec = oxr.spec
+            _cluster = _spec.clusterName
+
+            _source = _spec?.source or {}
+            _srcType = _source?.type or "vault"
+            # The Vault path defaults to the cluster name: that is the
+            # convention `sthings.container.upload_kubeconfig_vault` writes with
+            # (`cluster_name` = the KVv2 secret name under the kubeconfigs
+            # mount), so restating it per XR is pure duplication.
+            _srcPath = _source?.path or _cluster
+            _srcKey = _source?.key or "kubeconfig"
+
+            _providers = _spec?.providers or ["kubernetes", "helm"]
+            _apiVersions = _spec?.apiVersions or ["v2-cluster"]
+            _secretNs = _spec?.secretNamespace or "crossplane-system"
+            _kcPcr = _spec?.kubeconfigProviderConfigRef or "vault-kubeconfigs"
+            _k8sPcr = _spec?.kubernetesProviderConfigRef or "in-cluster"
+
+            # THE naming convention, owned here. flux-init, platform and cilium
+            # all derive `{clusterName}-kubernetes` / `{clusterName}-helm`
+            # independently today; this is the one place it should live.
+            _pcName = lambda p: str -> str {
+                "{}-{}".format(_cluster, p)
+            }
+
+            # provider-kubeconfig's own `type` vocabulary, and the CRD group each
+            # emitted ClusterProviderConfig lands in.
+            _pcType = {
+                "kubernetes" = "provider-kubernetes"
+                "helm" = "provider-helm"
+            }
+            _pcApiVersion = {
+                "kubernetes" = "kubernetes.m.crossplane.io/v1alpha1"
+                "helm" = "helm.m.crossplane.io/v1beta1"
+            }
+
+            # --- The RemoteCluster, wrapped -------------------------------
+            # RemoteCluster is CLUSTER-SCOPED and this XR is namespaced, so it
+            # cannot be composed directly (Crossplane v2 forbids it). Wrapping it
+            # in a namespaced provider-kubernetes Object applied through the
+            # in-cluster config is the same pattern the rest of the repo uses for
+            # cluster-scoped objects, and it sidesteps the scope question rather
+            # than betting on it.
+            _remoteCluster = {
+                apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                kind = "Object"
+                metadata = {
+                    name = "{}-remote-cluster".format(_name)
+                    namespace = _ns
+                    annotations = {
+                        "krm.kcl.dev/composition-resource-name" = "remote-cluster"
+                    }
+                }
+                spec = {
+                    providerConfigRef = {
+                        kind = "ClusterProviderConfig"
+                        name = _k8sPcr
+                    }
+                    forProvider.manifest = {
+                        apiVersion = "kubeconfig.stuttgart-things.com/v1alpha1"
+                        kind = "RemoteCluster"
+                        metadata.name = _cluster
+                        spec = {
+                            forProvider = {
+                                source = {
+                                    type = _srcType
+                                    path = _srcPath
+                                    key = _srcKey
+                                }
+                                secretNamespace = _secretNs
+                                providerConfigs = [
+                                    {
+                                        name = _pcName(p)
+                                        type = _pcType[p]
+                                        apiVersions = _apiVersions
+                                    }
+                                    for p in _providers
+                                ]
+                            }
+                            providerConfigRef = {
+                                name = _kcPcr
+                                kind = "ClusterProviderConfig"
+                            }
+                        }
+                    }
+                }
+            }
+
+            # --- Observe the emitted ClusterProviderConfigs ----------------
+            # `Observe` only: the RemoteCluster controller creates these, we just
+            # need to know they landed. Without this the XR would report Ready as
+            # soon as the RemoteCluster is Ready, and a downstream stage would
+            # target ProviderConfigs that do not exist yet.
+            _observePc = lambda p: str -> any {
+                {
+                    apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                    kind = "Object"
+                    metadata = {
+                        name = "{}-observe-{}".format(_name, p)
+                        namespace = _ns
+                        annotations = {
+                            "krm.kcl.dev/composition-resource-name" = "observe-{}".format(p)
+                        }
+                    }
+                    spec = {
+                        managementPolicies = ["Observe"]
+                        providerConfigRef = {
+                            kind = "ClusterProviderConfig"
+                            name = _k8sPcr
+                        }
+                        forProvider.manifest = {
+                            apiVersion = _pcApiVersion[p]
+                            kind = "ClusterProviderConfig"
+                            metadata.name = _pcName(p)
+                        }
+                    }
+                }
+            }
+
+            # Single-expression list, not `_resources += [...]` accumulation —
+            # the latter double-emitted groups in bootstrap/cilium.
+            items = [_remoteCluster] + [_observePc(p) for p in _providers]
+
+    # -------------------------------------------------------------------------
+    # Surface the target cluster's own facts onto the XR, and gate `ready` on
+    # the ProviderConfigs actually existing.
+    # -------------------------------------------------------------------------
+    - step: patch-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: patch-status
+        spec:
+          source: | # pragma: allowlist secret
+            _params = option("params") or {}
+            _dxr = _params?.dxr or {}
+            _ocds = _params?.ocds or {}
+            _spec = _params?.oxr?.spec or {}
+
+            _cluster = _spec.clusterName
+            _providers = _spec?.providers or ["kubernetes", "helm"]
+
+            # The wrapped Object mirrors the live RemoteCluster under
+            # status.atProvider.manifest, so the RemoteCluster's OWN status sits
+            # one level deeper at .status.atProvider — hence the double hop.
+            _rcEntries = [
+                v.Resource for _, v in _ocds
+                if v?.Resource?.spec?.forProvider?.manifest?.kind == "RemoteCluster"
+            ]
+            _rcObj = _rcEntries[0] if _rcEntries else {}
+            _rcManifest = _rcObj?.status?.atProvider?.manifest or {}
+            _rcAt = _rcManifest?.status?.atProvider or {}
+            _rcConds = _rcManifest?.status?.conditions or []
+            _rcReady = len([c for c in _rcConds if c?.type == "Ready" and c?.status == "True"]) > 0
+
+            # An Observe Object with no manifest in status has not found its
+            # ClusterProviderConfig yet.
+            _observed = [
+                v.Resource for _, v in _ocds
+                if v?.Resource?.spec?.forProvider?.manifest?.kind == "ClusterProviderConfig"
+            ]
+            _pcFound = len([
+                o for o in _observed
+                if (o?.status?.atProvider?.manifest?.metadata?.name or "") != ""
+            ])
+
+            _statusPatch = {
+                ready = _rcReady and _pcFound == len(_providers)
+                providerConfigs = ["{}-{}".format(_cluster, p) for p in _providers]
+                share = {
+                    if _rcAt?.apiEndpoint: apiEndpoint = _rcAt.apiEndpoint
+                    if _rcAt?.clusterType: clusterType = _rcAt.clusterType
+                    if _rcAt?.serverVersion: serverVersion = _rcAt.serverVersion
+                    if _rcAt?.nodeCount: nodeCount = _rcAt.nodeCount
+                    if _rcAt?.podCIDR: podCIDR = _rcAt.podCIDR
+                    if _rcAt?.serviceCIDR: serviceCIDR = _rcAt.serviceCIDR
+                    if _rcAt?.internalNetworkKey: internalNetworkKey = _rcAt.internalNetworkKey
+                    if _rcAt?.secretRef: secretRef = _rcAt.secretRef
+                }
+            }
+
+            items = [_dxr | {status = (_dxr?.status or {}) | _statusPatch}]
+
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

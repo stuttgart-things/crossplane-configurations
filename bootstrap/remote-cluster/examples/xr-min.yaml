@@ -1,0 +1,12 @@
+---
+# Minimum: only the XRD-required field. Everything else comes from XRD defaults —
+# source.type vault, source.path = clusterName, key kubeconfig, providers
+# [kubernetes, helm], secretNamespace crossplane-system, and the two provider
+# config refs. This variant exists to prove those defaults, so do not add fields.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterAccess
+metadata:
+  name: cluster-access-min
+  namespace: crossplane-system
+spec:
+  clusterName: my-cluster

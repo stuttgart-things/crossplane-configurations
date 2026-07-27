@@ -1,0 +1,29 @@
+---
+# CLUSTER PRECONDITION, not part of the package.
+#
+# The provider-kubeconfig ClusterProviderConfig that can read the kubeconfig
+# source. In the fleet this is installed by the provider-kubeconfig-vault chart
+# (stuttgart-things/crossplane, platform/baseline/provider-kubeconfig-vault),
+# which also supplies the Vault CA trust and the downstream RBAC — this file is
+# only a shape reference for a cluster that has neither.
+apiVersion: kubeconfig.stuttgart-things.com/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: vault-kubeconfigs
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: vault-approle          # pragma: allowlist secret
+      key: credentials             # pragma: allowlist secret
+---
+# The in-cluster provider-kubernetes config the wrapped Objects are applied
+# through (InjectedIdentity = the provider's own ServiceAccount).
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: in-cluster
+spec:
+  credentials:
+    source: InjectedIdentity
