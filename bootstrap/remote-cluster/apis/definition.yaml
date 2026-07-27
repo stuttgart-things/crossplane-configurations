@@ -1,0 +1,178 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: clusteraccesses.config.stuttgart-things.com
+spec:
+  group: config.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    # DELIBERATELY *NOT* `RemoteCluster`. provider-kubeconfig already owns that
+    # kind (`remoteclusters.kubeconfig.stuttgart-things.com`), and this XR
+    # composes one — two kinds with the same plural in different groups makes
+    # `kubectl get remoteclusters` ambiguous and every trace output a guessing
+    # game. `ClusterAccess` also says what the XR is FOR: it makes a cluster
+    # targetable by name, it is not the cluster.
+    kind: ClusterAccess
+    plural: clusteraccesses
+    singular: clusteraccess
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - clusterName
+              properties:
+                clusterName:
+                  type: string
+                  description: >-
+                    Name of the target cluster. This is the single shared input:
+                    the Vault path, the emitted ClusterProviderConfig names and
+                    everything downstream derive from it. It must match the
+                    `clusterName` other Configurations (flux-init, platform,
+                    cilium, ip-reservation) use for the same cluster, because
+                    they derive `{clusterName}-kubernetes` / `{clusterName}-helm`
+                    by the same rule.
+                source:
+                  type: object
+                  description: >-
+                    Where the kubeconfig is read from. The value MUST be raw
+                    kubeconfig YAML — provider-kubeconfig hands it straight to
+                    clientcmd.RESTConfigFromKubeConfig and never base64-decodes
+                    it. That is why the fleet uploads it with the container
+                    collection's `upload_kubeconfig_vault` play and not the rke
+                    one, which base64-encodes.
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                        - vault
+                        - git
+                      default: vault
+                    path:
+                      type: string
+                      description: >-
+                        Vault KVv2 secret path (or git path). Defaults to
+                        `clusterName`, which is the convention the upload play
+                        follows (`cluster_name` = the KVv2 secret name under the
+                        `kubeconfigs` mount).
+                    key:
+                      type: string
+                      default: kubeconfig
+                      description: Key within the secret holding the raw kubeconfig YAML.
+                providers:
+                  type: array
+                  description: >-
+                    Which downstream ClusterProviderConfigs to create. Each entry
+                    yields `{clusterName}-{entry}`. This list is the whole point
+                    of the Configuration: the naming convention lives here, once,
+                    instead of being restated in flux-init, platform and every
+                    hand-written RemoteCluster manifest.
+                  default:
+                    - kubernetes
+                    - helm
+                  items:
+                    type: string
+                    enum:
+                      - kubernetes
+                      - helm
+                apiVersions:
+                  type: array
+                  description: >-
+                    Downstream ProviderConfig API versions to create. `v2-cluster`
+                    is the namespaced-provider (`.m`) ClusterProviderConfig that
+                    Crossplane v2 Compositions reference.
+                  default:
+                    - v2-cluster
+                  items:
+                    type: string
+                secretNamespace:
+                  type: string
+                  default: crossplane-system
+                  description: >-
+                    Namespace on the MANAGEMENT cluster for the decrypted
+                    kubeconfig Secret. Distinct from metadata.namespace (where
+                    the XR itself lives).
+                kubeconfigProviderConfigRef:
+                  type: string
+                  default: vault-kubeconfigs
+                  description: >-
+                    provider-kubeconfig ClusterProviderConfig that can read the
+                    source. A cluster precondition — see the README; it carries
+                    the Vault address, the AppRole and the CA trust.
+                kubernetesProviderConfigRef:
+                  type: string
+                  default: in-cluster
+                  description: >-
+                    provider-kubernetes ClusterProviderConfig (InjectedIdentity)
+                    used to apply the wrapped Object on the MANAGEMENT cluster.
+                    A namespaced composite cannot compose a cluster-scoped
+                    managed resource, and RemoteCluster is cluster-scoped — so it
+                    is wrapped in a namespaced Object rather than composed
+                    directly.
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+                  description: >-
+                    True once the RemoteCluster reports Ready AND every requested
+                    ClusterProviderConfig is observable. This is the gate a
+                    downstream stage should wait on — a Ready RemoteCluster whose
+                    ProviderConfigs do not exist yet cannot be targeted.
+                providerConfigs:
+                  type: array
+                  description: Names of the ClusterProviderConfigs this XR expects to exist.
+                  items:
+                    type: string
+                share:
+                  type: object
+                  description: >-
+                    Facts discovered from the target cluster, republished for
+                    consumers. `apiEndpoint` in particular is what a Platform's
+                    `vaultIssuer.kubernetesHost` should derive from instead of
+                    restating a node IP by hand.
+                  properties:
+                    apiEndpoint:
+                      type: string
+                    clusterType:
+                      type: string
+                      description: e.g. k3s, kind, rke2 — discovered, not declared.
+                    serverVersion:
+                      type: string
+                    nodeCount:
+                      type: integer
+                    podCIDR:
+                      type: string
+                    serviceCIDR:
+                      type: string
+                    internalNetworkKey:
+                      type: string
+                      description: >-
+                        Network prefix the ip-reservation Configuration keys its
+                        reservation on.
+                    secretRef:
+                      type: string
+                      description: Name of the kubeconfig Secret in secretNamespace.
+      additionalPrinterColumns:
+        - name: READY
+          type: boolean
+          jsonPath: .status.ready
+        - name: ENDPOINT
+          type: string
+          jsonPath: .status.share.apiEndpoint
+        - name: TYPE
+          type: string
+          jsonPath: .status.share.clusterType
+        - name: AGE
+          type: date
+          jsonPath: .metadata.creationTimestamp

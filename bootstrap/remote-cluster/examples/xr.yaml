@@ -1,0 +1,21 @@
+---
+# Realistic usage — the copy-paste template. This reproduces exactly what
+# crossplane/xrs/proxmoxvm/labul/kind1/remotecluster-u26-kind1.yaml does by hand,
+# with the Vault path and both ClusterProviderConfig names derived from
+# clusterName instead of restated.
+#
+# Emitted on the management cluster:
+#   Secret                 kubeconfig-u26-kind1   (crossplane-system)
+#   ClusterProviderConfig  u26-kind1-kubernetes   (kubernetes.m.crossplane.io)
+#   ClusterProviderConfig  u26-kind1-helm         (helm.m.crossplane.io)
+#
+# Those are the names flux-init / platform / cilium derive from
+# `clusterName: u26-kind1`, so the cluster becomes targetable by name with no
+# manual kubeconfig handling anywhere in the loop.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterAccess
+metadata:
+  name: u26-kind1
+  namespace: crossplane-system
+spec:
+  clusterName: u26-kind1

@@ -1,0 +1,65 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: remote-cluster
+  annotations:
+    # Local convention used by `task push` to bump and re-publish.
+    # Not a Crossplane-standard field — the true package version is the OCI tag.
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Makes a cluster targetable by name. From a namespaced `ClusterAccess` XR it
+      composes a provider-kubeconfig `RemoteCluster` that reads a kubeconfig from
+      Vault and emits the `{clusterName}-kubernetes` / `{clusterName}-helm`
+      ClusterProviderConfigs the other Configurations derive by convention.
+    meta.crossplane.io/readme: |
+      # remote-cluster
+
+      A Crossplane v2 Configuration that turns "a kubeconfig exists in Vault"
+      into "Crossplane can target this cluster by name", from a namespaced
+      `ClusterAccess` XR (group `config.stuttgart-things.com`).
+
+      It composes a **cluster-scoped** `RemoteCluster` (provider-kubeconfig)
+      wrapped in a namespaced `kubernetes.m.crossplane.io/v1alpha1` Object — a
+      namespaced composite cannot compose a cluster-scoped managed resource — and
+      an Observe-only Object per emitted ClusterProviderConfig, so `status.ready`
+      means the configs actually exist rather than merely that the RemoteCluster
+      reconciled.
+
+      ## Why
+
+      The `{clusterName}-kubernetes` / `{clusterName}-helm` convention is
+      currently restated in three places — an XRD default in `platform`, again in
+      `flux-init`, and by hand in every `RemoteCluster` manifest. This
+      Configuration owns it once. It also republishes what the target cluster
+      reports about itself (`apiEndpoint`, `clusterType`, `serverVersion`,
+      CIDRs), so a Platform's `vaultIssuer.kubernetesHost` can derive from a fact
+      instead of a hand-copied node IP.
+
+      ## Cluster preconditions
+
+      - `provider-kubeconfig` installed, plus a `ClusterProviderConfig` matching
+        `spec.kubeconfigProviderConfigRef` (default `vault-kubeconfigs`) carrying
+        the Vault address, AppRole and CA trust. In the fleet this comes from the
+        `provider-kubeconfig-vault` chart, which also grants the downstream RBAC.
+      - An in-cluster `ClusterProviderConfig` (`kubernetes.m`, InjectedIdentity)
+        named per `spec.kubernetesProviderConfigRef` (default `in-cluster`).
+      - The kubeconfig in Vault must be **raw YAML**, not base64 — the provider
+        never decodes it.
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    # The RemoteCluster and the Observe stubs are applied through the namespaced
+    # Kubernetes provider. provider-kubeconfig itself is a fleet cluster
+    # precondition (it needs Vault credentials and CA trust that no package can
+    # supply), not a package dependency — same call ip-reservation makes.
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+      version: ">=v1.2.0,<v2.0.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
+      version: ">=v0.12.0,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"

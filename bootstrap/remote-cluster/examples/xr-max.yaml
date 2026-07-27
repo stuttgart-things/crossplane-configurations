@@ -1,0 +1,28 @@
+---
+# Maximum: every spec field set, to catch templating breakage. The values are
+# deliberately non-default (a path that differs from clusterName, a single
+# provider, a non-standard secret namespace) so a field silently dropped from the
+# template shows up as a diff rather than as an accidental match with a default.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterAccess
+metadata:
+  name: cluster-access-max
+  namespace: crossplane-system
+spec:
+  clusterName: max-cluster
+  source:
+    type: vault
+    # Diverges from clusterName on purpose — the upload play's `cluster_name`
+    # and the XR's clusterName are allowed to differ, and this proves the
+    # default is an override rather than a hard-wire.
+    path: kubeconfigs-archive/max-cluster
+    key: kubeconfig
+  # Only the Kubernetes provider: a cluster that gets no Helm releases needs no
+  # helm ClusterProviderConfig, and status.ready then waits on one, not two.
+  providers:
+    - kubernetes
+  apiVersions:
+    - v2-cluster
+  secretNamespace: crossplane-system # pragma: allowlist secret
+  kubeconfigProviderConfigRef: vault-kubeconfigs
+  kubernetesProviderConfigRef: in-cluster
