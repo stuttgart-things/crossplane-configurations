@@ -152,15 +152,32 @@ spec:
                     pipelineNamespace:
                       type: string
                       default: tekton-ci
-                runID:
-                  type: string
-                  pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                runIDs:
+                  type: object
                   description: >-
-                    Passed to every composed AnsibleRun. Bumping it is the
-                    supported way to force a deliberate re-run of the ansible
-                    stages — a completed Tekton PipelineRun is immutable and the
-                    wrapped Object has no Update policy, so editing anything else
-                    is a silent no-op. See cicd/ansible-run.
+                    Per-stage re-run identifiers, keyed by stage
+                    (`distribution`, `kubeconfig`). Bumping one suffixes that
+                    stage's PipelineRun and wrapped Object, which is what makes
+                    provider-kubernetes create a NEW run — a completed Tekton
+                    PipelineRun is immutable and the wrapped Object has no
+                    Update policy, so editing anything else is a silent no-op.
+
+                    A MAP, not a single value, and deliberately so: one global id
+                    renames every stage, so repairing the kubeconfig upload also
+                    re-runs the k3s install against a live cluster. That is the
+                    hazard the fleet's hand-written XRs warn about in their
+                    headers, and it happened on the first live build. A re-run
+                    has to name its stage.
+
+                    The base-OS stage is absent on purpose — it runs from the VM
+                    XR's own spec.ansible, whose XRD has no re-run knob.
+                  properties:
+                    distribution:
+                      type: string
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                    kubeconfig:
+                      type: string
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
 
                 # --- Downstream passthrough ---------------------------------
                 kubeconfig:

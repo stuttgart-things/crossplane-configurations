@@ -31,10 +31,11 @@ spec:
     extraVars:
       - update_packages+-false
 
-  # Bump to force a deliberate re-run of the ansible stages. A completed
-  # PipelineRun is immutable and the wrapped Object has no Update policy, so
-  # editing anything else is a silent no-op.
-  runID: "1"
+  # Per-stage re-run ids. A MAP on purpose: one global id would rename every
+  # stage, so repairing the upload would also re-run the distribution install
+  # against a live cluster.
+  runIDs:
+    kubeconfig: "1"
 
   kubeconfig:
     vaultPath: kubeconfigs-archive/max-cluster

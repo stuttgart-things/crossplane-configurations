@@ -104,9 +104,18 @@ u26-kind1   true    ready      proxmox    k3s            https://10.31.102.108:6
 
 `vm.templateVmId` / `vm.templateUuid` are create-only in the underlying providers: changing either forces delete+recreate rather than a re-clone.
 
-## Deliberate re-runs
+## Deliberate re-runs are per stage
 
-`spec.runID` is passed to every composed `AnsibleRun`. Bumping it re-runs the ansible stages; a completed Tekton `PipelineRun` is immutable and the wrapped Object excludes `Update`, so editing anything else is a **silent no-op**. See [ansible-run](../../cicd/ansible-run/).
+```yaml
+runIDs:
+  kubeconfig: "2"    # re-runs the upload only
+```
+
+Bumping a stage's id suffixes its `PipelineRun` and wrapped Object, which is what makes provider-kubernetes create a *new* run — a completed Tekton `PipelineRun` is immutable and the wrapped Object excludes `Update`, so editing anything else is a **silent no-op** (see [ansible-run](../../cicd/ansible-run/)).
+
+It is a **map, not a single value**, and that is the whole point: one global id renames every stage, so repairing the kubeconfig upload also re-runs the k3s install against a live cluster. That is exactly what the fleet's hand-written XRs warn about in their headers — and exactly what happened on the first live build of this Configuration. A re-run has to name its stage.
+
+The base-OS stage is absent on purpose: it runs from the VM XR's own `spec.ansible`, whose XRD has no re-run knob.
 
 ## Cluster preconditions
 
