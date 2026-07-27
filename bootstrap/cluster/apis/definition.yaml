@@ -152,6 +152,42 @@ spec:
                     pipelineNamespace:
                       type: string
                       default: tekton-ci
+                    setHostname:
+                      type: boolean
+                      default: true
+                      description: >-
+                        Set the guest hostname from clusterName during the
+                        base-OS stage. On Proxmox this is what names the guest at
+                        all — bpg cloud-init cannot, without a snippets
+                        datastore.
+
+                        REQUIRES sthings-baseos >= 26.5.695. On an older
+                        collection set the var is SILENTLY IGNORED: the guest
+                        keeps the template's hostname and nothing reports a
+                        problem. Set this to false on a fleet still pinned lower,
+                        so the omission is explicit rather than mysterious.
+                    stages:
+                      type: object
+                      description: >-
+                        Per-stage overrides, MERGED OVER the shared block above
+                        rather than replacing it — so the common case stays one
+                        list. Keys: baseos, distribution, kubeconfig.
+
+                        This exists because the shared block reaches every run:
+                        pinning one collection for the base-OS stage otherwise
+                        replaced the set the distribution stage needed, which on
+                        the first live build meant restating sthings-rke in order
+                        to bump sthings-baseos.
+                      properties:
+                        baseos:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                        distribution:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                        kubeconfig:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
                 runIDs:
                   type: object
                   description: >-

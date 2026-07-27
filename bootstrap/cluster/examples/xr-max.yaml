@@ -30,6 +30,17 @@ spec:
       - "kubernetes.core:6.4.0"
     extraVars:
       - update_packages+-false
+    # Merged OVER the shared block above, not replacing it — so pinning a
+    # collection for one stage does not silently drop the set another stage
+    # needs. That happened on the first live build.
+    stages:
+      distribution:
+        extraCollections:
+          - "kubernetes.core:6.4.0"
+          - "https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.6.905.tar.gz/sthings-rke-26.6.905.tar.gz"
+    # Requires sthings-baseos >= 26.5.695; on an older set the var is silently
+    # ignored. Left true here to exercise the default path.
+    setHostname: true
 
   # Per-stage re-run ids. A MAP on purpose: one global id would rename every
   # stage, so repairing the upload would also re-run the distribution install
