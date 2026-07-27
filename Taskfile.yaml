@@ -343,6 +343,81 @@ tasks:
           crossplane beta trace "$XR_KIND" "$XR_NAME" -n "$XR_NS" || true
         fi
 
+  clean-stranded:
+    desc: "Find and clear managed resources wedged on a finalizer (non-interactive: KUBECONFIG=... [NS=crossplane-system] [MATCH=<substring>] YES=1 task clean-stranded)"
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+
+        # A resource is "stranded" here when it has BOTH a deletionTimestamp and
+        # a finalizer: Crossplane asked for it to go, the provider cannot finish,
+        # and nothing will resolve it on its own.
+        #
+        # The case this was written for: a superseded PipelineRun Object. Tekton
+        # rejects real spec changes to a COMPLETE PipelineRun, so if the provider
+        # needs to apply a changed manifest while deleting, the Object can never
+        # finalize. Measured on kind1: a no-op or metadata-only patch is accepted,
+        # a genuine spec change is not -- which is why live Objects over finished
+        # runs are healthy and only superseded ones wedge (issue #184).
+        #
+        # Clearing the finalizer is safe HERE because the external resource is a
+        # completed PipelineRun: a historical record Tekton prunes on its own.
+        # It is NOT a general-purpose fix -- on a resource whose external object
+        # still matters, dropping the finalizer orphans it silently.
+
+        if [ -n "${KUBECONFIG:-}" ]; then
+          if [ ! -f "$KUBECONFIG" ]; then gum style --foreground 1 "KUBECONFIG=$KUBECONFIG: file not found"; exit 1; fi
+        else
+          KUBE_DIR="${KUBE_DIR:-$HOME/.kube}"
+          KUBECONFIGS=$(find "$KUBE_DIR" -maxdepth 1 -type f -not -name 'cache*' 2>/dev/null | sort)
+          if [ -z "$KUBECONFIGS" ]; then gum style --foreground 1 "no kubeconfigs found in $KUBE_DIR"; exit 1; fi
+          KUBECONFIG=$(echo "$KUBECONFIGS" | gum choose --header "select kubeconfig:")
+          if [ -z "$KUBECONFIG" ]; then gum style --foreground 3 "no selection"; exit 1; fi
+        fi
+        export KUBECONFIG
+
+        NS="${NS:-crossplane-system}"
+        MATCH="${MATCH:-}"
+
+        # `|| true` inside the pipe: kubectl exits non-zero when a CRD is absent,
+        # and pipefail would kill the task before printing anything.
+        FOUND=$( { kubectl get object.kubernetes.m.crossplane.io,release.helm.m.crossplane.io -n "$NS" -o json 2>/dev/null || true; } \
+          | jq -r --arg m "$MATCH" '.items[]?
+              | select(.metadata.deletionTimestamp != null)
+              | select((.metadata.finalizers // []) | length > 0)
+              | select($m == "" or (.metadata.name | test($m)))
+              | "\(.kind)/\(.metadata.name)\t\((.status.conditions[]? | select(.type=="Synced") | .message // "")[0:110])"' )
+
+        if [ -z "$FOUND" ]; then
+          gum style --foreground 2 "✓ nothing stranded in $NS"
+          exit 0
+        fi
+
+        gum style --foreground 3 --bold "stranded in $NS:"
+        echo "$FOUND" | while IFS="$(printf '\t')" read -r res msg; do
+          printf "  %s\n      %s\n" "$res" "$msg"
+        done
+        echo
+
+        if [ "${YES:-}" = "1" ] || [ "${YES:-}" = "true" ]; then
+          gum style --foreground 8 "  (YES=$YES — skipping confirmation)"
+        else
+          gum confirm "clear finalizers on these?" || { gum style --foreground 3 "aborted — nothing changed"; exit 1; }
+        fi
+
+        echo "$FOUND" | cut -f1 | while read -r res; do
+          KIND="${res%%/*}"; NAME="${res#*/}"
+          case "$KIND" in
+            Object)  API=object.kubernetes.m.crossplane.io ;;
+            Release) API=release.helm.m.crossplane.io ;;
+            *)       gum style --foreground 3 "  skipping unknown kind $KIND"; continue ;;
+          esac
+          kubectl patch "$API" "$NAME" -n "$NS" --type=merge -p '{"metadata":{"finalizers":[]}}' >/dev/null 2>&1 \
+            && gum style --foreground 2 "  ✓ cleared $res" \
+            || gum style --foreground 1 "  ✗ failed on $res"
+        done
+
   teardown-cluster:
     desc: "Tear down a ClusterStack in the two phases its teardown requires (non-interactive: KUBECONFIG=... NAME=<clusterstack> [NS=crossplane-system] YES=1 task teardown-cluster)"
     silent: true
