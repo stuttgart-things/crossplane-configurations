@@ -88,6 +88,10 @@ NAME        READY   STAGE      PROVIDER   DISTRIBUTION   ENDPOINT               
 u26-kind1   true    ready      proxmox    k3s            https://10.31.102.108:6443   40m
 ```
 
+## Turning the platform layer off
+
+`spec.platformEnabled: false` stops once the cluster is targetable (ClusterAccess ready) — the useful shape for a machine that only needs to exist and be reachable. It is deliberately a **sibling** of `spec.platform` rather than a key inside it: `platform` is a verbatim passthrough of the `Platform` XRD's spec, and a block that preserves unknown fields must not also declare known ones, or schema converters emit `additionalProperties: false` and reject every passthrough key.
+
 ## What you cannot set
 
 - **`platform.cni.enabled`** — derived from the distribution's CNI ownership. k3s installs cilium itself (its config disables flannel and kube-proxy, so the role *must*); kind is built deliberately without one. Setting it by hand is how a cluster ends up with two CNIs. Your other `cni` keys (chart version, values) pass through untouched.

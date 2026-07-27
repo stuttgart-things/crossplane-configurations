@@ -176,22 +176,34 @@ spec:
                     providerConfigRef:
                       type: string
                       default: vault-kubeconfigs
+                platformEnabled:
+                  type: boolean
+                  default: true
+                  description: >-
+                    Compose a Platform child at all. false stops once the cluster
+                    is targetable (ClusterAccess ready), which is the useful
+                    shape for a machine that only needs to exist and be
+                    reachable. Deliberately a SIBLING of `platform` rather than a
+                    key inside it: `platform` is a verbatim passthrough of
+                    another XRD's spec, and `enabled` is this Configuration's own
+                    switch, not a Platform field.
                 platform:
                   type: object
                   description: >-
-                    Passed through to the Platform child essentially verbatim
-                    (fluxInit, apps, ipReservation, cilium, vaultIssuer, …), so
-                    nothing in the platform Configuration needs to know this one
-                    exists. `clusterName` and `cni.enabled` are supplied by this
+                    Passed through to the Platform child verbatim (fluxInit,
+                    apps, ipReservation, cilium, vaultIssuer, …), so nothing in
+                    the platform Configuration needs to know this one exists.
+                    `clusterName` and `cni.enabled` are supplied by this
                     Composition and must NOT be set here — cni.enabled follows
                     from the distribution's CNI ownership, and setting it by hand
                     is how a cluster ends up with two CNIs.
+
+                    No properties are declared on purpose: a block that preserves
+                    unknown fields must not also declare known ones, or schema
+                    converters emit `additionalProperties: false` and reject
+                    every passthrough key. Same shape as platform's own
+                    `cni.cilium` and `apps.*.substitute`.
                   x-kubernetes-preserve-unknown-fields: true
-                  properties:
-                    enabled:
-                      type: boolean
-                      default: true
-                      description: Compose a Platform child at all. false stops after the cluster is targetable.
 
             status:
               type: object

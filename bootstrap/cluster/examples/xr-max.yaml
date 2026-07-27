@@ -41,8 +41,12 @@ spec:
     secretNamespace: crossplane-system  # pragma: allowlist secret
     providerConfigRef: vault-kubeconfigs
 
+  # Sibling of `platform`, not a key inside it: `platform` is a verbatim
+  # passthrough of the Platform XRD's spec, and a preserve-unknown-fields block
+  # that also declares known properties makes schema converters reject every
+  # passthrough key.
+  platformEnabled: true
   platform:
-    enabled: true
     fluxInit:
       enabled: true
     # kind is built WITHOUT a CNI, so the distribution makes cni.enabled true
