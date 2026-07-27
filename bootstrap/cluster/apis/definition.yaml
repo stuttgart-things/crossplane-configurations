@@ -173,6 +173,17 @@ spec:
                     secretNamespace:
                       type: string
                       default: crossplane-system
+                    vaultSecretName:
+                      type: string
+                      default: vault-kubeconfigs
+                      description: >-
+                        Secret in the pipeline namespace holding the Vault
+                        address and AppRole the kubeconfig UPLOAD authenticates
+                        with. Not the same thing as providerConfigRef below,
+                        and not the same Vault as `vault`: in this fleet that
+                        default points at the infra Vault and carries no
+                        AppRole, so leaving it unset fails the upload with
+                        "failed to determine alias name from login request".
                     providerConfigRef:
                       type: string
                       default: vault-kubeconfigs
