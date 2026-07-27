@@ -1,0 +1,49 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: cluster
+  labels:
+    crossplane.io/xrd: clusterstacks.config.stuttgart-things.com
+    service: cluster
+spec:
+  compositeTypeRef:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: ClusterStack
+  mode: Pipeline
+  pipeline:
+    # One step. The logic lives in the xplane-cluster KCL module (which depends
+    # on xplane-cluster-catalog) rather than inline here, for the reason
+    # bootstrap/platform states: inline KCL cannot be unit-tested, and the rules
+    # this Configuration encodes — which stage may open, who owns the CNI, what
+    # must outlive what on teardown — are exactly the logic that should be tested
+    # before it reaches a cluster. Inline KCL also cannot declare the catalog
+    # dependency at all.
+    #
+    # The module emits, in gated order:
+    #   NativeProxmoxVM | NativeVsphereVM   {name}-vm
+    #   AnsibleRun                          {name}-distribution
+    #   AnsibleRun                          {name}-kubeconfig
+    #   ClusterAccess                       {name}-access
+    #   Platform                            {name}-platform
+    #   Usage x3                            teardown ordering
+    #
+    # Every gate is sticky and keyed on the previous stage having SUCCEEDED, not
+    # merely being Ready — see the module's README.
+    - step: cluster
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: cluster
+        spec:
+          source: oci://ghcr.io/stuttgart-things/xplane-cluster:0.1.0
+    # Propagates the composed children's readiness to the XR. status.ready is
+    # set by the module itself (from the Platform child, or from ClusterAccess
+    # when platform.enabled is false); this makes the XR's Ready condition track
+    # the tree.
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

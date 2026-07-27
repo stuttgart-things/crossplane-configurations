@@ -1,0 +1,56 @@
+---
+# Maximum: every spec field set, to catch templating breakage. Values are
+# deliberately non-default so a field silently dropped from the template shows
+# up as a diff rather than coinciding with a default.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: cluster-max
+  namespace: crossplane-system
+spec:
+  provider: vsphere
+  size: large
+  distribution: kind
+  clusterName: max-cluster
+  environmentConfig: labda
+
+  vm:
+    # vSphere clone source. CREATE-ONLY: changing it forces delete+recreate.
+    templateUuid: 4234df9c-0000-0000-0000-000000000000
+    # PROXMOX ONLY — ignored here on purpose, and set anyway so the template's
+    # provider branching is exercised in the direction that must NOT emit it
+    # (NativeVsphereVM has no cloudInit block at all).
+    ipv4Address: dhcp
+
+  ansible:
+    ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test
+    crossplaneProviderConfig: in-cluster
+    pipelineNamespace: tekton-ci
+    extraCollections:
+      - "kubernetes.core:6.4.0"
+    extraVars:
+      - update_packages+-false
+
+  # Bump to force a deliberate re-run of the ansible stages. A completed
+  # PipelineRun is immutable and the wrapped Object has no Update policy, so
+  # editing anything else is a silent no-op.
+  runID: "1"
+
+  kubeconfig:
+    vaultPath: kubeconfigs-archive/max-cluster
+    secretNamespace: crossplane-system  # pragma: allowlist secret
+    providerConfigRef: vault-kubeconfigs
+
+  platform:
+    enabled: true
+    fluxInit:
+      enabled: true
+    # kind is built WITHOUT a CNI, so the distribution makes cni.enabled true
+    # automatically. Chart settings still pass through — only `enabled` is
+    # derived.
+    cni:
+      chart:
+        version: "1.19.6"
+      cilium:
+        kubeProxyReplacement: true
+        operatorReplicas: 1
