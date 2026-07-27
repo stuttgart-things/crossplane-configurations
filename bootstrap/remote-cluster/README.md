@@ -90,7 +90,8 @@ Not part of the package — see [`examples/cluster-provider-config.yaml`](exampl
 
 1. **`provider-kubeconfig`** installed, plus a `ClusterProviderConfig` matching `spec.kubeconfigProviderConfigRef` (default `vault-kubeconfigs`) carrying the Vault address, the AppRole and the CA trust. In the fleet this comes from the `provider-kubeconfig-vault` chart (`stuttgart-things/crossplane`, `platform/baseline/provider-kubeconfig-vault`), which also grants the downstream RBAC the provider needs to create ClusterProviderConfigs.
 2. **An in-cluster `ClusterProviderConfig`** (`kubernetes.m`, InjectedIdentity) named per `spec.kubernetesProviderConfigRef` (default `in-cluster`).
-3. **The kubeconfig in Vault must be raw YAML.** provider-kubeconfig hands the value straight to `clientcmd.RESTConfigFromKubeConfig` and never base64-decodes it — which is why the fleet uploads it with the container collection's `upload_kubeconfig_vault` play and not the rke one, which base64-encodes.
+3. **RBAC letting that provider CREATE RemoteClusters** — see [`examples/rbac.yaml`](examples/rbac.yaml). Easy to miss, because it was never needed before: RemoteClusters have always been applied by hand, so the provider only ever had to *read* existing ones. The first Composition to create one fails with `cannot create resource "remoteclusters" … at the cluster scope`. Not needed where the provider's SA is already cluster-admin — check with `kubectl auth can-i create remoteclusters.kubeconfig.stuttgart-things.com --as=system:serviceaccount:crossplane-system:provider-kubernetes`.
+4. **The kubeconfig in Vault must be raw YAML.** provider-kubeconfig hands the value straight to `clientcmd.RESTConfigFromKubeConfig` and never base64-decodes it — which is why the fleet uploads it with the container collection's `upload_kubeconfig_vault` play and not the rke one, which base64-encodes.
 
 ## Local render
 
@@ -115,6 +116,7 @@ bootstrap/remote-cluster/
     ├── xr.yaml
     ├── xr-max.yaml
     ├── cluster-provider-config.yaml
+    ├── rbac.yaml
     ├── configuration.yaml
     └── functions.yaml
 ```
