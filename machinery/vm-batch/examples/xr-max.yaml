@@ -1,0 +1,62 @@
+---
+# Maximum example: a vSphere batch with every spec field set, including a full
+# per-entry `vm` override block and the complete Ansible block. Useful for
+# catching KCL templating breakage when the fan-out or the emitted native-XR
+# shapes change.
+#
+# Note the provider split in the `vm` fields: vSphere uses `ram` (Proxmox uses
+# `memory`). vm-batch passes `defaults` / `vm` through verbatim as the native
+# VM's `spec.vm`, so use that native module's own field names.
+#
+#   - `app`     -> 3 replicas (app-0..app-2), overriding sizing + placement MOIDs
+#   - `bastion` -> 1 VM, inheriting the batch `defaults`
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VMBatch
+metadata:
+  name: vm-batch-max
+  namespace: default
+spec:
+  provider: vsphere
+  environmentConfig: labul
+  providerConfigRef:
+    name: default
+    kind: ClusterProviderConfig
+  defaults:
+    cpu: "2"
+    ram: "4096"
+    disk: "40"
+  vms:
+    - name: app
+      count: "3"
+      vm:
+        cpu: "8"
+        ram: "16384"
+        disk: "96"
+        guestId: ubuntu64Guest
+        firmware: efi
+        # placement MOID overrides (otherwise inherited from the labul
+        # vspherevm EnvironmentConfig)
+        templateUuid: 4211e0e2-1234-5678-9abc-def012345678
+        datastoreId: datastore-12
+        resourcePoolId: resgroup-8
+        networkId: dvportgroup-2048
+        folder: stuttgart-things/testing
+        annotation: "VSPHERE BATCH BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS"
+    - name: bastion
+  ansible:
+    enabled: true
+    pipelineNamespace: tekton-ci
+    ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test
+    credentialsSecretName: ansible-credentials # pragma: allowlist secret
+    gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+    crossplaneProviderConfig: in-cluster
+    wrapInCrossplane: true
+    playbooks:
+      - sthings.baseos.setup
+    varsFile:
+      - manage_filesystem+-true
+      - update_packages+-true
+    extraCollections:
+      - sthings.baseos
+    extraRoles:
+      - sthings.storage

@@ -1,0 +1,18 @@
+---
+# Minimum example: the only required fields are `provider` and a `vms` list
+# with at least one named entry. Everything else (placement, sizing,
+# provider config) comes from the native VM's EnvironmentConfig
+# (`spec.environmentConfig` defaults to "default"). No Ansible.
+#
+# This builds two distinct Proxmox VMs, `one` and `two`, each with the sizing
+# and placement its `proxmoxvm` EnvironmentConfig provides.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VMBatch
+metadata:
+  name: vm-batch-min
+  namespace: default
+spec:
+  provider: proxmox
+  vms:
+    - name: one
+    - name: two

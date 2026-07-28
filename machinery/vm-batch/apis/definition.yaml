@@ -1,0 +1,188 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: vmbatches.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: VMBatch
+    plural: vmbatches
+    singular: vmbatch
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                provider:
+                  type: string
+                  description: |
+                    Which native VM Configuration the batch fans out to.
+                    `proxmox` emits `NativeProxmoxVM` XRs (Configuration
+                    `proxmoxvm`); `vsphere` emits `NativeVsphereVM` XRs
+                    (Configuration `vspherevm`). A batch is single-provider.
+                  enum:
+                    - proxmox
+                    - vsphere
+                environmentConfig:
+                  type: string
+                  description: |
+                    Passed through verbatim to every emitted native VM XR as
+                    its `spec.environmentConfig`. Each native VM then resolves
+                    its own per-environment placement (node/datastore/network,
+                    template*, MOIDs, …) from the matching EnvironmentConfig —
+                    vm-batch itself carries no placement, so the whole fleet
+                    lands in one environment by naming it once here.
+                  default: default
+                providerConfigRef:
+                  type: object
+                  description: |
+                    Passed through to every emitted native VM XR. When unset,
+                    each native VM falls back to its own EnvironmentConfig /
+                    built-in default (`default` / `ClusterProviderConfig`).
+                  properties:
+                    name:
+                      type: string
+                    kind:
+                      type: string
+                      enum:
+                        - ClusterProviderConfig
+                        - ProviderConfig
+                cloudInit:
+                  type: object
+                  description: |
+                    Proxmox only: passed through verbatim to every emitted
+                    `NativeProxmoxVM` as its `spec.cloudInit` (ipv4Address,
+                    username, sshKeys, dnsServers, …). Ignored for vsphere.
+                    Free-form so it mirrors the `proxmoxvm` XRD's `cloudInit`
+                    block exactly without re-declaring it here.
+                  x-kubernetes-preserve-unknown-fields: true
+                defaults:
+                  type: object
+                  description: |
+                    Default `spec.vm` fields applied to EVERY vms[] entry; an
+                    entry's own `vm` block overrides these key-by-key. The keys
+                    are the native VM's `spec.vm` fields — for `proxmox`:
+                    cpu, memory, disk, cpuType, bios, templateVmId, node, … ;
+                    for `vsphere`: cpu, ram, disk, guestId, templateUuid, … .
+                    Free-form (mirrors each native XRD's `spec.vm`) so the
+                    batch never drifts from the native field set. Note the
+                    provider split: Proxmox uses `memory`, vSphere uses `ram`.
+                  x-kubernetes-preserve-unknown-fields: true
+                vms:
+                  type: array
+                  description: |
+                    The batch. One entry per distinct VM definition; each entry
+                    may set `count` to stamp out that many identical replicas.
+                    A replica's name is the entry `name` when `count` is 1, else
+                    `<name>-<0-based index>` (e.g. count 3 of `web` →
+                    `web-0`, `web-1`, `web-2`).
+                  minItems: 1
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: |
+                          Base VM name for this entry (becomes the guest name /
+                          `spec.vm.name` of each emitted native VM).
+                      count:
+                        type: string
+                        description: Number of identical replicas of this entry.
+                        default: "1"
+                      vm:
+                        type: object
+                        description: |
+                          Per-entry `spec.vm` overrides, merged OVER `defaults`
+                          (this wins). Free-form: use the native VM's own
+                          `spec.vm` field names (proxmox `memory` / vsphere
+                          `ram`, disk, cpu, template*, placement, …).
+                        x-kubernetes-preserve-unknown-fields: true
+                    required:
+                      - name
+                ansible:
+                  type: object
+                  description: |
+                    Optional base-OS provisioning for the WHOLE batch. When
+                    `enabled: true`, once every VM in the batch is Ready with an
+                    IP the Composition emits a SINGLE `AnsibleRun` (Tekton) whose
+                    inventory lists every VM IP (`all+["ip1","ip2",…]`) — one
+                    play across the whole fleet. Requires the ansible-run
+                    preconditions on the cluster (Tekton, the credentials
+                    Secret, an in-cluster provider-kubernetes config).
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                    playbooks:
+                      type: array
+                      items:
+                        type: string
+                    varsFile:
+                      type: array
+                      items:
+                        type: string
+                    varsInventory:
+                      type: array
+                      description: |
+                        Explicit Ansible inventory. When set it wins; when
+                        omitted the inventory is auto-built from every VM IP.
+                      items:
+                        type: string
+                    extraCollections:
+                      type: array
+                      items:
+                        type: string
+                    extraRoles:
+                      type: array
+                      items:
+                        type: string
+                    gitRepoUrl:
+                      type: string
+                    pipelineNamespace:
+                      type: string
+                    ansibleWorkingImage:
+                      type: string
+                    credentialsSecretName:
+                      type: string
+                    crossplaneProviderConfig:
+                      type: string
+                    wrapInCrossplane:
+                      type: boolean
+              required:
+                - provider
+                - vms
+            status:
+              description: A Status represents the observed state.
+              type: object
+              properties:
+                share:
+                  description: |
+                    Freeform status: `ip` (every VM IP in the batch),
+                    `provider`, plus the ansible completion latch
+                    (`ansibleReady` / `ansibleSucceeded` /
+                    `ansibleCompletionTime`).
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                vmReady:
+                  type: boolean
+                  description: True once every VM in the batch is Ready.
+                ansibleReady:
+                  type: boolean
+                  description: |
+                    True once the batch AnsibleRun is Ready (or when Ansible is
+                    disabled).
+                vmCount:
+                  type: integer
+                  description: Total VMs the batch expects (sum of every entry's count).
+                readyCount:
+                  type: integer
+                  description: How many of those VMs are currently Ready.

@@ -1,0 +1,50 @@
+---
+# Realistic "standard" usage: a small Proxmox fleet with shared Ansible base-OS
+# provisioning across the whole batch.
+#
+#   - `web`  -> 2 identical replicas (web-0, web-1), 4 vCPU / 8 GiB
+#   - `db`   -> 1 VM, larger disk, inheriting the batch `defaults`
+#
+# `defaults` supplies the shared spec.vm fields; a per-entry `vm` block
+# overrides them. Placement (node/datastore/bridge/templateVmId) comes from the
+# `proxmoxvm` EnvironmentConfig selected by `environmentConfig`.
+#
+# With `ansible.enabled: true`, once ALL 3 VMs are Ready with an IP a single
+# AnsibleRun is emitted whose inventory lists every VM IP — one play across the
+# whole fleet.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VMBatch
+metadata:
+  name: vm-batch
+  namespace: default
+spec:
+  provider: proxmox
+  environmentConfig: default
+  providerConfigRef:
+    name: default
+    kind: ClusterProviderConfig
+  defaults:
+    cpu: "2"
+    memory: "4096"
+    disk: "64"
+  cloudInit:
+    ipv4Address: dhcp
+  vms:
+    - name: web
+      count: "2"
+      vm:
+        cpu: "4"
+        memory: "8192"
+    - name: db
+      vm:
+        disk: "128"
+  ansible:
+    enabled: true
+    playbooks:
+      - sthings.baseos.setup
+    varsFile:
+      - manage_filesystem+-true
+      - update_packages+-true
+      - ansible_become+-true
+      - ansible_become_method+-sudo
+    crossplaneProviderConfig: in-cluster
