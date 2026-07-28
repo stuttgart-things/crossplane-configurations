@@ -104,7 +104,18 @@ offline `render` — by design, no template error.
 
 Set `spec.ansible.enabled: true` to run base-OS provisioning. Once the VM is
 Ready with an IP, the Composition emits an `AnsibleRun` (Tekton) whose inventory
-is auto-populated with the VM IP. Shared fields (`playbooks`, `varsFile`,
+is auto-populated with the VM IP.
+
+> **Guest hostname.** The run also receives `vm_hostname+-<hostname>`
+> automatically (from `spec.cloudInit.hostname` → `spec.vm.name` →
+> `metadata.name`); an explicit `vm_hostname` in `varsFile` wins. This exists
+> because the cloud-init meta-data snippet is inert on today's ubuntu26
+> templates — they ship `/etc/cloud/cloud-init.disabled`, so `cloud-init status`
+> is `disabled` and a clone would otherwise boot as `localhost`
+> ([stuttgart-things/stuttgart-things#2432](https://github.com/stuttgart-things/stuttgart-things/issues/2432)).
+> With ansible disabled *and* an affected template, the guest stays `localhost`.
+
+Shared fields (`playbooks`, `varsFile`,
 `gitRepoUrl`, `ansibleWorkingImage`, `credentialsSecretName`,
 `crossplaneProviderConfig`, `pipelineNamespace`) fall back to the
 EnvironmentConfig `ansible` sub-block when unset. This reuses the

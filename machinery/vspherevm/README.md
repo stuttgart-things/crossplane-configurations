@@ -64,6 +64,20 @@ matching how [`proxmoxvm`](../proxmoxvm/) already treats its own `spec.vm.name`.
 Renaming the guest after first boot has no effect: cloud-init only re-applies
 config when `instance-id` changes, and that stays pinned to the XR name.
 
+> ⚠️ **On today's ubuntu26 templates the cloud-init path does nothing.** They
+> ship `/etc/cloud/cloud-init.disabled` — subiquity leaves it behind on an
+> autoinstall and `cloud-init clean` does not remove it — so `cloud-init status`
+> is `disabled` and every clone boots as **`localhost`**. The metadata *is*
+> delivered (`vmware-rpctool "info-get guestinfo.metadata"` returns it); nothing
+> consumes it. Tracked as
+> [stuttgart-things/stuttgart-things#2432](https://github.com/stuttgart-things/stuttgart-things/issues/2432).
+>
+> Until those templates are rebuilt, the **ansible run is the only working
+> hostname path**, so this Configuration now passes `vm_hostname+-<hostname>`
+> into the `AnsibleRun` vars automatically whenever `spec.ansible.enabled` is
+> true. An explicit `vm_hostname` in `spec.ansible.varsFile` always wins. With
+> ansible disabled *and* an affected template, the guest stays `localhost`.
+
 ## Ansible (optional)
 
 Set `spec.ansible.enabled: true` to run base-OS provisioning. Once the VM is

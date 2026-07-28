@@ -250,6 +250,27 @@ spec:
             elif _ansibleEnabled and _vmReady and _vmIP != "":
                 _playbooks = _ansible?.playbooks or _envAnsible?.playbooks or ["sthings.baseos.setup"]
                 _varsFile = _ansible?.varsFile or _envAnsible?.varsFile or []
+
+                # Set the guest hostname through the baseos play as well as via
+                # cloud-init. The cloud-init guestinfo path above is the primary
+                # mechanism, but it is inert on any template that ships
+                # /etc/cloud/cloud-init.disabled — subiquity leaves that behind on
+                # an autoinstall, and `cloud-init clean` does not remove it, so the
+                # stuttgart-things ubuntu26 templates carry it and every clone boots
+                # as `localhost` (stuttgart-things/stuttgart-things#2432). The
+                # metadata still arrives (`vmware-rpctool "info-get
+                # guestinfo.metadata"` returns it) — nothing consumes it.
+                #
+                # `vm_hostname` is what sthings.baseos.setup acts on, and it is
+                # opt-in: kind-test1 ran baseos plus two more plays and stayed
+                # `localhost` purely because no one passed it. So default it here
+                # rather than making every caller remember.
+                #
+                # An explicit vm_hostname in varsFile always wins — this only fills
+                # the gap. Remove once #2432 ships and the templates are rebuilt;
+                # until then it is the ONLY working hostname path.
+                _hasHostnameVar = len([v for v in _varsFile if v.startswith("vm_hostname")]) > 0
+                _varsFileFinal = _varsFile if _hasHostnameVar else _varsFile + ["vm_hostname+-{}".format(_hostname)]
                 _varsInventory = _ansible?.varsInventory or ['all+["{}"]'.format(_vmIP)]
                 _pipelineRunName = "{}-ansible".format(_name)
 
@@ -270,8 +291,8 @@ spec:
                         ansibleWorkingImage = _ansible?.ansibleWorkingImage or _envAnsible?.ansibleWorkingImage or "ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test"
                         ansibleCredentialsSecretName = _ansible?.credentialsSecretName or _envAnsible?.credentialsSecretName or "ansible-credentials"
                         ansiblePlaybooks = _playbooks
-                        if len(_varsFile) > 0:
-                            ansibleVarsFile = _varsFile
+                        if len(_varsFileFinal) > 0:
+                            ansibleVarsFile = _varsFileFinal
                         ansibleVarsInventory = _varsInventory
                         wrapInCrossplane = _ansible?.wrapInCrossplane or True
                         crossplaneObjectName = _pipelineRunName

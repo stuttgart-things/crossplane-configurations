@@ -329,6 +329,23 @@ spec:
             elif _ansibleEnabled and _vmReady and _vmIP != "":
                 _playbooks = _ansible?.playbooks or _envAnsible?.playbooks or ["sthings.baseos.setup"]
                 _varsFile = _ansible?.varsFile or _envAnsible?.varsFile or []
+
+                # Set the guest hostname through the baseos play as well as via
+                # the cloud-init meta-data snippet. The snippet above is the
+                # primary mechanism, but it is inert on any template that ships
+                # /etc/cloud/cloud-init.disabled — subiquity leaves that behind on
+                # an autoinstall and `cloud-init clean` does not remove it, so the
+                # stuttgart-things ubuntu26 templates carry it and a clone boots as
+                # `localhost` (stuttgart-things/stuttgart-things#2432).
+                #
+                # `vm_hostname` is what sthings.baseos.setup acts on, and it is
+                # opt-in — u26-kind1 has its hostname only because that vars entry
+                # was passed by hand. Default it here instead.
+                #
+                # An explicit vm_hostname in varsFile always wins. Remove once
+                # #2432 ships and the templates are rebuilt.
+                _hasHostnameVar = len([v for v in _varsFile if v.startswith("vm_hostname")]) > 0
+                _varsFileFinal = _varsFile if _hasHostnameVar else _varsFile + ["vm_hostname+-{}".format(_hostname)]
                 _varsInventory = _ansible?.varsInventory or ['all+["{}"]'.format(_vmIP)]
                 _pipelineRunName = "{}-ansible".format(_name)
 
@@ -349,8 +366,8 @@ spec:
                         ansibleWorkingImage = _ansible?.ansibleWorkingImage or _envAnsible?.ansibleWorkingImage or "ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test"
                         ansibleCredentialsSecretName = _ansible?.credentialsSecretName or _envAnsible?.credentialsSecretName or "ansible-credentials"
                         ansiblePlaybooks = _playbooks
-                        if len(_varsFile) > 0:
-                            ansibleVarsFile = _varsFile
+                        if len(_varsFileFinal) > 0:
+                            ansibleVarsFile = _varsFileFinal
                         ansibleVarsInventory = _varsInventory
                         wrapInCrossplane = _ansible?.wrapInCrossplane or True
                         crossplaneObjectName = _pipelineRunName
