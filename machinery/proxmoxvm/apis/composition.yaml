@@ -147,17 +147,42 @@ spec:
             # disk's datastore; override via spec.cloudInit.datastoreId.
             _ciDatastore = _ci?.datastoreId or _datastore or ""
 
-            # --- hostname via cloud-init meta-data snippet ---
+            # --- hostname: SMBIOS seed (default) or meta-data snippet (opt-in) ---
             # bpg has NO hostname field, so the guest otherwise keeps the
-            # template's baked-in hostname. The only lever is a NoCloud meta-data
-            # snippet carrying `local-hostname`, referenced by metaDataFileId. That
-            # snippet (a tiny text file — NOT the VM disk) lives on a snippets-
-            # capable, filesystem-backed datastore. When none is configured we skip
-            # the snippet entirely so block-only environments stay unaffected.
+            # template's baked-in name (`ubuntu` on the stuttgart-things proxmox
+            # templates). There are two NoCloud levers, and the DEFAULT is now the
+            # SMBIOS one because the snippet path is unusable in most environments:
+            #
+            #   SMBIOS serial  cloud-init's NoCloud datasource parses the DMI
+            #                  system serial, so `ds=nocloud;h=<host>;i=<id>` sets
+            #                  local-hostname with NO file anywhere. Needs nothing
+            #                  but the smbios block we already emit.
+            #   metaDataFileId a NoCloud meta-data file on a snippets-capable
+            #                  datastore. Requires bpg to SSH INTO THE PVE NODE to
+            #                  place it — the PVE API rejects `content=snippets`
+            #                  outright ("does not have a value in the enumeration
+            #                  'iso, vztmpl, import'"), so there is no API path.
+            #                  Node SSH is unavailable in LabUL, and the creds the
+            #                  capability chart supplies are guest credentials, not
+            #                  node ones. Kept only for sites that do have it.
+            #
+            # Both verified on ul-pve10 (2026-07-28): a VM whose serial carried
+            # `ds=nocloud;h=smoke-alpha;i=smoke-alpha-0001` came up as
+            # `smoke-alpha`, with `cloud-init status: done` and
+            # `/sys/class/dmi/id/product_serial` showing the seed verbatim. bpg
+            # writes SMBIOS with base64=1 and the guest still sees plaintext, so
+            # the encoding does not interfere.
+            #
+            # EITHER/OR on purpose: with a snippet configured the seed is omitted,
+            # so two NoCloud sources never race. Both are inert unless the template
+            # actually runs cloud-init — the ubuntu26 images ship
+            # /etc/cloud/cloud-init.disabled (stuttgart-things#2432), which
+            # silently defeats either mechanism.
             _hostname = _ci?.hostname or _vm?.name or _name
             _snippetsDatastore = _ci?.snippetsDatastore or _env?.snippetsDatastore or ""
             _metaFileName = "{}-meta.yaml".format(_name)
             _metaDataFileId = "{}:snippets/{}".format(_snippetsDatastore, _metaFileName) if _snippetsDatastore != "" else ""
+            _smbiosSerial = "" if _snippetsDatastore != "" else "ds=nocloud;h={};i={}".format(_hostname, _name)
 
             _initialization = {
                 ipConfig = [{ ipv4 = [_ipv4cfg] }]
@@ -204,7 +229,14 @@ spec:
                 initialization = [_initialization]
                 # bpg stores this base64-encoded (base64=1), which it can read back
                 # and which makes PegaProx's auto-configurator skip the VM.
-                smbios = [{ manufacturer = _smbiosManufacturer, product = _smbiosProduct }]
+                smbios = [{
+                    manufacturer = _smbiosManufacturer
+                    product = _smbiosProduct
+                    # NoCloud seed — see the hostname block above. Omitted when a
+                    # snippet is configured so the two sources cannot race.
+                    if _smbiosSerial != "":
+                        serial = _smbiosSerial
+                }]
                 if _pool != "":
                     poolId = _pool
                 if _vm?.vmId:

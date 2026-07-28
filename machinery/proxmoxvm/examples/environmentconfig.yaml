@@ -32,10 +32,13 @@ data:
   networkModel: virtio
   annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
   ciUsername: sthings
-  # Filesystem-backed datastore with the Proxmox "Snippets" content type, used to
-  # upload the cloud-init meta-data snippet that sets the guest hostname. Leave
-  # unset on block-only environments to skip hostname injection.
-  snippetsDatastore: DD-sthings
+  # OPT-IN, and deliberately left unset: setting this switches hostname injection
+  # from the SMBIOS NoCloud seed (works everywhere) to a meta-data snippet, which
+  # bpg can only place by SSHing INTO THE PVE NODE. The PVE API refuses
+  # `content=snippets` outright, so there is no API path, and node SSH is
+  # typically unavailable — in LabUL the credentials the capability chart supplies
+  # are guest credentials, not node ones. Set it only if you know node SSH works.
+  # snippetsDatastore: DD-sthings
   # provider-proxmox-bpg ProviderConfig the EnvironmentVM runs through.
   providerConfigName: default
   providerConfigKind: ClusterProviderConfig
@@ -62,6 +65,7 @@ data:
   networkModel: virtio
   annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
   ciUsername: sthings
-  snippetsDatastore: DD-sthings
+  # Opt-in — see the note on the first EnvironmentConfig above.
+  # snippetsDatastore: DD-sthings
   providerConfigName: default
   providerConfigKind: ClusterProviderConfig
