@@ -9,7 +9,7 @@
 # VM's `spec.vm`, so use that native module's own field names.
 #
 #   - `app`     -> 3 replicas (app-0..app-2), overriding sizing + placement MOIDs
-#   - `bastion` -> 1 VM, inheriting the batch `defaults`
+#   - `bastion` -> 1 VM (bastion-0), inheriting the batch `defaults`
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: VMBatch
 metadata:

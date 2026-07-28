@@ -55,6 +55,10 @@ spec:
             _vmKind = "NativeProxmoxVM" if _provider == "proxmox" else "NativeVsphereVM"
 
             # Replica count for an entry (>= 1; guards int("") on offline render).
+            # The XRD pins `count` to ^[1-9][0-9]*$, so this only ever clamps an
+            # absent value — a non-numeric one would panic int() and fail the
+            # WHOLE Composition, not just its entry, which is why the schema
+            # rejects it up front rather than this lambda tolerating it.
             _count = lambda e { int(e?.count or "1") if int(e?.count or "1") > 0 else 1 }
 
             # Override-merge: values in `over` win over `base`. KCL's `|` union
@@ -66,10 +70,18 @@ spec:
             }
 
             # Build one native VM XR for a replica. `spec.vm` = defaults <- entry.vm
-            # <- {name}. The k8s object name is batch-prefixed for uniqueness; the
-            # GUEST name (spec.vm.name) is the un-prefixed replica name.
-            _mkVM = lambda entry, idx, total {
-                _rname = entry.name if total <= 1 else "{}-{}".format(entry.name, idx)
+            # <- {name}. The k8s object name is batch-prefixed for uniqueness.
+            #
+            # EVERY replica is index-suffixed — `<entry>-0` even at count 1 — so a
+            # replica's identity does NOT depend on the entry's count. Deriving it
+            # from the count (bare `<entry>` at 1, `<entry>-<idx>` above) makes the
+            # 1<->2 boundary RENAME the child XR: the old name drops out of the
+            # desired set, so Crossplane deletes it and builds fresh VMs. Scaling a
+            # batch would then destroy the machines it is supposed to be growing.
+            # With a constant suffix, scale-up is purely additive (`web-0` survives,
+            # `web-1` is added) and scale-down removes only the trailing replicas.
+            _mkVM = lambda entry, idx {
+                _rname = "{}-{}".format(entry.name, idx)
                 _vmSpec = _merge(_merge(_defaults, entry?.vm or {}), {name = _rname})
                 _childSpec = {
                     environmentConfig = _environmentConfig
@@ -96,7 +108,7 @@ spec:
 
             # One VM per replica across all entries. len() is the expected count.
             _vmXRs = [
-                _mkVM(_entry, _i, _count(_entry))
+                _mkVM(_entry, _i)
                 for _entry in _vms
                 for _i, _e in ([0] * _count(_entry))
             ]
@@ -123,6 +135,17 @@ spec:
             # exists it is therefore re-emitted VERBATIM from ocds rather than
             # rebuilt. `ansible.enabled: false` still removes it (the stickiness
             # absorbs involuntary flaps, not an explicit opt-out).
+            #
+            # CONSEQUENCE — the batch Ansible run is CREATE-ONLY. The inventory is
+            # frozen at the moment the gate first opened, and the sticky branch does
+            # not consult the VM set at all, so REPLICAS ADDED LATER ARE BUILT BUT
+            # NEVER PROVISIONED. Widening the stickiness to re-emit on an IP-set
+            # change would not help: kcl-tekton-pr excludes Update from its
+            # managementPolicies, so a rewritten AnsibleRun spec never reaches
+            # Tekton. Getting a second play needs a DIFFERENTLY NAMED AnsibleRun
+            # (e.g. keyed on the inventory) — deliberately out of scope for v0.1.0.
+            # For now: Ansible-provision new members with their own VMBatch, or
+            # delete + recreate the batch.
             _ansibleObserved = [v.Resource for _, v in ocds if v?.Resource?.kind == "AnsibleRun"]
             _prevAnsible = _ansibleObserved[0] if len(_ansibleObserved) > 0 else {}
             _prevAnsibleSpec = _prevAnsible?.spec or {}

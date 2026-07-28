@@ -74,17 +74,29 @@ spec:
                     cpu, memory, disk, cpuType, bios, templateVmId, node, … ;
                     for `vsphere`: cpu, ram, disk, guestId, templateUuid, … .
                     Free-form (mirrors each native XRD's `spec.vm`) so the
-                    batch never drifts from the native field set. Note the
-                    provider split: Proxmox uses `memory`, vSphere uses `ram`.
+                    batch never drifts from the native field set.
+
+                    Note the provider split: Proxmox uses `memory`, vSphere uses
+                    `ram`. Getting it wrong FAILS SILENTLY — free-form applies
+                    only here; the native XRDs are structural, so a key they do
+                    not declare is pruned by the API server with no error and no
+                    event, and the VM builds at that field's XRD default (e.g.
+                    `ram` on a Proxmox batch → 4096 MiB, not the value you set).
+                    Check the rendered child XR when a size does not take.
                   x-kubernetes-preserve-unknown-fields: true
                 vms:
                   type: array
                   description: |
                     The batch. One entry per distinct VM definition; each entry
                     may set `count` to stamp out that many identical replicas.
-                    A replica's name is the entry `name` when `count` is 1, else
-                    `<name>-<0-based index>` (e.g. count 3 of `web` →
-                    `web-0`, `web-1`, `web-2`).
+                    A replica is always named `<name>-<0-based index>` — count 1
+                    of `web` is `web-0`, count 3 is `web-0`, `web-1`, `web-2`.
+                    The suffix is constant on purpose: if the name shape varied
+                    with the count, changing `count` between 1 and 2 would rename
+                    the child XR, dropping the old name from the desired set and
+                    making Crossplane DELETE the running VM. With a constant
+                    suffix, scaling up only adds replicas and scaling down only
+                    removes trailing ones.
                   minItems: 1
                   items:
                     type: object
@@ -92,11 +104,25 @@ spec:
                       name:
                         type: string
                         description: |
-                          Base VM name for this entry (becomes the guest name /
-                          `spec.vm.name` of each emitted native VM).
+                          Base VM name for this entry. Each replica is emitted as
+                          a native VM XR named `<batch>-<name>-<index>`, and that
+                          OBJECT name is what both native Configurations use for
+                          the hypervisor VM name and the guest hostname (they
+                          derive it from `metadata.name`). The per-replica
+                          `<name>-<index>` is also passed as the child's
+                          `spec.vm.name`, which `proxmoxvm` uses as the guest
+                          hostname override and `vspherevm` currently ignores —
+                          so expect the guest to be `<batch>-<name>-<index>` on
+                          vSphere and `<name>-<index>` on Proxmox.
                       count:
                         type: string
-                        description: Number of identical replicas of this entry.
+                        description: |
+                          Number of identical replicas of this entry. Digits only
+                          and at least 1 — the Composition int()-converts this,
+                          and a non-numeric value would fail the WHOLE batch
+                          rather than just its entry, so the schema rejects it
+                          here instead.
+                        pattern: "^[1-9][0-9]*$"
                         default: "1"
                       vm:
                         type: object
@@ -104,7 +130,8 @@ spec:
                           Per-entry `spec.vm` overrides, merged OVER `defaults`
                           (this wins). Free-form: use the native VM's own
                           `spec.vm` field names (proxmox `memory` / vsphere
-                          `ram`, disk, cpu, template*, placement, …).
+                          `ram`, disk, cpu, template*, placement, …). Same silent
+                          pruning caveat as `defaults` — see there.
                         x-kubernetes-preserve-unknown-fields: true
                     required:
                       - name
@@ -118,6 +145,11 @@ spec:
                     play across the whole fleet. Requires the ansible-run
                     preconditions on the cluster (Tekton, the credentials
                     Secret, an in-cluster provider-kubernetes config).
+
+                    CREATE-ONLY. The inventory is frozen when the run is first
+                    emitted, so replicas added to the batch afterwards are built
+                    but NEVER Ansible-provisioned. Provision late additions with
+                    their own `VMBatch`, or delete and recreate the batch.
                   properties:
                     enabled:
                       type: boolean

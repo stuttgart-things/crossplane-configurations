@@ -4,8 +4,9 @@
 # provider config) comes from the native VM's EnvironmentConfig
 # (`spec.environmentConfig` defaults to "default"). No Ansible.
 #
-# This builds two distinct Proxmox VMs, `one` and `two`, each with the sizing
-# and placement its `proxmoxvm` EnvironmentConfig provides.
+# This builds two distinct Proxmox VMs, `one-0` and `two-0` (replicas are always
+# index-suffixed, even at the default count of 1), each with the sizing and
+# placement its `proxmoxvm` EnvironmentConfig provides.
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: VMBatch
 metadata:

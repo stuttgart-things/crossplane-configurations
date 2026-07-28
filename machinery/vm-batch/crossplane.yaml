@@ -28,8 +28,10 @@ metadata:
       fan-out on top:
 
       - `spec.vms[]` is a list of distinct VM definitions; each entry may set
-        `count` to stamp out that many identical replicas
-        (`<name>-0`, `<name>-1`, …). `spec.defaults` supplies shared `spec.vm`
+        `count` to stamp out that many identical replicas. Replicas are always
+        index-suffixed (`<name>-0`, `<name>-1`, … — `count: "1"` yields
+        `<name>-0`), so changing `count` never renames an existing VM and
+        scaling stays additive. `spec.defaults` supplies shared `spec.vm`
         fields; a per-entry `vm` block overrides them.
       - `spec.provider` (`proxmox`/`vsphere`) picks which native Configuration
         the batch emits into. `spec.environmentConfig` is passed through to

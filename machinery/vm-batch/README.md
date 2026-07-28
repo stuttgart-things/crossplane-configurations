@@ -56,8 +56,8 @@ matching EnvironmentConfig. Name one environment and the whole fleet lands in it
 |---|---|---|---|
 | `provider` | yes | - | `proxmox` (emits `NativeProxmoxVM`) or `vsphere` (emits `NativeVsphereVM`) |
 | `vms[]` | yes | - | List of VM definitions (at least one) |
-| `vms[].name` | yes | - | Base VM name (the guest name / `spec.vm.name`) |
-| `vms[].count` | no | `"1"` | Number of identical replicas of this entry |
+| `vms[].name` | yes | - | Base VM name; each replica becomes `<name>-<index>` (see [Replica naming](#replica-naming)) |
+| `vms[].count` | no | `"1"` | Number of identical replicas of this entry (digits only, ≥ 1) |
 | `vms[].vm` | no | - | Per-entry `spec.vm` overrides (free-form; merged over `defaults`) |
 | `environmentConfig` | no | `default` | Passed through to each VM as its `spec.environmentConfig` |
 | `providerConfigRef` | no | - | Passed through to each VM (`{name, kind}`) |
@@ -69,13 +69,36 @@ module's own `spec.vm` — use its field names. Note the provider split: **Proxm
 uses `memory`, vSphere uses `ram`**. See [`proxmoxvm`](../proxmoxvm/) /
 [`vspherevm`](../vspherevm/) for the full field sets.
 
+> **The split fails silently.** Free-form applies only to `VMBatch` — the native
+> XRDs are structural, so a key they do not declare is **pruned by the API server
+> with no error and no event**, and the VM builds at that field's XRD default
+> (`ram` on a Proxmox batch → 4096 MiB, not what you set). If a size does not
+> take, inspect the composed child XR (`kubectl get nativeproxmoxvm <batch>-<replica> -o yaml`).
+
 ### Replica naming
 
-An entry with `count: "1"` yields a VM named exactly `<name>`. With `count > 1`
-it yields `<name>-0`, `<name>-1`, … (0-based). The Kubernetes object name of
-each composed native XR is additionally batch-name-prefixed
-(`<batch>-<replica>`) so two batches in a namespace never collide; the **guest**
-name stays the un-prefixed replica name.
+Every replica is `<name>-<0-based index>` — **including at `count: "1"`**, which
+yields `<name>-0`. The Kubernetes object name of each composed native XR is
+additionally batch-name-prefixed (`<batch>-<name>-<index>`) so two batches in a
+namespace never collide.
+
+The index suffix is constant *by design*. If the name shape varied with the count
+(bare `<name>` at 1, suffixed above), then changing `count` between 1 and 2 would
+**rename** the child XR — the old name leaves the desired resource set, so
+Crossplane deletes it and builds fresh VMs. Scaling a batch would destroy the
+machines it is meant to be growing. With a constant suffix, scale-up is purely
+additive and scale-down removes only the trailing replicas.
+
+**Guest hostname differs per provider**, because both native modules derive the
+hypervisor VM name and the guest hostname from the child XR's `metadata.name`:
+
+| | hypervisor VM object | guest hostname |
+|---|---|---|
+| `proxmox` | `<batch>-<name>-<index>` | `<name>-<index>` (via `spec.vm.name`) |
+| `vsphere` | `<batch>-<name>-<index>` | `<batch>-<name>-<index>` |
+
+`vspherevm` does not read `spec.vm.name` today, so on vSphere the batch prefix
+reaches the guest too. Aligning the two is tracked against `vspherevm`, not here.
 
 ### Ansible (`spec.ansible`)
 
@@ -94,9 +117,18 @@ name stays the un-prefixed replica name.
 
 The `AnsibleRun` is emitted only once **all** VMs are Ready and each has
 reported an IP — so it never appears in offline `crossplane render`, and it is
-[**sticky**](#) (re-emitted verbatim once created so an involuntary VM-IP blip
+**sticky** (re-emitted verbatim once created so an involuntary VM-IP blip
 cannot delete and re-run the play). Setting `ansible.enabled: false` still
 removes it.
+
+> **The batch Ansible run is create-only.** The inventory is frozen when the run
+> is first emitted and the sticky path never re-reads the VM set, so **replicas
+> added to the batch later are built but never Ansible-provisioned**. Widening
+> the stickiness would not fix it — `kcl-tekton-pr` excludes `Update` from its
+> managementPolicies, so a rewritten `AnsibleRun` spec never reaches Tekton; a
+> second play needs a differently named `AnsibleRun`, which is out of scope for
+> v0.1.0. Provision late additions with their own `VMBatch`, or delete and
+> recreate the batch.
 
 ## Status
 

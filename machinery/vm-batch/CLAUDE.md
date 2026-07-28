@@ -36,16 +36,37 @@ one per VM.
 - **Replica count via list multiplication.** KCL has no `range()`; replicas come
   from `[0] * n` and `for _i, _e in ([0] * n)` (the index is the first loop
   var). `int(count or "1")`, floored at 1, guards `int("")` on offline render.
-- **Replica naming.** `count == 1` → `<name>`; `count > 1` → `<name>-<i>`
-  (0-based). The composed native XR's `metadata.name` is batch-prefixed
-  (`<batch>-<replica>`) for cross-batch uniqueness; the GUEST name
-  (`spec.vm.name`) is the un-prefixed replica name. `len(_vmXRs)` is the
+  The floor is the ONLY tolerance in `_count` — a non-numeric `count` panics
+  `int()` and fails the **whole** Composition, not just its entry, so the XRD
+  pins `count` to `^[1-9][0-9]*$` rather than letting the lambda cope.
+- **Replica naming — the suffix is ALWAYS applied.** `<name>-<i>` (0-based) even
+  at `count: "1"`, which yields `<name>-0`. **Do not "tidy" this into a bare
+  `<name>` for the single-replica case.** That was the original shape and it is a
+  data-loss bug: the name would then depend on the count, so crossing the 1↔2
+  boundary RENAMES the child XR, the old name drops out of the desired set, and
+  Crossplane deletes the running VM. Scaling a batch would destroy the machines
+  it is growing. Verified with `crossplane render --observed-resources`: with
+  `vm-batch-min-one` observed, `count: "2"` emitted only `…-one-0` / `…-one-1`.
+  A constant suffix makes scale-up additive and scale-down trailing-only.
+  The composed native XR's `metadata.name` is additionally batch-prefixed
+  (`<batch>-<name>-<i>`) for cross-batch uniqueness. `len(_vmXRs)` is the
   expected VM count used everywhere.
+- **Guest hostname is NOT uniformly the replica name.** Both native modules take
+  the hypervisor VM name and the guest hostname from their own `metadata.name`,
+  i.e. the batch-prefixed one. `proxmoxvm` additionally honours `spec.vm.name` as
+  a hostname override (`_hostname = _ci?.hostname or _vm?.name or _name`);
+  `vspherevm` never reads `spec.vm.name` at all. So the guest comes up as
+  `<name>-<i>` on Proxmox and `<batch>-<name>-<i>` on vSphere. Fix belongs in
+  `vspherevm`, not in a vm-batch workaround.
 - **`defaults` / `vms[].vm` are free-form passthrough** (`x-kubernetes-
   preserve-unknown-fields: true`) that mirror the native module's `spec.vm`.
   This is deliberate — vm-batch does NOT re-declare or normalize the native
   fields, so it never drifts from them. Consequence: the provider split leaks
-  (Proxmox `memory` vs vSphere `ram`); documented in the XRD + README.
+  (Proxmox `memory` vs vSphere `ram`); documented in the XRD + README. Note the
+  failure mode is SILENT: free-form stops at the `VMBatch` boundary, the native
+  XRDs are structural, so a key they do not declare is pruned by the API server
+  with no error/event and the VM builds at that field's XRD default. When
+  debugging "my size didn't apply", read the composed child XR, not the VMBatch.
 - **`cloudInit` passthrough is proxmox-only** (`NativeVsphereVM` has no such
   block) — the render KCL only attaches it when `provider == "proxmox"`.
 
@@ -68,6 +89,17 @@ ALL VMs (not the first), so the play runs against the complete fleet. Same
 VERBATIM from `ocds` (never rebuilt), so an involuntary VM-IP blip cannot delete
 and re-run the play against live machines. `ansible.enabled: false` still
 removes it. Don't rebuild-from-live inside the sticky branch.
+
+**Known limitation — the run is CREATE-ONLY.** The sticky branch keys on
+`prevSpec.pipelineRunName != ""` alone and never consults the VM set, so the
+inventory is frozen at first emission and replicas added later are built but
+never provisioned (verified: growing a 3-VM batch to 4 with the `AnsibleRun`
+observed re-emits the 3-IP inventory unchanged). Making the stickiness IP-set-
+aware does NOT fix this — `kcl-tekton-pr` excludes `Update` from its
+managementPolicies, so a rewritten `AnsibleRun` spec never reaches Tekton. The
+real fix is a differently *named* `AnsibleRun` per inventory (name keyed on a
+hash of the IP set), which trades the frozen inventory for run churn on every
+IP change — needs a deliberate decision, deferred past v0.1.0.
 
 ## Local render / iterate
 ```bash

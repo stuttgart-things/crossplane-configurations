@@ -3,7 +3,11 @@
 # provisioning across the whole batch.
 #
 #   - `web`  -> 2 identical replicas (web-0, web-1), 4 vCPU / 8 GiB
-#   - `db`   -> 1 VM, larger disk, inheriting the batch `defaults`
+#   - `db`   -> 1 VM (db-0), larger disk, inheriting the batch `defaults`
+#
+# Replicas are ALWAYS index-suffixed, so a count of 1 is `db-0` — the name never
+# depends on the count, and raising `db` to 2 later adds `db-1` instead of
+# renaming (and thereby destroying) the running VM.
 #
 # `defaults` supplies the shared spec.vm fields; a per-entry `vm` block
 # overrides them. Placement (node/datastore/bridge/templateVmId) comes from the
