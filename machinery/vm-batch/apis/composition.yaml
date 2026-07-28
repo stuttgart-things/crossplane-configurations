@@ -1,0 +1,275 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: vm-batch
+  labels:
+    crossplane.io/xrd: vmbatches.resources.stuttgart-things.com
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: VMBatch
+  mode: Pipeline
+  pipeline:
+    # -------------------------------------------------------------------------
+    # Step 1: fan out one native VM XR per replica, then (optionally) emit ONE
+    # AnsibleRun across the whole fleet.
+    #
+    # vm-batch carries NO placement of its own: it passes `spec.environmentConfig`
+    # through to every emitted `NativeProxmoxVM` / `NativeVsphereVM`, which each
+    # resolve their own per-environment topology from the matching
+    # EnvironmentConfig. So there is no `load-environment` step here and offline
+    # `crossplane render` needs no --extra-resources (like vm-provision).
+    #
+    # `crossplane render` is single-level: it shows the emitted native VM XRs but
+    # does not recurse into their Compositions, and the AnsibleRun is gated on VM
+    # readiness + IPs — so it does not appear in offline render. Expected.
+    # -------------------------------------------------------------------------
+    - step: render
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: render
+        spec:
+          source: | # pragma: allowlist secret
+            oxr = option("params").oxr
+            ocds = option("params").ocds or {}
+
+            _spec = oxr.spec
+            _name = oxr.metadata.name
+            _namespace = oxr.metadata.namespace or "default"
+            _provider = _spec.provider
+            _environmentConfig = _spec?.environmentConfig or "default"
+            _providerConfigRef = _spec?.providerConfigRef or {}
+            _cloudInit = _spec?.cloudInit or {}
+            _defaults = _spec?.defaults or {}
+            _vms = _spec?.vms or []
+            _ansible = _spec?.ansible or {}
+            _ansibleEnabled = _ansible?.enabled or False
+
+            # proxmox -> NativeProxmoxVM (Configuration `proxmoxvm`);
+            # vsphere -> NativeVsphereVM (Configuration `vspherevm`).
+            _vmKind = "NativeProxmoxVM" if _provider == "proxmox" else "NativeVsphereVM"
+
+            # Replica count for an entry (>= 1; guards int("") on offline render).
+            # The XRD pins `count` to ^[1-9][0-9]*$, so this only ever clamps an
+            # absent value — a non-numeric one would panic int() and fail the
+            # WHOLE Composition, not just its entry, which is why the schema
+            # rejects it up front rather than this lambda tolerating it.
+            _count = lambda e { int(e?.count or "1") if int(e?.count or "1") > 0 else 1 }
+
+            # Override-merge: values in `over` win over `base`. KCL's `|` union
+            # ERRORS on conflicting scalar keys instead of overriding, so merge
+            # key-by-key. Used to layer per-entry `vm` over batch `defaults`.
+            _merge = lambda base, over {
+                _keys = [k for k, _ in base] + [k for k, _ in over if k not in base]
+                {k = over[k] if k in over else base[k] for k in _keys}
+            }
+
+            # Build one native VM XR for a replica. `spec.vm` = defaults <- entry.vm
+            # <- {name}. The k8s object name is batch-prefixed for uniqueness.
+            #
+            # EVERY replica is index-suffixed — `<entry>-0` even at count 1 — so a
+            # replica's identity does NOT depend on the entry's count. Deriving it
+            # from the count (bare `<entry>` at 1, `<entry>-<idx>` above) makes the
+            # 1<->2 boundary RENAME the child XR: the old name drops out of the
+            # desired set, so Crossplane deletes it and builds fresh VMs. Scaling a
+            # batch would then destroy the machines it is supposed to be growing.
+            # With a constant suffix, scale-up is purely additive (`web-0` survives,
+            # `web-1` is added) and scale-down removes only the trailing replicas.
+            _mkVM = lambda entry, idx {
+                _rname = "{}-{}".format(entry.name, idx)
+                _vmSpec = _merge(_merge(_defaults, entry?.vm or {}), {name = _rname})
+                _childSpec = {
+                    environmentConfig = _environmentConfig
+                    vm = _vmSpec
+                    if len(_providerConfigRef) > 0:
+                        providerConfigRef = _providerConfigRef
+                    # cloudInit is a proxmoxvm-only field; skip it for vsphere.
+                    if _provider == "proxmox" and len(_cloudInit) > 0:
+                        cloudInit = _cloudInit
+                }
+                {
+                    apiVersion = "resources.stuttgart-things.com/v1alpha1"
+                    kind = _vmKind
+                    metadata = {
+                        name = "{}-{}".format(_name, _rname)
+                        namespace = _namespace
+                        annotations = {
+                            "crossplane.io/composition-resource-name" = "vm-{}".format(_rname)
+                        }
+                    }
+                    spec = _childSpec
+                }
+            }
+
+            # One VM per replica across all entries. len() is the expected count.
+            _vmXRs = [
+                _mkVM(_entry, _i)
+                for _entry in _vms
+                for _i, _e in ([0] * _count(_entry))
+            ]
+            _resources = _vmXRs
+            _expected = len(_vmXRs)
+
+            # --- aggregate IPs + readiness from the composed native VM XRs ---
+            # Native VM XRs surface every VM IP on status.share.ip (a list).
+            _vmStatuses = [v.Resource?.status or {} for _, v in ocds if v?.Resource?.kind == _vmKind]
+            _ipLists = [s?.share?.ip or [] for s in _vmStatuses]
+            _allIPs = [ip for _sub in _ipLists for ip in _sub]
+            _readyVMs = len([
+                s for s in _vmStatuses
+                if len([c for c in (s?.conditions or []) if c.type == "Ready" and c.status == "True"]) > 0
+            ])
+            _allReady = _expected > 0 and _readyVMs == _expected
+
+            # --- Optional single Ansible run across the whole batch ---
+            # STICKY GATE (same rationale as the native VM Configurations). Not
+            # emitting a composed resource is what makes Crossplane DELETE it, so
+            # a gate re-derived every reconcile would delete + recreate the
+            # AnsibleRun whenever any VM's IP momentarily blips — and a recreated
+            # AnsibleRun re-runs the play against live machines. Once the run
+            # exists it is therefore re-emitted VERBATIM from ocds rather than
+            # rebuilt. `ansible.enabled: false` still removes it (the stickiness
+            # absorbs involuntary flaps, not an explicit opt-out).
+            #
+            # CONSEQUENCE — the batch Ansible run is CREATE-ONLY. The inventory is
+            # frozen at the moment the gate first opened, and the sticky branch does
+            # not consult the VM set at all, so REPLICAS ADDED LATER ARE BUILT BUT
+            # NEVER PROVISIONED. Widening the stickiness to re-emit on an IP-set
+            # change would not help: kcl-tekton-pr excludes Update from its
+            # managementPolicies, so a rewritten AnsibleRun spec never reaches
+            # Tekton. Getting a second play needs a DIFFERENTLY NAMED AnsibleRun
+            # (e.g. keyed on the inventory) — deliberately out of scope for v0.1.0.
+            # For now: Ansible-provision new members with their own VMBatch, or
+            # delete + recreate the batch.
+            _ansibleObserved = [v.Resource for _, v in ocds if v?.Resource?.kind == "AnsibleRun"]
+            _prevAnsible = _ansibleObserved[0] if len(_ansibleObserved) > 0 else {}
+            _prevAnsibleSpec = _prevAnsible?.spec or {}
+
+            if _ansibleEnabled and (_prevAnsibleSpec?.pipelineRunName or "") != "":
+                _resources += [{
+                    apiVersion = _prevAnsible.apiVersion
+                    kind = _prevAnsible.kind
+                    metadata = {
+                        name = _prevAnsible?.metadata?.name or "{}-ansible-run".format(_name)
+                        namespace = _prevAnsible?.metadata?.namespace or _namespace
+                        annotations = {
+                            "crossplane.io/composition-resource-name" = "ansible-run"
+                        }
+                    }
+                    spec = _prevAnsibleSpec
+                }]
+            elif _ansibleEnabled and _allReady and len(_allIPs) >= _expected:
+                _playbooks = _ansible?.playbooks or ["sthings.baseos.setup"]
+                _varsFile = _ansible?.varsFile or []
+                # One inventory listing every VM IP: all+["ip1","ip2",...].
+                _ipQuoted = ['"{}"'.format(ip) for ip in _allIPs]
+                _varsInventory = _ansible?.varsInventory or ["all+[{}]".format(",".join(_ipQuoted))]
+                _pipelineRunName = "{}-ansible".format(_name)
+
+                _ansibleRun = {
+                    apiVersion = "resources.stuttgart-things.com/v1alpha1"
+                    kind = "AnsibleRun"
+                    metadata = {
+                        name = "{}-ansible-run".format(_name)
+                        namespace = _namespace
+                        annotations = {
+                            "crossplane.io/composition-resource-name" = "ansible-run"
+                        }
+                    }
+                    spec = {
+                        pipelineRunName = _pipelineRunName
+                        namespace = _ansible?.pipelineNamespace or "tekton-ci"
+                        gitRepoUrl = _ansible?.gitRepoUrl or "https://github.com/stuttgart-things/stage-time.git"
+                        ansibleWorkingImage = _ansible?.ansibleWorkingImage or "ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test"
+                        ansibleCredentialsSecretName = _ansible?.credentialsSecretName or "ansible-credentials"
+                        ansiblePlaybooks = _playbooks
+                        if len(_varsFile) > 0:
+                            ansibleVarsFile = _varsFile
+                        ansibleVarsInventory = _varsInventory
+                        wrapInCrossplane = _ansible?.wrapInCrossplane or True
+                        crossplaneObjectName = _pipelineRunName
+                        crossplaneNamespace = _namespace
+                        crossplaneProviderConfig = _ansible?.crossplaneProviderConfig or "in-cluster"
+                        if _ansible?.extraCollections and len(_ansible.extraCollections) > 0:
+                            installExtraCollections = "true"
+                            ansibleExtraCollections = _ansible.extraCollections
+                        if _ansible?.extraRoles and len(_ansible.extraRoles) > 0:
+                            installExtraRoles = "true"
+                            ansibleExtraRoles = _ansible.extraRoles
+                    }
+                }
+                _resources += [_ansibleRun]
+
+            items = _resources
+
+    # -------------------------------------------------------------------------
+    # Step 2: aggregate VM IPs, counts and readiness onto the XR status.
+    # -------------------------------------------------------------------------
+    - step: patch-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: patch-status
+        spec:
+          source: |
+            oxr = option("params").oxr
+            ocds = option("params").ocds or {}
+
+            _spec = oxr.spec
+            _provider = _spec.provider
+            _vms = _spec?.vms or []
+            _ansibleEnabled = _spec?.ansible?.enabled or False
+            _vmKind = "NativeProxmoxVM" if _provider == "proxmox" else "NativeVsphereVM"
+
+            _count = lambda e { int(e?.count or "1") if int(e?.count or "1") > 0 else 1 }
+            _expected = len([x for e in _vms for x in ([0] * _count(e))])
+
+            _vmStatuses = [v.Resource?.status or {} for _, v in ocds if v?.Resource?.kind == _vmKind]
+            _ipLists = [s?.share?.ip or [] for s in _vmStatuses]
+            _allIPs = [ip for _sub in _ipLists for ip in _sub]
+            _readyVMs = len([
+                s for s in _vmStatuses
+                if len([c for c in (s?.conditions or []) if c.type == "Ready" and c.status == "True"]) > 0
+            ])
+            _allReady = _expected > 0 and _readyVMs == _expected
+
+            # Ansible readiness + completion latch (if an AnsibleRun was composed).
+            # `ansibleReady` only says the AnsibleRun XR is Ready; `succeeded` /
+            # `completionTime` carry the PipelineRun's own verdict, which a parent
+            # XR must gate its next stage on.
+            _ansibleStatuses = [v.Resource?.status or {} for _, v in ocds if v?.Resource?.kind == "AnsibleRun"]
+            _ansibleSt = _ansibleStatuses[0] if len(_ansibleStatuses) > 0 else {}
+            _ansibleConds = _ansibleSt?.conditions or []
+            _ansibleReady = len([c for c in _ansibleConds if c.type == "Ready" and c.status == "True"]) > 0
+            _ansibleSucceeded = _ansibleSt?.succeeded or ""
+            _ansibleCompletionTime = _ansibleSt?.completionTime or ""
+
+            _oxr = oxr | {
+                status = {
+                    share = {
+                        ip = _allIPs
+                        provider = _provider
+                        ansibleReady = _ansibleReady
+                        ansibleSucceeded = _ansibleSucceeded
+                        ansibleCompletionTime = _ansibleCompletionTime
+                    }
+                    vmReady = _allReady
+                    ansibleReady = _ansibleReady if _ansibleEnabled else True
+                    vmCount = _expected
+                    readyCount = _readyVMs
+                }
+            }
+
+            items = [_oxr]
+
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready
