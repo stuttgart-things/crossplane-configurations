@@ -89,16 +89,20 @@ Crossplane deletes it and builds fresh VMs. Scaling a batch would destroy the
 machines it is meant to be growing. With a constant suffix, scale-up is purely
 additive and scale-down removes only the trailing replicas.
 
-**Guest hostname differs per provider**, because both native modules derive the
-hypervisor VM name and the guest hostname from the child XR's `metadata.name`:
+**The hypervisor object and the guest hostname get different names**, and that is
+deliberate — the batch prefix is what keeps two batches in a namespace from
+colliding, so it belongs on the object, not inside the guest:
 
 | | hypervisor VM object | guest hostname |
 |---|---|---|
-| `proxmox` | `<batch>-<name>-<index>` | `<name>-<index>` (via `spec.vm.name`) |
-| `vsphere` | `<batch>-<name>-<index>` | `<batch>-<name>-<index>` |
+| `proxmox` | `<batch>-<name>-<index>` | `<name>-<index>` |
+| `vsphere` | `<batch>-<name>-<index>` | `<name>-<index>` |
 
-`vspherevm` does not read `spec.vm.name` today, so on vSphere the batch prefix
-reaches the guest too. Aligning the two is tracked against `vspherevm`, not here.
+Both come from the child XR: the object from its `metadata.name`, the guest from
+the `spec.vm.name` vm-batch passes down. Requires **vspherevm ≥ v0.8.0**, which
+is the floor in `dependsOn` — v0.7.1 and earlier ignored `spec.vm.name`
+([#195](https://github.com/stuttgart-things/crossplane-configurations/issues/195))
+and leaked the batch prefix into the vSphere guest hostname.
 
 ### Ansible (`spec.ansible`)
 

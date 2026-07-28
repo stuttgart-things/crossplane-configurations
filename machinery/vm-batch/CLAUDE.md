@@ -51,13 +51,17 @@ one per VM.
   The composed native XR's `metadata.name` is additionally batch-prefixed
   (`<batch>-<name>-<i>`) for cross-batch uniqueness. `len(_vmXRs)` is the
   expected VM count used everywhere.
-- **Guest hostname is NOT uniformly the replica name.** Both native modules take
-  the hypervisor VM name and the guest hostname from their own `metadata.name`,
-  i.e. the batch-prefixed one. `proxmoxvm` additionally honours `spec.vm.name` as
-  a hostname override (`_hostname = _ci?.hostname or _vm?.name or _name`);
-  `vspherevm` never reads `spec.vm.name` at all. So the guest comes up as
-  `<name>-<i>` on Proxmox and `<batch>-<name>-<i>` on vSphere. Fix belongs in
-  `vspherevm`, not in a vm-batch workaround.
+- **Two names per replica, on purpose.** The child XR's `metadata.name` is
+  batch-prefixed (`<batch>-<name>-<i>`) and both native modules use it for the
+  hypervisor object; `spec.vm.name` carries the un-prefixed `<name>-<i>` and both
+  use it for the GUEST hostname. The prefix exists to keep two batches in one
+  namespace from colliding — it has no business inside the guest.
+  **This needs vspherevm >= v0.8.0** (the `dependsOn` floor). Earlier versions
+  declared `spec.vm.name` in the XRD but never read it, so the prefix leaked into
+  the vSphere guest hostname while Proxmox came up clean — issue #195, fixed in
+  vspherevm by `_hostname = _vm?.name or _name` feeding the cloud-init guestinfo
+  `local-hostname` (`instance-id` stays on `metadata.name`; do not "align" it).
+  If you ever lower that floor, the split silently comes back.
 - **`defaults` / `vms[].vm` are free-form passthrough** (`x-kubernetes-
   preserve-unknown-fields: true`) that mirror the native module's `spec.vm`.
   This is deliberate — vm-batch does NOT re-declare or normalize the native

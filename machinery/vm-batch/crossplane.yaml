@@ -63,8 +63,12 @@ spec:
     # vm-batch pulls these (and transitively their providers/functions).
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/proxmoxvm
       version: ">=v0.2.0"
+    # Floor is v0.8.0, not lower: that is where vspherevm started honouring
+    # `spec.vm.name` as the guest hostname. On v0.7.1 and earlier vm-batch still
+    # works, but the batch prefix leaks into the vSphere guest hostname because
+    # the field is silently ignored (issue #195).
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/vspherevm
-      version: ">=v0.3.0"
+      version: ">=v0.8.0"
     # Emitted directly by this Configuration for the shared batch Ansible run.
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/ansible-run
       version: ">=v0.1.4"

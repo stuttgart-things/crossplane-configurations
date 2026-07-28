@@ -105,15 +105,16 @@ spec:
                         type: string
                         description: |
                           Base VM name for this entry. Each replica is emitted as
-                          a native VM XR named `<batch>-<name>-<index>`, and that
-                          OBJECT name is what both native Configurations use for
-                          the hypervisor VM name and the guest hostname (they
-                          derive it from `metadata.name`). The per-replica
-                          `<name>-<index>` is also passed as the child's
-                          `spec.vm.name`, which `proxmoxvm` uses as the guest
-                          hostname override and `vspherevm` currently ignores —
-                          so expect the guest to be `<batch>-<name>-<index>` on
-                          vSphere and `<name>-<index>` on Proxmox.
+                          a native VM XR named `<batch>-<name>-<index>`; that
+                          OBJECT name becomes the hypervisor VM name, while the
+                          un-prefixed `<name>-<index>` is passed as the child's
+                          `spec.vm.name` and becomes the GUEST hostname. The
+                          batch prefix keeps two batches in a namespace from
+                          colliding, so it stays out of the guest.
+
+                          Needs vspherevm >= v0.8.0 (the `dependsOn` floor):
+                          earlier versions ignored `spec.vm.name` and leaked the
+                          prefix into the vSphere guest hostname.
                       count:
                         type: string
                         description: |
