@@ -34,7 +34,7 @@ spec:
         metadata:
           name: render
         spec:
-          source: |
+          source: | # pragma: allowlist secret
             oxr = option("params").oxr
             ocds = option("params").ocds or {}
 
