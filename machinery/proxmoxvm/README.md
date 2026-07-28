@@ -100,6 +100,52 @@ only populated when the **QEMU guest agent** is installed in the template and
 out; the first remaining address wins. It stays `[]` on the first reconcile and
 offline `render` — by design, no template error.
 
+## Guest hostname
+
+bpg has no hostname field, so without help the guest keeps the template's baked-in
+name (`ubuntu` on the stuttgart-things proxmox templates). The Composition sets it
+via cloud-init's **NoCloud SMBIOS seed** — it writes
+
+```
+smbios.serial = ds=nocloud;h=<hostname>;i=<vm name>
+```
+
+which cloud-init reads from `/sys/class/dmi/id/product_serial`. No file, no
+datastore, no SSH. `hostname` comes from `spec.cloudInit.hostname` →
+`spec.vm.name` → `metadata.name`.
+
+Verified on ul-pve10 (2026-07-28): a VM seeded with
+`ds=nocloud;h=smoke-alpha;i=smoke-alpha-0001` booted as `smoke-alpha` with
+`cloud-init status: done`. bpg writes SMBIOS with `base64=1` and the guest still
+sees plaintext, so the encoding does not interfere.
+
+### The snippet alternative (opt-in, usually unavailable)
+
+Setting `snippetsDatastore` (per-XR or in the EnvironmentConfig) switches to a
+NoCloud **meta-data snippet** referenced by `initialization.metaDataFileId`, and
+suppresses the SMBIOS seed so the two sources cannot race.
+
+Prefer the seed unless you have a specific reason: bpg can only place that file
+by **SSHing into the PVE node**. The API has no path for it —
+
+```console
+$ POST /nodes/<node>/storage/<store>/upload  content=snippets
+400  value 'snippets' does not have a value in the enumeration 'iso, vztmpl, import'
+```
+
+— and node SSH is often unavailable. In LabUL the capability chart maps
+`vm_ssh_user`/`vm_ssh_password` onto bpg's `ssh_username`/`ssh_password`, but
+those are *guest* credentials, so authentication to the node fails.
+
+### Both need a template that runs cloud-init
+
+Either mechanism is inert if the image ships `/etc/cloud/cloud-init.disabled`,
+which the current ubuntu26 templates do — `cloud-init status: disabled`, and the
+guest keeps `ubuntu` no matter what is seeded
+([stuttgart-things#2432](https://github.com/stuttgart-things/stuttgart-things/issues/2432)).
+Until those are rebuilt, the ansible fallback below is the only working path for
+single VMs, and batches have none.
+
 ## Ansible (optional)
 
 Set `spec.ansible.enabled: true` to run base-OS provisioning. Once the VM is
@@ -108,12 +154,10 @@ is auto-populated with the VM IP.
 
 > **Guest hostname.** The run also receives `vm_hostname+-<hostname>`
 > automatically (from `spec.cloudInit.hostname` → `spec.vm.name` →
-> `metadata.name`); an explicit `vm_hostname` in `varsFile` wins. This exists
-> because the cloud-init meta-data snippet is inert on today's ubuntu26
-> templates — they ship `/etc/cloud/cloud-init.disabled`, so `cloud-init status`
-> is `disabled` and a clone would otherwise boot as `localhost`
-> ([stuttgart-things/stuttgart-things#2432](https://github.com/stuttgart-things/stuttgart-things/issues/2432)).
-> With ansible disabled *and* an affected template, the guest stays `localhost`.
+> `metadata.name`); an explicit `vm_hostname` in `varsFile` wins. It is a
+> fallback for VMs on a template where cloud-init cannot run — see
+> [Guest hostname](#guest-hostname). Note it cannot help a `vm-batch`, which
+> emits one fleet-wide run and so has only one `vm_hostname` for N hosts.
 
 Shared fields (`playbooks`, `varsFile`,
 `gitRepoUrl`, `ansibleWorkingImage`, `credentialsSecretName`,
