@@ -33,6 +33,16 @@ spec:
                   properties:
                     name:
                       type: string
+                      description: |
+                        Guest hostname override. Defaults to the XR's
+                        `metadata.name`, which is also the vSphere inventory
+                        name — this renames the GUEST only, via the cloud-init
+                        guestinfo metadata, never the VM object.
+
+                        Mainly for composed use: a parent Composition has to give
+                        each child XR a unique `metadata.name` (usually by
+                        prefixing its own), and without this the prefix would
+                        reach the guest hostname too.
                     cpu:
                       type: string
                       default: "2"

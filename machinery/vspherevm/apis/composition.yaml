@@ -97,14 +97,31 @@ spec:
             _providerConfigName = _spec?.providerConfigRef?.name or _env?.providerConfigName or "default"
             _providerConfigKind = _spec?.providerConfigRef?.kind or _env?.providerConfigKind or "ClusterProviderConfig"
 
+            # Guest hostname. Defaults to the XR name (= the vSphere VM name), and
+            # `spec.vm.name` overrides it — matching proxmoxvm's
+            # `_hostname = _ci?.hostname or _vm?.name or _name`. The vSphere
+            # INVENTORY object stays on `_name` either way (see forProvider.name
+            # below): this knob renames the guest, not the VM.
+            #
+            # It exists for composed use. A parent Composition must give each
+            # child XR a unique metadata.name — usually by prefixing its own — and
+            # without this the prefix reaches the guest too. vm-batch, for one,
+            # emits `<batch>-<entry>-<i>` XRs and passes `<entry>-<i>` here.
+            _hostname = _vm?.name or _name
+
             # Cloud-init metadata (single-line JSON) injected via the VMware
-            # guestinfo datasource — sets the guest hostname (= VM name) on the
-            # RAW VM at first boot, independent of GOSC and of the optional
-            # ansible run. Requires the template's cloud-init to enable the
-            # VMware datasource and to be `cloud-init clean`ed at build time (see
-            # the packer ubuntu26 base-os build). instance-id = VM name so each
-            # clone is a fresh cloud-init instance that applies the hostname.
-            _ciMeta = "{{\"local-hostname\":\"{}\",\"instance-id\":\"{}\"}}".format(_name, _name)
+            # guestinfo datasource — sets the guest hostname on the RAW VM at
+            # first boot, independent of GOSC and of the optional ansible run.
+            # Requires the template's cloud-init to enable the VMware datasource
+            # and to be `cloud-init clean`ed at build time (see the packer
+            # ubuntu26 base-os build).
+            #
+            # instance-id stays on _name, NOT _hostname: it identifies the
+            # cloud-init *instance*, and cloud-init only re-applies config when it
+            # changes. _name is unique per XR; _hostname is not (two XRs may share
+            # a spec.vm.name), and a collision there would make a clone skip the
+            # hostname it was cloned to receive.
+            _ciMeta = "{{\"local-hostname\":\"{}\",\"instance-id\":\"{}\"}}".format(_hostname, _name)
 
             # Namespaced (".m") managed resource: a namespaced composite cannot
             # compose a cluster-scoped resource, so emit the namespaced variant
@@ -121,6 +138,9 @@ spec:
                 }
                 spec = {
                     forProvider = {
+                        # The vSphere inventory name, deliberately NOT _hostname:
+                        # it must stay unique per folder, and _name (the XR name)
+                        # already is. Guest hostname is set via _ciMeta above.
                         name = _name
                         annotation = _annotation
                         folder = _folder

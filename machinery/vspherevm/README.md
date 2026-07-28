@@ -45,6 +45,25 @@ spec:
     disk: "40"
 ```
 
+## Naming
+
+Two distinct names, and only one of them is `spec.vm.name`:
+
+| | value | set from |
+|---|---|---|
+| vSphere inventory VM | `metadata.name` | always the XR name — must stay unique per folder |
+| Guest hostname | `spec.vm.name`, falling back to `metadata.name` | cloud-init guestinfo metadata at first boot |
+
+Setting them equal (as every example does) is the normal case. The override
+exists for **composed** use: a parent Composition must give each child XR a
+unique `metadata.name`, typically by prefixing its own, and without this knob
+that prefix would land in the guest hostname too. `spec.vm.name` lets the parent
+keep a clean guest name while the XR and the vSphere object stay prefixed —
+matching how [`proxmoxvm`](../proxmoxvm/) already treats its own `spec.vm.name`.
+
+Renaming the guest after first boot has no effect: cloud-init only re-applies
+config when `instance-id` changes, and that stays pinned to the XR name.
+
 ## Ansible (optional)
 
 Set `spec.ansible.enabled: true` to run base-OS provisioning. Once the VM is
