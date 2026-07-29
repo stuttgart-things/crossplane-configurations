@@ -157,6 +157,45 @@ configured. That was true of the ubuntu26 templates until
 [stuttgart-things#2432](https://github.com/stuttgart-things/stuttgart-things/issues/2432);
 rebuilt templates (LabUL VMID 192 onward) run cloud-init and pick the name up.
 
+## Guest password (`lock_passwd`)
+
+**Enabling cloud-init costs you the baked-in password unless you set one.** PVE
+generates its user-data from `ciuser`/`cipassword`. With no `cipassword`,
+cloud-init falls back to its `lock_passwd: true` default and locks the account:
+
+```console
+$ passwd -S sthings
+sthings L 2026-07-28 0 99999 7 -1
+        ^ locked
+```
+
+Key-based logins keep working, so this hides well — but every password-based
+Ansible run fails with `Permission denied (publickey,password)` and the host
+comes out `UNREACHABLE`. The password the Packer build wrote is still in the
+image; cloud-init overwrites it on first boot.
+
+Set `spec.cloudInit.passwordSecretRef` to the Secret holding that same password:
+
+```yaml
+spec:
+  cloudInit:
+    passwordSecretRef:
+      name: proxmoxvm-ci-password   # in THIS XR's namespace
+      key: password
+```
+
+The Secret must live in the XR's namespace — the namespaced `EnvironmentVM` CRD
+declares only `{name, key}` and always resolves it locally. (`namespace` is still
+accepted on the XR for compatibility and ignored; before v0.8.0 the Composition
+forwarded it and the apply failed outright with
+`.passwordSecretRef.namespace: field not declared in schema`, so the field never
+worked at all.)
+
+Templates that do NOT run cloud-init are unaffected — nothing overwrites the
+baked-in password, which is why this only surfaced once
+[stuttgart-things#2432](https://github.com/stuttgart-things/stuttgart-things/issues/2432)
+was fixed.
+
 ## Ansible (optional)
 
 Set `spec.ansible.enabled: true` to run base-OS provisioning. Once the VM is

@@ -40,6 +40,13 @@ spec:
     # and nothing else can override that. Unset it and the VM is named after
     # vm.name / metadata.name instead.
     hostname: sthings-max
+    # Required on any template where cloud-init runs: PVE builds its user-data
+    # from ciuser/cipassword, and without a password cloud-init LOCKS the account
+    # (lock_passwd default), discarding the one baked in at image-build time.
+    # The Secret must live in THIS XR's namespace.
+    passwordSecretRef:
+      name: proxmoxvm-ci-password
+      key: password
     sshKeys:
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAExampleKeyReplaceMe user@sthings
     dnsDomain: labul.sva.de

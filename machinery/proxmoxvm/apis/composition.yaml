@@ -127,10 +127,21 @@ spec:
                     username = _ciUser
                 if len(_sshKeys) > 0:
                     keys = _sshKeys
+                # NO `namespace` here. The namespaced (".m") EnvironmentVM CRD
+                # declares only {name, key} — it resolves the Secret in the MR's
+                # own namespace, i.e. the XR's. Emitting namespace fails the apply
+                # outright and the VM is never created:
+                #
+                #   cannot apply composed resource: failed to create typed patch
+                #   object: .spec.forProvider.initialization[0].userAccount[0]
+                #   .passwordSecretRef.namespace: field not declared in schema
+                #
+                # So the Secret MUST live in the XR's namespace. spec.cloudInit
+                # .passwordSecretRef.namespace is accepted for compatibility but
+                # deliberately ignored.
                 if _ci?.passwordSecretRef:
                     passwordSecretRef = {
                         name = _ci.passwordSecretRef.name
-                        namespace = _ci.passwordSecretRef.namespace
                         key = _ci.passwordSecretRef.key
                     }
             }
