@@ -105,16 +105,22 @@ spec:
                         type: string
                         description: |
                           Base VM name for this entry. Each replica is emitted as
-                          a native VM XR named `<batch>-<name>-<index>`; that
-                          OBJECT name becomes the hypervisor VM name, while the
-                          un-prefixed `<name>-<index>` is passed as the child's
-                          `spec.vm.name` and becomes the GUEST hostname. The
-                          batch prefix keeps two batches in a namespace from
+                          a native VM XR named `<batch>-<name>-<index>`, while
+                          the un-prefixed `<name>-<index>` is passed as the
+                          child's `spec.vm.name` and becomes the GUEST hostname.
+                          The batch prefix keeps two batches in a namespace from
                           colliding, so it stays out of the guest.
 
-                          Needs vspherevm >= v0.8.0 (the `dependsOn` floor):
-                          earlier versions ignored `spec.vm.name` and leaked the
-                          prefix into the vSphere guest hostname.
+                          The hypervisor object name follows the provider: on
+                          vSphere it is the prefixed XR name (inventory names
+                          must be unique; the hostname rides on guestinfo), on
+                          Proxmox it is the un-prefixed hostname (PVE derives the
+                          guest hostname from the VM name and offers no other
+                          lever; VMIDs are what must be unique).
+
+                          Needs vspherevm >= v0.8.0 and proxmoxvm >= v0.7.0 (the
+                          `dependsOn` floors): earlier versions leaked the batch
+                          prefix into the guest hostname.
                       count:
                         type: string
                         description: |

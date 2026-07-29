@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/version: v0.1.1
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -61,8 +61,12 @@ spec:
       version: ">=v0.6.5,<v0.7.0"
     # Native single-VM Configurations this module fans out to. Installing
     # vm-batch pulls these (and transitively their providers/functions).
+    # Floor is v0.7.0: that is where proxmoxvm made the PVE VM name follow the
+    # requested hostname. Below it the batch prefix leaks into the Proxmox guest
+    # hostname, because PVE derives the hostname from the VM name and v0.6.0's
+    # SMBIOS seed never overrode it.
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/proxmoxvm
-      version: ">=v0.2.0"
+      version: ">=v0.7.0"
     # Floor is v0.8.0, not lower: that is where vspherevm started honouring
     # `spec.vm.name` as the guest hostname. On v0.7.1 and earlier vm-batch still
     # works, but the batch prefix leaks into the vSphere guest hostname because

@@ -62,9 +62,24 @@ Configuration, mirroring `vspherevm`'s relationship to `vsphere-vm`.
    resource, got 2`).
 2. **`render`** (`function-kcl`) — emits the `EnvironmentVM`; cloud-init via the
    `initialization` block (ipConfig / userAccount / dns) replaces the Telmate
-   remote-exec hostname/machine-id/reboot. The guest hostname is set from the VM
-   name by Proxmox cloud-init. Also emits an optional `AnsibleRun` gated on the
-   VM being Ready with an IP.
+   remote-exec hostname/machine-id/reboot. Also emits an optional `AnsibleRun`
+   gated on the VM being Ready with an IP.
+   **Hostname = the PVE VM name, and there is no second lever.** Any VM with an
+   `initialization` block (we always emit one, for ipConfig) gets PVE-generated
+   user-data carrying `hostname: <VM name>`, and user-data outranks every NoCloud
+   meta-data source. So `forProvider.name` is set to `_hostname`
+   (`cloudInit.hostname` -> `vm.name` -> `metadata.name`), NOT to `metadata.name`
+   — the MR's own `metadata.name` stays `_name` for cluster uniqueness, and PVE
+   does not require unique VM names. v0.6.0 (#200) instead shipped a NoCloud DMI
+   seed (`smbios.serial = ds=nocloud;h=…`); **it never worked** and v0.7.0 removed
+   it. Measured on LabUL 2026-07-29: the seed decoded verbatim on the guest and
+   was still ignored, both batch VMs taking their PVE names. The #200 smoke test
+   passed only because that VM was hand-cloned with no `initialization` block.
+   `metaDataFileId` is not an alternative either — it replaces the generated
+   meta-data, while `hostname:` lives in the generated USER-data. All of it is
+   inert on templates shipping `/etc/cloud/cloud-init.disabled` (stuttgart-things
+   #2432; LabUL VMID 192 onward is fixed). Contrast `vspherevm`, which keeps
+   `forProvider.name = _name` and injects the hostname via `guestinfo.metadata`.
 3. **`patch-status`** — reads `atProvider.ipv4Addresses` (list-of-lists; loopback
    filtered) → `status.share.ip`, plus `vmId` / `started` / `ansibleReady`.
 4. **`function-auto-ready`** — propagates the composed VM's readiness to the XR.

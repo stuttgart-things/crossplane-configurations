@@ -32,12 +32,13 @@ data:
   networkModel: virtio
   annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
   ciUsername: sthings
-  # OPT-IN, and deliberately left unset: setting this switches hostname injection
-  # from the SMBIOS NoCloud seed (works everywhere) to a meta-data snippet, which
-  # bpg can only place by SSHing INTO THE PVE NODE. The PVE API refuses
-  # `content=snippets` outright, so there is no API path, and node SSH is
-  # typically unavailable — in LabUL the credentials the capability chart supplies
-  # are guest credentials, not node ones. Set it only if you know node SSH works.
+  # OPT-IN, and deliberately left unset. This pins the cloud-init instance-id via
+  # a NoCloud meta-data snippet; it does NOT set the hostname (that is the VM
+  # name — see the README). bpg can only place the file by SSHing INTO THE PVE
+  # NODE: the API refuses `content=snippets` outright, so there is no API path,
+  # and node SSH is typically unavailable — in LabUL the credentials the
+  # capability chart supplies are guest credentials, not node ones. Set it only
+  # if you know node SSH works.
   # snippetsDatastore: DD-sthings
   # provider-proxmox-bpg ProviderConfig the EnvironmentVM runs through.
   providerConfigName: default
