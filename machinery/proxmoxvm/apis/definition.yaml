@@ -133,17 +133,30 @@ spec:
                       type: object
                       description: |
                         Reference to a Secret key holding the cloud-init user
-                        password (provider reads it at apply time).
+                        password (the provider reads it at apply time). The Secret
+                        MUST live in this XR's namespace — the namespaced
+                        EnvironmentVM CRD has no `namespace` field and always
+                        resolves it locally.
+
+                        Set this whenever the template runs cloud-init. Proxmox
+                        generates user-data from `ciuser`/`cipassword`, and with no
+                        password cloud-init applies its `lock_passwd` default and
+                        LOCKS the account (`passwd -S` reports `L`) — wiping the
+                        password baked in at build time and breaking any
+                        password-based Ansible run.
                       properties:
                         name:
                           type: string
                         namespace:
                           type: string
+                          description: |
+                            DEPRECATED and ignored — kept so existing XRs do not
+                            break. The Secret is always read from this XR's
+                            namespace.
                         key:
                           type: string
                       required:
                         - name
-                        - namespace
                         - key
                     dnsDomain:
                       type: string
