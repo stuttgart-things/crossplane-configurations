@@ -174,13 +174,23 @@ Ansible run fails with `Permission denied (publickey,password)` and the host
 comes out `UNREACHABLE`. The password the Packer build wrote is still in the
 image; cloud-init overwrites it on first boot.
 
-Set `spec.cloudInit.passwordSecretRef` to the Secret holding that same password:
+Point the environment at the Secret holding that same password — once, in the
+EnvironmentConfig, so no XR has to remember it:
+
+```yaml
+# EnvironmentConfig
+data:
+  ciPasswordSecretName: proxmoxvm-ci-password   # in the XR's namespace
+  ciPasswordSecretKey: password                 # optional, this is the default
+```
+
+A single XR can override it:
 
 ```yaml
 spec:
   cloudInit:
     passwordSecretRef:
-      name: proxmoxvm-ci-password   # in THIS XR's namespace
+      name: some-other-secret
       key: password
 ```
 

@@ -138,7 +138,11 @@ spec:
                         EnvironmentVM CRD has no `namespace` field and always
                         resolves it locally.
 
-                        Set this whenever the template runs cloud-init. Proxmox
+                        Usually set ONCE per environment via the EnvironmentConfig
+                        (`ciPasswordSecretName` / `ciPasswordSecretKey`), which
+                        this overrides. `key` falls back to that, then `password`.
+
+                        Needed whenever the template runs cloud-init. Proxmox
                         generates user-data from `ciuser`/`cipassword`, and with no
                         password cloud-init applies its `lock_passwd` default and
                         LOCKS the account (`passwd -S` reports `L`) — wiping the
@@ -157,7 +161,6 @@ spec:
                           type: string
                       required:
                         - name
-                        - key
                     dnsDomain:
                       type: string
                     dnsServers:
