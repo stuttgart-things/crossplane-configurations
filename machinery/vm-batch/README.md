@@ -89,20 +89,33 @@ Crossplane deletes it and builds fresh VMs. Scaling a batch would destroy the
 machines it is meant to be growing. With a constant suffix, scale-up is purely
 additive and scale-down removes only the trailing replicas.
 
-**The hypervisor object and the guest hostname get different names**, and that is
+**The child XR and the guest hostname get different names**, and that is
 deliberate — the batch prefix is what keeps two batches in a namespace from
-colliding, so it belongs on the object, not inside the guest:
+colliding, so it belongs on the Kubernetes object, not inside the guest:
 
-| | hypervisor VM object | guest hostname |
-|---|---|---|
-| `proxmox` | `<batch>-<name>-<index>` | `<name>-<index>` |
-| `vsphere` | `<batch>-<name>-<index>` | `<name>-<index>` |
+| | child XR (k8s) | hypervisor VM object | guest hostname |
+|---|---|---|---|
+| `proxmox` | `<batch>-<name>-<index>` | `<name>-<index>` | `<name>-<index>` |
+| `vsphere` | `<batch>-<name>-<index>` | `<batch>-<name>-<index>` | `<name>-<index>` |
 
-Both come from the child XR: the object from its `metadata.name`, the guest from
-the `spec.vm.name` vm-batch passes down. Requires **vspherevm ≥ v0.8.0**, which
-is the floor in `dependsOn` — v0.7.1 and earlier ignored `spec.vm.name`
-([#195](https://github.com/stuttgart-things/crossplane-configurations/issues/195))
-and leaked the batch prefix into the vSphere guest hostname.
+Both names come from the child XR: the prefixed one from its `metadata.name`, the
+guest from the `spec.vm.name` vm-batch passes down.
+
+The providers differ in the middle column because their constraints do. vSphere
+requires inventory names to be unique and injects the hostname separately via
+`guestinfo.metadata`, so the VM object keeps the prefix. Proxmox derives the guest
+hostname from the VM name and offers no other lever, so the PVE VM name *is* the
+hostname and drops the prefix — VMIDs, not names, are unique there. Use tags or a
+pool if you want the batch visible in the PVE UI.
+
+Floors in `dependsOn`, both load-bearing:
+
+- **vspherevm ≥ v0.8.0** — v0.7.1 and earlier ignored `spec.vm.name`
+  ([#195](https://github.com/stuttgart-things/crossplane-configurations/issues/195))
+  and leaked the batch prefix into the vSphere guest hostname.
+- **proxmoxvm ≥ v0.7.0** — v0.6.0 tried to set the hostname with a NoCloud SMBIOS
+  seed that PVE's own generated user-data always overrode, so Proxmox guests came
+  up as `<batch>-<name>-<index>`.
 
 ### Ansible (`spec.ansible`)
 

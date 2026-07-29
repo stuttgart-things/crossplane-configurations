@@ -102,49 +102,60 @@ offline `render` — by design, no template error.
 
 ## Guest hostname
 
-bpg has no hostname field, so without help the guest keeps the template's baked-in
-name (`ubuntu` on the stuttgart-things proxmox templates). The Composition sets it
-via cloud-init's **NoCloud SMBIOS seed** — it writes
+**The PVE VM name is the guest hostname.** bpg has no hostname field, but PVE has
+an implicit one: any VM with an `initialization` block — which this Composition
+always emits, for `ipConfig` — gets PVE-generated cloud-init user-data containing
 
-```
-smbios.serial = ds=nocloud;h=<hostname>;i=<vm name>
-```
-
-which cloud-init reads from `/sys/class/dmi/id/product_serial`. No file, no
-datastore, no SSH. `hostname` comes from `spec.cloudInit.hostname` →
-`spec.vm.name` → `metadata.name`.
-
-Verified on ul-pve10 (2026-07-28): a VM seeded with
-`ds=nocloud;h=smoke-alpha;i=smoke-alpha-0001` booted as `smoke-alpha` with
-`cloud-init status: done`. bpg writes SMBIOS with `base64=1` and the guest still
-sees plaintext, so the encoding does not interfere.
-
-### The snippet alternative (opt-in, usually unavailable)
-
-Setting `snippetsDatastore` (per-XR or in the EnvironmentConfig) switches to a
-NoCloud **meta-data snippet** referenced by `initialization.metaDataFileId`, and
-suppresses the SMBIOS seed so the two sources cannot race.
-
-Prefer the seed unless you have a specific reason: bpg can only place that file
-by **SSHing into the PVE node**. The API has no path for it —
-
-```console
-$ POST /nodes/<node>/storage/<store>/upload  content=snippets
-400  value 'snippets' does not have a value in the enumeration 'iso, vztmpl, import'
+```yaml
+hostname: <VM name>
+fqdn: <VM name>
+manage_etc_hosts: true
 ```
 
-— and node SSH is often unavailable. In LabUL the capability chart maps
-`vm_ssh_user`/`vm_ssh_password` onto bpg's `ssh_username`/`ssh_password`, but
-those are *guest* credentials, so authentication to the node fails.
+and `hostname` in **user-data** outranks every NoCloud meta-data source. So the
+Composition sets `forProvider.name` to the requested hostname —
+`spec.cloudInit.hostname` → `spec.vm.name` → `metadata.name` — rather than to the
+resource name. PVE does not require VM names to be unique (VMID is the key), so
+prefixing for grouping is unnecessary; use tags, a pool, or the description.
 
-### Both need a template that runs cloud-init
+### Why the SMBIOS seed is not used
 
-Either mechanism is inert if the image ships `/etc/cloud/cloud-init.disabled`,
-which the current ubuntu26 templates do — `cloud-init status: disabled`, and the
-guest keeps `ubuntu` no matter what is seeded
-([stuttgart-things#2432](https://github.com/stuttgart-things/stuttgart-things/issues/2432)).
-Until those are rebuilt, the ansible fallback below is the only working path for
-single VMs, and batches have none.
+v0.6.0 ([#200](https://github.com/stuttgart-things/crossplane-configurations/pull/200))
+shipped a NoCloud DMI seed (`smbios.serial = ds=nocloud;h=<host>;i=<id>`) as the
+hostname mechanism. **It does not work here, and v0.7.0 removes it.**
+
+Measured on LabUL 2026-07-29 with a 2-VM `vm-batch`: the seed was delivered
+correctly — `serial` decoded to `ds=nocloud;h=web-0;i=fin-web-0` on the VM — and
+was still ignored. Both guests came up as their PVE names, `fin-web-0` and
+`fin-web-1`, matching the generated user-data exactly. The smoke test that
+justified #200 passed only because that VM had been cloned by hand *without* an
+`initialization` block, so nothing competed with the seed; every VM this
+Composition emits has one.
+
+`snippetsDatastore` / `metaDataFileId` is no alternative either: it replaces the
+generated **meta-data**, while `hostname:` lives in the generated **user-data**,
+which it does not touch. Overriding that needs `userDataFileId` — another
+snippet, so bpg would have to SSH into the PVE node. There is no API path
+(`POST /nodes/<node>/storage/<store>/upload` with `content=snippets` returns
+`400 value 'snippets' does not have a value in the enumeration 'iso, vztmpl,
+import'`) and node SSH is unavailable in LabUL, where the capability chart
+supplies *guest* credentials under bpg's `ssh_username`/`ssh_password`. The
+snippet is kept only to pin the instance-id.
+
+### Contrast with `vspherevm`
+
+`vspherevm` sets the hostname through `guestinfo.metadata` and keeps
+`forProvider.name` as the resource name, because vSphere requires inventory names
+to be unique and supplies no competing datasource. The two Configurations are
+deliberately asymmetric here.
+
+### Needs a template that runs cloud-init
+
+All of this is inert if the image ships `/etc/cloud/cloud-init.disabled` —
+`cloud-init status: disabled`, and the guest keeps `ubuntu` no matter what is
+configured. That was true of the ubuntu26 templates until
+[stuttgart-things#2432](https://github.com/stuttgart-things/stuttgart-things/issues/2432);
+rebuilt templates (LabUL VMID 192 onward) run cloud-init and pick the name up.
 
 ## Ansible (optional)
 
@@ -153,11 +164,12 @@ Ready with an IP, the Composition emits an `AnsibleRun` (Tekton) whose inventory
 is auto-populated with the VM IP.
 
 > **Guest hostname.** The run also receives `vm_hostname+-<hostname>`
-> automatically (from `spec.cloudInit.hostname` → `spec.vm.name` →
-> `metadata.name`); an explicit `vm_hostname` in `varsFile` wins. It is a
-> fallback for VMs on a template where cloud-init cannot run — see
-> [Guest hostname](#guest-hostname). Note it cannot help a `vm-batch`, which
-> emits one fleet-wide run and so has only one `vm_hostname` for N hosts.
+> automatically (same precedence as above); an explicit `vm_hostname` in
+> `varsFile` wins. It is a **fallback** for templates where cloud-init cannot
+> run — see [Guest hostname](#guest-hostname) — and it agrees with the VM name,
+> so on a working template it is a no-op rather than a second source of truth.
+> It cannot help a `vm-batch`, which emits one fleet-wide run and so has only
+> one `vm_hostname` for N hosts; the VM name does work per-VM there.
 
 Shared fields (`playbooks`, `varsFile`,
 `gitRepoUrl`, `ansibleWorkingImage`, `credentialsSecretName`,

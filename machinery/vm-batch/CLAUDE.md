@@ -52,16 +52,22 @@ one per VM.
   (`<batch>-<name>-<i>`) for cross-batch uniqueness. `len(_vmXRs)` is the
   expected VM count used everywhere.
 - **Two names per replica, on purpose.** The child XR's `metadata.name` is
-  batch-prefixed (`<batch>-<name>-<i>`) and both native modules use it for the
-  hypervisor object; `spec.vm.name` carries the un-prefixed `<name>-<i>` and both
-  use it for the GUEST hostname. The prefix exists to keep two batches in one
-  namespace from colliding — it has no business inside the guest.
-  **This needs vspherevm >= v0.8.0** (the `dependsOn` floor). Earlier versions
-  declared `spec.vm.name` in the XRD but never read it, so the prefix leaked into
-  the vSphere guest hostname while Proxmox came up clean — issue #195, fixed in
-  vspherevm by `_hostname = _vm?.name or _name` feeding the cloud-init guestinfo
-  `local-hostname` (`instance-id` stays on `metadata.name`; do not "align" it).
-  If you ever lower that floor, the split silently comes back.
+  batch-prefixed (`<batch>-<name>-<i>`); `spec.vm.name` carries the un-prefixed
+  `<name>-<i>` and both native modules use it for the GUEST hostname. The prefix
+  exists to keep two batches in one namespace from colliding — it has no business
+  inside the guest.
+  **This needs vspherevm >= v0.8.0 AND proxmoxvm >= v0.7.0** (the `dependsOn`
+  floors); lower either and the split silently comes back.
+  - vspherevm < v0.8.0 declared `spec.vm.name` in the XRD but never read it —
+    issue #195, fixed by `_hostname = _vm?.name or _name` feeding the cloud-init
+    guestinfo `local-hostname` (`instance-id` stays on `metadata.name`; do not
+    "align" it). `forProvider.name` stays the prefixed XR name because vSphere
+    inventory names must be unique.
+  - proxmoxvm < v0.7.0 had no working lever at all: v0.6.0 shipped a NoCloud
+    SMBIOS seed that PVE's own generated user-data (`hostname: <VM name>`) always
+    overrode. v0.7.0 sets `forProvider.name` to the hostname instead, so on
+    **Proxmox the hypervisor VM name is the un-prefixed one** — the asymmetry
+    with vSphere in the README table is deliberate, not drift.
 - **`defaults` / `vms[].vm` are free-form passthrough** (`x-kubernetes-
   preserve-unknown-fields: true`) that mirror the native module's `spec.vm`.
   This is deliberate — vm-batch does NOT re-declare or normalize the native

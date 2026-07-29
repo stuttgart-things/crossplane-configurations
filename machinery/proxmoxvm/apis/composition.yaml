@@ -147,42 +147,47 @@ spec:
             # disk's datastore; override via spec.cloudInit.datastoreId.
             _ciDatastore = _ci?.datastoreId or _datastore or ""
 
-            # --- hostname: SMBIOS seed (default) or meta-data snippet (opt-in) ---
-            # bpg has NO hostname field, so the guest otherwise keeps the
-            # template's baked-in name (`ubuntu` on the stuttgart-things proxmox
-            # templates). There are two NoCloud levers, and the DEFAULT is now the
-            # SMBIOS one because the snippet path is unusable in most environments:
+            # --- hostname: the PVE VM NAME is the hostname ---
+            # bpg has no hostname field, but PVE has an implicit one: whenever a VM
+            # carries an `initialization` block — which we always emit, for ipConfig
+            # — PVE generates its own cloud-init user-data containing
             #
-            #   SMBIOS serial  cloud-init's NoCloud datasource parses the DMI
-            #                  system serial, so `ds=nocloud;h=<host>;i=<id>` sets
-            #                  local-hostname with NO file anywhere. Needs nothing
-            #                  but the smbios block we already emit.
-            #   metaDataFileId a NoCloud meta-data file on a snippets-capable
-            #                  datastore. Requires bpg to SSH INTO THE PVE NODE to
-            #                  place it — the PVE API rejects `content=snippets`
-            #                  outright ("does not have a value in the enumeration
-            #                  'iso, vztmpl, import'"), so there is no API path.
-            #                  Node SSH is unavailable in LabUL, and the creds the
-            #                  capability chart supplies are guest credentials, not
-            #                  node ones. Kept only for sites that do have it.
+            #     hostname: <VM name>
+            #     fqdn:     <VM name>
             #
-            # Both verified on ul-pve10 (2026-07-28): a VM whose serial carried
-            # `ds=nocloud;h=smoke-alpha;i=smoke-alpha-0001` came up as
-            # `smoke-alpha`, with `cloud-init status: done` and
-            # `/sys/class/dmi/id/product_serial` showing the seed verbatim. bpg
-            # writes SMBIOS with base64=1 and the guest still sees plaintext, so
-            # the encoding does not interfere.
+            # and serves it from the cidata drive. user-data's `hostname` outranks
+            # every NoCloud meta-data source, so the VM name is the ONLY lever. We
+            # therefore set forProvider.name to the requested hostname rather than
+            # to the resource name. PVE does not require VM names to be unique
+            # (VMID is the key), so this is safe; use tags/pool/description for
+            # grouping instead of a name prefix.
             #
-            # EITHER/OR on purpose: with a snippet configured the seed is omitted,
-            # so two NoCloud sources never race. Both are inert unless the template
-            # actually runs cloud-init — the ubuntu26 images ship
-            # /etc/cloud/cloud-init.disabled (stuttgart-things#2432), which
-            # silently defeats either mechanism.
+            # This corrects #200, which shipped a `ds=nocloud;h=…` SMBIOS serial
+            # seed as the hostname mechanism. Measured on LabUL 2026-07-29 with a
+            # 2-VM batch: the seed WAS delivered (`serial=ds=nocloud;h=web-0;…`
+            # decoded verbatim on the VM) and was still ignored — both guests came
+            # up as their PVE names, `fin-web-0` / `fin-web-1`. The smoke test that
+            # justified #200 passed only because that VM was cloned by hand with no
+            # `initialization` block and hence no competing cidata drive. The seed
+            # is dropped here rather than kept as a fallback: it can never win in
+            # any configuration this Composition emits.
+            #
+            # metaDataFileId (spec.cloudInit.snippetsDatastore) is kept, but is NOT
+            # a hostname mechanism either — it replaces the generated meta-data,
+            # while the `hostname:` line lives in the generated USER-data, which it
+            # does not touch. Overriding that needs userDataFileId, i.e. a snippet,
+            # i.e. bpg SSHing into the PVE node: the API rejects `content=snippets`
+            # outright ("does not have a value in the enumeration 'iso, vztmpl,
+            # import'"), and node SSH is unavailable in LabUL — the creds the
+            # capability chart supplies are guest credentials, not node ones.
+            #
+            # Still gated on the template running cloud-init at all: images that
+            # ship /etc/cloud/cloud-init.disabled ignore the lot (fixed for
+            # ubuntu26 in stuttgart-things#2432).
             _hostname = _ci?.hostname or _vm?.name or _name
             _snippetsDatastore = _ci?.snippetsDatastore or _env?.snippetsDatastore or ""
             _metaFileName = "{}-meta.yaml".format(_name)
             _metaDataFileId = "{}:snippets/{}".format(_snippetsDatastore, _metaFileName) if _snippetsDatastore != "" else ""
-            _smbiosSerial = "" if _snippetsDatastore != "" else "ds=nocloud;h={};i={}".format(_hostname, _name)
 
             _initialization = {
                 ipConfig = [{ ipv4 = [_ipv4cfg] }]
@@ -210,7 +215,8 @@ spec:
 
             _forProvider = {
                 nodeName = _node
-                name = _name
+                # NOT _name: the PVE VM name IS the guest hostname (see above).
+                name = _hostname
                 description = _annotation
                 bios = _bios
                 started = True
@@ -229,14 +235,7 @@ spec:
                 initialization = [_initialization]
                 # bpg stores this base64-encoded (base64=1), which it can read back
                 # and which makes PegaProx's auto-configurator skip the VM.
-                smbios = [{
-                    manufacturer = _smbiosManufacturer
-                    product = _smbiosProduct
-                    # NoCloud seed — see the hostname block above. Omitted when a
-                    # snippet is configured so the two sources cannot race.
-                    if _smbiosSerial != "":
-                        serial = _smbiosSerial
-                }]
+                smbios = [{ manufacturer = _smbiosManufacturer, product = _smbiosProduct }]
                 if _pool != "":
                     poolId = _pool
                 if _vm?.vmId:
@@ -267,11 +266,13 @@ spec:
 
             _resources = [_vmResource]
 
-            # --- cloud-init meta-data snippet (hostname) ---
+            # --- cloud-init meta-data snippet (opt-in) ---
             # Only emitted when a snippets datastore is configured. Uploads a tiny
             # NoCloud meta-data file (instance-id + local-hostname) that the
             # EnvironmentVM references via initialization.metaDataFileId. The VM
             # may fail its first reconcile(s) until the file lands; bpg retries.
+            # This pins the instance-id (PVE otherwise generates a hash); it does
+            # NOT decide the hostname — the generated user-data does. See above.
             if _snippetsDatastore != "":
                 _metaData = "instance-id: {}\nlocal-hostname: {}\n".format(_name, _hostname)
                 _fileResource = {

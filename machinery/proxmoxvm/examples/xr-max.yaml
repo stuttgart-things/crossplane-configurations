@@ -36,6 +36,10 @@ spec:
     ipv4Address: dhcp
     datastoreId: V5010-01-1
     username: sthings
+    # Also becomes the PVE VM name — Proxmox derives the guest hostname from it
+    # and nothing else can override that. Unset it and the VM is named after
+    # vm.name / metadata.name instead.
+    hostname: sthings-max
     sshKeys:
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAExampleKeyReplaceMe user@sthings
     dnsDomain: labul.sva.de
