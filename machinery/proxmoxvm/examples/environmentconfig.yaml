@@ -32,6 +32,14 @@ data:
   networkModel: virtio
   annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
   ciUsername: sthings
+  # Secret (in the XR's namespace) holding the cloud-init user password, plus its
+  # key. Set this per environment: with no password Proxmox emits user-data
+  # without cipassword, cloud-init applies its lock_passwd default and LOCKS the
+  # guest account — key logins still work, so it hides well, but every
+  # password-based AnsibleRun goes UNREACHABLE. Overridable per XR via
+  # spec.cloudInit.passwordSecretRef. ciPasswordSecretKey defaults to `password`.
+  ciPasswordSecretName: proxmoxvm-ci-password  # pragma: allowlist secret
+  ciPasswordSecretKey: password  # pragma: allowlist secret
   # OPT-IN, and deliberately left unset. This pins the cloud-init instance-id via
   # a NoCloud meta-data snippet; it does NOT set the hostname (that is the VM
   # name — see the README). bpg can only place the file by SSHing INTO THE PVE
@@ -66,6 +74,14 @@ data:
   networkModel: virtio
   annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
   ciUsername: sthings
+  # Secret (in the XR's namespace) holding the cloud-init user password, plus its
+  # key. Set this per environment: with no password Proxmox emits user-data
+  # without cipassword, cloud-init applies its lock_passwd default and LOCKS the
+  # guest account — key logins still work, so it hides well, but every
+  # password-based AnsibleRun goes UNREACHABLE. Overridable per XR via
+  # spec.cloudInit.passwordSecretRef. ciPasswordSecretKey defaults to `password`.
+  ciPasswordSecretName: proxmoxvm-ci-password  # pragma: allowlist secret
+  ciPasswordSecretKey: password  # pragma: allowlist secret
   # Opt-in — see the note on the first EnvironmentConfig above.
   # snippetsDatastore: DD-sthings
   providerConfigName: default

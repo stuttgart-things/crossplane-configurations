@@ -122,6 +122,8 @@ spec:
 
             _ciUser = _ci?.username or _env?.ciUsername or ""
             _sshKeys = _ci?.sshKeys or []
+            _ciPasswordSecretName = _ci?.passwordSecretRef?.name or _env?.ciPasswordSecretName or ""
+            _ciPasswordSecretKey = _ci?.passwordSecretRef?.key or _env?.ciPasswordSecretKey or "password"
             _userAccount = {
                 if _ciUser != "":
                     username = _ciUser
@@ -139,10 +141,18 @@ spec:
                 # So the Secret MUST live in the XR's namespace. spec.cloudInit
                 # .passwordSecretRef.namespace is accepted for compatibility but
                 # deliberately ignored.
-                if _ci?.passwordSecretRef:
+                #
+                # Falls back to the EnvironmentConfig (ciPasswordSecretName /
+                # ciPasswordSecretKey) so an environment can set this ONCE. That
+                # matters: omitting the password is not a missing nicety but a
+                # silent breakage — cloud-init applies its lock_passwd default and
+                # locks the guest account, so every password-based AnsibleRun goes
+                # UNREACHABLE while key logins keep working. Defaulting it per
+                # environment is what keeps that off every individual XR.
+                if _ciPasswordSecretName != "":
                     passwordSecretRef = {
-                        name = _ci.passwordSecretRef.name
-                        key = _ci.passwordSecretRef.key
+                        name = _ciPasswordSecretName
+                        key = _ciPasswordSecretKey
                     }
             }
 
