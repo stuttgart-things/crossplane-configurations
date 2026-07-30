@@ -56,6 +56,7 @@ See [`examples/`](examples/) for the full and build-only variants.
 | `Promoting` | PackerBuild + promote run | no | no |
 | `Promoted` | PackerBuild + promote run | **yes** | yes |
 | `PromoteFailed` | PackerBuild + promote run | no | **yes** |
+| `PromoteUnsupported` | PackerBuild | **yes** | **yes** |
 
 Ready therefore means *built and verified* — and, with promotion enabled,
 *published*.
@@ -96,6 +97,17 @@ Off by default. `spec.promote.enabled: true` adds a third composed resource: a
 [`promote-packer-template`](https://github.com/stuttgart-things/stage-time/blob/main/pipelines/promote-packer-template.yaml)
 PipelineRun, which uses govc to rename the current golden image aside and the
 fresh build into its place.
+
+**vSphere only.** Promotion is govc/vCenter-specific — it renames templates in
+the vSphere inventory, and the whole `promote` block is vCenter-shaped
+(datacenter, inventory folders, `insecureSkipVerify`). There is no Proxmox
+promote pipeline yet, so `promote.enabled: true` with `test.provider: proxmox`
+is **rejected at admission** (an XRD CEL rule), and the Composition additionally
+withholds the govc Object for any non-vSphere release — a pre-existing XR in
+that state reports the terminal phase `PromoteUnsupported` rather than firing
+the vSphere promoter against a template it cannot address. Tracking a Proxmox
+promotion path (Proxmox REST API + API token, mirroring this pipeline) in
+[#205](https://github.com/stuttgart-things/crossplane-configurations/issues/205).
 
 ```yaml
   promote:

@@ -344,6 +344,19 @@ spec:
 
               required:
                 - build
+              x-kubernetes-validations:
+                # Promotion is govc/vCenter-only today: it renames templates in
+                # the vSphere inventory, and the whole `promote` block is
+                # vCenter-shaped (datacenter, inventory folders, insecureSkipVerify).
+                # There is no Proxmox promote pipeline yet. Reject the
+                # combination at admission rather than letting the Composition
+                # render the govc promote Object against a Proxmox-built template
+                # it cannot address. Defense in depth: the Composition also gates
+                # the promote resource on the provider, and reports the
+                # combination as the terminal phase PromoteUnsupported for any XR
+                # that predates this rule. See issue #205.
+                - rule: "!has(self.promote) || !has(self.promote.enabled) || !self.promote.enabled || !has(self.test) || !has(self.test.provider) || self.test.provider == 'vsphere'"
+                  message: "spec.promote.enabled requires spec.test.provider 'vsphere' — promotion is govc/vCenter-only; Proxmox promotion is not implemented yet (issue #205)."
 
             status:
               type: object
@@ -371,6 +384,15 @@ spec:
                       nothing retries. The task refuses to run against a
                       half-promoted inventory, so a rerun needs the golden
                       folder looked at first.
+                    PromoteUnsupported — spec.promote.enabled is true but
+                      spec.test.provider is not vsphere. Promotion is
+                      govc/vCenter-only; there is no Proxmox promote pipeline
+                      yet. Terminal: the build is done and the smoke test
+                      passed, but the golden image is deliberately left
+                      untouched rather than firing the vSphere promoter against
+                      a template it cannot address. New XRs are rejected at
+                      admission; this phase is what a pre-existing XR reports.
+                      See issue #205.
                     TestSkipped — spec.test.enabled is false AND the build
                       produced a template. A build-only XR still reports
                       Building/BuildFailed while the build is in flight.
