@@ -67,6 +67,7 @@ spec:
             _namespace = oxr.metadata.namespace or "default"
             _build = _spec?.build or {}
             _test = _spec?.test or {}
+            _provider = _test?.provider or "vsphere"
 
             # function-environment-configs merges the selected EnvironmentConfig's
             # data into the context under this well-known key.
@@ -113,7 +114,16 @@ spec:
             # is fixed, so provider-kubernetes converges on the existing one.
             _promote = _spec?.promote or {}
             _promoteEnabled = _promote?.enabled if "enabled" in _promote else False
-            _promoteOpen = _promoteEnabled and _alreadyTested and _templateName != ""
+            # Promotion is govc/vCenter-only: it renames templates in the
+            # vSphere inventory, and the promote block is entirely vCenter-shaped.
+            # There is no Proxmox promote pipeline yet, so a non-vsphere release
+            # must NOT render the govc Object -- doing so fires the vSphere
+            # promoter against a template it cannot address. The XRD rejects this
+            # combination at admission; this gate protects any XR that predates
+            # that rule, and derive-status reports it as PromoteUnsupported.
+            # See issue #205.
+            _promoteSupported = _provider == "vsphere"
+            _promoteOpen = _promoteEnabled and _alreadyTested and _templateName != "" and _promoteSupported
 
             # --- Secret NAMES (not values) ----------------------------------
             # Defaults are resolved into locals here and assigned by variable
@@ -123,7 +133,7 @@ spec:
             # a YAML block scalar the finding is reported against the
             # `source: |` line, so the only place a pragma would take effect is
             # there -- silencing secret detection for this entire KCL program.
-            _provider = _test?.provider or "vsphere"
+            # (_provider is resolved once near the top, alongside _test.)
             _vaultName = _build?.vaultSecretName or "vault"
             _tfvarsName = _test?.tfvars?.secretName or _env?.tfvarsSecretName or "{}-tfvars".format(_provider)
             _tfvarsKey = _test?.tfvars?.secretKey or _env?.tfvarsSecretKey or "terraform.tfvars"
@@ -382,6 +392,9 @@ spec:
             _ocds = _params?.ocds or {}
             _spec = oxr?.spec or {}
             _test = _spec?.test or {}
+            _provider = _test?.provider or "vsphere"
+            # Promotion is govc/vCenter-only; see the render step and issue #205.
+            _promoteSupported = _provider == "vsphere"
 
             _pbs = [v.Resource for _, v in _ocds if v?.Resource?.kind == "PackerBuild"]
             _pb = _pbs[0] if _pbs else {}
@@ -463,7 +476,13 @@ spec:
             # it were pending.
             _phasePromoting = "PromoteFailed" if _promoteSucceeded == "False" else "Promoting"
             _phasePromote = "Promoted" if _promoted else _phasePromoting
-            _phaseAfterTest = _phasePromote if _promoteOn else "Tested"
+            # promote.enabled on a non-vsphere provider is terminal and does
+            # nothing: the render step withholds the govc Object (it is
+            # vCenter-only), so the golden image is left untouched. The XRD
+            # rejects new XRs in this state at admission; a pre-existing one
+            # reports PromoteUnsupported here rather than a bogus Promoting.
+            _phasePromoteOn = _phasePromote if _promoteSupported else "PromoteUnsupported"
+            _phaseAfterTest = _phasePromoteOn if _promoteOn else "Tested"
 
             _phaseTesting = _phaseAfterTest if _tested else "Testing"
             _phaseDone = _phaseTesting if _testEnabled else "TestSkipped"
