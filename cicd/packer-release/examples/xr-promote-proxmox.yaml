@@ -1,0 +1,80 @@
+---
+# The full release on Proxmox: build, smoke-test, and — only if the test passes
+# — promote. Promotion here does NOT look like the vSphere sibling
+# (xr-promote.yaml), and the difference is worth understanding before enabling
+# it.
+#
+# On vSphere, promotion renames the golden image aside and the fresh build in.
+# That works because consumers resolve templates by inventory name/path, so the
+# rename redirects them, immediately and cluster-wide.
+#
+# Nothing resolves by name on Proxmox. bpg's VirtualMachine exposes
+# spec.forProvider.clone with `vmId` and nothing else — no name, path, ref or
+# selector. Renaming a template in PVE would change what a human sees in the UI
+# and redirect exactly zero clones. What consumers actually read is
+# `templateVmId` in the proxmoxvm capability chart.
+#
+# So promotion here opens a PULL REQUEST that changes that value, and merging it
+# is the promotion. Consequences, all of which make this safer than the vSphere
+# path rather than less safe:
+#
+#   * deleting this XR does not undo anything, but nothing was switched either
+#     until a human merged the PR
+#   * `status.phase: Promoted` means the PR EXISTS, not that the fleet moved.
+#     Read `status.promotionPullRequest`.
+#   * rollback is putting the previous VMID back — no `-previous` generation to
+#     keep, no inventory to repair
+#   * no PVE API call happens at all, so this needs no node access (unavailable
+#     in LabUL anyway) and no Proxmox API token
+#
+# Precondition that is NOT part of this package: a Secret holding a token that
+# may push a branch and open a pull request on the config repo. The read-only
+# clone credential the build pipelines use is not sufficient. Name it via
+# promote.proxmox.gitTokenSecretName or the EnvironmentConfig.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerRelease
+metadata:
+  name: ubuntu26-labul-proxmox-release
+  namespace: default
+spec:
+  environmentConfig: default
+  build:
+    environmentConfig: default
+    osVersion: ubuntu26
+    provisioning: base-os
+    packerTemplate: ubuntu26-base-os.pkr.hcl
+    hypervisor: proxmox
+    gitRevision: main
+    # The infra Vault, not the default `vault` Secret: the Proxmox build reads
+    # cicd-proxmox-labul/data/default, and the base-os playbook reads
+    # ssh/data/sthings — both live there, and one AppRole login covers both.
+    vaultSecretName: vault-infra # pragma: allowlist secret
+  test:
+    enabled: true
+    provider: proxmox
+    cpu: "4"
+    ram: "4096"
+    disk: "64"
+    ansible:
+      enabled: true
+      playbooks:
+        - sthings.baseos.setup
+      varsFile:
+        - manage_filesystem+-true
+        - update_packages+-true
+  promote:
+    enabled: true
+    # goldenName / buildFolder / goldenFolder / datacenter are the vSphere
+    # fields and are ignored on this path — there is no inventory to rename.
+    proxmox:
+      # The golden pointer, as a yq path into the capability chart values.
+      # Required, with no default and no derivation from `lab`: it names an
+      # environment block, and a guess would promote a different lab's pointer
+      # while looking like it worked.
+      valuePath: .environments.labul.templateVmId
+      # Everything else — config repo, values file, Chart.yaml to bump, token
+      # secret — has a working default in the pipeline, or comes from the
+      # packer-release EnvironmentConfig. Set dryRun "true" for a first run:
+      # it prints the diff and opens nothing, which is how you prove the
+      # valuePath matches before a release ever touches the config repo.
+      dryRun: "true"

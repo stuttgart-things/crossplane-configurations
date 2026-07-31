@@ -256,8 +256,19 @@ spec:
                 promote:
                   type: object
                   description: |
-                    Promote the tested template to the golden image, via govc
-                    (rename the golden image aside, rename the fresh build in).
+                    Promote the tested template to the golden image.
+
+                    How, depends on the provider, because the two are not the
+                    same operation:
+
+                    - vsphere — govc renames the golden image aside and the
+                      fresh build in. Consumers resolve templates by inventory
+                      name/path, so the rename redirects them, and it takes
+                      effect at once. The fields directly below are this path.
+                    - proxmox — see the `proxmox` block. Nothing is renamed:
+                      bpg clones by numeric VMID only, so promotion changes the
+                      `templateVmId` consumers resolve, as a pull request
+                      against the config repo. It takes effect on merge.
 
                     Requires `test.enabled`. Promotion is gated on
                     `status.tested`, and that latch is only ever set by a test
@@ -305,6 +316,93 @@ spec:
                       type: string
                       description: Skip vCenter TLS verification (self-signed lab certs)
                       default: "true"
+                    proxmox:
+                      type: object
+                      description: |
+                        Proxmox promotion. Read only when test.provider is
+                        'proxmox'; the fields above are the vSphere ones and are
+                        ignored here.
+
+                        This does NOT rename anything. bpg's VirtualMachine
+                        clones by numeric VMID only — spec.forProvider.clone
+                        takes vmId and nothing else, no name, path, ref or
+                        selector — so renaming a template in PVE would redirect
+                        zero consumers. What they resolve is `templateVmId` in
+                        the proxmoxvm capability chart, so promotion is a change
+                        to that value, delivered as a pull request against the
+                        config repo. Merging it is the promotion; until then the
+                        fleet still clones the previous VMID.
+
+                        Consequently there is no golden name, no
+                        `-previous` generation to keep and no PVE API call —
+                        rollback is putting the old VMID back.
+                      properties:
+                        valuePath:
+                          type: string
+                          description: |
+                            yq path of the golden pointer, e.g.
+                            ".environments.labul.templateVmId". Required when
+                            promoting on Proxmox, with no default and no
+                            derivation from `lab` on purpose: the path names an
+                            environment block, and a guess would promote the
+                            wrong one. May come from the EnvironmentConfig's
+                            promote.proxmox block instead.
+                        configRepoUrl:
+                          type: string
+                          description: |
+                            Repo holding the capability chart. Defaults to
+                            stuttgart-things/stuttgart-things in the pipeline.
+                        configRepoBranch:
+                          type: string
+                          description: Branch the pull request targets. Pipeline default "main".
+                        valuesFile:
+                          type: string
+                          description: |
+                            Repo-relative chart values file. Pipeline default
+                            "crossplane/platform/capabilities/proxmoxvm/values.yaml".
+                        chartFile:
+                          type: string
+                          description: |
+                            Chart.yaml given a patch bump so the chart is
+                            actually republished. Without it a merged pull
+                            request changes a file no cluster ever pulls.
+                        gitTokenSecretName:
+                          type: string
+                          description: |
+                            Secret with a token allowed to push a branch and
+                            open a pull request on configRepoUrl. It needs
+                            write — the read-only clone credential the build
+                            pipelines use is not sufficient.
+                        gitTokenSecretKey:
+                          type: string
+                          description: Key inside that Secret. Pipeline default "token".
+                        prTitle:
+                          type: string
+                          description: Defaults to a generated one-liner naming path and value.
+                        prBody:
+                          type: string
+                          description: Appended below the generated summary.
+                        dryRun:
+                          type: string
+                          description: |
+                            "true" does everything except push and open the pull
+                            request, printing the diff. Useful to prove the
+                            valuePath matches before letting a release near the
+                            config repo.
+                        pipelineRevision:
+                          type: string
+                          description: |
+                            stage-time tag holding promote-proxmox-template.yaml.
+                            Separate from the promote-level pipelineRevision on
+                            purpose: that key predates this provider and pins the
+                            vSphere promoter, and applying it here produced a
+                            pipelineRef naming promote-proxmox-template.yaml at a
+                            tag that does not contain it. Floor is v0.13.0.
+                        pipelinePath:
+                          type: string
+                          description: |
+                            Path to the pipeline inside the stage-time repo.
+                            Defaults to pipelines/promote-proxmox-template.yaml.
                     pipelineRunName:
                       type: string
                       description: |
@@ -345,18 +443,24 @@ spec:
               required:
                 - build
               x-kubernetes-validations:
-                # Promotion is govc/vCenter-only today: it renames templates in
-                # the vSphere inventory, and the whole `promote` block is
-                # vCenter-shaped (datacenter, inventory folders, insecureSkipVerify).
-                # There is no Proxmox promote pipeline yet. Reject the
-                # combination at admission rather than letting the Composition
-                # render the govc promote Object against a Proxmox-built template
-                # it cannot address. Defense in depth: the Composition also gates
-                # the promote resource on the provider, and reports the
-                # combination as the terminal phase PromoteUnsupported for any XR
-                # that predates this rule. See issue #205.
-                - rule: "!has(self.promote) || !has(self.promote.enabled) || !self.promote.enabled || !has(self.test) || !has(self.test.provider) || self.test.provider == 'vsphere'"
-                  message: "spec.promote.enabled requires spec.test.provider 'vsphere' — promotion is govc/vCenter-only; Proxmox promotion is not implemented yet (issue #205)."
+                # Both providers can promote, by different mechanisms: vSphere
+                # renames in the vCenter inventory (govc), Proxmox changes the
+                # templateVmId consumers resolve, via a pull request against the
+                # config repo. A provider with neither pipeline must be rejected
+                # here rather than letting the Composition fire the vSphere
+                # promoter at a template it cannot address. Defense in depth: the
+                # Composition gates on the provider too and reports an
+                # unsupported one as the terminal phase PromoteUnsupported.
+                - rule: "!has(self.promote) || !has(self.promote.enabled) || !self.promote.enabled || !has(self.test) || !has(self.test.provider) || self.test.provider in ['vsphere', 'proxmox']"
+                  message: "spec.promote.enabled requires spec.test.provider 'vsphere' or 'proxmox' — those are the two promote pipelines that exist."
+                # Proxmox promotion writes to a yq path in the config repo, and
+                # that path names the environment block. There is no safe default
+                # and no derivation from `lab`: a guess would promote a different
+                # lab's pointer, and it would look like it worked. Required at
+                # admission unless the EnvironmentConfig supplies it — which CEL
+                # cannot see, hence the escape hatch of setting it explicitly.
+                - rule: "!has(self.promote) || !has(self.promote.enabled) || !self.promote.enabled || !has(self.test) || !has(self.test.provider) || self.test.provider != 'proxmox' || (has(self.promote.proxmox) && has(self.promote.proxmox.valuePath) && self.promote.proxmox.valuePath != '') || has(self.environmentConfig)"
+                  message: "Proxmox promotion needs spec.promote.proxmox.valuePath (e.g. '.environments.labul.templateVmId'), or an EnvironmentConfig supplying promote.proxmox.valuePath."
 
             status:
               type: object
@@ -378,21 +482,32 @@ spec:
                       down and the template is a promotion candidate. Terminal
                       when spec.promote.enabled is false.
                     Promoting — the promote PipelineRun is running.
-                    Promoted — the golden image now points at this build.
-                      status.previousTemplate names what it superseded.
+                    Promoted — the promote pipeline succeeded.
+                      status.previousTemplate names what it superseded, and is
+                      the rollback target.
+
+                      Read this differently per provider. On vSphere the rename
+                      has happened and the golden image points at this build
+                      now. On Proxmox it means the promotion PULL REQUEST exists
+                      (status.promotionPullRequest) — the fleet keeps cloning
+                      the previous VMID until that is merged and the chart
+                      rolled out. Promoted is not "in service" there.
                     PromoteFailed — the promote PipelineRun failed. Terminal;
                       nothing retries. The task refuses to run against a
                       half-promoted inventory, so a rerun needs the golden
                       folder looked at first.
                     PromoteUnsupported — spec.promote.enabled is true but
-                      spec.test.provider is not vsphere. Promotion is
-                      govc/vCenter-only; there is no Proxmox promote pipeline
-                      yet. Terminal: the build is done and the smoke test
-                      passed, but the golden image is deliberately left
-                      untouched rather than firing the vSphere promoter against
-                      a template it cannot address. New XRs are rejected at
-                      admission; this phase is what a pre-existing XR reports.
-                      See issue #205.
+                      spec.test.provider is neither vsphere nor proxmox, the
+                      two providers that have a promote pipeline. Terminal: the
+                      build is done and the smoke test passed, but the golden
+                      pointer is deliberately left untouched rather than firing
+                      the vSphere promoter at a template it cannot address. New
+                      XRs are rejected at admission; this phase is what an XR
+                      predating the rule reports.
+
+                      Proxmox reached this phase until the promote-proxmox
+                      pipeline existed. If an old XR still reports it, the
+                      Composition pin is behind — not the provider.
                     TestSkipped — spec.test.enabled is false AND the build
                       produced a template. A build-only XR still reports
                       Building/BuildFailed while the build is in flight.
@@ -442,14 +557,31 @@ spec:
                 goldenTemplate:
                   type: string
                   description: |
-                    Inventory path the golden image now lives at, from the
-                    promote pipeline's `promoted-template` result.
+                    What the golden pointer now names, from the promote
+                    pipeline's `promoted-template` result. On vSphere that is
+                    the inventory path the golden image lives at. On Proxmox it
+                    is the VMID the capability chart will resolve — "will",
+                    because it only takes effect once the promotion pull request
+                    is merged and the chart rolled out.
                 previousTemplate:
                   type: string
                   description: |
-                    Inventory path the superseded golden image was renamed to,
-                    from the `previous-template` result. Empty on a first
-                    promotion. Roll back by renaming it back to goldenName.
+                    The rollback target, from the `previous-template` result.
+                    Empty on a first promotion. On vSphere it is the inventory
+                    path the superseded golden image was renamed to — roll back
+                    by renaming it back to goldenName. On Proxmox it is the VMID
+                    the pointer named before; roll back by putting it back.
+                promotionPullRequest:
+                  type: string
+                  description: |
+                    Proxmox only: the pull request carrying the promotion, or
+                    empty when the pointer already named this build.
+
+                    Read it before treating `promoted: true` as finished. On
+                    Proxmox the promote pipeline succeeding means the pull
+                    request exists — the fleet still clones the previous VMID
+                    until it is merged and the chart rolled out. On vSphere the
+                    rename takes effect immediately and this stays empty.
       additionalPrinterColumns:
         - name: PHASE
           type: string
