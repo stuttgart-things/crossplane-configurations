@@ -98,16 +98,13 @@ Off by default. `spec.promote.enabled: true` adds a third composed resource: a
 PipelineRun, which uses govc to rename the current golden image aside and the
 fresh build into its place.
 
-**vSphere only.** Promotion is govc/vCenter-specific — it renames templates in
-the vSphere inventory, and the whole `promote` block is vCenter-shaped
-(datacenter, inventory folders, `insecureSkipVerify`). There is no Proxmox
-promote pipeline yet, so `promote.enabled: true` with `test.provider: proxmox`
-is **rejected at admission** (an XRD CEL rule), and the Composition additionally
-withholds the govc Object for any non-vSphere release — a pre-existing XR in
-that state reports the terminal phase `PromoteUnsupported` rather than firing
-the vSphere promoter against a template it cannot address. Tracking a Proxmox
-promotion path (Proxmox REST API + API token, mirroring this pipeline) in
-[#205](https://github.com/stuttgart-things/crossplane-configurations/issues/205).
+**Both providers promote, by different mechanisms.** The paragraph above
+describes the vSphere path. Proxmox is not a rename at all — see
+[Promotion on Proxmox](#promotion-on-proxmox) below. A provider with neither
+pipeline is **rejected at admission** (an XRD CEL rule), and the Composition
+additionally withholds the Object — such an XR reports the terminal phase
+`PromoteUnsupported` rather than firing the vSphere promoter at a template it
+cannot address.
 
 ```yaml
   promote:
@@ -128,6 +125,114 @@ full inventory path.
 **It is gated on `status.tested`, not on `spec.test.enabled`.** Since only a
 test VM reaching Ready ever sets that latch, promotion with the smoke test
 disabled does not skip the gate — it means the golden image is never touched.
+
+### Promotion on Proxmox
+
+Nothing is renamed, because renaming would reach nobody. `bpg`'s
+`VirtualMachine` exposes `spec.forProvider.clone` with `vmId` and nothing else —
+no name, path, ref or selector. What consumers actually resolve is
+`templateVmId` in the `proxmoxvm` capability chart, so promotion **changes that
+value**, delivered as a pull request against the config repo by
+[`promote-proxmox-template`](https://github.com/stuttgart-things/stage-time/blob/main/pipelines/promote-proxmox-template.yaml).
+
+```yaml
+  promote:
+    enabled: true
+    proxmox:
+      valuePath: .environments.labul.templateVmId
+```
+
+**Merging the pull request is the promotion.** Until then the fleet keeps
+cloning the previous VMID. `status.phase: Promoted` therefore means something
+weaker here than on vSphere — read `status.promotionPullRequest`.
+
+Consequences, all of them simplifications: no PVE API call (so no node access,
+unavailable in LabUL anyway, and no Proxmox API token), no `-previous`
+generation to retain, and rollback is putting the old VMID back.
+
+`valuePath` has no default and is not derived from `lab`: it names an
+environment block, and a guess would promote a different lab's pointer *while
+looking like it worked*. Set `proxmox.dryRun: "true"` for a first run — it
+prints the diff and opens nothing, which is how you prove the path matches
+before a release ever touches the config repo.
+
+Re-running is safe. The branch name is deterministic, so a second run updates
+its own open pull request instead of opening another. Requires stage-time
+**>= v0.13.2**: v0.13.0 and v0.13.1 could open a promotion but not re-run one
+(the push died on `stale info`), and since a `PackerRelease` reconciles
+repeatedly, that turned every promotion after the first into `PromoteFailed`.
+
+#### The write credential
+
+The pipeline pushes a branch and opens a pull request, so it needs a token with
+write access to the config repo. The read-only clone credential the build
+pipelines use is **not** sufficient, and `sops-git-credentials` must not be
+widened — it is deliberately read-only and every cluster uses it.
+
+| | |
+|---|---|
+| Secret | `config-repo-pr-token` in the pipeline namespace (`tekton-ci`) |
+| Key | `token` |
+| Type | fine-grained PAT, **resource owner `stuttgart-things`** |
+| Repository access | only `stuttgart-things/stuttgart-things` |
+| Permissions | `Contents: Read and write`, `Pull requests: Read and write` |
+
+**It expires.** GitHub caps fine-grained PAT lifetimes, and a lapsed token fails
+the promotion *after* the build and the smoke test have already run — an
+expensive place to discover it, and the failure names an HTTP 401 rather than an
+expiry. Put it on the same rotation list as the other credentials.
+
+**It can also push `main`, and that cannot be scoped away.** GitHub has no
+permission for "may push branches but not the default branch"; the enforcement
+mechanism would be branch protection, which is unavailable on a private repo on
+the free plan (`/rulesets` and `/branches/main/protection` both answer 403). The
+pipeline never does — one deterministically named branch, an explicit lease,
+then a PR — but that is behaviour, not enforcement. If that is too broad, run
+with `dryRun: "true"` and a read-only credential: the pipeline then prints the
+exact diff and a human commits it, which still removes the hand-copied VMID that
+[#2442](https://github.com/stuttgart-things/stuttgart-things/issues/2442)
+complains about.
+
+Note also that this is a credential *for* the config repo, stored *in* it
+(sops-encrypted). Whoever can push there can add a blob a cluster will decrypt,
+and this blob grants push — a concrete argument for pinning the
+`sops-git-secrets` chart's `git.revision` to a tag rather than following `main`.
+
+Creating it and storing it, without the plaintext ever reaching a shell history,
+a log or a process argument. It verifies `permissions.push` first and writes
+**nothing** unless that is true:
+
+```bash
+read -rsp 'PAT: ' T; echo
+T=$(printf '%s' "$T" | tr -d '[:space:]')
+cd ~/projects/stuttgart-things
+R=$(printf 'header = "Authorization: Bearer %s"\n' "$T" \
+     | curl -s -K - https://api.github.com/repos/stuttgart-things/stuttgart-things)
+PUSH=$(printf '%s' "$R" | jq -r '.permissions.push // false')
+echo "repo: $(printf '%s' "$R" | jq -r '.full_name // .message')   push: $PUSH"
+if [ "$PUSH" = "true" ]; then
+  printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: config-repo-pr-token\n  namespace: tekton-ci\ntype: Opaque\nstringData:\n  token: %s\n' "$T" > /tmp/pat.yaml
+  chmod 600 /tmp/pat.yaml
+  sops --config secrets/.sops.yaml \
+       --filename-override secrets/config-repo-pr-token.enc.yaml \
+       --encrypt /tmp/pat.yaml > secrets/config-repo-pr-token.enc.yaml
+  shred -u /tmp/pat.yaml
+  echo "OK -> secrets/config-repo-pr-token.enc.yaml"
+else
+  echo "ABORT -- nothing written"
+fi
+unset T
+```
+
+`printf` is a bash builtin and `curl` reads the header from stdin (`-K -`), so
+the token never becomes a process argument. Commit the blob and add it to the
+`sops-git-secrets` chart's `secrets:` list so it has an owner; the operator then
+materialises the Secret in `tekton-ci`.
+
+An earlier version of this snippet checked only the HTTP status. A read-only
+token answers `200` just as happily, so it would have been stored and the
+failure deferred to the first real promotion — hence the `permissions.push`
+check.
 That combination reports `TestSkipped` and composes nothing.
 
 **Promotion is the one thing here that outlives the XR.** The test VM is
@@ -187,8 +292,18 @@ On the target cluster, additionally:
   pipeline namespace.
 - For promotion only: a provider-**kubernetes** `ClusterProviderConfig`
   (`kubectl get clusterproviderconfigs.kubernetes.m.crossplane.io`), and a
-  stage-time `pipelineRevision` >= `v0.10.0` — the first tag containing
-  `promote-packer-template.yaml`.
+  stage-time pin containing the pipeline for the provider in use — `>= v0.10.0`
+  for `promote-packer-template.yaml` (vSphere), `>= v0.13.2` for
+  `promote-proxmox-template.yaml` (Proxmox). The two pins are separate keys:
+  `promote.pipelineRevision` is the vSphere one and predates Proxmox, so
+  applying it there pins a tag that does not contain the file — use
+  `promote.proxmox.pipelineRevision`.
+- For **Proxmox** promotion additionally: the `config-repo-pr-token` Secret in
+  the pipeline namespace, a fine-grained PAT with `Contents` + `Pull requests`
+  write on the config repo. It **expires** — see
+  [The write credential](#the-write-credential) for the scope, the expiry
+  consequences and a creation snippet that verifies write access before storing
+  anything.
 - An OpenTofu `ClusterProviderConfig`. Its name is a per-cluster choice — check
   with `kubectl get clusterproviderconfigs.opentofu.m.upbound.io` and set
   `providerConfigName` in the EnvironmentConfig to match. This is **not** the
