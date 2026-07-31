@@ -397,7 +397,8 @@ spec:
                             purpose: that key predates this provider and pins the
                             vSphere promoter, and applying it here produced a
                             pipelineRef naming promote-proxmox-template.yaml at a
-                            tag that does not contain it. Floor is v0.13.0.
+                            tag that does not contain it. Floor is v0.13.2 — v0.13.0/v0.13.1
+                            could not re-run a promotion (stale-info push).
                         pipelinePath:
                           type: string
                           description: |

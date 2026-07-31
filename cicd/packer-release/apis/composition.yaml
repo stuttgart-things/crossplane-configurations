@@ -347,7 +347,8 @@ spec:
 
             # Each provider's pipeline has its own floor, because each landed in
             # a different tag: promote-packer-template needs >= v0.10.0,
-            # promote-proxmox-template needs >= v0.13.0.
+            # promote-proxmox-template needs >= v0.13.2 (v0.13.0 and v0.13.1
+            # could not re-run a promotion -- the push died on "stale info").
             #
             # The EnvironmentConfig's promote.pipelineRevision is NOT consulted
             # on the Proxmox path, and that is deliberate rather than an
@@ -362,7 +363,7 @@ spec:
             # A Proxmox pin therefore lives at promote.proxmox.pipelineRevision,
             # per provider, so bumping one cannot move the other.
             _promoteDefaultPath = "pipelines/promote-proxmox-template.yaml" if _isProxmox else "pipelines/promote-packer-template.yaml"
-            _promoteDefaultRevision = "v0.13.0" if _isProxmox else "v0.10.0"
+            _promoteDefaultRevision = "v0.13.2" if _isProxmox else "v0.10.0"
             _proxmoxRevision = _promoteProxmox?.pipelineRevision or _promoteEnvProxmox?.pipelineRevision or _promoteDefaultRevision
             _vsphereRevision = _promoteEnv?.pipelineRevision or _promoteDefaultRevision
             _promotePinnedRevision = _proxmoxRevision if _isProxmox else _vsphereRevision
