@@ -114,15 +114,28 @@ spec:
             # is fixed, so provider-kubernetes converges on the existing one.
             _promote = _spec?.promote or {}
             _promoteEnabled = _promote?.enabled if "enabled" in _promote else False
-            # Promotion is govc/vCenter-only: it renames templates in the
-            # vSphere inventory, and the promote block is entirely vCenter-shaped.
-            # There is no Proxmox promote pipeline yet, so a non-vsphere release
-            # must NOT render the govc Object -- doing so fires the vSphere
-            # promoter against a template it cannot address. The XRD rejects this
-            # combination at admission; this gate protects any XR that predates
-            # that rule, and derive-status reports it as PromoteUnsupported.
-            # See issue #205.
-            _promoteSupported = _provider == "vsphere"
+            # Both providers promote, but they do NOT promote the same way, and
+            # the difference is not cosmetic.
+            #
+            # vSphere consumers resolve templates by inventory name/path, so
+            # renaming the golden image aside and the fresh build in redirects
+            # them. That is promote-packer-template, via govc.
+            #
+            # Proxmox consumers resolve NOTHING by name. bpg's VirtualMachine
+            # exposes spec.forProvider.clone with `vmId` and nothing else -- no
+            # name, path, ref or selector -- so a rename in PVE would change what
+            # a human sees in the UI and redirect zero clones. What consumers
+            # actually read is `templateVmId` in the proxmoxvm capability chart.
+            # Promotion there is therefore a change to a value in git, and
+            # promote-proxmox-template opens the pull request that makes it:
+            # merging is the promotion. See issue #205, whose own open questions
+            # ask exactly this -- name or VMID.
+            #
+            # A provider with neither pipeline must still NOT render an Object:
+            # firing the vSphere promoter at a template it cannot address is
+            # worse than not promoting. derive-status reports that as
+            # PromoteUnsupported.
+            _promoteSupported = _provider in ["vsphere", "proxmox"]
             _promoteOpen = _promoteEnabled and _alreadyTested and _templateName != "" and _promoteSupported
 
             # --- Secret NAMES (not values) ----------------------------------
@@ -279,14 +292,24 @@ spec:
             _goldenName = _promote?.goldenName or _promoteEnv?.goldenName or ""
             _caCerts = _promote?.caCertsConfigMapName or _promoteEnv?.caCertsConfigMapName or ""
 
+            # Proxmox promotion targets a value in the config repo. Per-provider
+            # sub-block, exactly like test.vsphere / test.proxmox, so the two
+            # parameter sets cannot bleed into each other.
+            _promoteProxmox = _promote?.proxmox or {}
+            _promoteEnvProxmox = _promoteEnv?.proxmox or {}
+            # No default and not derivable: the yq path names the environment
+            # block (.environments.labul.templateVmId), and guessing it would
+            # promote the wrong lab. Empty reaches the task, which refuses.
+            _proxmoxValuePath = _promoteProxmox?.valuePath or _promoteEnvProxmox?.valuePath or ""
+
             # Params are emitted only when non-empty so the pipeline's own
             # defaults survive. Passing "" would override them with nothing —
             # the same masking trap the nested-XR block above avoids.
-            _promoteParams = [
+            _vsphereRequired = [
                 {name = "templateName", value = _templateName}
                 {name = "goldenName", value = _goldenName}
             ]
-            _optionalParams = [
+            _vsphereOptional = [
                 {name = "buildFolder", value = _promote?.buildFolder or _promoteEnv?.buildFolder or ""}
                 {name = "goldenFolder", value = _promote?.goldenFolder or _promoteEnv?.goldenFolder or ""}
                 {name = "previousSuffix", value = _promote?.previousSuffix or _promoteEnv?.previousSuffix or ""}
@@ -296,7 +319,57 @@ spec:
                 {name = "vaultSecretName", value = _promote?.vaultSecretName or _promoteEnv?.vaultSecretName or ""}
                 {name = "workingImage", value = _promote?.workingImage or _promoteEnv?.workingImage or ""}
             ]
-            _promoteAllParams = _promoteParams + [p for p in _optionalParams if p.value != ""]
+
+            # templateName carries the VMID here, not a name: build-packer-template's
+            # `template-name` result is what packer reported ("A template was
+            # created: 211"), which on the proxmox-iso builder is the numeric id.
+            _proxmoxRequired = [
+                {name = "templateName", value = _templateName}
+                {name = "valuePath", value = _proxmoxValuePath}
+            ]
+            _proxmoxOptional = [
+                {name = "configRepoUrl", value = _promoteProxmox?.configRepoUrl or _promoteEnvProxmox?.configRepoUrl or ""}
+                {name = "configRepoBranch", value = _promoteProxmox?.configRepoBranch or _promoteEnvProxmox?.configRepoBranch or ""}
+                {name = "valuesFile", value = _promoteProxmox?.valuesFile or _promoteEnvProxmox?.valuesFile or ""}
+                {name = "chartFile", value = _promoteProxmox?.chartFile or _promoteEnvProxmox?.chartFile or ""}
+                {name = "prTitle", value = _promoteProxmox?.prTitle or _promoteEnvProxmox?.prTitle or ""}
+                {name = "prBody", value = _promoteProxmox?.prBody or _promoteEnvProxmox?.prBody or ""}
+                {name = "gitTokenSecretName", value = _promoteProxmox?.gitTokenSecretName or _promoteEnvProxmox?.gitTokenSecretName or ""}
+                {name = "gitTokenSecretKey", value = _promoteProxmox?.gitTokenSecretKey or _promoteEnvProxmox?.gitTokenSecretKey or ""}
+                {name = "dryRun", value = _promoteProxmox?.dryRun or _promoteEnvProxmox?.dryRun or ""}
+                {name = "workingImage", value = _promote?.workingImage or _promoteEnv?.workingImage or ""}
+            ]
+
+            _isProxmox = _provider == "proxmox"
+            _promoteRequired = _proxmoxRequired if _isProxmox else _vsphereRequired
+            _promoteOptional = _proxmoxOptional if _isProxmox else _vsphereOptional
+            _promoteAllParams = _promoteRequired + [p for p in _promoteOptional if p.value != ""]
+
+            # Each provider's pipeline has its own floor, because each landed in
+            # a different tag: promote-packer-template needs >= v0.10.0,
+            # promote-proxmox-template needs >= v0.13.0.
+            #
+            # The EnvironmentConfig's promote.pipelineRevision is NOT consulted
+            # on the Proxmox path, and that is deliberate rather than an
+            # oversight. That key predates this provider and pins the vSphere
+            # promoter (v0.10.0 in the shipped example). Letting it apply here
+            # produced exactly the failure it looks designed to prevent: a
+            # pipelineRef naming promote-proxmox-template.yaml at v0.10.0, a tag
+            # that does not contain the file. Caught by rendering with observed
+            # state; it would otherwise surface as a resolver error inside a
+            # release that had already built and tested a template.
+            #
+            # A Proxmox pin therefore lives at promote.proxmox.pipelineRevision,
+            # per provider, so bumping one cannot move the other.
+            _promoteDefaultPath = "pipelines/promote-proxmox-template.yaml" if _isProxmox else "pipelines/promote-packer-template.yaml"
+            _promoteDefaultRevision = "v0.13.0" if _isProxmox else "v0.10.0"
+            _proxmoxRevision = _promoteProxmox?.pipelineRevision or _promoteEnvProxmox?.pipelineRevision or _promoteDefaultRevision
+            _vsphereRevision = _promoteEnv?.pipelineRevision or _promoteDefaultRevision
+            _promotePinnedRevision = _proxmoxRevision if _isProxmox else _vsphereRevision
+
+            _proxmoxPath = _promoteProxmox?.pipelinePath or _promoteEnvProxmox?.pipelinePath or _promoteDefaultPath
+            _vspherePath = _promoteEnv?.pipelinePath or _promoteDefaultPath
+            _promotePinnedPath = _proxmoxPath if _isProxmox else _vspherePath
 
             _promotePipelineRef = {
                 resolver = "git"
@@ -304,10 +377,9 @@ spec:
                     {name = "url", value = _promoteEnv?.pipelineRepoUrl or "https://github.com/stuttgart-things/stage-time.git"}
                     # Pinned, never "main": the git resolver fetches at render
                     # time, so an unpinned revision silently changes what runs.
-                    # Must be a tag that CONTAINS promote-packer-template.yaml,
-                    # i.e. >= v0.10.0.
-                    {name = "revision", value = _promoteEnv?.pipelineRevision or "v0.10.0"}
-                    {name = "pathInRepo", value = _promoteEnv?.pipelinePath or "pipelines/promote-packer-template.yaml"}
+                    # Must be a tag that CONTAINS the pipeline named below.
+                    {name = "revision", value = _promotePinnedRevision}
+                    {name = "pathInRepo", value = _promotePinnedPath}
                 ]
             }
 
@@ -393,8 +465,12 @@ spec:
             _spec = oxr?.spec or {}
             _test = _spec?.test or {}
             _provider = _test?.provider or "vsphere"
-            # Promotion is govc/vCenter-only; see the render step and issue #205.
-            _promoteSupported = _provider == "vsphere"
+            # MUST stay in step with the render step's copy: this is a separate
+            # KCL program, so the value is recomputed rather than shared, and a
+            # provider added there but not here renders the promote Object while
+            # reporting PromoteUnsupported. See the render step for why the two
+            # providers promote by different mechanisms.
+            _promoteSupported = _provider in ["vsphere", "proxmox"]
 
             _pbs = [v.Resource for _, v in _ocds if v?.Resource?.kind == "PackerBuild"]
             _pb = _pbs[0] if _pbs else {}
@@ -429,6 +505,12 @@ spec:
             _promoteResults = _promoteRun?.results or []
             _goldens = [r.value for r in _promoteResults if r?.name == "promoted-template"]
             _previouses = [r.value for r in _promoteResults if r?.name == "previous-template"]
+            # Proxmox only. Its promote pipeline succeeding means a pull request
+            # exists, NOT that the fleet moved — that happens on merge plus the
+            # chart rollout. Surfacing the URL keeps `promoted: true` from
+            # reading as "done" when the actual switch is still pending review.
+            _prUrls = [r.value for r in _promoteResults if r?.name == "pull-request-url"]
+            _promotionPR = (_prUrls[0] if _prUrls else "") or (oxr?.status?.promotionPullRequest or "")
             _promoteConds = [
                 c for c in (_promoteRun?.conditions or []) if c?.type == "Succeeded"
             ]
@@ -504,6 +586,7 @@ spec:
                     if _promoteRunName: promotePipelineRunName = _promoteRunName
                     if _golden: goldenTemplate = _golden
                     if _previous: previousTemplate = _previous
+                    if _promotionPR: promotionPullRequest = _promotionPR
             }
 
             _dxr = _params?.dxr or {}
