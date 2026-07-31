@@ -1,0 +1,63 @@
+---
+name: Verify All Configurations (nightly)
+
+# Full-matrix counterpart to verify.yaml.
+#
+# verify.yaml is diff-gated: it only verifies the Configurations a PR actually
+# touched. That leaves a blind spot — a change to a SHARED input (the pinned
+# crossplane dagger module, a bumped Function/provider version, new `crossplane
+# render` behaviour) can break a Configuration that nobody edited, and the
+# per-PR verify never re-runs it. This workflow closes that gap: it enumerates
+# EVERY Configuration and runs the same Dagger verify (render + kubeconform +
+# xpkg build) against all of them on a nightly schedule, so latent drift surfaces
+# on its own instead of waiting for the next unrelated edit to that package.
+#
+# Also runnable on demand (workflow_dispatch) — e.g. right after bumping the
+# crossplane module version pin — to re-verify the whole set before merging.
+
+on:
+  schedule:
+    # 03:17 UTC nightly. Off-the-hour to avoid the top-of-hour scheduler surge.
+    - cron: "17 3 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  discover-all:
+    runs-on: ubuntu-latest
+    outputs:
+      configs: ${{ steps.find.outputs.configs }}
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - id: find
+        name: Enumerate all Configuration directories
+        run: |
+          # Every Configuration: any crossplane.yaml NOT under an examples/
+          # subtree (examples/configuration.yaml is the runtime install
+          # manifest, not a Configuration package). Same rule as verify.yaml's
+          # discover job, minus the changed-files intersection.
+          configs_json=$(find . -type f -name crossplane.yaml \
+                  -not -path './.git/*' \
+                  -not -path '*/examples/*' \
+                -printf '%h\n' \
+                | sed 's|^\./||' \
+                | sort -u \
+                | jq -R -s -c 'split("\n") | map(select(length>0))')
+          echo "configs=${configs_json}" >> "$GITHUB_OUTPUT"
+          echo "Configurations to verify:"
+          echo "${configs_json}" | jq -r '.[]'
+
+  verify:
+    needs: discover-all
+    if: needs.discover-all.outputs.configs != '[]'
+    strategy:
+      # Verify every Configuration even if one fails — a nightly run should
+      # surface ALL drift, not stop at the first broken package.
+      fail-fast: false
+      matrix:
+        config: ${{ fromJson(needs.discover-all.outputs.configs) }}
+    uses: stuttgart-things/github-workflow-templates/.github/workflows/call-crossplane-verify.yaml@main
+    with:
+      src: ${{ matrix.config }}
+      runs-on: dagger-labda
+    secrets: inherit # pragma: allowlist secret

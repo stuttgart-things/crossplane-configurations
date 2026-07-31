@@ -1,0 +1,62 @@
+---
+name: Golden render snapshots
+
+# Output-assertion layer on top of `verify`. verify proves a Composition renders
+# without erroring; this proves it renders the SAME output as the committed
+# golden snapshots (examples/*.rendered.yaml). It regenerates every snapshot with
+# a pinned crossplane CLI and fails if any committed golden drifted — catching
+# the silent-wrong-output class of bug (nindent columns, Secret encoding) that a
+# render-success check cannot see.
+#
+# Scheduled + on-demand rather than per-PR: before the goldens are seeded the
+# check is a no-op (nothing tracked to drift), and once seeded a nightly run is
+# enough to catch drift introduced by a shared-input bump. To gate PRs too, add a
+# `pull_request` trigger once the goldens are committed — ideally diff-scoped like
+# verify.yaml's discover job so a PR only re-renders the Configurations it
+# touched. See tests/render/README.md.
+
+on:
+  schedule:
+    # 04:17 UTC nightly — after verify-all (03:17) so the two don't contend.
+    - cron: "17 4 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  render-golden:
+    name: Regenerate and diff golden snapshots
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # Match the crank version the crossplane dagger module pins (see the
+      # CROSSPLANE_MODULE_VERSION note in verify.yaml) so local `task verify`,
+      # CI verify and these goldens all render through the same CLI.
+      CROSSPLANE_VERSION: v2.2.2
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install pinned crossplane CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            "https://releases.crossplane.io/stable/${CROSSPLANE_VERSION}/bin/linux_amd64/crank" \
+            -o /usr/local/bin/crossplane
+          chmod +x /usr/local/bin/crossplane
+          crossplane version || crossplane --version
+
+      # crossplane render runs each pipeline Function as a container; the
+      # ubuntu-latest runner ships Docker, and every examples/functions.yaml pins
+      # public upbound images, so no registry auth is needed.
+      - name: Regenerate goldens and check for drift
+        run: tests/render/check-golden.sh
+
+      # Always publish the freshly rendered snapshots — this is how a maintainer
+      # grabs the initial seed (download, commit under examples/), and how the
+      # exact drifted output is inspected when the check fails.
+      - name: Upload rendered snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-render-snapshots
+          path: "**/examples/*.rendered.yaml"
+          if-no-files-found: warn
