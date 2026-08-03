@@ -1,3 +1,7 @@
+# Python bytecode cache (tests/lint/ linter)
+__pycache__/
+*.pyc
+
 # Local .terraform directories
 .terraform/
 

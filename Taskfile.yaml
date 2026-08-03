@@ -67,6 +67,17 @@ tasks:
         gum style --foreground 8 "\$ $CMD"
         eval "$CMD"
 
+  render-golden:
+    desc: "(Re)generate golden render snapshots examples/*.rendered.yaml (all, or CONFIG=k8s/<name>). Requires the crossplane CLI + a container runtime, like `render`."
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        gum style --foreground 4 "→ render-golden ${CONFIG:-<all configurations>}"
+        # The script discovers Configurations, renders every examples/xr*.yaml,
+        # and writes the sibling *.rendered.yaml. CONFIG scopes it to one.
+        tests/render/render-golden.sh
+
   check:
     desc: "Check a cluster against a Configuration's requirements (non-interactive: KUBECONFIG=... CONFIG=k8s/<name> task check)"
     silent: true

@@ -1,0 +1,83 @@
+---
+# Every spec field set — exercises the full PackerBuild template surface.
+#
+# `crossplane render` does NOT apply XRD defaults, so this file also stands in
+# for the API-server-defaulted fields. Because every value is explicit here, the
+# EnvironmentConfig is effectively overridden field-by-field (precedence is
+# explicit XR value > EnvironmentConfig > KCL module default) — that is the
+# point of xr-max: pin every knob and catch templating breakage the min/standard
+# examples never reach.
+#
+# Build directory is given EXPLICITLY via gitWorkspaceSubdirectory (the direct
+# path), complementing xr.yaml which composes it from osVersion/lab/hypervisor/
+# provisioning. osVersion/lab/hypervisor/provisioning are still set so the
+# compose inputs are exercised even though the explicit value wins.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerBuild
+metadata:
+  name: packer-build-max
+  namespace: default
+spec:
+  pipelineRunName: build-ubuntu24-labul-base-os-max
+  namespace: tekton-ci
+
+  # Pipeline DEFINITION location (stage-time).
+  pipelineRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  pipelineRevision: v0.9.0
+  pipelinePath: pipelines/build-packer-template.yaml
+
+  # Template SOURCE repo.
+  gitRepoUrl: https://github.com/stuttgart-things/stuttgart-things.git
+  gitRevision: main
+  gitBasicAuthSecretName: packer-git-basicauth # pragma: allowlist secret
+  caCertsConfigMapName: packer-ca-certs
+
+  # Build selection — explicit subdir (direct path) plus the compose inputs.
+  gitWorkspaceSubdirectory: packer/builds/ubuntu24-labul-vsphere-base-os
+  osVersion: ubuntu24
+  lab: labul
+  hypervisor: vsphere
+  provisioning: base-os
+
+  # Storage.
+  storageSize: 10Gi
+  storageAccessModes: ReadWriteOnce
+  storageClass: openebs-hostpath
+
+  # Packer run configuration.
+  packerAction: build
+  packerTemplate: ubuntu24-base-os.pkr.hcl
+  packerOnly: vsphere-iso.ubuntu
+  packerForce: "false"
+  packerRunInit: "true"
+  packerVars:
+    - vm_name=ubuntu24-base
+    - disk_size=40960
+  packerVarsFile: vars/labul.pkrvars.hcl
+  packerInitExtraArgs: -upgrade
+  packerBuildExtraArgs: -timestamp-ui
+  packerLog: "1"
+  packerWorkingImage: ghcr.io/stuttgart-things/sthings-packer:2.0.0
+
+  # Credentials.
+  credentialsSecretName: packer-credentials # pragma: allowlist secret
+  vaultSecretName: vault # pragma: allowlist secret
+
+  # Runtime.
+  userHome: /home/nonroot
+
+  # Environment / shared defaults.
+  environmentConfig: default
+
+  # Crossplane wrapping.
+  wrapInCrossplane: true
+  crossplaneObjectName: packer-build-max
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
+  crossplaneTimeout: "120"
+  deriveReadiness: true
+
+  # Target cluster.
+  targetCluster:
+    name: in-cluster
+    scope: Namespaced

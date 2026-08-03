@@ -1,0 +1,56 @@
+---
+# Every spec field set — exercises the full Cilium template surface in one XR.
+# Complements xr.yaml (which covers the dynamic-IP LoadBalancer path): here the
+# LoadBalancer runs in *static* mode with an explicit ipRange, and every install
+# and gateway knob is pinned rather than left to its default. Catches templating
+# breakage in fields the min/standard examples never touch (devices list,
+# operator.replicas, explicit provider config refs, static LB pool).
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cilium
+metadata:
+  name: u26-kind1-max
+  namespace: crossplane-system
+spec:
+  clusterName: u26-kind1
+  # Explicit provider config refs (default to {clusterName}-helm / -kubernetes).
+  helmProviderConfigRef: u26-kind1-helm
+  kubernetesProviderConfigRef: u26-kind1-kubernetes
+
+  install:
+    enabled: true
+    version: "1.19.2"
+    namespace: kube-system
+    kubeProxyReplacement: true
+    k8sServiceHost: u26-kind1-control-plane
+    k8sServicePort: 6443
+    gatewayAPI:
+      enabled: true
+    l2Announcements:
+      enabled: true
+    externalIPs:
+      enabled: true
+    routingMode: native
+    ipv4NativeRoutingCIDR: "10.244.0.0/16"
+    autoDirectNodeRoutes: true
+    devices:
+      - eth0
+      - eth1
+    operator:
+      replicas: 2
+
+  # Static LoadBalancer pool (dynamic/reservationRef path is covered by xr.yaml).
+  loadBalancer:
+    enabled: true
+    ipMode: static
+    ipRange:
+      start: 10.31.103.60
+      end: 10.31.103.65
+    poolName: default-pool
+    l2PolicyName: default-l2-announcement-policy
+
+  gateway:
+    enabled: true
+    name: cilium-gateway
+    namespace: default
+    domain: u26-kind1.sthings-vsphere.labul.sva.de
+    tlsSecretName: wildcard-tls # pragma: allowlist secret

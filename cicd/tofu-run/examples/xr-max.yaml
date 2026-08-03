@@ -1,0 +1,64 @@
+---
+# Every spec field set — exercises the full TofuRun template surface in one XR.
+#
+# `crossplane render` does NOT apply XRD defaults, so every defaulted field is
+# also stated explicitly here. Values set on the spec win over the
+# EnvironmentConfig; this file pins every knob (content repo, pipeline repo,
+# tofu action + args, storage, credentials, crossplane wrap) to catch templating
+# breakage in fields the min/standard examples never touch (tfVarsFile,
+# backendConfig, initExtraArgs/planExtraArgs, tofuLog, crossplaneTimeout).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: TofuRun
+metadata:
+  name: tofu-run-max
+  namespace: default
+spec:
+  # identity / run
+  pipelineRunName: tofu-run-max
+  namespace: tekton-ci
+
+  # content source (the repo holding the OpenTofu config)
+  gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  gitRevision: main
+  gitWorkspaceSubdirectory: st
+  subDirectory: st/tests/tofu-vault-k8sauth
+
+  # pipeline definition source
+  pipelineRepoUrl: https://github.com/stuttgart-things/stage-time.git
+  pipelineRevision: main
+  gitPath: pipelines/execute-tofu.yaml
+
+  # tofu
+  tofuAction: apply
+  autoApprove: "true"
+  tfVars:
+    - "mount_path+-kind-test1-certmanager"
+    - "ttl+-24h"
+  # base64-encoded *.auto.tfvars merged into the run (decodes to two settings).
+  tfVarsFile: ZW52aXJvbm1lbnQgPSAibGFidWwiCmNyZWF0ZV9uZXR3b3JrID0gdHJ1ZQo= # pragma: allowlist secret
+  backendConfig:
+    - "bucket+-tofu-state-labul"
+    - "key+-tofu-run-max.tfstate"
+  initExtraArgs: -upgrade
+  planExtraArgs: -compact-warnings
+  tofuLog: INFO
+  tofuWorkingImage: ghcr.io/opentofu/opentofu:1.9.0
+
+  # storage
+  storageSize: 500Mi
+  storageClass: openebs-hostpath
+  storageAccessModes: ReadWriteOnce
+  userHome: /home/nonroot
+
+  # credentials
+  vaultSecretName: vault # pragma: allowlist secret
+  credentialsSecretName: terraform-credentials # pragma: allowlist secret
+
+  # environment / crossplane wrap
+  environmentConfig: default
+  wrapInCrossplane: true
+  crossplaneObjectName: tofu-run-max
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
+  crossplaneTimeout: "60"
+  deriveReadiness: true

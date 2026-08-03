@@ -74,6 +74,27 @@ jobs:
       runs-on: dagger-labda
     secrets: inherit
 
+  # Structural invariant lint — parses the package YAML and asserts shape (XRD
+  # v2/Namespaced/no-claims, Composition /v1/Pipeline, short-form Function CR
+  # names, the xpkg.upbound.io mirror pin, required crossplane.yaml annotations).
+  # Fast, cluster-free, and independent of the dagger pre-commit env so it stays
+  # an authoritative gate even if that image can't build the local hook's venv.
+  # It also runs via .pre-commit-config.yaml for local dev; this job is the CI
+  # backstop. Ungated by `discover` on purpose — a cross-cutting invariant can
+  # break from a change to any package file.
+  lint-invariants:
+    name: Lint Configuration invariants
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "pyyaml==6.0.2"
+      - run: python3 tests/lint/lint-configurations.py
+
   verify:
     needs: discover
     if: needs.discover.outputs.configs != '[]'
@@ -133,7 +154,10 @@ jobs:
         id: push
         uses: dagger/dagger-for-github@27b130bf0f79a7f6fbbbe0fbca6760dc9bb40a77 # v8.4.1
         with:
-          version: "0.20.8"
+          # 0.21.7: the 0.20.8 engine was OOM-killed (exit 137) partway through
+          # the long ttl.sh push, failing the preview for larger packages
+          # (e.g. cicd/packer-release). The engine itself suggests this bump.
+          version: "0.21.7"
           verb: call
           module: github.com/stuttgart-things/dagger/crossplane@${{ env.CROSSPLANE_MODULE_VERSION }}
           # push-preview reads the package name from crossplane.yaml and pushes

@@ -34,3 +34,20 @@ repos:
         language: python
         files: .*
         args: ["--baseline", ".secrets.baseline"]
+  - repo: local
+    hooks:
+      # Structural invariant linter for the Configuration packages. Enforces the
+      # conventions documented as "gotchas we learned (don't repeat)" in
+      # CLAUDE.md: XRD v2 + Namespaced + no claimNames, Composition on /v1 +
+      # Pipeline, short-form Function CR names, the deliberate xpkg.upbound.io
+      # mirror pin, required crossplane.yaml annotations. pre-commit builds an
+      # isolated venv with the pinned pyyaml, so it runs the same locally and in
+      # the CI pre-commit job. always_run because a package change anywhere can
+      # break a cross-cutting invariant, not just the file that was edited.
+      - id: lint-configurations
+        name: Lint Crossplane Configuration invariants
+        entry: python tests/lint/lint-configurations.py
+        language: python
+        additional_dependencies: ["pyyaml==6.0.2"]
+        pass_filenames: false
+        always_run: true
