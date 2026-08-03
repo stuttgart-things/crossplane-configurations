@@ -115,6 +115,27 @@ spec:
                       type: string
                       description: Name of the Vault Secret the build reads
                       default: vault
+                    pipelineRevision:
+                      type: string
+                      description: |
+                        stage-time tag the BUILD pipeline is fetched at.
+                        Unset means the packer-build EnvironmentConfig decides,
+                        which is what a release normally wants.
+
+                        Here because it pairs with `vaultSecretName`, and the
+                        pairing is load-bearing. A Vault Secret that carries an
+                        AppRole instead of a token (the infra Vault, so
+                        `vaultSecretName: vault-infra`) only works from
+                        stage-time >= v0.12.0, where execute-packer performs the
+                        login itself. On an older pin the build dies on "Must set
+                        VAULT_TOKEN env var in order to use vault template
+                        function". Being able to name the Vault but not the tag
+                        that can read it made Proxmox releases unexpressible.
+
+                        Do NOT reach for this to move the fleet forward — bumping
+                        the EnvironmentConfig is that change, and it is a fleet
+                        decision. This is for a single release that needs a
+                        different pin than the environment's.
                   required:
                     - osVersion
                     - provisioning
