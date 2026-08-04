@@ -81,6 +81,24 @@ The test VM is composed only while all of these hold:
 - the build reported a `template-name` result
 - `status.tested` is not yet set
 
+### The test VM's name is capped, the objects' names are not
+
+The VM is named `<release>-test`, but the tofu vSphere module validates
+`vsphere_vm_name` at 32 characters. A release name over 27 characters would
+therefore build for ~35 minutes and only then fail in the test phase, on a
+constraint that was knowable before the build started. So the hypervisor-side
+name is shortened when it would not fit:
+
+```
+ubuntu26-labul-20260804-probe  →  ubuntu26-labul-202608-24bf-test
+```
+
+The Kubernetes objects (VMProvision, connection Secret) keep the full readable
+`<release>-test`; only the VM is renamed. The digest is what keeps two releases
+sharing a prefix apart — `…-20260804-probe` and `…-20260804-proxmox` both
+truncate to `ubuntu26-labul-20260804-pro`, and plain truncation would have them
+fight over one VM.
+
 ### The latch
 
 `status.tested` is set once the test VM reports Ready, and never cleared.
