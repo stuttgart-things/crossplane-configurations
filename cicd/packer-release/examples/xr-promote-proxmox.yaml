@@ -49,12 +49,27 @@ spec:
     # cicd-proxmox-labul/data/default, and the base-os playbook reads
     # ssh/data/sthings — both live there, and one AppRole login covers both.
     vaultSecretName: vault-infra # pragma: allowlist secret
+    # Goes WITH the line above, and the pair is the whole reason this field
+    # exists (v0.4.0). vault-infra deliberately carries no VAULT_TOKEN, only an
+    # AppRole, and execute-packer learned to log in at stage-time v0.12.0. On the
+    # environment's older pin the build dies on "Must set VAULT_TOKEN env var in
+    # order to use vault template function" — naming the Vault is not enough.
+    # Drop this once packer-build's EnvironmentConfig is bumped fleet-wide.
+    pipelineRevision: v0.12.0
   test:
     enabled: true
     provider: proxmox
     cpu: "4"
     ram: "4096"
     disk: "64"
+    # Must be named. The fallback order is test.tfvars.secretName -> the
+    # EnvironmentConfig's tfvarsSecretName -> "<provider>-tfvars", so an
+    # environment naming `vsphere-tfvars` (the common case) wins over the
+    # provider-derived default and hands vSphere credentials to a Proxmox test.
+    # Not the same Secret NativeProxmoxVM uses: this feeds the Telmate-based
+    # stuttgart-things/proxmox-vm module, bpg takes its own JSON credentials.
+    tfvars:
+      secretName: proxmox-tfvars # pragma: allowlist secret
     ansible:
       enabled: true
       playbooks:
@@ -78,3 +93,10 @@ spec:
       # it prints the diff and opens nothing, which is how you prove the
       # valuePath matches before a release ever touches the config repo.
       dryRun: "true"
+      # Its own key, NOT promote.pipelineRevision — that one predates Proxmox and
+      # pins the vSphere promoter, so applying it here names
+      # promote-proxmox-template.yaml at a tag that does not contain the file.
+      # Floor v0.13.2: v0.13.0/v0.13.1 could open a promotion but not re-run one
+      # (the push died on "stale info"), and since a PackerRelease reconciles
+      # repeatedly that turned every promotion after the first into PromoteFailed.
+      pipelineRevision: v0.13.2

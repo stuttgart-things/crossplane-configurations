@@ -193,6 +193,10 @@ spec:
                     if _build?.gitWorkspaceSubdirectory: gitWorkspaceSubdirectory = _build.gitWorkspaceSubdirectory
                     if _build?.namespace: namespace = _build.namespace
                     if _build?.storageClass: storageClass = _build.storageClass
+                    # Conditional like its neighbours, so leaving it unset keeps
+                    # the EnvironmentConfig authoritative rather than pinning
+                    # every release to a literal here.
+                    if _build?.pipelineRevision: pipelineRevision = _build.pipelineRevision
                 }
             }
 

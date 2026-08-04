@@ -274,6 +274,26 @@ several sibling Configurations ship an EnvironmentConfig whose value is also
 `default`. A shared key breaks all of them at once with
 `expected exactly one required resource, got 2`.
 
+### Overriding the build pipeline pin for one release
+
+`build.pipelineRevision` overrides the `packer-build` EnvironmentConfig's
+stage-time tag for this release only. Leave it unset and the environment
+decides, which is what a release normally wants.
+
+It exists because it pairs with `build.vaultSecretName`, and that pairing is
+load-bearing. A Vault Secret carrying an **AppRole instead of a token** — the
+infra Vault, `vaultSecretName: vault-infra` — only works from stage-time
+**>= v0.12.0**, where `execute-packer` performs the login itself. On an older
+pin the build dies on `Must set VAULT_TOKEN env var in order to use vault
+template function`. Before v0.4.0 a release could name the Vault but not the
+tag able to read it, which made Proxmox releases unexpressible: their
+credentials are only on the infra Vault, so they need both settings at once.
+
+Not the lever for moving the fleet forward — bumping the EnvironmentConfig is
+that change, and it is a fleet decision affecting every build including the
+vSphere golden ones. This is for one release that needs a different pin than
+its environment.
+
 ## Preconditions
 
 `dependsOn` pulls `packer-build` and `vm-provision` (and transitively
@@ -298,6 +318,15 @@ On the target cluster, additionally:
   `promote.pipelineRevision` is the vSphere one and predates Proxmox, so
   applying it there pins a tag that does not contain the file — use
   `promote.proxmox.pipelineRevision`.
+- For a **Proxmox smoke test**: a tfvars Secret for the Proxmox hypervisor, and
+  it must be named explicitly. `test.tfvars.secretName` falls back to the
+  EnvironmentConfig's `tfvarsSecretName` *before* the provider-derived
+  `proxmox-tfvars`, so on a cluster whose `packer-release` EnvironmentConfig
+  names `vsphere-tfvars` a Proxmox test silently picks up vSphere credentials.
+  Note the two Proxmox paths do not share one Secret: this feeds
+  `stuttgart-things/proxmox-vm`, built on **Telmate** (`pm_api_url` including
+  `/api2/json`), while `NativeProxmoxVM` uses bpg's JSON credentials with a bare
+  endpoint.
 - For **Proxmox** promotion additionally: the `config-repo-pr-token` Secret in
   the pipeline namespace, a fine-grained PAT with `Contents` + `Pull requests`
   write on the config repo. It **expires** — see
