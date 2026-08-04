@@ -58,6 +58,8 @@ spec:
           name: packerrelease
         spec:
           source: |
+            import crypto
+
             oxr = option("params").oxr
             _ctx = option("params").ctx or {}
             _ocds = option("params").ocds or {}
@@ -231,6 +233,18 @@ spec:
 
             _testName = "{}-test".format(_name)
 
+            # The tofu vSphere module validates vsphere_vm_name at 32 characters
+            # and VMProvision hands vm.name straight through, so a release name
+            # over 27 characters builds for ~35 minutes and only then dies in the
+            # test phase — on a constraint that was knowable before the build
+            # started. Cap the hypervisor-side name here. The Kubernetes objects
+            # keep the readable "<release>-test"; only the VM is shortened, and
+            # the digest keeps two releases sharing a prefix apart, which plain
+            # truncation would not (…-20260804-probe vs …-20260804-proxmox both
+            # cut to "ubuntu26-labul-20260804-pro").
+            _testVMName = _testName if len(_testName) <= 32 else \
+                "{}-{}-test".format(_name[:21], crypto.md5(_name)[:4])
+
             _vmProvision = {
                 apiVersion = "resources.stuttgart-things.com/v1alpha1"
                 kind = "VMProvision"
@@ -248,7 +262,7 @@ spec:
                         kind = _test?.providerRef?.kind or _env?.providerConfigKind or "ClusterProviderConfig"
                     }
                     vm = {
-                        name = _testName
+                        name = _testVMName
                         count = "1"
                         cpu = _test?.cpu or "4"
                         ram = _test?.ram or "4096"
