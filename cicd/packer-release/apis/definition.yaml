@@ -124,10 +124,9 @@ spec:
 
                         Here because it pairs with `vaultSecretName`, and the
                         pairing is load-bearing. A Vault Secret that carries an
-                        AppRole instead of a token (the infra Vault, so
-                        `vaultSecretName: vault-infra`) only works from
-                        stage-time >= v0.12.0, where execute-packer performs the
-                        login itself. On an older pin the build dies on "Must set
+                        AppRole instead of a token (the infra Vault, named via
+                        `vaultSecretName`) only works from stage-time >= v0.12.0,
+                        where execute-packer performs the login itself. On an older pin the build dies on "Must set
                         VAULT_TOKEN env var in order to use vault template
                         function". Being able to name the Vault but not the tag
                         that can read it made Proxmox releases unexpressible.
