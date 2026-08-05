@@ -1,0 +1,100 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cilium
+metadata:
+  name: u26-kind1
+  namespace: crossplane-system
+status:
+  ciliumVersion: 1.19.2
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: u26-kind1-gateway, u26-kind1-observe-ip'
+    reason: Creating
+    status: "False"
+    type: Ready
+  gatewayReady: false
+  installReady: true
+  loadBalancerReady: false
+  networkKey: ""
+  ready: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: u26-kind1-gateway
+  labels:
+    crossplane.io/composite: u26-kind1
+  name: u26-kind1-gateway
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Cilium
+    name: u26-kind1
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: cilium-gateway
+        namespace: default
+      spec:
+        gatewayClassName: cilium
+        listeners:
+        - allowedRoutes:
+            namespaces:
+              from: All
+          hostname: '*.u26-kind1.sthings-vsphere.labul.sva.de'
+          name: https
+          port: 443
+          protocol: HTTPS
+          tls:
+            certificateRefs:
+            - group: ""
+              kind: Secret
+              name: wildcard-tls
+            mode: Terminate
+        - allowedRoutes:
+            namespaces:
+              from: All
+          hostname: '*.u26-kind1.sthings-vsphere.labul.sva.de'
+          name: http
+          port: 80
+          protocol: HTTP
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-kind1-kubernetes
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: u26-kind1-observe-ip
+  labels:
+    crossplane.io/composite: u26-kind1
+  name: u26-kind1-observe-ip
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Cilium
+    name: u26-kind1
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: XIPReservation
+      metadata:
+        name: u26-kind1
+        namespace: crossplane-system
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

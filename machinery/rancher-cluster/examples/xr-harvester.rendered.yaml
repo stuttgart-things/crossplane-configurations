@@ -1,0 +1,404 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: k3s-xp
+  namespace: default
+status:
+  argocdClusterSecret: cluster-k3s-xp
+  clusterProviderConfig: k3s-xp
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: k3s-xp-argocd-crb, k3s-xp-argocd-sa, k3s-xp-argocd-saextract,
+      and 6 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  kubeconfigSecret: k3s-xp-kubeconfig
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-xp-argocd-crb
+  generateName: k3s-xp-
+  labels:
+    app.kubernetes.io/instance: k3s-xp-argocd-crb
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-xp
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-xp
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: argocd-manager-role-binding
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+      - kind: ServiceAccount
+        name: argocd-manager
+        namespace: kube-system
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: k3s-xp
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-xp-argocd-sa
+  generateName: k3s-xp-
+  labels:
+    app.kubernetes.io/instance: k3s-xp-argocd-sa
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-xp
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-xp
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: argocd-manager
+        namespace: kube-system
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: k3s-xp
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-xp-argocd-saextract
+  generateName: k3s-xp-
+  labels:
+    app.kubernetes.io/instance: k3s-xp-argocd-saextract
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-xp
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-xp
+    uid: ""
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.token
+    kind: Secret
+    name: argocd-manager-token
+    namespace: kube-system
+    toConnectionSecretKey: token
+  - apiVersion: v1
+    fieldPath: data[ca.crt]
+    kind: Secret
+    name: argocd-manager-token
+    namespace: kube-system
+    toConnectionSecretKey: ca
+  - apiVersion: v1
+    fieldPath: subsets[0].addresses[0].ip
+    kind: Endpoints
+    name: kubernetes
+    namespace: default
+    toConnectionSecretKey: apiserverIp
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: argocd-manager-token
+        namespace: kube-system
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: k3s-xp
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+  writeConnectionSecretToRef:
+    name: k3s-xp-argocd-sa
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-xp-argocd-token
+  generateName: k3s-xp-
+  labels:
+    app.kubernetes.io/instance: k3s-xp-argocd-token
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-xp
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-xp
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        annotations:
+          kubernetes.io/service-account.name: argocd-manager
+        name: argocd-manager-token
+        namespace: kube-system
+      type: kubernetes.io/service-account-token
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: k3s-xp
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-xp-bootstrap-namespace
+  generateName: k3s-xp-
+  labels:
+    app.kubernetes.io/instance: k3s-xp-bootstrap-namespace
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-xp
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-xp
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: crossplane-bootstrap
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: k3s-xp
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-xp-cluster
+  generateName: k3s-xp-
+  labels:
+    app.kubernetes.io/instance: k3s-xp-cluster
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-xp
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-xp
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: provisioning.cattle.io/v1
+      kind: Cluster
+      metadata:
+        name: k3s-xp
+        namespace: fleet-default
+      spec:
+        cloudCredentialSecretName: cattle-global-data:cc-cl944
+        kubernetesVersion: v1.35.4+k3s1
+        rkeConfig:
+          machineGlobalConfig: {}
+          machinePools:
+          - controlPlaneRole: true
+            etcdRole: true
+            machineConfigRef:
+              kind: HarvesterConfig
+              name: k3s-xp-pool1
+            name: pool1
+            quantity: 1
+            workerRole: true
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-xp-harvesterconfig
+  generateName: k3s-xp-
+  labels:
+    app.kubernetes.io/instance: k3s-xp-harvesterconfig
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-xp
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-xp
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rke-machine-config.cattle.io/v1
+      cpuCount: "6"
+      diskInfo: '{"disks":[{"bootOrder":1,"imageName":"default/sthings-u26-k3s","size":40}]}'
+      diskSize: "0"
+      imageName: ""
+      kind: HarvesterConfig
+      memorySize: "6"
+      metadata:
+        name: k3s-xp-pool1
+        namespace: fleet-default
+      networkInfo: '{"interfaces":[{"macAddress":"","networkName":"default/vms"}]}'
+      networkName: ""
+      reservedMemorySize: "-1"
+      sshPort: "22"
+      sshUser: sthings
+      userData: I2Nsb3VkLWNvbmZpZwpwYWNrYWdlX3VwZGF0ZTogdHJ1ZQpwYWNrYWdlczoKICAtIHFlbXUtZ3Vlc3QtYWdlbnQKcnVuY21kOgogIC0gLSBzeXN0ZW1jdGwKICAgIC0gZW5hYmxlCiAgICAtICctLW5vdycKICAgIC0gcWVtdS1ndWVzdC1hZ2VudC5zZXJ2aWNlCg==
+      vmNamespace: default
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-xp-kubeconfig-bridge
+  generateName: k3s-xp-
+  labels:
+    app.kubernetes.io/instance: k3s-xp-kubeconfig-bridge
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-xp
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-xp
+    uid: ""
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.value
+    kind: Secret
+    name: k3s-xp-kubeconfig
+    namespace: fleet-default
+    toConnectionSecretKey: value
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: k3s-xp-kubeconfig
+        namespace: fleet-default
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+  writeConnectionSecretToRef:
+    name: k3s-xp-kubeconfig-bridged
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-xp-providerconfig
+  generateName: k3s-xp-
+  labels:
+    app.kubernetes.io/instance: k3s-xp-providerconfig
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-xp
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-xp
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: ClusterProviderConfig
+      metadata:
+        name: k3s-xp
+      spec:
+        credentials:
+          secretRef:
+            key: value
+            name: k3s-xp-kubeconfig-bridged
+            namespace: default
+          source: Secret
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery

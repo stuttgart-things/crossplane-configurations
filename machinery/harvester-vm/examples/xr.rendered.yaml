@@ -1,0 +1,284 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: HarvesterVM
+metadata:
+  name: dev9
+  namespace: default
+status:
+  ansibleReady: true
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: cloud-init, dev9-vm, dev9-vmi, and 1 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  share:
+    ip: []
+  vm:
+    name: dev9
+    ready: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: CloudInit
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: cloud-init
+  labels:
+    crossplane.io/composite: dev9
+  name: dev9
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: HarvesterVM
+    name: dev9
+    uid: ""
+spec:
+  disableRoot: false
+  domain: local
+  hostname: dev9
+  namespace: vms
+  packageUpdate: true
+  packages:
+  - qemu-guest-agent
+  providerConfigRef: default
+  runcmd:
+  - systemctl enable --now qemu-guest-agent.service
+  sshPasswordAuth: true
+  users:
+  - lockPasswd: false
+    name: sthings
+    shell: /bin/bash
+    sshAuthorizedKeys:
+    - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC...
+    sudo: ALL=(ALL) NOPASSWD:ALL
+  vmName: dev9
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: dev9-usage-cloudinit
+  generateName: dev9-
+  labels:
+    app.kubernetes.io/instance: dev9
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: harvester-vm
+    crossplane.io/composite: dev9
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: HarvesterVM
+    name: dev9
+    uid: ""
+spec:
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceSelector:
+      matchLabels:
+        app.kubernetes.io/component: virtualmachine
+        app.kubernetes.io/instance: dev9
+  of:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: CloudInit
+    resourceRef:
+      name: dev9
+  reason: Cloud-init CloudInit is in use by the VirtualMachine
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: dev9-usage-volumeclaim
+  generateName: dev9-
+  labels:
+    app.kubernetes.io/instance: dev9
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: harvester-vm
+    crossplane.io/composite: dev9
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: HarvesterVM
+    name: dev9
+    uid: ""
+spec:
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceSelector:
+      matchLabels:
+        app.kubernetes.io/component: virtualmachine
+        app.kubernetes.io/instance: dev9
+  of:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: VolumeClaim
+    resourceRef:
+      name: dev9
+  reason: Boot-disk VolumeClaim is in use by the VirtualMachine
+  replayDeletion: true
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: dev9-vm
+  generateName: dev9-
+  labels:
+    app.kubernetes.io/component: virtualmachine
+    app.kubernetes.io/instance: dev9
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: harvester-vm
+    crossplane.io/composite: dev9
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: HarvesterVM
+    name: dev9
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubevirt.io/v1
+      kind: VirtualMachine
+      metadata:
+        annotations:
+          description: dev9 VM provisioned by Crossplane
+        labels:
+          os: linux
+        name: dev9
+        namespace: vms
+      spec:
+        runStrategy: RerunOnFailure
+        template:
+          metadata:
+            labels:
+              vmName: dev9
+          spec:
+            domain:
+              cpu:
+                cores: 4
+                maxSockets: 1
+                model: host-model
+                sockets: 1
+                threads: 1
+              devices:
+                disks:
+                - bootOrder: 1
+                  disk:
+                    bus: virtio
+                  name: rootdisk
+                - disk:
+                    bus: virtio
+                  name: cloudinitdisk
+                interfaces:
+                - bridge: {}
+                  model: virtio
+                  name: default
+              features:
+                acpi:
+                  enabled: true
+              machine:
+                type: q35
+              memory:
+                guest: 8Gi
+                maxGuest: 32Gi
+              resources:
+                limits:
+                  cpu: 4
+                  memory: 8Gi
+            evictionStrategy: LiveMigrateIfPossible
+            hostname: dev9
+            networks:
+            - multus:
+                networkName: default/vms
+              name: default
+            terminationGracePeriodSeconds: 120
+            volumes:
+            - name: rootdisk
+              persistentVolumeClaim:
+                claimName: dev9-disk-0
+            - cloudInitNoCloud:
+                networkDataSecretRef:
+                  name: dev9-cloud-init
+                secretRef:
+                  name: dev9-cloud-init
+              name: cloudinitdisk
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: default
+  readiness:
+    policy: DeriveFromObject
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: dev9-vmi
+  generateName: dev9-
+  labels:
+    app.kubernetes.io/component: virtualmachineinstance
+    app.kubernetes.io/instance: dev9
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: harvester-vm
+    crossplane.io/composite: dev9
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: HarvesterVM
+    name: dev9
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubevirt.io/v1
+      kind: VirtualMachineInstance
+      metadata:
+        name: dev9
+        namespace: vms
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: default
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VolumeClaim
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: volume-claim
+  labels:
+    crossplane.io/composite: dev9
+  name: dev9
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: HarvesterVM
+    name: dev9
+    uid: ""
+spec:
+  accessModes:
+  - ReadWriteOnce
+  annotations:
+    harvesterhci.io/imageId: default/image-ubuntu
+  namespace: vms
+  providerConfigRef: default
+  pvcName: dev9-disk-0
+  storage: 20Gi
+  storageClassName: harvester-longhorn
+  volumeMode: Block

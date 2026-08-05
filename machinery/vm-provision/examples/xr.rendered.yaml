@@ -1,0 +1,60 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VMProvision
+metadata:
+  name: test-vsphere-vm
+  namespace: default
+status:
+  ansibleReady: false
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: test-vsphere-vm-vsphere-vm'
+    reason: Creating
+    status: "False"
+    type: Ready
+  share:
+    ip: []
+    provider: vsphere
+  vmReady: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VsphereVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: test-vsphere-vm-vsphere-vm
+  labels:
+    crossplane.io/composite: test-vsphere-vm
+  name: test-vsphere-vm-vsphere-vm
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VMProvision
+    name: test-vsphere-vm
+    uid: ""
+spec:
+  connectionSecret:
+    name: test-vsphere-vm
+  providerRef:
+    kind: ClusterProviderConfig
+    name: default
+  tfvars:
+    secretKey: terraform.tfvars
+    secretName: vsphere-tfvars
+  vm:
+    annotation: VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+    bootstrap: '["echo STUTTGART-THINGS"]'
+    count: "1"
+    cpu: "4"
+    datacenter: /LabUL
+    datastore: /LabUL/datastore/UL-ESX-SAS-02
+    disk: "64"
+    firmware: bios
+    folderPath: stuttgart-things/testing
+    name: test-vsphere-vm
+    network: /LabUL/network/LAB-10.31.103
+    ram: "4096"
+    resourcePool: /LabUL/host/Cluster-V6.7/Resources
+    template: sthings-u24
+    unverifiedSsl: "true"

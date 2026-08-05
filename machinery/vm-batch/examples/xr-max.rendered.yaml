@@ -1,0 +1,156 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VMBatch
+metadata:
+  name: vm-batch-max
+  namespace: default
+status:
+  ansibleReady: false
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: vm-batch-max-app-0, vm-batch-max-app-1, vm-batch-max-app-2,
+      and 1 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  readyCount: 0
+  share:
+    ansibleCompletionTime: ""
+    ansibleReady: false
+    ansibleSucceeded: ""
+    ip: []
+    provider: vsphere
+  vmCount: 4
+  vmReady: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm-batch-max-app-0
+  labels:
+    crossplane.io/composite: vm-batch-max
+  name: vm-batch-max-app-0
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VMBatch
+    name: vm-batch-max
+    uid: ""
+spec:
+  environmentConfig: labul
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: default
+  vm:
+    annotation: VSPHERE BATCH BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
+    cpu: "8"
+    datastoreId: datastore-12
+    disk: "96"
+    firmware: efi
+    folder: stuttgart-things/testing
+    guestId: ubuntu64Guest
+    name: app-0
+    networkId: dvportgroup-2048
+    ram: "16384"
+    resourcePoolId: resgroup-8
+    templateUuid: 4211e0e2-1234-5678-9abc-def012345678
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm-batch-max-app-1
+  labels:
+    crossplane.io/composite: vm-batch-max
+  name: vm-batch-max-app-1
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VMBatch
+    name: vm-batch-max
+    uid: ""
+spec:
+  environmentConfig: labul
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: default
+  vm:
+    annotation: VSPHERE BATCH BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
+    cpu: "8"
+    datastoreId: datastore-12
+    disk: "96"
+    firmware: efi
+    folder: stuttgart-things/testing
+    guestId: ubuntu64Guest
+    name: app-1
+    networkId: dvportgroup-2048
+    ram: "16384"
+    resourcePoolId: resgroup-8
+    templateUuid: 4211e0e2-1234-5678-9abc-def012345678
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm-batch-max-app-2
+  labels:
+    crossplane.io/composite: vm-batch-max
+  name: vm-batch-max-app-2
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VMBatch
+    name: vm-batch-max
+    uid: ""
+spec:
+  environmentConfig: labul
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: default
+  vm:
+    annotation: VSPHERE BATCH BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
+    cpu: "8"
+    datastoreId: datastore-12
+    disk: "96"
+    firmware: efi
+    folder: stuttgart-things/testing
+    guestId: ubuntu64Guest
+    name: app-2
+    networkId: dvportgroup-2048
+    ram: "16384"
+    resourcePoolId: resgroup-8
+    templateUuid: 4211e0e2-1234-5678-9abc-def012345678
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm-batch-max-bastion-0
+  labels:
+    crossplane.io/composite: vm-batch-max
+  name: vm-batch-max-bastion-0
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VMBatch
+    name: vm-batch-max
+    uid: ""
+spec:
+  environmentConfig: labul
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: default
+  vm:
+    cpu: "2"
+    disk: "40"
+    name: bastion-0
+    ram: "4096"

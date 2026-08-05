@@ -1,0 +1,114 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: CloudInit
+metadata:
+  name: dev2-vm
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: dev2-cloud-init, dev2-namespace'
+    reason: Creating
+    status: "False"
+    type: Ready
+  secretName: dev2-cloud-init
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: dev2-cloud-init
+  generateName: dev2-vm-
+  labels:
+    app.kubernetes.io/instance: dev2-cloud-init
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: harvester-cloud-init
+    crossplane.io/composite: dev2-vm
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: CloudInit
+    name: dev2-vm
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        annotations:
+          gotemplating.fn.crossplane.io/composition-resource-name: cloud-init
+        name: dev2-cloud-init
+        namespace: default
+      stringData:
+        networkdata: ""
+        userdata: |
+          #cloud-config
+          hostname: dev2
+          fqdn: dev2.example.com
+          manage_etc_hosts: true
+          timezone: UTC
+          users:
+            - name: ubuntu
+              ssh_authorized_keys:
+                - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB...
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              groups: sudo,docker
+              shell: /bin/bash
+              lock_passwd: true
+          chpasswd:
+            list: |
+            expire: false
+          packages:
+            - curl
+            - wget
+            - git
+          runcmd:
+            - systemctl enable docker
+
+          package_update: true
+          package_upgrade: false
+
+          ssh_pwauth: false
+          disable_root: true
+      type: Opaque
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: dev2-namespace
+  generateName: dev2-vm-
+  labels:
+    app.kubernetes.io/instance: dev2-namespace
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: harvester-cloud-init
+    crossplane.io/composite: dev2-vm
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: CloudInit
+    name: dev2-vm
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: default
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

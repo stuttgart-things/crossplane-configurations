@@ -1,0 +1,88 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterAccess
+metadata:
+  name: cluster-access-max
+  namespace: crossplane-system
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: observe-kubernetes, remote-cluster'
+    reason: Creating
+    status: "False"
+    type: Ready
+  providerConfigs:
+  - max-cluster-kubernetes
+  ready: false
+  share: {}
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: observe-kubernetes
+  labels:
+    crossplane.io/composite: cluster-access-max
+  name: cluster-access-max-observe-kubernetes
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterAccess
+    name: cluster-access-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: ClusterProviderConfig
+      metadata:
+        name: max-cluster-kubernetes
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: remote-cluster
+  labels:
+    crossplane.io/composite: cluster-access-max
+  name: cluster-access-max-remote-cluster
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterAccess
+    name: cluster-access-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubeconfig.stuttgart-things.com/v1alpha1
+      kind: RemoteCluster
+      metadata:
+        name: max-cluster
+      spec:
+        forProvider:
+          providerConfigs:
+          - apiVersions:
+            - v2-cluster
+            name: max-cluster-kubernetes
+            type: provider-kubernetes
+          secretNamespace: crossplane-system
+          source:
+            key: kubeconfig
+            path: kubeconfigs-archive/max-cluster
+            type: vault
+        providerConfigRef:
+          kind: ClusterProviderConfig
+          name: vault-kubeconfigs
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

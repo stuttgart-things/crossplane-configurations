@@ -1,0 +1,192 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxApps
+metadata:
+  name: prod-apps
+  namespace: crossplane-system
+status:
+  appCount: 3
+  appsReady: false
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: prod-apps-app-crossplane, prod-apps-app-infrastructure,
+      and prod-apps-app-secrets'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  readyCount: 0
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: prod-apps-app-crossplane
+  labels:
+    crossplane.io/composite: prod-apps
+  name: prod-apps-app-crossplane
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: FluxApps
+    name: prod-apps
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kustomize.toolkit.fluxcd.io/v1
+      kind: Kustomization
+      metadata:
+        name: crossplane
+        namespace: flux-system
+      spec:
+        commonMetadata:
+          labels:
+            app.kubernetes.io/managed-by: flux
+            environment: production
+        dependsOn:
+        - name: infrastructure
+        force: true
+        images:
+        - name: nginx
+          newName: my-registry.io/nginx
+          newTag: 1.21.0
+        interval: 10m
+        patches:
+        - patch: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: crossplane
+            spec:
+              replicas: 2
+          target:
+            kind: Deployment
+            name: crossplane
+        path: ./apps/crossplane
+        postBuild:
+          substitute:
+            CROSSPLANE_NAMESPACE: crossplane-system
+            CROSSPLANE_VERSION: 1.20.0
+        prune: true
+        retryInterval: 2m
+        sourceRef:
+          kind: GitRepository
+          name: flux-apps
+          namespace: flux-system
+        targetNamespace: crossplane-system
+        timeout: 5m
+        wait: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: prod-kubernetes
+  readiness:
+    policy: DeriveFromObject
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: prod-apps-app-infrastructure
+  labels:
+    crossplane.io/composite: prod-apps
+  name: prod-apps-app-infrastructure
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: FluxApps
+    name: prod-apps
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kustomize.toolkit.fluxcd.io/v1
+      kind: Kustomization
+      metadata:
+        name: infrastructure
+        namespace: flux-system
+      spec:
+        commonMetadata:
+          labels:
+            app.kubernetes.io/managed-by: flux
+            environment: production
+        healthChecks:
+        - apiVersion: apps/v1
+          kind: Deployment
+          name: ingress-nginx-controller
+          namespace: ingress-nginx
+        interval: 10m
+        path: ./clusters/prod/infrastructure
+        postBuild:
+          substituteFrom:
+          - kind: ConfigMap
+            name: cluster-vars
+          - kind: Secret
+            name: cluster-secrets
+            optional: true
+        prune: true
+        retryInterval: 2m
+        sourceRef:
+          kind: GitRepository
+          name: flux-apps
+          namespace: flux-system
+        timeout: 5m
+        wait: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: prod-kubernetes
+  readiness:
+    policy: DeriveFromObject
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: prod-apps-app-secrets
+  labels:
+    crossplane.io/composite: prod-apps
+  name: prod-apps-app-secrets
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: FluxApps
+    name: prod-apps
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kustomize.toolkit.fluxcd.io/v1
+      kind: Kustomization
+      metadata:
+        name: secrets
+        namespace: flux-system
+      spec:
+        commonMetadata:
+          labels:
+            app.kubernetes.io/managed-by: flux
+            environment: production
+        decryption:
+          provider: sops
+          secretRef:
+            name: sops-age
+        interval: 10m
+        path: ./apps/secrets
+        prune: true
+        retryInterval: 2m
+        sourceRef:
+          kind: OCIRepository
+          name: fleet-secrets
+          namespace: flux-system
+        timeout: 5m
+        wait: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: prod-kubernetes
+  readiness:
+    policy: DeriveFromObject

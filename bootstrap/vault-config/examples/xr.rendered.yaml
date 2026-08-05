@@ -1,0 +1,547 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultConfig
+metadata:
+  name: vault-config
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: vault-clusterrolebinding-cicd-vcluster-tink2, vault-clusterrolebinding-dev-vcluster-tink2,
+      vault-csi-vault-config-vcluster-tink2, and 11 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-clusterrolebinding-cicd-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: clusterrolebinding-cicd-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: cicd
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: system:auth-delegator
+      subjects:
+      - kind: ServiceAccount
+        name: cicd
+        namespace: default
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-clusterrolebinding-dev-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: clusterrolebinding-dev-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: dev
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: system:auth-delegator
+      subjects:
+      - kind: ServiceAccount
+        name: dev
+        namespace: default
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-csi-vault-config-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: vault-csi-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  forProvider:
+    chart:
+      name: secrets-store-csi-driver
+      repository: https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+      version: 1.5.4
+    namespace: secrets-store-csi
+    values:
+      secrets-store-csi-driver:
+        enableSecretRotation: true
+        linux:
+          enabled: true
+    wait: true
+    waitTimeout: 10m
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-eso-vault-config-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: eso-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  forProvider:
+    chart:
+      name: external-secrets
+      repository: https://charts.external-secrets.io
+      version: 0.11.3
+    namespace: external-secrets
+    values:
+      certController:
+        create: true
+        livenessProbe:
+          enabled: true
+        readinessProbe:
+          enabled: true
+        requeueInterval: 5m
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+      installCRDs: true
+      livenessProbe:
+        enabled: true
+      logLevel: info
+      readinessProbe:
+        enabled: true
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      serviceMonitor:
+        enabled: true
+      webhook:
+        certCheckInterval: 5m
+        create: true
+        lookaheadInterval: 168h
+        port: 10250
+    wait: true
+    waitTimeout: 10m
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-namespace-external-secrets-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: namespace-external-secrets-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          app.kubernetes.io/managed-by: crossplane
+          vault.crossplane.io/cluster: vcluster-tink2
+          vault.crossplane.io/config: vault-config
+        name: external-secrets
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-namespace-secrets-store-csi-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: namespace-secrets-store-csi-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          app.kubernetes.io/managed-by: crossplane
+          vault.crossplane.io/cluster: vcluster-tink2
+          vault.crossplane.io/config: vault-config
+        name: secrets-store-csi
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-namespace-vault-secrets-operator-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: namespace-vault-secrets-operator-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          app.kubernetes.io/managed-by: crossplane
+          vault.crossplane.io/cluster: vcluster-tink2
+          vault.crossplane.io/config: vault-config
+        name: vault-secrets-operator
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secret-cicd-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: secret-cicd-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        annotations:
+          kubernetes.io/service-account.name: cicd
+          kubernetes.io/service-account.namespace: default
+        name: cicd
+        namespace: default
+      type: kubernetes.io/service-account-token
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secret-dev-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: secret-dev-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        annotations:
+          kubernetes.io/service-account.name: dev
+          kubernetes.io/service-account.namespace: default
+        name: dev
+        namespace: default
+      type: kubernetes.io/service-account-token
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-serviceaccount-cicd-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: serviceaccount-cicd-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      automountServiceAccountToken: true
+      kind: ServiceAccount
+      metadata:
+        name: cicd
+        namespace: default
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-serviceaccount-dev-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: serviceaccount-dev-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      automountServiceAccountToken: true
+      kind: ServiceAccount
+      metadata:
+        name: dev
+        namespace: default
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-token-reader-cicd-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: token-reader-cicd-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.token
+    kind: Secret
+    name: cicd
+    namespace: default
+    toConnectionSecretKey: token
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: cicd
+        namespace: default
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+  writeConnectionSecretToRef:
+    name: vault-token-cicd-vcluster-tink2
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-token-reader-dev-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: token-reader-dev-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.token
+    kind: Secret
+    name: dev
+    namespace: default
+    toConnectionSecretKey: token
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: dev
+        namespace: default
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+  writeConnectionSecretToRef:
+    name: vault-token-dev-vcluster-tink2
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-vso-vault-config-vcluster-tink2
+  labels:
+    crossplane.io/composite: vault-config
+  name: vso-vcluster-tink2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config
+    uid: ""
+spec:
+  forProvider:
+    chart:
+      name: vault-secrets-operator
+      repository: https://helm.releases.hashicorp.com
+      version: 1.0.1
+    namespace: vault-secrets-operator
+    values:
+      vault-secrets-operator:
+        controller:
+          manager:
+            clientCache:
+              persistenceModel: direct-encrypted
+        defaultVaultConnection:
+          enabled: true
+    waitTimeout: 10m
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

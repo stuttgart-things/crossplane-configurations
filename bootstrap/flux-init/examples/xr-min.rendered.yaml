@@ -1,0 +1,123 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxInit
+metadata:
+  name: lab-flux
+  namespace: crossplane-system
+status:
+  clusterType: ""
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: lab-flux-flux-instance, lab-flux-flux-instance-uses-operator,
+      and lab-flux-flux-operator'
+    reason: Creating
+    status: "False"
+    type: Ready
+  instanceReady: false
+  operatorReady: false
+  ready: false
+  sourceCount: 0
+  sourcesReady: true
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: lab-flux-flux-instance
+    crossplane.io/uses: lab-flux-flux-operator
+  labels:
+    crossplane.io/composite: lab-flux
+  name: lab-flux-flux-instance
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: FluxInit
+    name: lab-flux
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: fluxcd.controlplane.io/v1
+      kind: FluxInstance
+      metadata:
+        annotations:
+          fluxcd.controlplane.io/reconcileEvery: 1h
+          fluxcd.controlplane.io/reconcileTimeout: 5m
+        name: flux
+        namespace: flux-system
+      spec:
+        components:
+        - source-controller
+        - kustomize-controller
+        - helm-controller
+        - notification-controller
+        distribution:
+          registry: ghcr.io/fluxcd
+          version: 2.x
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: lab-cluster-kubernetes
+  readiness:
+    policy: DeriveFromObject
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: lab-flux-flux-instance-uses-operator
+  labels:
+    crossplane.io/composite: lab-flux
+  name: lab-flux-flux-instance-uses-operator
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: FluxInit
+    name: lab-flux
+    uid: ""
+spec:
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: lab-flux-flux-instance
+  of:
+    apiVersion: helm.m.crossplane.io/v1beta1
+    kind: Release
+    resourceRef:
+      name: lab-flux-flux-operator
+  replayDeletion: true
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: lab-flux-flux-operator
+    crossplane.io/external-name: flux-operator
+  labels:
+    crossplane.io/composite: lab-flux
+  name: lab-flux-flux-operator
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: FluxInit
+    name: lab-flux
+    uid: ""
+spec:
+  forProvider:
+    chart:
+      name: flux-operator
+      repository: oci://ghcr.io/controlplaneio-fluxcd/charts
+      version: 0.55.0
+    namespace: flux-system
+    values:
+      installCRDs: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: lab-cluster-helm
+  rollbackLimit: 3

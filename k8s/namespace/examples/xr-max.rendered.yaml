@@ -1,0 +1,266 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ManagedNamespace
+metadata:
+  name: team-max
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: team-max-limitrange, team-max-namespace, team-max-netpol-deny-all,
+      and 3 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  namespace: team-max
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: team-max-limitrange
+  generateName: team-max-
+  labels:
+    app.kubernetes.io/instance: team-max
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: managed-namespace
+    crossplane.io/composite: team-max
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ManagedNamespace
+    name: team-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: default
+        namespace: team-max
+      spec:
+        limits:
+        - default:
+            cpu: 500m
+            memory: 512Mi
+          defaultRequest:
+            cpu: 100m
+            memory: 128Mi
+          max:
+            cpu: "2"
+            memory: 4Gi
+          min:
+            cpu: 10m
+            memory: 32Mi
+          type: Container
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: team-max-namespace
+  generateName: team-max-
+  labels:
+    app.kubernetes.io/instance: team-max
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: managed-namespace
+    crossplane.io/composite: team-max
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ManagedNamespace
+    name: team-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        annotations:
+          docs: https://wiki.example.com/team-max
+          owner: max-team@stuttgart-things.com
+        labels:
+          env: prod
+          team: max
+          tier: gold
+        name: team-max
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  readiness:
+    celQuery: object.status.phase == "Active"
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: team-max-netpol-deny-all
+  generateName: team-max-
+  labels:
+    app.kubernetes.io/instance: team-max
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: managed-namespace
+    crossplane.io/composite: team-max
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ManagedNamespace
+    name: team-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-all
+        namespace: team-max
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        - Egress
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: team-max-resourcequota
+  generateName: team-max-
+  labels:
+    app.kubernetes.io/instance: team-max
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: managed-namespace
+    crossplane.io/composite: team-max
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ManagedNamespace
+    name: team-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: default
+        namespace: team-max
+      spec:
+        hard:
+          limits.cpu: "8"
+          limits.memory: 16Gi
+          persistentvolumeclaims: "10"
+          pods: "20"
+          requests.cpu: "4"
+          requests.memory: 8Gi
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: team-max-rolebinding-team-max-ci
+  generateName: team-max-
+  labels:
+    app.kubernetes.io/instance: team-max
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: managed-namespace
+    crossplane.io/composite: team-max
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ManagedNamespace
+    name: team-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: team-max-ci
+        namespace: team-max
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: admin
+      subjects:
+      - kind: ServiceAccount
+        name: ci-bot
+        namespace: ci
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: team-max-rolebinding-team-max-edit
+  generateName: team-max-
+  labels:
+    app.kubernetes.io/instance: team-max
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: managed-namespace
+    crossplane.io/composite: team-max
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ManagedNamespace
+    name: team-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: team-max-edit
+        namespace: team-max
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: edit
+      subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: team-max-developers
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

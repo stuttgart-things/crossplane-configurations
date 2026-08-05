@@ -1,0 +1,72 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeProxmoxVM
+metadata:
+  name: proxmoxvm-min
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: proxmoxvm-min'
+    reason: Creating
+    status: "False"
+    type: Ready
+  share:
+    ansibleCompletionTime: ""
+    ansibleReady: false
+    ansibleSucceeded: ""
+    ip: []
+    started: false
+    vmId: ""
+---
+apiVersion: virtualenvironmentvm.proxmoxbpg.m.crossplane.io/v1alpha1
+kind: EnvironmentVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmoxvm-min
+  labels:
+    crossplane.io/composite: proxmoxvm-min
+  name: proxmoxvm-min
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: NativeProxmoxVM
+    name: proxmoxvm-min
+    uid: ""
+spec:
+  forProvider:
+    agent:
+    - enabled: true
+    bios: seabios
+    clone: []
+    cpu:
+    - cores: 2
+      type: x86-64-v2-AES
+    description: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
+    disk:
+    - datastoreId: ""
+      interface: scsi0
+      size: 64
+    initialization:
+    - ipConfig:
+      - ipv4:
+        - address: dhcp
+    memory:
+    - dedicated: 4096
+    name: proxmoxvm-min
+    networkDevice:
+    - bridge: vmbr0
+      model: virtio
+    nodeName: ""
+    operatingSystem:
+    - type: l26
+    smbios:
+    - manufacturer: stuttgart-things
+      product: crossplane-proxmoxvm
+    started: true
+    stopOnDestroy: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: default

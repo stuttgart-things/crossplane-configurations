@@ -1,0 +1,170 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: production
+  namespace: crossplane-system
+status:
+  componentCount: 2
+  components:
+    cilium:
+      enabled: false
+      gatewayReady: false
+      loadBalancerReady: false
+      networkKey: ""
+      ready: false
+    cni:
+      enabled: false
+      provider: ""
+      ready: false
+      version: ""
+    fluxApps:
+      appCount: 0
+      enabled: true
+      ready: false
+      readyCount: 0
+    fluxInit:
+      enabled: true
+      instanceReady: false
+      operatorReady: false
+      ready: false
+      sourceCount: 0
+      sourcesReady: false
+    ipReservation:
+      enabled: false
+      ipAddresses: []
+      networkKey: ""
+      ready: false
+    vaultIssuer:
+      authReady: false
+      caReady: false
+      enabled: false
+      issuerReady: false
+      ready: false
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: production-flux-apps, production-flux-init'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  readyComponents: 0
+  shared:
+    clusterName: production
+    helmProviderConfigRef: production-helm
+    kubernetesProviderConfigRef: production-kubernetes
+    namespace: flux-system
+    observeProviderConfigRef: in-cluster
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxApps
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: production-flux-apps
+  labels:
+    crossplane.io/composite: production
+  name: production-flux-apps
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: production
+    uid: ""
+spec:
+  apps:
+  - name: dapr-control-plane
+    path: ./components/control-plane
+    sourceRef:
+      kind: OCIRepository
+      name: dapr
+    substitute:
+      DAPR_HA_ENABLED: "false"
+      DAPR_NAMESPACE: dapr-system
+      DAPR_VERSION: 1.17.4
+    timeout: 20m
+  - dependsOn:
+    - name: dapr-control-plane
+    name: dapr-template-execution
+    path: ./components/template-execution
+    sourceRef:
+      kind: OCIRepository
+      name: dapr
+    substitute:
+      DAPR_BACKSTAGE_TPL_NAMESPACE: backstage-workflows
+      DAPR_HA_ENABLED: "false"
+      DAPR_NAMESPACE: dapr-system
+      DAPR_VERSION: 1.17.4
+      FLUX_SOURCE_API_VERSION: v1
+    substituteFrom:
+    - kind: Secret
+      name: dapr-backstage-template-execution-vars
+    targetNamespace: backstage-workflows
+  kubernetesProviderConfigRef: production-kubernetes
+  namespace: flux-system
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxInit
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: production-flux-init
+  labels:
+    crossplane.io/composite: production
+  name: production-flux-init
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: production
+    uid: ""
+spec:
+  clusterName: production
+  helmProviderConfigRef: production-helm
+  instance:
+    components:
+    - source-controller
+    - kustomize-controller
+    - helm-controller
+    - notification-controller
+    distribution: upstream
+    sources:
+    - kind: OCIRepository
+      name: fleet-infra
+      path: clusters/production
+      pullSecret: ghcr-auth
+      ref: latest
+      url: oci://ghcr.io/stuttgart-things/fleet-infra
+    - kind: GitRepository
+      name: flux-apps
+      path: apps/production
+      ref: main
+      url: https://github.com/stuttgart-things/flux-apps.git
+    - kind: OCIRepository
+      name: dapr
+      ref: v1.18.1
+      url: oci://ghcr.io/stuttgart-things/flux/apps/dapr
+  kubernetesProviderConfigRef: production-kubernetes
+  kustomize:
+    patches:
+    - patch: |
+        - op: add
+          path: /spec/template/spec/containers/0/args/-
+          value: --concurrent=8
+      target:
+        kind: Deployment
+        name: kustomize-controller
+  namespace: flux-system
+  observeProviderConfigRef: in-cluster
+  operatorChart:
+    repoURL: oci://ghcr.io/controlplaneio-fluxcd/charts
+    version: 0.55.0
+  sops:
+    ageKeySecretRef:
+      key: age.agekey
+      name: sops-age-key
+      namespace: flux-system
+    enabled: true
+    secretName: sops-age

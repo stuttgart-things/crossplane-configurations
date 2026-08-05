@@ -1,0 +1,72 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: u26-kind1
+  namespace: crossplane-system
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: vm'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  share:
+    clusterName: u26-kind1
+    cniOwnership: self
+  stage: vm
+  stages:
+    access:
+      emitted: false
+      ready: false
+    baseos:
+      succeeded: false
+    distribution:
+      emitted: false
+      succeeded: false
+    kubeconfig:
+      emitted: false
+      succeeded: false
+    platform:
+      emitted: false
+      ready: false
+    vm:
+      ip: ""
+      ready: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeProxmoxVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm
+  labels:
+    crossplane.io/composite: u26-kind1
+  name: u26-kind1-vm
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: u26-kind1
+    uid: ""
+spec:
+  ansible:
+    crossplaneProviderConfig: in-cluster
+    enabled: true
+    pipelineNamespace: tekton-ci
+    playbooks:
+    - sthings.baseos.setup
+    varsFile:
+    - manage_filesystem+-true
+    - update_packages+-true
+    - vm_hostname+-u26-kind1
+  cloudInit:
+    ipv4Address: dhcp
+  environmentConfig: labul
+  vm:
+    cpu: "4"
+    disk: "64"
+    memory: "8192"
+    name: u26-kind1

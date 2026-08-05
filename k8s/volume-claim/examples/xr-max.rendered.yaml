@@ -1,0 +1,76 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VolumeClaim
+metadata:
+  name: max
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: restored-data-pvc'
+    reason: Creating
+    status: "False"
+    type: Ready
+  pvcName: restored-data
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: restored-data-pvc
+  generateName: max-
+  labels:
+    app.kubernetes.io/instance: restored-data
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: volume-claim
+    crossplane.io/composite: max
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VolumeClaim
+    name: max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        annotations:
+          description: restored from yesterday's snapshot
+          owner: max-team@stuttgart-things.com
+        labels:
+          app: max-app
+          backup: hourly
+          tier: prod
+        name: restored-data
+        namespace: apps
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        - ReadOnlyMany
+        dataSource:
+          apiGroup: snapshot.storage.k8s.io
+          kind: VolumeSnapshot
+          name: max-app-snapshot-2026-05-27
+        resources:
+          requests:
+            storage: 100Gi
+        selector:
+          matchExpressions:
+          - key: env
+            operator: In
+            values:
+            - prod
+            - staging
+          matchLabels:
+            zone: eu-west-1a
+        storageClassName: fast-ssd
+        volumeMode: Filesystem
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

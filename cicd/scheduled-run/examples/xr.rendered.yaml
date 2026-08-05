@@ -1,0 +1,291 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ScheduledRun
+metadata:
+  name: nightly-baseos
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: nightly-baseos-configmap, nightly-baseos-cronjob,
+      nightly-baseos-role, and 2 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  targetKind: AnsibleRun
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: nightly-baseos-configmap
+  labels:
+    crossplane.io/composite: nightly-baseos
+  name: nightly-baseos-configmap
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ScheduledRun
+    name: nightly-baseos
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      data:
+        manifest.yaml: |
+          apiVersion: resources.stuttgart-things.com/v1alpha1
+          kind: AnsibleRun
+          metadata:
+            name: nightly-baseos
+          spec:
+            ansiblePlaybooks:
+            - sthings.baseos.setup
+            ansibleVarsInventory:
+            - all+["10.31.102.107"]
+            crossplaneObjectName: nightly-baseos
+            crossplaneProviderConfig: in-cluster
+            gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+            namespace: tekton-ci
+            pipelineRunName: nightly-baseos
+      kind: ConfigMap
+      metadata:
+        name: nightly-baseos-manifest
+        namespace: crossplane-system
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: nightly-baseos-cronjob
+  labels:
+    crossplane.io/composite: nightly-baseos
+  name: nightly-baseos-cronjob
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ScheduledRun
+    name: nightly-baseos
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: nightly-baseos
+        namespace: crossplane-system
+      spec:
+        concurrencyPolicy: Forbid
+        failedJobsHistoryLimit: 3
+        jobTemplate:
+          spec:
+            backoffLimit: 1
+            template:
+              spec:
+                containers:
+                - args:
+                  - |
+                    set -eu
+                    cd /work
+                    cp /target/manifest.yaml /work/manifest.yaml
+
+                    # Unique per tick. Cron granularity is one minute, so a
+                    # second-resolution UTC timestamp is unique across ticks.
+                    SUFFIX=$(date -u +%Y%m%d%H%M%S)
+                    echo "== tick $SUFFIX"
+
+                    # Suffix each configured unique field. A missing field is skipped,
+                    # so the same ScheduledRun works whether the target uses a fixed
+                    # name or generateName.
+                    for p in $UNIQUE_FIELDS; do
+                      cur=$(yq eval ".$p" manifest.yaml)
+                      if [ "$cur" != "null" ] && [ -n "$cur" ]; then
+                        yq eval -i ".$p = \"$cur-$SUFFIX\"" manifest.yaml
+                        echo "   unique  .$p = $cur-$SUFFIX"
+                      fi
+                    done
+
+                    # Owner label lets the prune step below find this ScheduledRun's
+                    # own instances and nothing else.
+                    yq eval -i ".metadata.labels.\"$OWNER_KEY\" = \"$OWNER\"" manifest.yaml
+
+                    if [ "$SCOPE" = "Namespaced" ]; then
+                      yq eval -i ".metadata.namespace = \"$TARGET_NS\"" manifest.yaml
+                      NSARG="-n $TARGET_NS"
+                    else
+                      yq eval -i "del(.metadata.namespace)" manifest.yaml
+                      NSARG=""
+                    fi
+
+                    echo "== creating $TARGET_RESOURCE"
+                    kubectl create -f manifest.yaml
+
+                    # Prune: keep the newest $KEEP_HISTORY instances, delete the rest.
+                    # busybox head has no negative-count form, so compute the slice.
+                    if [ "$KEEP_HISTORY" -gt 0 ]; then
+                      names=$(kubectl get "$TARGET_RESOURCE" $NSARG \
+                        -l "$OWNER_KEY=$OWNER" \
+                        --sort-by=.metadata.creationTimestamp -o name 2>/dev/null || true)
+                      total=$(printf '%s\n' "$names" | grep -c . || true)
+                      remove=$((total - KEEP_HISTORY))
+                      if [ "$remove" -gt 0 ]; then
+                        echo "== pruning $remove old instance(s)"
+                        printf '%s\n' "$names" | head -n "$remove" \
+                          | xargs -r kubectl delete $NSARG
+                      fi
+                    fi
+                    echo "== done"
+                  command:
+                  - /bin/sh
+                  - -c
+                  env:
+                  - name: UNIQUE_FIELDS
+                    value: metadata.name spec.pipelineRunName spec.crossplaneObjectName
+                  - name: OWNER
+                    value: nightly-baseos
+                  - name: OWNER_KEY
+                    value: scheduled-run.resources.stuttgart-things.com/owner
+                  - name: SCOPE
+                    value: Namespaced
+                  - name: TARGET_NS
+                    value: tekton-ci
+                  - name: TARGET_RESOURCE
+                    value: ansiblerun.resources.stuttgart-things.com
+                  - name: KEEP_HISTORY
+                    value: "5"
+                  image: alpine/k8s:1.31.0
+                  name: run
+                  resources:
+                    requests:
+                      cpu: 50m
+                      memory: 64Mi
+                  volumeMounts:
+                  - mountPath: /target
+                    name: target
+                    readOnly: true
+                  - mountPath: /work
+                    name: work
+                restartPolicy: Never
+                serviceAccountName: scheduled-run
+                volumes:
+                - configMap:
+                    name: nightly-baseos-manifest
+                  name: target
+                - emptyDir: {}
+                  name: work
+        schedule: 0 2 * * *
+        successfulJobsHistoryLimit: 3
+        suspend: false
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: nightly-baseos-role
+  labels:
+    crossplane.io/composite: nightly-baseos
+  name: nightly-baseos-role
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ScheduledRun
+    name: nightly-baseos
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: scheduled-run-run
+        namespace: tekton-ci
+      rules:
+      - apiGroups:
+        - resources.stuttgart-things.com
+        resources:
+        - '*'
+        verbs:
+        - create
+        - get
+        - list
+        - delete
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: nightly-baseos-rolebinding
+  labels:
+    crossplane.io/composite: nightly-baseos
+  name: nightly-baseos-rolebinding
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ScheduledRun
+    name: nightly-baseos
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: scheduled-run-run
+        namespace: tekton-ci
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: scheduled-run-run
+      subjects:
+      - kind: ServiceAccount
+        name: scheduled-run
+        namespace: crossplane-system
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: nightly-baseos-serviceaccount
+  labels:
+    crossplane.io/composite: nightly-baseos
+  name: nightly-baseos-serviceaccount
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ScheduledRun
+    name: nightly-baseos
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: scheduled-run
+        namespace: crossplane-system
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

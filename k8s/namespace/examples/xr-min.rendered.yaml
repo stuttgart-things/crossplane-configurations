@@ -1,0 +1,49 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ManagedNamespace
+metadata:
+  name: min
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: demo-min-namespace'
+    reason: Creating
+    status: "False"
+    type: Ready
+  namespace: demo-min
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: demo-min-namespace
+  generateName: min-
+  labels:
+    app.kubernetes.io/instance: demo-min
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: managed-namespace
+    crossplane.io/composite: min
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ManagedNamespace
+    name: min
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: demo-min
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  readiness:
+    celQuery: object.status.phase == "Active"
+    policy: DeriveFromCelQuery

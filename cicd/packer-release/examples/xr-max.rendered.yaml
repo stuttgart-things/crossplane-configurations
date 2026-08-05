@@ -1,0 +1,51 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerRelease
+metadata:
+  name: ubuntu24-labul-max
+  namespace: default
+status:
+  buildSucceeded: Unknown
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: ubuntu24-labul-max-build'
+    reason: Creating
+    status: "False"
+    type: Ready
+  phase: Building
+  promotePipelineRunName: ubuntu24-labul-max-promote
+  promoteSucceeded: Unknown
+  promoted: false
+  tested: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerBuild
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: ubuntu24-labul-max-build
+  labels:
+    crossplane.io/composite: ubuntu24-labul-max
+  name: ubuntu24-labul-max-build
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: PackerRelease
+    name: ubuntu24-labul-max
+    uid: ""
+spec:
+  crossplaneObjectName: ubuntu24-labul-max-build-run
+  deriveReadiness: true
+  environmentConfig: default
+  gitRevision: main
+  gitWorkspaceSubdirectory: packer/builds/ubuntu24-labul-vsphere-base-os
+  hypervisor: vsphere
+  lab: labul
+  namespace: tekton-ci
+  osVersion: ubuntu24
+  packerTemplate: ubuntu24-base-os.pkr.hcl
+  pipelineRunName: ubuntu24-labul-max-build
+  provisioning: base-os
+  storageClass: openebs-hostpath
+  vaultSecretName: vault
