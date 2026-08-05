@@ -42,7 +42,12 @@ jobs:
             "https://releases.crossplane.io/stable/${CROSSPLANE_VERSION}/bin/linux_amd64/crank" \
             -o /usr/local/bin/crossplane
           chmod +x /usr/local/bin/crossplane
-          crossplane version || crossplane --version
+          # --client, because plain `crossplane version` also reaches for the
+          # *server* version and dies on "failed to get kubeconfig" here — there
+          # is no cluster on the runner. There is no `--version` flag to fall
+          # back to, so the old `version || --version` pair exited 80 and took
+          # the whole step with it.
+          crossplane version --client
 
       # crossplane render runs each pipeline Function as a container; the
       # ubuntu-latest runner ships Docker, and every examples/functions.yaml pins
