@@ -1,0 +1,181 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cilium
+metadata:
+  name: demo
+  namespace: crossplane-system
+status:
+  ciliumVersion: 1.19.2
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: demo-cilium, demo-gateway-api, demo-gateway-class,
+      and 2 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  gatewayReady: true
+  installReady: false
+  loadBalancerReady: true
+  networkKey: ""
+  ready: false
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: demo-cilium
+    crossplane.io/external-name: cilium
+  labels:
+    crossplane.io/composite: demo
+  name: demo-cilium
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Cilium
+    name: demo
+    uid: ""
+spec:
+  forProvider:
+    chart:
+      name: cilium
+      repository: https://helm.cilium.io
+      version: 1.19.2
+    namespace: kube-system
+    values:
+      autoDirectNodeRoutes: true
+      externalIPs:
+        enabled: true
+      gatewayAPI:
+        enabled: true
+      ipv4NativeRoutingCIDR: 10.244.0.0/16
+      k8sServiceHost: ""
+      k8sServicePort: 6443
+      kubeProxyReplacement: true
+      l2announcements:
+        enabled: true
+      operator:
+        replicas: 1
+      routingMode: native
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: demo-helm
+  rollbackLimit: 3
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: demo-gateway-api
+    crossplane.io/external-name: gateway-api
+  labels:
+    crossplane.io/composite: demo
+  name: demo-gateway-api
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Cilium
+    name: demo
+    uid: ""
+spec:
+  forProvider:
+    chart:
+      name: gateway-api
+      repository: https://gateway-api-charts.sigs.k8s.io
+      version: 1.2.1
+    namespace: kube-system
+    values: {}
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: demo-helm
+  rollbackLimit: 3
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: demo-gateway-class
+  labels:
+    crossplane.io/composite: demo
+  name: demo-gateway-class
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Cilium
+    name: demo
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: GatewayClass
+      metadata:
+        name: cilium
+      spec:
+        controllerName: io.cilium/gateway-controller
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: demo-kubernetes
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: demo-gateway-class-uses-cilium
+  labels:
+    crossplane.io/composite: demo
+  name: demo-gateway-class-uses-cilium
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Cilium
+    name: demo
+    uid: ""
+spec:
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: demo-gateway-class
+  of:
+    apiVersion: helm.m.crossplane.io/v1beta1
+    kind: Release
+    resourceRef:
+      name: demo-cilium
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: demo-gateway-class-uses-gw-api
+  labels:
+    crossplane.io/composite: demo
+  name: demo-gateway-class-uses-gw-api
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Cilium
+    name: demo
+    uid: ""
+spec:
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: demo-gateway-class
+  of:
+    apiVersion: helm.m.crossplane.io/v1beta1
+    kind: Release
+    resourceRef:
+      name: demo-gateway-api
+  replayDeletion: true

@@ -1,0 +1,121 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: staging
+  namespace: crossplane-system
+status:
+  componentCount: 2
+  components:
+    cilium:
+      enabled: false
+      gatewayReady: false
+      loadBalancerReady: false
+      networkKey: ""
+      ready: false
+    cni:
+      enabled: false
+      provider: ""
+      ready: false
+      version: ""
+    fluxApps:
+      appCount: 0
+      enabled: true
+      ready: false
+      readyCount: 0
+    fluxInit:
+      enabled: true
+      instanceReady: false
+      operatorReady: false
+      ready: false
+      sourceCount: 0
+      sourcesReady: false
+    ipReservation:
+      enabled: false
+      ipAddresses: []
+      networkKey: ""
+      ready: false
+    vaultIssuer:
+      authReady: false
+      caReady: false
+      enabled: false
+      issuerReady: false
+      ready: false
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: staging-flux-apps, staging-flux-init'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  readyComponents: 0
+  shared:
+    clusterName: staging
+    helmProviderConfigRef: staging-helm
+    kubernetesProviderConfigRef: staging-kubernetes
+    namespace: flux-system
+    observeProviderConfigRef: in-cluster
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxApps
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: staging-flux-apps
+  labels:
+    crossplane.io/composite: staging
+  name: staging-flux-apps
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: staging
+    uid: ""
+spec:
+  apps:
+  - name: dapr-control-plane
+    path: ./components/control-plane
+    sourceRef:
+      kind: OCIRepository
+      name: dapr
+    substitute:
+      DAPR_NAMESPACE: dapr-system
+      DAPR_VERSION: 1.17.4
+    timeout: 15m
+  kubernetesProviderConfigRef: staging-kubernetes
+  namespace: flux-system
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxInit
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: staging-flux-init
+  labels:
+    crossplane.io/composite: staging
+  name: staging-flux-init
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: staging
+    uid: ""
+spec:
+  clusterName: staging
+  helmProviderConfigRef: staging-helm
+  instance:
+    sources:
+    - kind: OCIRepository
+      name: fleet-infra
+      path: clusters/staging
+      ref: latest
+      url: oci://ghcr.io/stuttgart-things/fleet-infra
+    - kind: OCIRepository
+      name: dapr
+      ref: v1.18.1
+      url: oci://ghcr.io/stuttgart-things/flux/apps/dapr
+  kubernetesProviderConfigRef: staging-kubernetes
+  namespace: flux-system
+  observeProviderConfigRef: in-cluster

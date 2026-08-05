@@ -68,14 +68,14 @@ tasks:
         eval "$CMD"
 
   render-golden:
-    desc: "(Re)generate golden render snapshots examples/*.rendered.yaml (all, or CONFIG=k8s/<name>). Requires the crossplane CLI + a container runtime, like `render`."
+    desc: "(Re)generate golden render snapshots under tests/render/golden/ (all, or CONFIG=k8s/<name>). Requires the crossplane CLI + a container runtime, like `render`."
     silent: true
     cmds:
       - |
         set -euo pipefail
         gum style --foreground 4 "→ render-golden ${CONFIG:-<all configurations>}"
         # The script discovers Configurations, renders every examples/xr*.yaml,
-        # and writes the sibling *.rendered.yaml. CONFIG scopes it to one.
+        # and writes tests/render/golden/<config>/<xr>.yaml. CONFIG scopes it to one.
         tests/render/render-golden.sh
 
   check:

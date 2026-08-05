@@ -1,0 +1,47 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cni
+metadata:
+  name: kind-test1-cni
+  namespace: crossplane-system
+status:
+  clusterType: ""
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: kind-test1-cni-observe-rc'
+    reason: Creating
+    status: "False"
+    type: Ready
+  provider: cilium
+  ready: false
+  releaseReady: false
+  version: 1.19.6
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: kind-test1-cni-observe-rc
+  labels:
+    crossplane.io/composite: kind-test1-cni
+  name: kind-test1-cni-observe-rc
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Cni
+    name: kind-test1-cni
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubeconfig.stuttgart-things.com/v1alpha1
+      kind: RemoteCluster
+      metadata:
+        name: kind-test1
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

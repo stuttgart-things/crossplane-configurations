@@ -1,0 +1,72 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: XVirtualMachine
+metadata:
+  name: vm-standard
+  namespace: default
+status:
+  ansibleReady: false
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: vm-standard'
+    reason: Creating
+    status: "False"
+    type: Ready
+  share:
+    environment: labul
+    ip: []
+    provider: vsphere
+    size: medium
+  vmReady: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VMProvision
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm-standard
+  labels:
+    crossplane.io/composite: vm-standard
+  name: vm-standard
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: XVirtualMachine
+    name: vm-standard
+    uid: ""
+spec:
+  ansible:
+    ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test
+    crossplaneProviderConfig: in-cluster
+    enabled: true
+    playbooks:
+    - sthings.baseos.setup
+    varsFile:
+    - manage_filesystem+-true
+    - update_packages+-true
+    - ansible_become+-true
+    - ansible_become_method+-sudo
+  connectionSecret:
+    name: vm-standard
+  provider: vsphere
+  providerRef:
+    kind: ClusterProviderConfig
+    name: default
+  tfvars:
+    secretKey: terraform.tfvars
+    secretName: vsphere-tfvars
+  vm:
+    count: "1"
+    cpu: "4"
+    disk: "64"
+    firmware: bios
+    name: vm-standard
+    ram: "4096"
+    template: sthings-u24
+  vsphere:
+    datacenter: /LabUL
+    datastore: /LabUL/datastore/UL-ESX-SAS-02
+    folderPath: stuttgart-things/testing
+    network: /LabUL/network/LAB-10.31.103
+    resourcePool: /LabUL/host/Cluster-V6.7/Resources

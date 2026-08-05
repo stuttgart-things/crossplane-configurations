@@ -1,0 +1,124 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: AnsibleRun
+metadata:
+  name: ansible-run-min
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: run-ansible-min'
+    reason: Creating
+    status: "False"
+    type: Ready
+  installed: false
+  results: []
+  succeeded: Unknown
+  taskRuns: []
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: run-ansible-min
+    uptest.upbound.io/timeout: "60"
+  labels:
+    crossplane.io/composite: ansible-run-min
+  name: run-ansible-min
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: AnsibleRun
+    name: ansible-run-min
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        name: run-ansible-min
+        namespace: tekton-ci
+      spec:
+        params:
+        - name: storageSize
+          value: 20Mi
+        - name: storageAccessModes
+          value: ReadWriteOnce
+        - name: ansiblePlaybooks
+          value:
+          - sthings.baseos.setup
+        - name: ansibleExtraCollections
+          value: []
+        - name: ansibleExtraRoles
+          value: []
+        - name: ansibleVarsInventory
+          value: []
+        - name: ansibleVarsFile
+          value: []
+        - name: ansibleWorkingImage
+          value: ghcr.io/stuttgart-things/sthings-ansible:11.11.0
+        - name: ansibleCredentialsSecretName
+          value: ansible-credentials
+        - name: ansibleCredentialsUserKey
+          value: ANSIBLE_USER
+        - name: ansibleCredentialsPasswordKey
+          value: ANSIBLE_PASSWORD
+        - name: createInventory
+          value: "true"
+        - name: ansibleTargetHost
+          value: all
+        - name: gitWorkspaceSubdirectory
+          value: /ansible/workdir/
+        - name: installExtraRoles
+          value: "true"
+        - name: installExtraCollections
+          value: "true"
+        - name: userHome
+          value: /home/nonroot
+        - name: vaultSecretName
+          value: vault
+        - name: inventory
+          value: ""
+        - name: varsFile
+          value: ""
+        - name: ansibleVerbosity
+          value: "2"
+        - name: validateInventory
+          value: "true"
+        - name: gitRepoUrl
+          value: https://github.com/stuttgart-things/stage-time.git
+        - name: gitRevision
+          value: main
+        pipelineRef:
+          params:
+          - name: url
+            value: https://github.com/stuttgart-things/stage-time.git
+          - name: revision
+            value: v0.11.1
+          - name: pathInRepo
+            value: pipelines/execute-ansible-playbooks-from-collections.yaml
+          resolver: git
+        taskRunTemplate:
+          serviceAccountName: default
+        timeouts:
+          pipeline: 1h0m0s
+        workspaces:
+        - name: shared-workspace
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 20Mi
+              storageClassName: openebs-hostpath
+  managementPolicies:
+  - Observe
+  - Create
+  - Delete
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: kubernetes-provider

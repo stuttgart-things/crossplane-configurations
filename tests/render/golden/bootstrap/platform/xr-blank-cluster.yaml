@@ -1,0 +1,83 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: kind-test1
+  namespace: crossplane-system
+status:
+  componentCount: 3
+  components:
+    cilium:
+      enabled: false
+      gatewayReady: false
+      loadBalancerReady: false
+      networkKey: ""
+      ready: false
+    cni:
+      enabled: true
+      provider: ""
+      ready: false
+      version: ""
+    fluxApps:
+      appCount: 0
+      enabled: true
+      ready: false
+      readyCount: 0
+    fluxInit:
+      enabled: true
+      instanceReady: false
+      operatorReady: false
+      ready: false
+      sourceCount: 0
+      sourcesReady: false
+    ipReservation:
+      enabled: false
+      ipAddresses: []
+      networkKey: ""
+      ready: false
+    vaultIssuer:
+      authReady: false
+      caReady: false
+      enabled: false
+      issuerReady: false
+      ready: false
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: kind-test1-cni'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  readyComponents: 0
+  shared:
+    clusterName: kind-test1
+    helmProviderConfigRef: kind-test1-helm
+    kubernetesProviderConfigRef: kind-test1-kubernetes
+    namespace: flux-system
+    observeProviderConfigRef: in-cluster
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cni
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: kind-test1-cni
+  labels:
+    crossplane.io/composite: kind-test1
+  name: kind-test1-cni
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: kind-test1
+    uid: ""
+spec:
+  chart:
+    version: 1.19.6
+  cilium:
+    kubeProxyReplacement: true
+    operatorReplicas: 1
+  clusterName: kind-test1
+  helmProviderConfigRef: kind-test1-helm
+  observeProviderConfigRef: in-cluster

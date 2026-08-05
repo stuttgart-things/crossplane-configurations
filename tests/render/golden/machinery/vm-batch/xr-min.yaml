@@ -1,0 +1,65 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VMBatch
+metadata:
+  name: vm-batch-min
+  namespace: default
+status:
+  ansibleReady: true
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: vm-batch-min-one-0, vm-batch-min-two-0'
+    reason: Creating
+    status: "False"
+    type: Ready
+  readyCount: 0
+  share:
+    ansibleCompletionTime: ""
+    ansibleReady: false
+    ansibleSucceeded: ""
+    ip: []
+    provider: proxmox
+  vmCount: 2
+  vmReady: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeProxmoxVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm-batch-min-one-0
+  labels:
+    crossplane.io/composite: vm-batch-min
+  name: vm-batch-min-one-0
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VMBatch
+    name: vm-batch-min
+    uid: ""
+spec:
+  environmentConfig: default
+  vm:
+    name: one-0
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeProxmoxVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm-batch-min-two-0
+  labels:
+    crossplane.io/composite: vm-batch-min
+  name: vm-batch-min-two-0
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VMBatch
+    name: vm-batch-min
+    uid: ""
+spec:
+  environmentConfig: default
+  vm:
+    name: two-0

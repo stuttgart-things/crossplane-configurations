@@ -1,0 +1,72 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: cluster-min
+  namespace: crossplane-system
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: vm'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  share:
+    clusterName: cluster-min
+    cniOwnership: self
+  stage: vm
+  stages:
+    access:
+      emitted: false
+      ready: false
+    baseos:
+      succeeded: false
+    distribution:
+      emitted: false
+      succeeded: false
+    kubeconfig:
+      emitted: false
+      succeeded: false
+    platform:
+      emitted: false
+      ready: false
+    vm:
+      ip: ""
+      ready: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeProxmoxVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm
+  labels:
+    crossplane.io/composite: cluster-min
+  name: cluster-min-vm
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: cluster-min
+    uid: ""
+spec:
+  ansible:
+    crossplaneProviderConfig: in-cluster
+    enabled: true
+    pipelineNamespace: tekton-ci
+    playbooks:
+    - sthings.baseos.setup
+    varsFile:
+    - manage_filesystem+-true
+    - update_packages+-true
+    - vm_hostname+-cluster-min
+  cloudInit:
+    ipv4Address: dhcp
+  environmentConfig: labul
+  vm:
+    cpu: "4"
+    disk: "64"
+    memory: "8192"
+    name: cluster-min

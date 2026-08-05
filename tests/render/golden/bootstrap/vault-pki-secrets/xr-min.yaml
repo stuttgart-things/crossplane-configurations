@@ -1,0 +1,12 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultPkiSecret
+metadata:
+  name: vault-pki
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: Available
+    status: "True"
+    type: Ready

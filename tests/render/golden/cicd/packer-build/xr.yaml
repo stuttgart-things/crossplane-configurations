@@ -1,0 +1,115 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerBuild
+metadata:
+  name: packer-build-ubuntu24-labul
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: packer-build-ubuntu24-labul'
+    reason: Creating
+    status: "False"
+    type: Ready
+  installed: false
+  results: []
+  succeeded: Unknown
+  taskRuns: []
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: packer-build-ubuntu24-labul
+    uptest.upbound.io/timeout: "120"
+  labels:
+    crossplane.io/composite: packer-build-ubuntu24-labul
+  name: packer-build-ubuntu24-labul
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: PackerBuild
+    name: packer-build-ubuntu24-labul
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        name: build-ubuntu24-labul-base-os
+        namespace: tekton-ci
+      spec:
+        params:
+        - name: packerAction
+          value: build
+        - name: packerTemplate
+          value: ubuntu24-base-os.pkr.hcl
+        - name: packerOnly
+          value: ""
+        - name: packerForce
+          value: "false"
+        - name: packerRunInit
+          value: "true"
+        - name: packerVars
+          value: []
+        - name: packerVarsFile
+          value: ""
+        - name: packerInitExtraArgs
+          value: ""
+        - name: packerBuildExtraArgs
+          value: ""
+        - name: packerLog
+          value: ""
+        - name: packerWorkingImage
+          value: ghcr.io/stuttgart-things/sthings-packer:2.0.0
+        - name: credentialsSecretName
+          value: packer-credentials
+        - name: vaultSecretName
+          value: vault
+        - name: userHome
+          value: /home/nonroot
+        - name: gitRepoUrl
+          value: https://github.com/stuttgart-things/stuttgart-things.git
+        - name: gitRevision
+          value: main
+        - name: gitWorkspaceSubdirectory
+          value: packer/builds/ubuntu24-labul-vsphere-base-os
+        pipelineRef:
+          params:
+          - name: url
+            value: https://github.com/stuttgart-things/stage-time.git
+          - name: revision
+            value: v0.9.0
+          - name: pathInRepo
+            value: pipelines/build-packer-template.yaml
+          resolver: git
+        taskRunTemplate:
+          serviceAccountName: default
+        timeouts:
+          pipeline: 2h0m0s
+        workspaces:
+        - name: shared-workspace
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 5Gi
+              storageClassName: openebs-hostpath
+        - name: basicAuth
+          secret:
+            secretName: packer-git-basicauth
+        - configMap:
+            name: packer-ca-certs
+          name: caCerts
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  readiness:
+    celQuery: has(object.status) && has(object.status.conditions) && object.status.conditions.exists(c,
+      c.type == "Succeeded" && c.status == "True")
+    policy: DeriveFromCelQuery

@@ -1,0 +1,319 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: rke2-prod
+  namespace: default
+status:
+  argocdClusterSecret: cluster-rke2-prod
+  clusterProviderConfig: rke2-prod
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: rke2-prod-argocd-crb, rke2-prod-argocd-sa, rke2-prod-argocd-saextract,
+      and 4 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  kubeconfigSecret: rke2-prod-kubeconfig
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-argocd-crb
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-argocd-crb
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: argocd-manager-role-binding
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+      - kind: ServiceAccount
+        name: argocd-manager
+        namespace: kube-system
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-prod
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-argocd-sa
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-argocd-sa
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: argocd-manager
+        namespace: kube-system
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-prod
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-argocd-saextract
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-argocd-saextract
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: ""
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.token
+    kind: Secret
+    name: argocd-manager-token
+    namespace: kube-system
+    toConnectionSecretKey: token
+  - apiVersion: v1
+    fieldPath: data[ca.crt]
+    kind: Secret
+    name: argocd-manager-token
+    namespace: kube-system
+    toConnectionSecretKey: ca
+  - apiVersion: v1
+    fieldPath: subsets[0].addresses[0].ip
+    kind: Endpoints
+    name: kubernetes
+    namespace: default
+    toConnectionSecretKey: apiserverIp
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: argocd-manager-token
+        namespace: kube-system
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-prod
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+  writeConnectionSecretToRef:
+    name: rke2-prod-argocd-sa
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-argocd-token
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-argocd-token
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        annotations:
+          kubernetes.io/service-account.name: argocd-manager
+        name: argocd-manager-token
+        namespace: kube-system
+      type: kubernetes.io/service-account-token
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-prod
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-bootstrap-namespace
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-bootstrap-namespace
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          app.kubernetes.io/part-of: stuttgart-things
+          managed-by: crossplane
+        name: platform-system
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-prod
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-cluster
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-cluster
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: provisioning.cattle.io/v1
+      kind: Cluster
+      metadata:
+        labels:
+          app.kubernetes.io/part-of: stuttgart-things
+          env: prod
+          team: platform
+        name: rke2-prod
+        namespace: fleet-default
+      spec:
+        kubernetesVersion: v1.31.5+rke2r1
+        rkeConfig:
+          machineGlobalConfig:
+            cni: calico
+            disable:
+            - rke2-ingress-nginx
+            kube-apiserver-arg:
+            - audit-log-maxage=30
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-providerconfig
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-providerconfig
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: ClusterProviderConfig
+      metadata:
+        name: rke2-prod
+      spec:
+        credentials:
+          secretRef:
+            key: value
+            name: rke2-prod-kubeconfig
+            namespace: fleet-default
+          source: Secret
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery

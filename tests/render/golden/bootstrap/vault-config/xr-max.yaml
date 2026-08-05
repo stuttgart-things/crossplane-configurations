@@ -1,0 +1,973 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultConfig
+metadata:
+  name: vault-config-max
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: vault-clusterrolebinding-apps-k8s-prod-cluster, vault-clusterrolebinding-monitoring-k8s-prod-cluster,
+      vault-clusterrolebinding-platform-k8s-prod-cluster, and 23 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-clusterrolebinding-apps-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: clusterrolebinding-apps-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: apps
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: system:auth-delegator
+      subjects:
+      - kind: ServiceAccount
+        name: apps
+        namespace: applications
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-clusterrolebinding-monitoring-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: clusterrolebinding-monitoring-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: monitoring
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: system:auth-delegator
+      subjects:
+      - kind: ServiceAccount
+        name: monitoring
+        namespace: monitoring-system
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-clusterrolebinding-platform-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: clusterrolebinding-platform-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: platform
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: system:auth-delegator
+      subjects:
+      - kind: ServiceAccount
+        name: platform
+        namespace: platform-system
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-clusterrolebinding-security-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: clusterrolebinding-security-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: security
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: system:auth-delegator
+      subjects:
+      - kind: ServiceAccount
+        name: security
+        namespace: security-system
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-csi-vault-config-production-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: vault-csi-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    chart:
+      name: secrets-store-csi-driver
+      repository: https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+      version: 1.5.4
+    namespace: vault-csi-system
+    values:
+      secrets-store-csi-driver:
+        enableSecretRotation: true
+        linux:
+          enabled: true
+    wait: true
+    waitTimeout: 10m
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-eso-vault-config-production-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: eso-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    chart:
+      name: external-secrets
+      repository: https://charts.external-secrets.io
+      version: 0.11.3
+    namespace: external-secrets-system
+    values:
+      certController:
+        create: true
+        livenessProbe:
+          enabled: true
+        readinessProbe:
+          enabled: true
+        requeueInterval: 5m
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+      installCRDs: true
+      livenessProbe:
+        enabled: true
+      logLevel: info
+      readinessProbe:
+        enabled: true
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      serviceMonitor:
+        enabled: true
+      webhook:
+        certCheckInterval: 5m
+        create: true
+        lookaheadInterval: 168h
+        port: 10250
+    wait: true
+    waitTimeout: 10m
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-namespace-applications-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: namespace-applications-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          app.kubernetes.io/managed-by: crossplane
+          vault.crossplane.io/cluster: k8s-prod-cluster
+          vault.crossplane.io/config: vault-config-production
+        name: applications
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-namespace-external-secrets-system-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: namespace-external-secrets-system-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          app.kubernetes.io/managed-by: crossplane
+          vault.crossplane.io/cluster: k8s-prod-cluster
+          vault.crossplane.io/config: vault-config-production
+        name: external-secrets-system
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-namespace-monitoring-system-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: namespace-monitoring-system-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          app.kubernetes.io/managed-by: crossplane
+          vault.crossplane.io/cluster: k8s-prod-cluster
+          vault.crossplane.io/config: vault-config-production
+        name: monitoring-system
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-namespace-platform-system-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: namespace-platform-system-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          app.kubernetes.io/managed-by: crossplane
+          vault.crossplane.io/cluster: k8s-prod-cluster
+          vault.crossplane.io/config: vault-config-production
+        name: platform-system
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-namespace-security-system-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: namespace-security-system-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          app.kubernetes.io/managed-by: crossplane
+          vault.crossplane.io/cluster: k8s-prod-cluster
+          vault.crossplane.io/config: vault-config-production
+        name: security-system
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-namespace-vault-csi-system-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: namespace-vault-csi-system-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          app.kubernetes.io/managed-by: crossplane
+          vault.crossplane.io/cluster: k8s-prod-cluster
+          vault.crossplane.io/config: vault-config-production
+        name: vault-csi-system
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-namespace-vault-operator-system-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: namespace-vault-operator-system-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          app.kubernetes.io/managed-by: crossplane
+          vault.crossplane.io/cluster: k8s-prod-cluster
+          vault.crossplane.io/config: vault-config-production
+        name: vault-operator-system
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secret-apps-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: secret-apps-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        annotations:
+          kubernetes.io/service-account.name: apps
+          kubernetes.io/service-account.namespace: applications
+        name: apps
+        namespace: applications
+      type: kubernetes.io/service-account-token
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secret-monitoring-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: secret-monitoring-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        annotations:
+          kubernetes.io/service-account.name: monitoring
+          kubernetes.io/service-account.namespace: monitoring-system
+        name: monitoring
+        namespace: monitoring-system
+      type: kubernetes.io/service-account-token
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secret-platform-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: secret-platform-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        annotations:
+          kubernetes.io/service-account.name: platform
+          kubernetes.io/service-account.namespace: platform-system
+        name: platform
+        namespace: platform-system
+      type: kubernetes.io/service-account-token
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secret-security-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: secret-security-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        annotations:
+          kubernetes.io/service-account.name: security
+          kubernetes.io/service-account.namespace: security-system
+        name: security
+        namespace: security-system
+      type: kubernetes.io/service-account-token
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-serviceaccount-apps-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: serviceaccount-apps-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      automountServiceAccountToken: true
+      kind: ServiceAccount
+      metadata:
+        name: apps
+        namespace: applications
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-serviceaccount-monitoring-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: serviceaccount-monitoring-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      automountServiceAccountToken: true
+      kind: ServiceAccount
+      metadata:
+        name: monitoring
+        namespace: monitoring-system
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-serviceaccount-platform-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: serviceaccount-platform-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      automountServiceAccountToken: true
+      kind: ServiceAccount
+      metadata:
+        name: platform
+        namespace: platform-system
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-serviceaccount-security-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: serviceaccount-security-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      automountServiceAccountToken: true
+      kind: ServiceAccount
+      metadata:
+        name: security
+        namespace: security-system
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-token-reader-apps-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: token-reader-apps-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.token
+    kind: Secret
+    name: apps
+    namespace: applications
+    toConnectionSecretKey: token
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: apps
+        namespace: applications
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+  writeConnectionSecretToRef:
+    name: vault-token-apps-k8s-prod-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-token-reader-monitoring-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: token-reader-monitoring-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.token
+    kind: Secret
+    name: monitoring
+    namespace: monitoring-system
+    toConnectionSecretKey: token
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: monitoring
+        namespace: monitoring-system
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+  writeConnectionSecretToRef:
+    name: vault-token-monitoring-k8s-prod-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-token-reader-platform-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: token-reader-platform-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.token
+    kind: Secret
+    name: platform
+    namespace: platform-system
+    toConnectionSecretKey: token
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: platform
+        namespace: platform-system
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+  writeConnectionSecretToRef:
+    name: vault-token-platform-k8s-prod-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-token-reader-security-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: token-reader-security-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.token
+    kind: Secret
+    name: security
+    namespace: security-system
+    toConnectionSecretKey: token
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: security
+        namespace: security-system
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  watch: false
+  writeConnectionSecretToRef:
+    name: vault-token-security-k8s-prod-cluster
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-vso-vault-config-production-k8s-prod-cluster
+  labels:
+    crossplane.io/composite: vault-config-max
+  name: vso-k8s-prod-cluster
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultConfig
+    name: vault-config-max
+    uid: ""
+spec:
+  forProvider:
+    chart:
+      name: vault-secrets-operator
+      repository: https://helm.releases.hashicorp.com
+      version: 1.0.1
+    namespace: vault-operator-system
+    values:
+      vault-secrets-operator:
+        controller:
+          manager:
+            clientCache:
+              persistenceModel: direct-encrypted
+        defaultVaultConnection:
+          enabled: true
+    waitTimeout: 10m
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

@@ -10,26 +10,29 @@
 # Semantics: `git diff --exit-code` reports drift in TRACKED goldens only, so
 # before the goldens are seeded (none tracked yet) this passes and the freshly
 # generated files are left untracked for a maintainer to commit. Once seeded,
-# any change to a committed *.rendered.yaml fails the check.
+# any change to a committed snapshot fails the check.
 set -euo pipefail
 
 ROOT="${ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$ROOT"
 
+# Kept in step with render-golden.sh, which honours the same override.
+GOLDEN_ROOT="${GOLDEN_ROOT:-tests/render/golden}"
+
 here="$(cd "$(dirname "$0")" && pwd)"
 "$here/render-golden.sh"
 
 # Drift in already-committed goldens.
-if ! git diff --exit-code -- '**/examples/*.rendered.yaml'; then
+if ! git diff --exit-code -- "$GOLDEN_ROOT"; then
   echo >&2
   echo "check-golden: rendered output drifted from the committed goldens." >&2
   echo "  Review the diff above. If the change is intended, commit the updated" >&2
-  echo "  snapshots:  git add '**/examples/*.rendered.yaml'" >&2
+  echo "  snapshots:  git add ${GOLDEN_ROOT}" >&2
   exit 1
 fi
 
 # New, not-yet-committed goldens (first seed, or a newly added XR/Configuration).
-untracked=$(git ls-files --others --exclude-standard -- '**/examples/*.rendered.yaml')
+untracked=$(git ls-files --others --exclude-standard -- "$GOLDEN_ROOT")
 if [ -n "$untracked" ]; then
   echo
   echo "check-golden: new goldens generated (not yet committed):"
@@ -38,7 +41,7 @@ if [ -n "$untracked" ]; then
   done <<EOF
 $untracked
 EOF
-  echo "  Commit them to seed the snapshot:  git add '**/examples/*.rendered.yaml'"
+  echo "  Commit them to seed the snapshot:  git add ${GOLDEN_ROOT}"
 fi
 
 echo "check-golden: committed goldens are up to date"

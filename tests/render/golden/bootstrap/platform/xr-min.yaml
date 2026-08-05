@@ -1,0 +1,80 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: minimal
+  namespace: crossplane-system
+status:
+  componentCount: 1
+  components:
+    cilium:
+      enabled: false
+      gatewayReady: false
+      loadBalancerReady: false
+      networkKey: ""
+      ready: false
+    cni:
+      enabled: false
+      provider: ""
+      ready: false
+      version: ""
+    fluxApps:
+      appCount: 0
+      enabled: false
+      ready: false
+      readyCount: 0
+    fluxInit:
+      enabled: true
+      instanceReady: false
+      operatorReady: false
+      ready: false
+      sourceCount: 0
+      sourcesReady: false
+    ipReservation:
+      enabled: false
+      ipAddresses: []
+      networkKey: ""
+      ready: false
+    vaultIssuer:
+      authReady: false
+      caReady: false
+      enabled: false
+      issuerReady: false
+      ready: false
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: minimal-flux-init'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  readyComponents: 0
+  shared:
+    clusterName: dev
+    helmProviderConfigRef: dev-helm
+    kubernetesProviderConfigRef: dev-kubernetes
+    namespace: flux-system
+    observeProviderConfigRef: in-cluster
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxInit
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: minimal-flux-init
+  labels:
+    crossplane.io/composite: minimal
+  name: minimal-flux-init
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: minimal
+    uid: ""
+spec:
+  clusterName: dev
+  helmProviderConfigRef: dev-helm
+  kubernetesProviderConfigRef: dev-kubernetes
+  namespace: flux-system
+  observeProviderConfigRef: in-cluster

@@ -1,0 +1,156 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: VaultK8sAuth
+metadata:
+  name: vault-auth-min
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: vcluster-tink2-dev-vault-auth'
+    reason: Creating
+    status: "False"
+    type: Ready
+---
+apiVersion: opentofu.m.upbound.io/v1beta1
+kind: Workspace
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vcluster-tink2-dev-vault-auth
+  labels:
+    crossplane.io/composite: vault-auth-min
+  name: vcluster-tink2-dev-vault-auth
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultK8sAuth
+    name: vault-auth-min
+    uid: ""
+spec:
+  forProvider:
+    entrypoint: ""
+    inlineFormat: HCL
+    module: |
+      terraform {
+        required_providers {
+          vault = {
+            source  = "hashicorp/vault"
+            version = "~> 3.25"
+          }
+        }
+      }
+
+      provider "vault" {
+        address          = var.vault_addr
+        skip_tls_verify  = var.skip_tls_verify
+        skip_child_token = true
+
+        auth_login {
+          path = "auth/approle/login"
+          parameters = {
+            role_id   = var.vault_role_id
+            secret_id = var.vault_secret_id
+          }
+        }
+      }
+
+      resource "vault_auth_backend" "kubernetes" {
+        type = "kubernetes"
+        path = "${var.cluster_name}-${var.auth_name}"
+      }
+
+      resource "vault_kubernetes_auth_backend_role" "service_account" {
+        backend                          = vault_auth_backend.kubernetes.path
+        role_name                        = var.auth_name
+        bound_service_account_names      = var.bound_service_account_names
+        bound_service_account_namespaces = var.bound_service_account_namespaces
+        token_ttl                        = var.token_ttl
+        token_policies                   = var.token_policies
+      }
+
+      variable "auth_name" {
+        type = string
+      }
+
+      variable "cluster_name" {
+        type = string
+      }
+
+      variable "vault_addr" {
+        type = string
+      }
+
+      variable "skip_tls_verify" {
+        type    = bool
+        default = false
+      }
+
+      variable "vault_role_id" {
+        type      = string
+        sensitive = true
+      }
+
+      variable "vault_secret_id" {
+        type      = string
+        sensitive = true
+      }
+
+      variable "token_policies" {
+        type    = list(string)
+        default = []
+      }
+
+      variable "token_ttl" {
+        type    = number
+        default = 3600
+      }
+
+      variable "bound_service_account_names" {
+        type    = list(string)
+        default = ["default"]
+      }
+
+      variable "bound_service_account_namespaces" {
+        type    = list(string)
+        default = ["default"]
+      }
+
+      output "auth_backend_path" {
+        value = vault_auth_backend.kubernetes.path
+      }
+
+      output "auth_role_name" {
+        value = vault_kubernetes_auth_backend_role.service_account.role_name
+      }
+    remotePullPolicy: Always
+    source: Inline
+    varFiles:
+    - format: HCL
+      secretKeyRef:
+        key: terraform.tfvars
+        name: vault
+      source: SecretKey
+    vars:
+    - key: auth_name
+      value: dev
+    - key: cluster_name
+      value: vcluster-tink2
+    - key: vault_addr
+      value: https://vault.example.com
+    - key: skip_tls_verify
+      value: "true"
+    - key: token_policies
+      value: '["read-all-s3-kvv2"]'
+    - key: token_ttl
+      value: "3600"
+    - key: bound_service_account_names
+      value: '["default"]'
+    - key: bound_service_account_namespaces
+      value: '["default"]'
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vcluster-tink2

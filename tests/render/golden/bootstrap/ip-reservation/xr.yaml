@@ -1,0 +1,48 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: XIPReservation
+metadata:
+  name: k3s-2-ip
+  namespace: crossplane-system
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: k3s-2-ip-observe-rc'
+    reason: Creating
+    status: "False"
+    type: Ready
+  fqdn: ""
+  ipAddresses: []
+  networkKey: ""
+  ready: false
+  reservationStatus: ""
+  zone: ""
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-2-ip-observe-rc
+  labels:
+    crossplane.io/composite: k3s-2-ip
+  name: k3s-2-ip-observe-rc
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: XIPReservation
+    name: k3s-2-ip
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubeconfig.stuttgart-things.com/v1alpha1
+      kind: RemoteCluster
+      metadata:
+        name: k3s-2
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

@@ -1,0 +1,170 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: k3s-test
+  namespace: default
+status:
+  clusterProviderConfig: k3s-test
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: k3s-test-bootstrap-namespace, k3s-test-cluster, k3s-test-kubeconfig-bridge,
+      and 1 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  kubeconfigSecret: k3s-test-kubeconfig
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-test-bootstrap-namespace
+  generateName: k3s-test-
+  labels:
+    app.kubernetes.io/instance: k3s-test-bootstrap-namespace
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-test
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-test
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: crossplane-bootstrap
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: k3s-test
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-test-cluster
+  generateName: k3s-test-
+  labels:
+    app.kubernetes.io/instance: k3s-test-cluster
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-test
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-test
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: provisioning.cattle.io/v1
+      kind: Cluster
+      metadata:
+        name: k3s-test
+        namespace: fleet-default
+      spec:
+        kubernetesVersion: v1.34.7+k3s1
+        rkeConfig:
+          machineGlobalConfig: {}
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-test-kubeconfig-bridge
+  generateName: k3s-test-
+  labels:
+    app.kubernetes.io/instance: k3s-test-kubeconfig-bridge
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-test
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-test
+    uid: ""
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.value
+    kind: Secret
+    name: k3s-test-kubeconfig
+    namespace: fleet-default
+    toConnectionSecretKey: value
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: k3s-test-kubeconfig
+        namespace: fleet-default
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+  writeConnectionSecretToRef:
+    name: k3s-test-kubeconfig-bridged
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-test-providerconfig
+  generateName: k3s-test-
+  labels:
+    app.kubernetes.io/instance: k3s-test-providerconfig
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-test
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-test
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: ClusterProviderConfig
+      metadata:
+        name: k3s-test
+      spec:
+        credentials:
+          secretRef:
+            key: value
+            name: k3s-test-kubeconfig-bridged
+            namespace: default
+          source: Secret
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery

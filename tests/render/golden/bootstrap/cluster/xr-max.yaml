@@ -1,0 +1,75 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: cluster-max
+  namespace: crossplane-system
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: vm'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  share:
+    clusterName: max-cluster
+    cniOwnership: platform
+  stage: vm
+  stages:
+    access:
+      emitted: false
+      ready: false
+    baseos:
+      succeeded: false
+    distribution:
+      emitted: false
+      succeeded: false
+    kubeconfig:
+      emitted: false
+      succeeded: false
+    platform:
+      emitted: false
+      ready: false
+    vm:
+      ip: ""
+      ready: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm
+  labels:
+    crossplane.io/composite: cluster-max
+  name: cluster-max-vm
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: cluster-max
+    uid: ""
+spec:
+  ansible:
+    ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test
+    crossplaneProviderConfig: in-cluster
+    enabled: true
+    extraCollections:
+    - kubernetes.core:6.4.0
+    pipelineNamespace: tekton-ci
+    playbooks:
+    - sthings.baseos.setup
+    varsFile:
+    - manage_filesystem+-true
+    - update_packages+-true
+    - vm_hostname+-max-cluster
+    - update_packages+-false
+  environmentConfig: labda
+  vm:
+    cpu: "8"
+    disk: "100"
+    name: max-cluster
+    ram: "16384"
+    templateUuid: 4234df9c-0000-0000-0000-000000000000

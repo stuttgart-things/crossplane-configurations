@@ -1,0 +1,60 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: VolumeClaim
+metadata:
+  name: app-data
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: app-data-pvc'
+    reason: Creating
+    status: "False"
+    type: Ready
+  pvcName: app-data
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: app-data-pvc
+  generateName: app-data-
+  labels:
+    app.kubernetes.io/instance: app-data
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: volume-claim
+    crossplane.io/composite: app-data
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VolumeClaim
+    name: app-data
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        annotations:
+          description: persistent volume for my-app data directory
+        labels:
+          app: my-app
+          tier: data
+        name: app-data
+        namespace: default
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+        storageClassName: standard
+        volumeMode: Filesystem
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

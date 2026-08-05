@@ -1,0 +1,70 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ProxmoxVM
+metadata:
+  name: proxmox-vm-min
+  namespace: default
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: proxmox-vm'
+    reason: Creating
+    status: "False"
+    type: Ready
+---
+apiVersion: opentofu.m.upbound.io/v1beta1
+kind: Workspace
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmox-vm
+    crossplane.io/external-name: proxmoxvm-proxmox-vm-min
+  generateName: proxmox-vm-min-
+  labels:
+    crossplane.io/composite: proxmox-vm-min
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ProxmoxVM
+    name: proxmox-vm-min
+    uid: ""
+spec:
+  forProvider:
+    module: git::https://github.com/stuttgart-things/proxmox-vm.git?ref=3.0.2-rc08-20260407
+    source: Remote
+    varFiles:
+    - secretKeyRef:
+        key: terraform.tfvars
+        name: proxmox-tfvars
+      source: SecretKey
+    vars:
+    - key: vm_count
+      value: "1"
+    - key: vm_name
+      value: proxmox-vm-min
+    - key: vm_num_cpus
+      value: "4"
+    - key: vm_memory
+      value: "4096"
+    - key: vm_disk_size
+      value: 32G
+    - key: vm_firmware
+      value: seabios
+    - key: vm_notes
+      value: PROXMOX-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+    - key: vm_template
+      value: sthings-u26
+    - key: pve_cluster_node
+      value: ul-pve01
+    - key: pve_datastore
+      value: DD-sthings
+    - key: pve_folder_path
+      value: stuttgart-things
+    - key: pve_network
+      value: vmbr0
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: default
+  writeConnectionSecretToRef:
+    name: proxmox-vm-min

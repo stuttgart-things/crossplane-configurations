@@ -1,0 +1,48 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxInit
+metadata:
+  name: k3s-2-flux
+  namespace: crossplane-system
+status:
+  clusterType: ""
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: k3s-2-flux-observe-rc'
+    reason: Creating
+    status: "False"
+    type: Ready
+  instanceReady: false
+  operatorReady: false
+  ready: false
+  sourceCount: 1
+  sourcesReady: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-2-flux-observe-rc
+  labels:
+    crossplane.io/composite: k3s-2-flux
+  name: k3s-2-flux-observe-rc
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: FluxInit
+    name: k3s-2-flux
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubeconfig.stuttgart-things.com/v1alpha1
+      kind: RemoteCluster
+      metadata:
+        name: k3s-2
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

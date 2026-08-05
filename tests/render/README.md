@@ -10,19 +10,31 @@ the root `CLAUDE.md` records — an `nindent` column off by 12, a Secret encoded
 ## Layout
 
 For each Configuration, every example XR (`examples/xr*.yaml`) is rendered to a
-sibling snapshot:
+snapshot mirroring its path under `tests/render/golden/`:
 
 ```
-k8s/namespace/examples/xr.yaml         →  k8s/namespace/examples/xr.rendered.yaml
-k8s/namespace/examples/xr-min.yaml     →  k8s/namespace/examples/xr-min.rendered.yaml
-k8s/namespace/examples/xr-max.yaml     →  k8s/namespace/examples/xr-max.rendered.yaml
+k8s/namespace/examples/xr.yaml         →  tests/render/golden/k8s/namespace/xr.yaml
+k8s/namespace/examples/xr-min.yaml     →  tests/render/golden/k8s/namespace/xr-min.yaml
+k8s/namespace/examples/xr-max.yaml     →  tests/render/golden/k8s/namespace/xr-max.yaml
 ```
+
+**Not** next to the source XR, which is where they lived first. The crossplane
+dagger module's verify harness loops over `examples/xr*.yaml`, and
+`examples/xr-max.rendered.yaml` matched that glob: verify then validated rendered
+OUTPUT as an input XR and failed every Configuration on `additionalProperties
+'conditions' not allowed` (rendered XRs carry a status, input XRs never do).
+Snapshots are test fixtures, so they live under `tests/`, out of reach of any
+`examples/` glob. It also keeps them out of `verify.yaml`, which already carries
+`paths-ignore: tests/**` — re-seeding no longer fans out a verify job per
+Configuration.
+
+Override the root with `GOLDEN_ROOT=<path>`; both scripts honour it.
 
 ## Scripts
 
 | Script | What it does |
 |---|---|
-| `render-golden.sh` | (Re)generate the `*.rendered.yaml` snapshots in place. |
+| `render-golden.sh` | (Re)generate the snapshots under `tests/render/golden/`. |
 | `check-golden.sh`  | Regenerate, then fail if a committed snapshot drifted. |
 
 Both honour `CONFIG=<path>` (e.g. `CONFIG=k8s/namespace`) to scope to one
@@ -44,7 +56,7 @@ machine (or CI runner) that has `crossplane` + a container runtime:
 
 ```bash
 task render-golden
-git add '**/examples/*.rendered.yaml'
+git add tests/render/golden
 git commit -m "test: seed golden render snapshots"
 ```
 
@@ -59,10 +71,14 @@ Two things to expect the first time:
   tracked, so `check-golden.sh` passes and just lists the new snapshots. Drift is
   only enforced once the snapshots are committed.
 - **Rendered Secrets carry high-entropy data.** Compositions that emit a `Secret`
-  (e.g. `k8s/cloud-config`, the `vault-*` packages) will produce snapshots the
-  `detect-secrets` pre-commit hook flags. Update `.secrets.baseline`
-  (`detect-secrets scan --update .secrets.baseline`) or add a
-  `# pragma: allowlist secret` when committing the seed.
+  (e.g. `k8s/cloud-config`, the `vault-*` packages) produce snapshots that
+  `detect-secrets` flags — 71 hits across the seeded set, all of them the literal
+  `password:` / `token:` KEYS the templates emit, none a credential. Rather than
+  baseline them, `.pre-commit-config.yaml` excludes `^tests/render/golden/`
+  outright: generated files would have to be re-baselined on every regeneration,
+  and a permanently churning allowlist is how a baseline stops catching real
+  hits. Nothing is lost — rendering only transforms inputs the hooks already
+  scan.
 
 ## CI
 

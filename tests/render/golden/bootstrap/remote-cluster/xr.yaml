@@ -1,0 +1,122 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterAccess
+metadata:
+  name: u26-kind1
+  namespace: crossplane-system
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: observe-helm, observe-kubernetes, and remote-cluster'
+    reason: Creating
+    status: "False"
+    type: Ready
+  providerConfigs:
+  - u26-kind1-kubernetes
+  - u26-kind1-helm
+  ready: false
+  share: {}
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: observe-helm
+  labels:
+    crossplane.io/composite: u26-kind1
+  name: u26-kind1-observe-helm
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterAccess
+    name: u26-kind1
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: helm.m.crossplane.io/v1beta1
+      kind: ClusterProviderConfig
+      metadata:
+        name: u26-kind1-helm
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: observe-kubernetes
+  labels:
+    crossplane.io/composite: u26-kind1
+  name: u26-kind1-observe-kubernetes
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterAccess
+    name: u26-kind1
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: ClusterProviderConfig
+      metadata:
+        name: u26-kind1-kubernetes
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: remote-cluster
+  labels:
+    crossplane.io/composite: u26-kind1
+  name: u26-kind1-remote-cluster
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterAccess
+    name: u26-kind1
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubeconfig.stuttgart-things.com/v1alpha1
+      kind: RemoteCluster
+      metadata:
+        name: u26-kind1
+      spec:
+        forProvider:
+          providerConfigs:
+          - apiVersions:
+            - v2-cluster
+            name: u26-kind1-kubernetes
+            type: provider-kubernetes
+          - apiVersions:
+            - v2-cluster
+            name: u26-kind1-helm
+            type: provider-helm
+          secretNamespace: crossplane-system
+          source:
+            key: kubeconfig
+            path: u26-kind1
+            type: vault
+        providerConfigRef:
+          kind: ClusterProviderConfig
+          name: vault-kubeconfigs
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

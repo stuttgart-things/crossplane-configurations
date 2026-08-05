@@ -1,0 +1,43 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerRelease
+metadata:
+  name: ubuntu24-labul
+  namespace: default
+status:
+  buildSucceeded: Unknown
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: ubuntu24-labul-build'
+    reason: Creating
+    status: "False"
+    type: Ready
+  phase: Building
+  tested: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerBuild
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: ubuntu24-labul-build
+  labels:
+    crossplane.io/composite: ubuntu24-labul
+  name: ubuntu24-labul-build
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: PackerRelease
+    name: ubuntu24-labul
+    uid: ""
+spec:
+  crossplaneObjectName: ubuntu24-labul-build-run
+  deriveReadiness: true
+  environmentConfig: default
+  gitRevision: main
+  osVersion: ubuntu24
+  packerTemplate: ubuntu24-base-os.pkr.hcl
+  pipelineRunName: ubuntu24-labul-build
+  provisioning: base-os
+  vaultSecretName: vault

@@ -1,0 +1,449 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: ClusterBackup
+metadata:
+  name: cluster-backup-max
+  namespace: default
+status:
+  artifactRepository: ghcr.io/stuttgart-things/backups/machinery-e2e
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: machinery-e2e-backup-clusterrole, machinery-e2e-backup-clusterrolebinding,
+      machinery-e2e-backup-cronjob, and 3 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: machinery-e2e-backup-clusterrole
+  labels:
+    crossplane.io/composite: cluster-backup-max
+  name: machinery-e2e-backup-clusterrole
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterBackup
+    name: cluster-backup-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: cluster-backup-read
+      rules:
+      - apiGroups:
+        - virtualmachine.vspherevm.m.stuttgart-things.com
+        - vm.proxmoxbpg.m.crossplane.io
+        - opentofu.m.upbound.io
+        - kubernetes.m.crossplane.io
+        - helm.m.crossplane.io
+        - kubeconfig.stuttgart-things.com
+        resources:
+        - '*'
+        verbs:
+        - get
+        - list
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: machinery-e2e-backup-clusterrolebinding
+  labels:
+    crossplane.io/composite: cluster-backup-max
+  name: machinery-e2e-backup-clusterrolebinding
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterBackup
+    name: cluster-backup-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: cluster-backup-read
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-backup-read
+      subjects:
+      - kind: ServiceAccount
+        name: cluster-backup
+        namespace: crossplane-system
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: machinery-e2e-backup-cronjob
+  labels:
+    crossplane.io/composite: cluster-backup-max
+  name: machinery-e2e-backup-cronjob
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterBackup
+    name: cluster-backup-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: machinery-e2e-backup
+        namespace: crossplane-system
+      spec:
+        concurrencyPolicy: Forbid
+        failedJobsHistoryLimit: 5
+        jobTemplate:
+          spec:
+            backoffLimit: 1
+            template:
+              spec:
+                containers:
+                - args:
+                  - |
+                    set -eu
+                    cd /work
+
+                    SUM=$(cat plaintext.sha256)
+                    TAG=$(cat tag)
+                    SECOND_TAG=$(cat second-tag)
+                    CREATED=$(cat created)
+
+                    if [ "$SKIP_UNCHANGED" = "true" ]; then
+                      PREV=$(oras manifest fetch "$REPO:latest" 2>/dev/null \
+                        | grep -o '"com.stuttgart-things.backup.plaintext-sha256":"[^"]*"' \
+                        | cut -d'"' -f4 || true)
+                      if [ -n "$PREV" ] && [ "$PREV" = "$SUM" ]; then
+                        echo "== unchanged since last backup - skipping push"
+                        exit 0
+                      fi
+                    fi
+
+                    echo "== pushing $REPO:$TAG"
+                    oras push \
+                      --artifact-type "$ARTIFACT_TYPE" \
+                      --annotation "com.stuttgart-things.backup.plaintext-sha256=$SUM" \
+                      --annotation "com.stuttgart-things.backup.cluster=$CLUSTER" \
+                      --annotation "org.opencontainers.image.created=$CREATED" \
+                      "$REPO:$TAG" bundle.tar.gz.sops
+                    oras tag "$REPO:$TAG" latest
+                    if [ -n "$SECOND_TAG" ]; then
+                      oras tag "$REPO:$TAG" "$SECOND_TAG"
+                    fi
+                    echo "== done"
+                  command:
+                  - /bin/sh
+                  - -c
+                  env:
+                  - name: REPO
+                    value: ghcr.io/stuttgart-things/backups/machinery-e2e
+                  - name: CLUSTER
+                    value: machinery-e2e
+                  - name: ARTIFACT_TYPE
+                    value: application/vnd.stuttgart-things.cluster-backup.v1
+                  - name: SKIP_UNCHANGED
+                    value: "true"
+                  - name: DOCKER_CONFIG
+                    value: /oras-auth
+                  image: ghcr.io/oras-project/oras:v1.3.0
+                  name: push
+                  resources:
+                    requests:
+                      cpu: 50m
+                      memory: 64Mi
+                  volumeMounts:
+                  - mountPath: /work
+                    name: work
+                  - mountPath: /oras-auth
+                    name: oras-auth
+                    readOnly: true
+                initContainers:
+                - args:
+                  - |
+                    set -eu
+                    cd /work
+
+                    # Two views per kind, and both are needed:
+                    #
+                    #   <kind>.yaml   the FULL export - what actually gets backed up.
+                    #   normalized    a stripped, sorted projection used ONLY for the
+                    #                 skipUnchanged digest.
+                    #
+                    # Hashing the full export does not work: `kubectl get -o yaml`
+                    # carries status, resourceVersion, managedFields and Crossplane's
+                    # own `external-create-succeeded` timestamp, all of which churn on
+                    # every reconcile. The digest would then differ on every run and
+                    # skipUnchanged would never skip - measured, not assumed: three
+                    # consecutive runs against an idle cluster each pushed.
+                    #
+                    # The projection keeps exactly what a restore needs to be correct:
+                    # identity, labels, annotations (crossplane.io/external-name lives
+                    # here) and spec.
+                    : > normalized
+                    echo "== exporting resources"
+                    for k in $KINDS; do
+                      if kubectl get "$k" -A -o yaml > "$k.yaml" 2>/dev/null; then
+                        echo "   ok   $k"
+                        kubectl get "$k" -A -o json 2>/dev/null | jq -S --arg k "$k" '
+                          {kind: $k, items: [.items[] | {
+                            apiVersion, kind,
+                            name: .metadata.name,
+                            namespace: .metadata.namespace,
+                            labels: .metadata.labels,
+                            annotations: (.metadata.annotations // {} | del(
+                              .["crossplane.io/external-create-pending"],
+                              .["crossplane.io/external-create-succeeded"],
+                              .["crossplane.io/external-create-failed"],
+                              .["kubectl.kubernetes.io/last-applied-configuration"])),
+                            spec: .spec
+                          }]}' >> normalized
+                      else
+                        echo "   WARN could not export $k (missing CRD or RBAC)"
+                        rm -f "$k.yaml"
+                      fi
+                    done
+
+                    if [ "$INCLUDE_TFSTATE" = "true" ]; then
+                      echo "== exporting tfstate secrets from $TFSTATE_NS"
+                      kubectl -n "$TFSTATE_NS" get secret -o name | grep '^secret/tfstate-' > names.txt || true
+                      if [ -s names.txt ]; then
+                        xargs -r kubectl -n "$TFSTATE_NS" get -o yaml < names.txt > tfstate.yaml
+                        xargs -r kubectl -n "$TFSTATE_NS" get -o json < names.txt       | jq -S '{kind: "tfstate", items: [(.items // [.])[] | {name: .metadata.name, data: .data}]}' >> normalized
+                        echo "   ok   $(wc -l < names.txt) secret(s)"
+                      else
+                        echo "   WARN no tfstate-* secrets in $TFSTATE_NS"
+                      fi
+                      rm -f names.txt
+                    fi
+
+                    if [ -z "$(ls -A ./*.yaml 2>/dev/null)" ]; then
+                      echo "ERROR: nothing was exported - refusing to push an empty backup"
+                      exit 1
+                    fi
+
+                    echo "== bundling"
+                    tar czf bundle.tar.gz ./*.yaml
+                    rm -f ./*.yaml
+
+                    # Digest of the NORMALIZED projection, not of the bundle. Two
+                    # separate reasons it cannot be the artifact's own digest:
+                    #   - sops picks a fresh data key per run, so the ciphertext always
+                    #     differs;
+                    #   - the full export carries churning status/resourceVersion
+                    #     fields, so even the plaintext tarball differs every run.
+                    # The push step compares this against the annotation on :latest.
+                    sha256sum normalized | cut -d' ' -f1 > plaintext.sha256
+                    rm -f normalized
+                    echo "== plaintext sha256 $(cat plaintext.sha256)"
+
+                    # Tagging decides how many artifacts ever exist. `rolling` reuses a
+                    # bounded set of tags - hour-of-day plus day-of-month, so at most
+                    # 24 + 31 + latest = 56 - giving hourly granularity for a day and
+                    # daily for a month without growing. `timestamp` keeps every push
+                    # forever; combined with SKIP_UNCHANGED that is one artifact per
+                    # actual infrastructure change, but nothing bounds it.
+                    # Two different formats on purpose, and they cannot be merged:
+                    # `org.opencontainers.image.created` is validated by oras as
+                    # RFC3339, which contains colons - and a colon is illegal in an OCI
+                    # TAG. So the annotation gets the RFC3339 form and the timestamp
+                    # tag gets the compact one.
+                    date -u +%Y-%m-%dT%H:%M:%SZ > created
+                    if [ "$TAG_STRATEGY" = "rolling" ]; then
+                      date -u +h%H > tag
+                      date -u +d%d > second-tag
+                    else
+                      date -u +%Y%m%dT%H%M%SZ > tag
+                      : > second-tag
+                    fi
+                    echo "== tag $(cat tag)"
+                  command:
+                  - /bin/sh
+                  - -c
+                  env:
+                  - name: KINDS
+                    value: virtualmachines.virtualmachine.vspherevm.m.stuttgart-things.com
+                      virtualmachines.vm.proxmoxbpg.m.crossplane.io workspaces.opentofu.m.upbound.io
+                      objects.kubernetes.m.crossplane.io releases.helm.m.crossplane.io
+                      remoteclusters.kubeconfig.stuttgart-things.com
+                  - name: INCLUDE_TFSTATE
+                    value: "true"
+                  - name: TFSTATE_NS
+                    value: crossplane-system
+                  - name: TAG_STRATEGY
+                    value: rolling
+                  image: alpine/k8s:1.31.0
+                  name: export
+                  resources:
+                    requests:
+                      cpu: 50m
+                      memory: 128Mi
+                  volumeMounts:
+                  - mountPath: /work
+                    name: work
+                - args:
+                  - --encrypt
+                  - --age
+                  - $(AGE_RECIPIENT)
+                  - --input-type
+                  - binary
+                  - --output-type
+                  - binary
+                  - --output
+                  - /work/bundle.tar.gz.sops
+                  - /work/bundle.tar.gz
+                  env:
+                  - name: AGE_RECIPIENT
+                    value: age19vgzvmpt9tdlcsu8rzaacj397yz8gguz38nsmuy6eeelt5vjsyms542xtm
+                  image: ghcr.io/getsops/sops:v3.13.3-alpine
+                  name: encrypt
+                  resources:
+                    requests:
+                      cpu: 50m
+                      memory: 64Mi
+                  volumeMounts:
+                  - mountPath: /work
+                    name: work
+                restartPolicy: Never
+                securityContext:
+                  fsGroup: 65532
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                serviceAccountName: cluster-backup
+                volumes:
+                - emptyDir: {}
+                  name: work
+                - name: oras-auth
+                  secret:
+                    items:
+                    - key: .dockerconfigjson
+                      path: config.json
+                    secretName: backup-registry
+        schedule: '*/30 * * * *'
+        successfulJobsHistoryLimit: 5
+        suspend: false
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: machinery-e2e-backup-serviceaccount
+  labels:
+    crossplane.io/composite: cluster-backup-max
+  name: machinery-e2e-backup-serviceaccount
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterBackup
+    name: cluster-backup-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: cluster-backup
+        namespace: crossplane-system
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: machinery-e2e-backup-tfstate-role
+  labels:
+    crossplane.io/composite: cluster-backup-max
+  name: machinery-e2e-backup-tfstate-role
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterBackup
+    name: cluster-backup-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: cluster-backup-tfstate
+        namespace: crossplane-system
+      rules:
+      - apiGroups:
+        - ""
+        resources:
+        - secrets
+        verbs:
+        - get
+        - list
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: machinery-e2e-backup-tfstate-rolebinding
+  labels:
+    crossplane.io/composite: cluster-backup-max
+  name: machinery-e2e-backup-tfstate-rolebinding
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterBackup
+    name: cluster-backup-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: cluster-backup-tfstate
+        namespace: crossplane-system
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: cluster-backup-tfstate
+      subjects:
+      - kind: ServiceAccount
+        name: cluster-backup
+        namespace: crossplane-system
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster

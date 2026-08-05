@@ -1,0 +1,57 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxApps
+metadata:
+  name: lab-apps
+  namespace: crossplane-system
+status:
+  appCount: 1
+  appsReady: false
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: lab-apps-app-podinfo'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  readyCount: 0
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: lab-apps-app-podinfo
+  labels:
+    crossplane.io/composite: lab-apps
+  name: lab-apps-app-podinfo
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: FluxApps
+    name: lab-apps
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kustomize.toolkit.fluxcd.io/v1
+      kind: Kustomization
+      metadata:
+        name: podinfo
+        namespace: flux-system
+      spec:
+        interval: 1h
+        path: ./apps/podinfo
+        prune: true
+        retryInterval: 1m
+        sourceRef:
+          kind: OCIRepository
+          name: flux-apps
+        timeout: 10m
+        wait: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: lab-cluster-kubernetes
+  readiness:
+    policy: DeriveFromObject
