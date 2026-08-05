@@ -64,8 +64,20 @@ data:
     # they belong together: `vault-labda` points at
     # vault-vsphere.tiab.labda.sva.de, which is the only place
     # cloud/data/vsphere-labda exists.
+    #
+    # vaultSecretName only started working from here once the XRD's
+    # `default: vault` was dropped — a materialized default is indistinguishable
+    # from a chosen value, so the XR won the fallback chain unconditionally and
+    # this line was dead. The first LabDA promotion had to restate it on the XR.
     vaultSecretName: vault-labda # pragma: allowlist secret
     vaultSecretPath: cloud/data/vsphere-labda # pragma: allowlist secret
+
+    # NOTE what is deliberately NOT here: goldenName. It is per-OS-VERSION
+    # (sthings-u24 vs sthings-u26), while this file is per-LAB — one value here
+    # would force every LabDA release onto the same golden image regardless of
+    # what it built. It stays on the XR, exactly as in the LabUL examples; see
+    # xr-promote-labda.yaml. packer-release-defaults omits it for the same
+    # reason.
 
     # The bundle must carry the tiab CA (labda-vault-ca.crt), not only the LabUL
     # one — the Vault call runs against a private CA and fails with an error

@@ -1,0 +1,61 @@
+---
+# The LabDA counterpart of xr-promote.yaml — and a transcript rather than a
+# sketch: this is the release that first carried an image through build, smoke
+# test and promotion in LabDA (ubuntu26-base-20260804-1537 →
+# /NetApp-HCI-Datacenter/vm/stuttgart-things/vm-templates/sthings-u26).
+#
+# It exists because vSphere image builds are moving here from LabUL, and three
+# of these fields cannot be copied from the LabUL example. Each is called out
+# below with what it costs to get wrong.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerRelease
+metadata:
+  name: u26-labda
+  namespace: default
+spec:
+  # Selects the packer-release-labda EnvironmentConfig — test VM placement,
+  # promotion folders, Vault. See environmentconfig-labda.yaml.
+  environmentConfig: labda
+
+  build:
+    # NOT "labda". Build placement lives in the packer template itself, so the
+    # build reads the packer-build EnvironmentConfig, which is the default one.
+    # The lab is chosen by `lab` just below.
+    environmentConfig: default
+    lab: labda
+    osVersion: ubuntu26
+    provisioning: base-os
+    packerTemplate: ubuntu26-base-os.pkr.hcl
+    gitRevision: main
+    # The build reads its vCenter credentials from the LabDA Vault too. Separate
+    # key from the promote-side one and it has its own default ("vault"), so it
+    # must be named here — a build left on the default runs against LabUL.
+    vaultSecretName: vault-labda # pragma: allowlist secret
+
+  test:
+    enabled: true
+    provider: vsphere
+    cpu: "4"
+    ram: "4096"
+    disk: "64"
+    # Must match what the template was built with or the test VM will not boot.
+    firmware: bios
+    ansible:
+      enabled: true
+      playbooks:
+        - sthings.baseos.setup
+      varsFile:
+        - manage_filesystem+-true
+        - update_packages+-true
+        - ansible_become+-true
+        - ansible_become_method+-sudo
+
+  promote:
+    enabled: true
+    # Which image this supersedes. No default and not derivable from osVersion,
+    # and it stays on the XR rather than in the EnvironmentConfig because it is
+    # per-OS-version while that file is per-lab. Empty reaches the task, which
+    # refuses — after the build and the test have already run.
+    goldenName: sthings-u26
+    # Folders, Vault name and path, CA bundle and the pipeline pin all come from
+    # the packer-release-labda EnvironmentConfig. Nothing else belongs here.
