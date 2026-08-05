@@ -444,8 +444,24 @@ spec:
                         setup, and the error names neither.
                     vaultSecretName:
                       type: string
-                      description: Secret carrying VAULT_ADDR / VAULT_TOKEN
-                      default: vault
+                      description: |
+                        Secret carrying VAULT_ADDR / VAULT_TOKEN. Normally unset —
+                        the EnvironmentConfig names the lab's Vault, and that is
+                        the level the answer belongs at.
+
+                        Carries NO default on purpose, unlike almost everything
+                        else here. A default is materialized into the object, so
+                        the Composition cannot tell it from a value someone chose,
+                        and `_promote?.vaultSecretName or _promoteEnv?.…` resolves
+                        to the default every time. The old `default: vault` made
+                        packer-release-labda's `vault-labda` dead config: the
+                        LabDA u26 promotion had to name it on the XR to reach the
+                        only Vault holding cloud/data/vsphere-labda.
+
+                        Empty is not a hole — the param is only emitted when
+                        non-empty, so the pipeline's own default survives, and
+                        LabUL keeps resolving to `vault` through
+                        packer-release-defaults.
                     vaultSecretPath:
                       type: string
                       description: Vault KV v2 path holding the vCenter credentials
