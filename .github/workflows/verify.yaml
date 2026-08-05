@@ -154,10 +154,17 @@ jobs:
         id: push
         uses: dagger/dagger-for-github@27b130bf0f79a7f6fbbbe0fbca6760dc9bb40a77 # v8.4.1
         with:
-          # 0.21.7: the 0.20.8 engine was OOM-killed (exit 137) partway through
-          # the long ttl.sh push, failing the preview for larger packages
-          # (e.g. cicd/packer-release). The engine itself suggests this bump.
-          version: "0.21.7"
+          # Must match every other dagger job that can run on dagger-labda at
+          # the same time — the reusable workflows default to 0.21.8, so this
+          # does too. The dagger provisioner destroys engine containers of
+          # OTHER versions when it starts, so two concurrent jobs on different
+          # versions kill each other's engine mid-run. The victim sees
+          #   docker exec … buildctl dial-stdio … exit status 137
+          # which reads like an OOM and is not one: 137 is SIGKILL, and the
+          # runner logs no OOM at all. That is what the previous comment here
+          # ("the 0.20.8 engine was OOM-killed") was actually seeing; bumping
+          # one job's version only moved which job loses the race.
+          version: "0.21.8"
           verb: call
           module: github.com/stuttgart-things/dagger/crossplane@${{ env.CROSSPLANE_MODULE_VERSION }}
           # push-preview reads the package name from crossplane.yaml and pushes
