@@ -3,7 +3,7 @@ name: Golden render snapshots
 
 # Output-assertion layer on top of `verify`. verify proves a Composition renders
 # without erroring; this proves it renders the SAME output as the committed
-# golden snapshots (examples/*.rendered.yaml). It regenerates every snapshot with
+# golden snapshots (tests/render/golden/**). It regenerates every snapshot with
 # a pinned crossplane CLI and fails if any committed golden drifted — catching
 # the silent-wrong-output class of bug (nindent columns, Secret encoding) that a
 # render-success check cannot see.
@@ -63,5 +63,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: golden-render-snapshots
-          path: "**/examples/*.rendered.yaml"
+          path: "tests/render/golden/**/*.yaml"
           if-no-files-found: warn

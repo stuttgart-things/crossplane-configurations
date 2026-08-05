@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # Render golden snapshots of every example XR for every Configuration (or a
-# single CONFIG), writing examples/<xr>.rendered.yaml next to each source XR.
+# single CONFIG), writing tests/render/golden/<config>/<xr>.yaml.
+#
+# WHY NOT next to the source XR, which is where these lived first: the crossplane
+# dagger module's verify harness loops over `examples/xr*.yaml`, and
+# `examples/xr-max.rendered.yaml` matches that glob. It then validated rendered
+# OUTPUT as if it were an input XR and failed every Configuration on
+# `additionalProperties 'conditions' not allowed` — rendered XRs carry a status,
+# input XRs never do. Snapshots are test fixtures, so they live under tests/,
+# where no examples/ glob can reach them. Bonus: verify.yaml already carries
+# `paths-ignore: tests/**`, so re-seeding no longer fans out 29 verify jobs.
 #
 # WHY. The CI `verify` only proves a Composition renders WITHOUT erroring; it
 # asserts nothing about WHAT it produces. The bugs the root CLAUDE.md records —
@@ -14,7 +23,7 @@
 # drift. Seed the goldens once with:
 #
 #     task render-golden          # or: tests/render/render-golden.sh
-#     git add '**/examples/*.rendered.yaml' && git commit
+#     git add tests/render/golden && git commit
 #
 # Requires the `crossplane` CLI on PATH (the same one `task render` uses) and a
 # working container runtime for the render Functions. Pin the CLI version in CI
@@ -23,6 +32,8 @@ set -euo pipefail
 
 ROOT="${ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$ROOT"
+
+GOLDEN_ROOT="${GOLDEN_ROOT:-tests/render/golden}"
 
 if ! command -v crossplane >/dev/null 2>&1; then
   echo "render-golden: 'crossplane' CLI not found on PATH" >&2
@@ -66,10 +77,13 @@ for c in $CONFIGS; do
 
   for xr in "$c"/examples/xr*.yaml; do
     [ -f "$xr" ] || continue
-    case "$xr" in *.rendered.yaml) continue ;; esac   # don't render a golden
+    # Goldens live under tests/ now, so this can only match a leftover from a
+    # working tree that predates the move. Cheap guard against rendering one.
+    case "$xr" in *.rendered.yaml) continue ;; esac
 
     base=$(basename "$xr" .yaml)
-    out="$c/examples/${base}.rendered.yaml"
+    out="$GOLDEN_ROOT/$c/${base}.yaml"
+    mkdir -p "$(dirname "$out")"
 
     set +e
     if [ -n "$extra_dir" ]; then

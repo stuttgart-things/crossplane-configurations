@@ -10,7 +10,7 @@
 # seeded snapshots, not one of them a credential. Baselining generated files
 # instead would mean re-baselining on every regeneration, i.e. a permanently
 # churning allowlist that hides real hits.
-exclude: '\.rendered\.yaml$'
+exclude: '^tests/render/golden/'
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
