@@ -1,4 +1,17 @@
 ---
+# Golden render snapshots are generated output, not source. They are produced by
+# tests/render/render-golden.sh from files this config already lints, and they
+# are verified by their own drift check (tests/render/check-golden.sh) — linting
+# them a second time asserts nothing new.
+#
+# Concretely, not linting them is what keeps detect-secrets usable. The rendered
+# Compositions carry the literal `password:` / `token:` KEYS their templates
+# emit, so the Secret-Keyword plugin fires on every one — 71 findings across the
+# seeded snapshots, not one of them a credential. Baselining generated files
+# instead would mean re-baselining on every regeneration, i.e. a permanently
+# churning allowlist that hides real hits.
+exclude: '\.rendered\.yaml$'
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
