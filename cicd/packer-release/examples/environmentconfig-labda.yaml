@@ -1,0 +1,80 @@
+---
+# LabDA counterpart of environmentconfig.yaml, selected with
+# `spec.environmentConfig: labda` on the XR.
+#
+# It exists because LabUL vSphere is being decommissioned and its data migrated
+# to Proxmox: the u26 templates' datastore there is already empty, so vSphere
+# image builds move here. Only the TEST VM and the promotion read this — build
+# placement lives in the packer template itself, and the lab is selected with
+# `spec.build.lab: labda`.
+#
+# Placement values are vCenter object PATHS, resolved from the IDs the fleet's
+# native vspherevm path uses (datastore-12 / resgroup-8 / dvportgroup-2048),
+# verified against 10.100.135.50 on 2026-08-04. Do not copy the packer
+# template's `datastore` here: that one is hciesx02-local-datastore-01, a host
+# local store, while clones belong on the shared NetApp datastore.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: packer-release-labda
+  labels:
+    packer-release.resources.stuttgart-things.com/environment: labda
+data:
+  # Test VM placement. Scratch folder on purpose — these VMs are created and
+  # destroyed per release and must not sit among real ones.
+  folderPath: stuttgart-things/testing
+  datacenter: /NetApp-HCI-Datacenter
+  # NOTE the DatastoreCluster segment: the shared NetApp stores sit in a
+  # datastore CLUSTER folder, so the flat
+  # /NetApp-HCI-Datacenter/datastore/NetApp-HCI-Datastore-02 does not resolve —
+  # tofu fails the test VM with `error fetching datastore: … not found` after
+  # the build has run. Verified with `govc find / -type s` on 2026-08-04.
+  datastore: /NetApp-HCI-Datacenter/datastore/DatastoreCluster/NetApp-HCI-Datastore-02
+  resourcePool: /NetApp-HCI-Datacenter/host/NetApp-HCI-Cluster-01/Resources
+  network: /NetApp-HCI-Datacenter/network/tiab-prod
+
+  # Must match the firmware the template was built with, or it will not boot.
+  firmware: bios
+
+  # LabDA hypervisor credentials as tfvars. Naming this is not optional: the
+  # lookup order is test.tfvars.secretName -> here -> "<provider>-tfvars", and
+  # that last fallback is `vsphere-tfvars` — the LabUL Secret. A LabDA release
+  # that leaves this unset builds its test VM in LabUL and does not complain.
+  tfvarsSecretName: vsphere-tfvars-labda # pragma: allowlist secret
+  tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
+
+  # The OPENTOFU provider config the test VM's Workspace runs through — not the
+  # provider-kubernetes one. Per-cluster, and NOT reliably "default": kind1
+  # serves `in-cluster` and nothing else, so a copied "default" fails the test
+  # VM with `cannot get provider config: ClusterProviderConfig … "default" not
+  # found` — after the build has already run. Check with
+  # `kubectl get clusterproviderconfigs.opentofu.m.upbound.io`.
+  providerConfigName: in-cluster
+  providerConfigKind: ClusterProviderConfig
+
+  promote:
+    # Full inventory paths — govc addresses objects by path.
+    buildFolder: /NetApp-HCI-Datacenter/vm/stuttgart-things/packer
+    goldenFolder: /NetApp-HCI-Datacenter/vm/stuttgart-things/vm-templates
+    previousSuffix: "-previous"
+    datacenter: /NetApp-HCI-Datacenter
+    insecureSkipVerify: "true"
+
+    # The LabDA Vault, and its own credential path. Both differ from LabUL, and
+    # they belong together: `vault-labda` points at
+    # vault-vsphere.tiab.labda.sva.de, which is the only place
+    # cloud/data/vsphere-labda exists.
+    vaultSecretName: vault-labda # pragma: allowlist secret
+    vaultSecretPath: cloud/data/vsphere-labda # pragma: allowlist secret
+
+    # The bundle must carry the tiab CA (labda-vault-ca.crt), not only the LabUL
+    # one — the Vault call runs against a private CA and fails with an error
+    # that mentions neither TLS nor this ConfigMap.
+    caCertsConfigMapName: packer-ca-certs
+
+    namespace: tekton-ci
+    crossplaneProviderConfig: in-cluster
+
+    # Must be a stage-time tag CONTAINING promote-packer-template.yaml, i.e.
+    # >= v0.10.0. Pinned because the git resolver fetches at render time.
+    pipelineRevision: v0.10.0
