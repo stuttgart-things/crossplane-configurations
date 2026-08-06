@@ -65,6 +65,6 @@ spec:
       value: vmbr0
   providerConfigRef:
     kind: ClusterProviderConfig
-    name: default
+    name: in-cluster
   writeConnectionSecretToRef:
     name: proxmox-vm-min

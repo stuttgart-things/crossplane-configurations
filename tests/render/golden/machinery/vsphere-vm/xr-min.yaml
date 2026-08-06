@@ -71,6 +71,6 @@ spec:
       value: "true"
   providerConfigRef:
     kind: ClusterProviderConfig
-    name: default
+    name: in-cluster
   writeConnectionSecretToRef:
     name: vsphere-vm-min

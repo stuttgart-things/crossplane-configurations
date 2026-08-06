@@ -39,8 +39,16 @@ data:
   # the provider-kubernetes one that ansible-run/packer-build call
   # `crossplaneProviderConfig`. This name is a per-cluster choice; check it
   # with `kubectl get clusterproviderconfigs.opentofu.m.upbound.io` before
-  # trusting the default.
-  providerConfigName: default
+  # trusting the value below.
+  #
+  # It said `default` until 2026-08-06, and that was never a value any fleet
+  # cluster served: kind1 has exactly one OpenTofu ClusterProviderConfig and it
+  # is called `in-cluster`. The live EnvironmentConfig there has always carried
+  # `in-cluster`, so this file was the stale copy -- and the way it fails is the
+  # expensive kind, `cannot get provider config: ClusterProviderConfig …
+  # "default" not found` at the test VM, after the build has already run.
+  # environmentconfig-labda.yaml documents the same trap.
+  providerConfigName: in-cluster
   providerConfigKind: ClusterProviderConfig
 
   # Promotion of a tested template to the golden image. Everything here is
