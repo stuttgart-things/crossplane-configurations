@@ -21,7 +21,7 @@ jobs:
     outputs:
       configs: ${{ steps.find.outputs.configs }}
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.1.0
         with:
           fetch-depth: 0
 
@@ -88,7 +88,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.1.0
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
@@ -135,7 +135,7 @@ jobs:
       # (DeadlineExceeded / connection refused) — stuttgart-things/dagger#300.
       CROSSPLANE_MODULE_VERSION: v0.118.1
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.1.0
 
       - id: meta
         name: Compute preview prefix
