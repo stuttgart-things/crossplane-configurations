@@ -33,7 +33,7 @@ jobs:
       # CI verify and these goldens all render through the same CLI.
       CROSSPLANE_VERSION: v2.2.2
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.1.0
 
       - name: Install pinned crossplane CLI
         run: |
