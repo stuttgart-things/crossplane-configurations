@@ -45,12 +45,16 @@ data:
   tfvarsSecretName: vsphere-tfvars # pragma: allowlist secret
   tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
 
-  # OpenTofu provider config the Workspace runs through. "default" matches
-  # examples/cluster-provider-config.yaml, but this is a per-CLUSTER name, not
-  # a per-lab one -- clusters that named theirs differently (e.g. in-cluster)
-  # must override it here, or every Workspace fails to find its config. Check
-  # with `kubectl get clusterproviderconfigs.opentofu.m.upbound.io`.
-  # Note this is the OPENTOFU provider config; the `in-cluster` seen in
-  # ansible-run/harvester-vm examples is the provider-KUBERNETES one.
-  providerConfigName: default
+  # OpenTofu provider config the Workspace runs through. This is a per-CLUSTER
+  # name, not a per-lab one, and a wrong one fails every Workspace with `cannot
+  # get provider config: ClusterProviderConfig … not found`. Check with
+  # `kubectl get clusterproviderconfigs.opentofu.m.upbound.io`.
+  #
+  # It said `default` -- matching examples/cluster-provider-config.yaml -- until
+  # 2026-08-06, while the fleet has always served `in-cluster` and nothing else;
+  # the live vsphere-vm-defaults on kind1 carries `in-cluster`. Follows the
+  # cluster now. Note this is the OPENTOFU provider config, which on kind1
+  # happens to share its name with the provider-KUBERNETES one seen in the
+  # ansible-run/harvester-vm examples -- same string, different object.
+  providerConfigName: in-cluster
   providerConfigKind: ClusterProviderConfig

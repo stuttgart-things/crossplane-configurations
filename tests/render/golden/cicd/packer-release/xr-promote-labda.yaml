@@ -1,0 +1,47 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerRelease
+metadata:
+  name: u26-labda
+  namespace: default
+status:
+  buildSucceeded: Unknown
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: u26-labda-build'
+    reason: Creating
+    status: "False"
+    type: Ready
+  phase: Building
+  promotePipelineRunName: u26-labda-promote
+  promoteSucceeded: Unknown
+  promoted: false
+  tested: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerBuild
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: u26-labda-build
+  labels:
+    crossplane.io/composite: u26-labda
+  name: u26-labda-build
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: PackerRelease
+    name: u26-labda
+    uid: ""
+spec:
+  crossplaneObjectName: u26-labda-build-run
+  deriveReadiness: true
+  environmentConfig: default
+  gitRevision: main
+  lab: labda
+  osVersion: ubuntu26
+  packerTemplate: ubuntu26-base-os.pkr.hcl
+  pipelineRunName: u26-labda-build
+  provisioning: base-os
+  vaultSecretName: vault-labda

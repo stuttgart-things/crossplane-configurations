@@ -34,6 +34,14 @@ data:
   tfvarsSecretName: proxmox-tfvars # pragma: allowlist secret
   tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
 
-  # OpenTofu provider config the Workspace runs through
-  providerConfigName: default
+  # OpenTofu provider config the Workspace runs through.
+  #
+  # NOT reliably "default" -- kind1 serves exactly one, called `in-cluster`.
+  # Check with `kubectl get clusterproviderconfigs.opentofu.m.upbound.io`; a
+  # wrong name here fails the Workspace with `cannot get provider config:
+  # ClusterProviderConfig … not found`. Corrected 2026-08-06 together with the
+  # same stale value in cicd/packer-release/examples/environmentconfig.yaml,
+  # which matters here because a Proxmox PackerRelease smoke test provisions
+  # through this Configuration.
+  providerConfigName: in-cluster
   providerConfigKind: ClusterProviderConfig
