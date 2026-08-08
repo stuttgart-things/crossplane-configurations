@@ -27,7 +27,7 @@ jobs:
     outputs:
       configs: ${{ steps.find.outputs.configs }}
     steps:
-      - uses: actions/checkout@v6.1.0
+      - uses: actions/checkout@v7.0.1
 
       - id: find
         name: Enumerate all Configuration directories
