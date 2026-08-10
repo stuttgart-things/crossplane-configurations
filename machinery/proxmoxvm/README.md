@@ -110,6 +110,25 @@ Three template-specific gotchas the example values already account for:
   it on first use.)
 ## SMBIOS (`PegaProxManagment` / bpg `illegal base64 data`)
 
+> **RESOLVED 2026-08-10 — the root cause was removed, not worked around.** The
+> LabUL Proxmox admin **deleted the SMBIOS Auto-Configurator from the nodes**.
+> Everything below still describes the mechanism and stays useful for two
+> reasons: the component is reinstallable from the PegaProx UI in a few clicks
+> (their own tracker has an issue about installing it from *Settings*), and it
+> **does not repair existing VMs** — 133 of 137 VMs in the cluster still carry a
+> plain-text stamp, so any older VM later brought under Crossplane management
+> still needs the repair procedure.
+>
+> Verified rather than assumed: a fresh VM built by this Composition (VMID 250,
+> running, on `ul-pve01`, pool `stuttgart-things`) kept `base64=1` for 50+
+> minutes — about 5.5x the ~9-minute window in which a comparable VM was stamped
+> earlier the same day. Two VMs created by a colleague after the removal also
+> received no stamp at all.
+>
+> **Keep the Composition's `smbios` block.** It costs nothing and is the first
+> line of defence if the component ever comes back — which would happen silently.
+
+
 bpg base64-decodes the SMBIOS type1 fields (`manufacturer`/`product`/`version`/
 `serial`/`family`) on **every** read. The LabUL Proxmox node (`ul-pve01`) is managed
 by **[PegaProx](https://github.com/PegaProx/project-pegaprox)**, whose *SMBIOS
