@@ -106,6 +106,14 @@ This does **not** make the endpoint highly available: it is one node's address, 
 - **`platform.clusterName`** — supplied from `clusterName`.
 - **Placement** — node, datastore, bridge, vlan, pool (Proxmox) or the MOIDs (vSphere) live in the per-environment `EnvironmentConfig`. Keeping them out is what makes `provider` a one-word switch rather than a second placement API.
 
+## `clusterName` reaches the cluster itself, not just the resource names
+
+For `distribution: kind` the name is passed as **`kind_cluster_name`**, which is the var `sthings.container.kind` actually reads — `cluster_name` reaches only the upload play, where it is the Vault secret name. Until [#232](https://github.com/stuttgart-things/crossplane-configurations/issues/232) that var was never set, so every kind cluster was built under the play's own default, `dev`, while the `Cni` child aimed cilium at `<clusterName>-control-plane`. That container did not exist, and with `kubeProxyReplacement: true` it deadlocks rather than degrades: nothing programs the `10.96.0.1` VIP until cilium is up, so there is no fallback route to the API. Every node stays `NotReady`, the cilium operator crashloops and its agents sit at `Init:0/6` — with all three ansible stages reporting success, because the failure is only visible inside the target cluster.
+
+The name is set in **both** ansible stages. `upload_kubeconfig_vault` derives `kubeconfig_path` from `kind_cluster_name` too, and before the fix both plays independently defaulted to `dev` and therefore agreed by accident — the upload worked only because the cluster was equally misnamed. Setting it in the distribution stage alone would have broken a working upload.
+
+**Clusters built before v0.2.1 keep the name `dev`.** A completed Tekton `PipelineRun` is immutable, so nothing renames them in place: rebuild the stack, or re-run the distribution stage with `rebuild_kind_cluster` overridden (`rebuild_kind_cluster` is pinned `false` precisely so a reconcile never destroys a live cluster).
+
 ## Immutable fields
 
 `provider`, `clusterName`, `distribution` and `size` are rejected on update by CEL. The first three are obvious; `size` is blunt on purpose — a size carries a control-plane node count, and CEL cannot see the catalog to tell a cpu change (in place) from a node-count change (a rebuild). Day-2 scaling is [#172](https://github.com/stuttgart-things/crossplane-configurations/issues/172).
@@ -138,6 +146,8 @@ Beyond the wrapped Configurations' own (see each):
 Be precise about what has and has not been proven, because the gaps are where the next surprise lives.
 
 **Proven on a real cluster** (kind1 → Proxmox LabUL, 2026-07-27): the full build chain. One `ClusterStack` produced a VM, ran base-OS provisioning, installed k3s, uploaded the kubeconfig to Vault, and had `ClusterAccess` read it back and emit both ClusterProviderConfigs — `status.ready: true`, endpoint discovered, cluster targetable by name. Deleting the `ClusterStack` removed every resource with no permanent finalizer hangs, and the Proxmox VM was destroyed.
+
+**`distribution: kind` is fixed but NOT yet re-proven.** The first live kind build (kind1 → Proxmox LabUL, 2026-08-10) produced a cluster named `dev` and a deadlocked cilium — [#232](https://github.com/stuttgart-things/crossplane-configurations/issues/232), fixed in v0.2.1 by passing `kind_cluster_name`. The fix is covered by unit tests in the KCL module, not by a live build; until a kind `ClusterStack` reaches `status.ready: true` with `kubectl get nodes` `Ready` on the target, treat the kind path as unverified. The k3s chain below is the one with a live run behind it.
 
 **Teardown needs two phases — and with them it is clean.** Deleting a `ClusterStack` that has a Platform child in one step does **not** work: a live run tore the whole tree down in parallel within about three seconds, the `ClusterAccess`'s `RemoteCluster` (owner of the kubeconfig Secret and both ClusterProviderConfigs) went while the Platform's own resources still needed those credentials, and four resources were left behind — a stuck `flux-instance` Object, a `flux-operator` Release that was never deleted at all, and both ClusterProviderConfigs.
 
