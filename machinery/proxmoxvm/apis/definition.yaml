@@ -99,6 +99,25 @@ spec:
                         VMID (not name) — resolve your template (e.g. sthings-u26)
                         to its VMID and set it here or, preferably, on the
                         EnvironmentConfig.
+                    cloneDatastore:
+                      type: string
+                      description: |
+                        Datastore the CLONE allocates into (clone.datastoreId).
+                        Unset, Proxmox allocates on the TEMPLATE's datastore and
+                        bpg then moves the disk to `datastore` — so every build
+                        writes the full image twice, and the clone needs
+                        Datastore.AllocateSpace on the template's storage even
+                        when the VM is not meant to live there. Set this to
+                        `datastore` to clone straight onto the target.
+
+                        OPT-IN ON PURPOSE, and it must stay that way: bpg's
+                        clone block is ForceNew, so emitting a value where a
+                        live VM previously rendered none is a spec change on an
+                        immutable field — the provider would destroy and
+                        recreate the VM. Existing VMs render byte-identical
+                        while this is unset. For the same reason, do not put
+                        `cloneDatastore` on an EnvironmentConfig that already
+                        has VMs built from it; set it per XR on new VMs.
                   required:
                     - name
                 cloudInit:

@@ -32,6 +32,11 @@ spec:
     vlanTag: "102"
     pool: stuttgart-things
     templateVmId: "110"
+    # Clone straight onto the target datastore instead of allocating on the
+    # template's storage and moving the disk afterwards. Opt-in: bpg's clone
+    # block is ForceNew, so setting this on an XR whose VM already exists means
+    # destroy + recreate.
+    cloneDatastore: V5010-01-1
   cloudInit:
     ipv4Address: dhcp
     datastoreId: V5010-01-1

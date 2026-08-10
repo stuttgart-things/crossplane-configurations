@@ -41,7 +41,8 @@ spec:
     - enabled: true
     bios: seabios
     clone:
-    - full: true
+    - datastoreId: V5010-01-1
+      full: true
       vmId: 110
     cpu:
     - cores: 8
