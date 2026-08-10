@@ -48,11 +48,25 @@ Configuration, mirroring `vspherevm`'s relationship to `vsphere-vm`.
   touch the node, so the **`render` KCL emits an `smbios` block** (`manufacturer`/
   `product`, defaults `stuttgart-things`/`crossplane-proxmoxvm`, overridable via
   EnvironmentConfig `smbiosManufacturer`/`smbiosProduct`): bpg writes it `base64=1`
-  on create (reads back fine) AND PegaProx then **skips** the VM —
-  `needs_smbios_update()` leaves any VM that already has SMBIOS keys alone. This
-  bpg version's CRD has **no `base64` toggle** in the smbios schema; bpg always
-  encodes when a block is present. Validated: vmid 144 reached Ready and survived
-  re-observes.
+  on create, which it reads back fine. This bpg version's CRD has **no `base64`
+  toggle** in the smbios schema; bpg always encodes when a block is present.
+
+  **The workaround protects the CREATE ONLY — it does not survive (#202).** An
+  earlier revision of this file claimed PegaProx then *skips* the VM, because
+  `needs_smbios_update()` leaves any VM that already has SMBIOS keys alone. That
+  is not what happens on `ul-pve01`: VMID 191 was created WITH the base64 block
+  on 2026-07-25 and re-stamped in plain text ~18h later (the stamp time is
+  encoded in the serial), after which every `observe` failed. So treat the block
+  as delaying the failure, not preventing it — and do not read "vmid 144 reached
+  Ready and survived re-observes" as proof of durability; short-lived VMs are
+  simply deleted before the sweep reaches them.
+
+  Recovery does not need a rebuild: write `smbios1` back as `base64=1,…` — KEEP
+  the `uuid`, it is the guest's system UUID — and force a reconcile. `GET /config`
+  without `current=1` returns pending changes, so `observe` recovers immediately.
+  **But bpg then applies the pending change by CYCLING THE VM** (observed on 191:
+  `qmshutdown` 08:58:58, `qmstart` 08:59:01, ~3s, guest came back clean). Plan an
+  outage. Full procedure in README.md.
 
 ## Composition pipeline (`apis/composition.yaml`)
 1. **`load-environment`** (`function-environment-configs`) — config-scoped label
