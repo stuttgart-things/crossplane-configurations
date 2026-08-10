@@ -112,6 +112,56 @@ has SMBIOS keys alone). Override the values via the EnvironmentConfig
 PegaProx behaviour, which we don't control; the root-cause fix would be to disable or
 base64-enable PegaProx's auto-configurator on the node.
 
+### The mitigation protects the CREATE, not the VM's whole life
+
+`needs_smbios_update()` does **not** reliably skip an already-stamped VM. Witnessed on
+`u26-kind1` (VMID 191, LabUL): built 2026-07-25 with the base64 SMBIOS the Composition
+emits, then re-stamped by PegaProx in plain text anyway, and from then on every
+`observe` failed. So treat the mitigation as protecting the create, not the VM's whole
+life — a VM that has been Synced for weeks can still fall over this.
+
+**PegaProx encodes the moment it stamped in the serial**, which is how you date the
+event without node access: `serial=PVE2607260411212499` -> `PVE` + `260726` +
+`041121` + counter = **2026-07-26 04:11:21**, one day after that VM was built.
+
+The failure is easy to misread, because the VM itself is fine — `Ready=True`, guest
+running, uptime intact. Only `Synced` flips, so what you actually lose is drift
+detection, and a delete would block.
+
+### Repairing a re-stamped VM (no restart needed)
+
+Read the current value, keep the `uuid`, write back the base64 form:
+
+```bash
+# 1. current value — SAVE IT
+curl -sk -b "PVEAuthCookie=$TICKET" \
+  "$EP/api2/json/nodes/$NODE/qemu/$VMID/config" | jq -r '.data.smbios1'
+# manufacturer=Proxmox,product=PegaProxManagment,version=v1,serial=PVE…,uuid=<UUID>,family=ProxmoxVE
+
+# 2. write back base64, PRESERVING uuid
+NEW="base64=1,manufacturer=$(printf %s "$MANUFACTURER" | base64 -w0),product=$(printf %s "$PRODUCT" | base64 -w0),uuid=$UUID"
+curl -sk -X PUT -b "PVEAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" \
+  --data-urlencode "smbios1=$NEW" "$EP/api2/json/nodes/$NODE/qemu/$VMID/config"
+
+# 3. force a reconcile
+kubectl annotate environmentvm.virtualenvironmentvm.proxmoxbpg.m.crossplane.io \
+  <name> reconcile.crossplane.io/requested="$(date +%s)" --overwrite
+```
+
+**KEEP THE `uuid`.** It is the system UUID the guest sees; dropping it hands the VM a
+new machine identity on its next boot (machine-id, cloud-init instance-id). Note that
+`uuid` stays plain text even under `base64=1` — only `manufacturer`/`product`/etc. are
+encoded. `version`, `serial` and `family` are deliberately not written back: the
+Composition does not emit them either.
+
+**Why no restart is needed, which is the non-obvious part.** `smbios1` is not
+hot-pluggable, so PVE parks the change as *pending* and the RUNNING VM keeps the old
+plain-text value. That does not matter, because `GET /config` **without** `current=1`
+returns the config file *including* pending changes — and that is what bpg reads. So
+`Synced` recovers on the next reconcile while the VM keeps running untouched. Do not
+reboot the VM to "apply" the fix; `?current=1` will keep showing the old value until it
+restarts on its own, and that is expected.
+
 ## IP surfacing (`status.share.ip`)
 
 The IP is read from the observed `EnvironmentVM`'s
