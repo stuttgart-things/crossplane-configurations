@@ -82,9 +82,26 @@ Three template-specific gotchas the example values already account for:
 
   `cloneDatastore` is **opt-in and must stay that way**: bpg's clone block is
   ForceNew, so a value where a live VM previously rendered none is a spec change
-  on an immutable field and the provider answers with destroy + recreate. Set it
-  per XR on new VMs; do not add it to an EnvironmentConfig that already has VMs
-  built from it.
+  on an immutable field and the provider answers with destroy + recreate.
+
+  **Rolling it out per environment.** Putting `cloneDatastore` on an
+  EnvironmentConfig hits every VM under it — including the ones already built,
+  same ForceNew problem at fleet scale, and unattended wherever
+  `compositionUpdatePolicy: Automatic`. Use the `none` sentinel, in this order:
+
+  1. bump the package to **v0.11.0 or later** everywhere that EnvironmentConfig
+     is used;
+  2. set `cloneDatastore: none` on every **already-built** VM's XR and confirm
+     each still renders a clone block *without* `datastoreId`;
+  3. only then add the real value to the EnvironmentConfig.
+
+  `none` renders exactly as if the field were absent and is the **only** way an
+  XR can decline an EnvironmentConfig value — `cloneDatastore: ""` is falsy in
+  KCL and falls straight through to the environment.
+
+  **Do not skip step 1.** Against v0.10.0 the sentinel is read as a datastore
+  literally *named* `none`, which triggers the destroy + recreate the whole
+  procedure exists to avoid.
 - **The Packer templates ship no cloud-init drive.** When `spec.cloudInit` is set,
   bpg adds a cloud-init drive on clone, which needs a datastore. The Composition
   defaults `initialization.datastoreId` to the root disk's datastore; override via

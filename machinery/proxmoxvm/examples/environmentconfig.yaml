@@ -21,6 +21,14 @@ metadata:
 data:
   node: ul-pve01
   datastore: V5010-01-1
+  # Datastore the CLONE allocates into. Without it Proxmox allocates on the
+  # TEMPLATE's datastore and bpg moves the disk afterwards — the full image
+  # written twice, and Datastore.AllocateSpace needed on the template's storage.
+  # SAFE TO SET HERE ONLY BECAUSE every VM already built under this
+  # EnvironmentConfig carries `cloneDatastore: none` in its own XR: bpg's clone
+  # block is ForceNew, so an env-level value would otherwise rewrite their clone
+  # block and trigger destroy + recreate.
+  cloneDatastore: V5010-01-1
   bridge: vmbrvlan          # VLAN-trunk bridge; template ships on vmbr0/untagged
   vlanTag: "102"            # 10.31.102.0/24
   pool: stuttgart-things

@@ -112,7 +112,17 @@ spec:
             # Datastore the CLONE allocates into. Deliberately does NOT fall back
             # to _datastore — see the clone block below for why the default must
             # stay "no value emitted".
+            #
+            # `none` is an explicit OPT-OUT sentinel, and it exists because there
+            # is otherwise no way for an XR to decline an EnvironmentConfig value:
+            # `cloneDatastore: ""` is falsy in KCL and falls straight through to
+            # _env. Without the sentinel, adding cloneDatastore to an
+            # EnvironmentConfig would rewrite the clone block of every EXISTING VM
+            # under it — a ForceNew field, so destroy + recreate, unattended where
+            # compositionUpdatePolicy is Automatic. The sentinel is what makes
+            # "roll it out per environment, exempt the VMs already built" possible.
             _cloneDatastore = _vm?.cloneDatastore or _env?.cloneDatastore or ""
+            _emitCloneDatastore = _cloneDatastore != "" and _cloneDatastore != "none"
 
             _providerConfigName = _spec?.providerConfigRef?.name or _env?.providerConfigName or "default"
             _providerConfigKind = _spec?.providerConfigRef?.kind or _env?.providerConfigKind or "ClusterProviderConfig"
@@ -252,10 +262,21 @@ spec:
             # this to _datastore would change the rendered spec of every existing
             # VM on an immutable field, and the provider answers that with
             # destroy + recreate. Unset, existing VMs render byte-identical.
+            #
+            # ROLLING IT OUT PER ENVIRONMENT. Putting cloneDatastore on an
+            # EnvironmentConfig hits every VM under it, including the ones already
+            # built — same ForceNew problem, just at fleet scale. The safe order
+            # is: set `cloneDatastore: none` on each EXISTING VM's XR first (it
+            # renders exactly as before), then add the real value to the
+            # EnvironmentConfig. New VMs pick it up; old ones stay pinned. Note
+            # the ordering trap — `none` only means "opt out" from v0.11.0 on;
+            # against an older package it is read as a datastore literally NAMED
+            # none, which is the very destroy + recreate being avoided. Bump the
+            # package BEFORE setting the sentinel anywhere.
             _cloneList = [{
                 vmId = int(_templateVmId)
                 full = True
-                if _cloneDatastore != "":
+                if _emitCloneDatastore:
                     datastoreId = _cloneDatastore
             }] if str(_templateVmId) != "" else []
 

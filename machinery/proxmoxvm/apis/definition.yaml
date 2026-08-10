@@ -115,9 +115,21 @@ spec:
                         live VM previously rendered none is a spec change on an
                         immutable field — the provider would destroy and
                         recreate the VM. Existing VMs render byte-identical
-                        while this is unset. For the same reason, do not put
-                        `cloneDatastore` on an EnvironmentConfig that already
-                        has VMs built from it; set it per XR on new VMs.
+                        while this is unset.
+
+                        `none` is an explicit OPT-OUT: it renders exactly as if
+                        the field were absent, and it is the ONLY way for an XR
+                        to decline a value coming from the EnvironmentConfig —
+                        an empty string is falsy and falls through to it.
+
+                        To roll this out for a whole environment: set
+                        `cloneDatastore: none` on every EXISTING VM's XR first,
+                        then add the real value to the EnvironmentConfig. New
+                        VMs pick it up, old ones stay pinned. ORDERING TRAP:
+                        `none` only means "opt out" from v0.11.0 on — against an
+                        older package it reads as a datastore literally NAMED
+                        none, causing the destroy + recreate you are avoiding.
+                        Bump the package before setting the sentinel anywhere.
                   required:
                     - name
                 cloudInit:
