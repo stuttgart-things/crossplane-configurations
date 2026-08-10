@@ -33,8 +33,13 @@ Configuration, mirroring `vspherevm`'s relationship to `vsphere-vm`.
   needs a datastore: `initialization.datastoreId` defaults to the root disk's
   datastore (`_ciDatastore = _ci?.datastoreId or _datastore`), overridable via
   `spec.cloudInit.datastoreId`.
-- **SMBIOS / PegaProx `illegal base64 data` (live-test blocker, 2026-06-15;
-  mitigation in the Composition).** bpg base64-decodes the SMBIOS type1 fields
+- **SMBIOS / PegaProx `illegal base64 data` — ROOT CAUSE REMOVED 2026-08-10.**
+  The LabUL admin deleted the SMBIOS Auto-Configurator from the nodes; verified
+  with a fresh VM (VMID 250) that held `base64=1` for 50+ min, ~5.5x the window
+  in which a comparable VM was stamped hours earlier. KEEP the Composition's
+  `smbios` block anyway: the component is reinstallable from the PegaProx UI in a
+  few clicks and would come back silently, and the removal does NOT repair the
+  133 existing plain-text VMs. The mechanism, still worth knowing: bpg base64-decodes the SMBIOS type1 fields
   (manufacturer/product/version/serial/family) on **every** read. The LabUL node
   `ul-pve01` is managed by **PegaProx** (github.com/PegaProx/project-pegaprox),
   whose *SMBIOS Auto-Configurator* — a systemd service on the node — stamps every
