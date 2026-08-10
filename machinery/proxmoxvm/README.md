@@ -59,11 +59,32 @@ behavioural difference from the Telmate-based `proxmox-vm` module, which clones 
 name. In the LabUL fleet, `sthings-u26` is **VMID 110** on `ul-pve01` (the example
 EnvironmentConfig is set accordingly).
 
-Two template-specific gotchas the example values already account for:
+Three template-specific gotchas the example values already account for:
 
 - **Disk bus is `virtio0`, not `scsi0`.** The `sthings-u26` root disk lives on
   `virtio0`; a `scsi0` `diskInterface` would target a non-existent disk on clone.
   The EnvironmentConfig defaults `diskInterface: virtio0`.
+- **The clone allocates on the TEMPLATE's datastore unless you say otherwise.**
+  Proxmox puts the new disk next to the source and bpg then moves it to
+  `spec.vm.datastore` — a `qmclone` immediately followed by a `qmmove` in the PVE
+  task log. So the full image is written twice, and the clone needs
+  `Datastore.AllocateSpace` on the template's storage even when the VM is not
+  meant to live there. Set `spec.vm.cloneDatastore` to clone straight onto the
+  target.
+
+  This is not hypothetical: in LabUL the templates live on the NFS store
+  `DD-sthings`, and an ACL added there in early 2026-08 (group
+  `LabUL-VC-Benutzer-LabUL` → role `SVATemplates`, i.e. `AllocateTemplate` +
+  `Audit` only) took that priv away. Proxmox resolves the **deepest matching ACL
+  path** instead of unioning up the tree, so an `Administrator` grant at `/` does
+  not restore it, and every clone fails with
+  `403 Permission check failed (/storage/DD-sthings, Datastore.AllocateSpace)`.
+
+  `cloneDatastore` is **opt-in and must stay that way**: bpg's clone block is
+  ForceNew, so a value where a live VM previously rendered none is a spec change
+  on an immutable field and the provider answers with destroy + recreate. Set it
+  per XR on new VMs; do not add it to an EnvironmentConfig that already has VMs
+  built from it.
 - **The Packer templates ship no cloud-init drive.** When `spec.cloudInit` is set,
   bpg adds a cloud-init drive on clone, which needs a datastore. The Composition
   defaults `initialization.datastoreId` to the root disk's datastore; override via

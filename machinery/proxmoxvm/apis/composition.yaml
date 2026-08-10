@@ -109,6 +109,11 @@ spec:
             _templateVmId = _vm?.templateVmId or _env?.templateVmId or ""
             _vlanTag = _vm?.vlanTag or _env?.vlanTag or ""
 
+            # Datastore the CLONE allocates into. Deliberately does NOT fall back
+            # to _datastore — see the clone block below for why the default must
+            # stay "no value emitted".
+            _cloneDatastore = _vm?.cloneDatastore or _env?.cloneDatastore or ""
+
             _providerConfigName = _spec?.providerConfigRef?.name or _env?.providerConfigName or "default"
             _providerConfigKind = _spec?.providerConfigRef?.kind or _env?.providerConfigKind or "ClusterProviderConfig"
 
@@ -224,7 +229,35 @@ spec:
 
             # Clone block (by numeric template VMID). Guarded so an offline
             # render without a loaded EnvironmentConfig does not int("") -> error.
-            _cloneList = [{ vmId = int(_templateVmId), full = True }] if str(_templateVmId) != "" else []
+            #
+            # datastoreId is emitted ONLY when explicitly configured, and that is
+            # load-bearing in both directions:
+            #
+            # WHY SET IT. Without it Proxmox allocates the clone on the SOURCE
+            # template's datastore and bpg moves the disk to `datastore`
+            # afterwards (visible in the PVE task log as qmclone immediately
+            # followed by qmmove). Two costs: the full image is written twice,
+            # and the clone needs Datastore.AllocateSpace on the template's
+            # storage — which is not a given. In LabUL an ACL on
+            # /storage/DD-sthings (group LabUL-VC-Benutzer-LabUL -> role
+            # SVATemplates = AllocateTemplate + Audit only) removed exactly that
+            # priv in early 2026-08, and since Proxmox resolves the DEEPEST
+            # matching ACL path rather than unioning up the tree, the
+            # Administrator grant at / does not cover it. Every clone of a
+            # template stored there then fails with:
+            #   403 Permission check failed (/storage/DD-sthings,
+            #   Datastore.AllocateSpace)
+            #
+            # WHY IT MUST STAY OPT-IN. bpg's clone block is ForceNew. Defaulting
+            # this to _datastore would change the rendered spec of every existing
+            # VM on an immutable field, and the provider answers that with
+            # destroy + recreate. Unset, existing VMs render byte-identical.
+            _cloneList = [{
+                vmId = int(_templateVmId)
+                full = True
+                if _cloneDatastore != "":
+                    datastoreId = _cloneDatastore
+            }] if str(_templateVmId) != "" else []
 
             # Network device (optional VLAN tag).
             _networkDevice = {
