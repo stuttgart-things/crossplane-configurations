@@ -171,13 +171,35 @@ new machine identity on its next boot (machine-id, cloud-init instance-id). Note
 encoded. `version`, `serial` and `family` are deliberately not written back: the
 Composition does not emit them either.
 
-**Why no restart is needed, which is the non-obvious part.** `smbios1` is not
-hot-pluggable, so PVE parks the change as *pending* and the RUNNING VM keeps the old
-plain-text value. That does not matter, because `GET /config` **without** `current=1`
-returns the config file *including* pending changes — and that is what bpg reads. So
-`Synced` recovers on the next reconcile while the VM keeps running untouched. Do not
-reboot the VM to "apply" the fix; `?current=1` will keep showing the old value until it
-restarts on its own, and that is expected.
+**THE VM WILL BE RESTARTED. Plan an outage.** `smbios1` is not hot-pluggable, so PVE
+parks the write as a *pending* change and the running VM keeps the old plain-text
+value. bpg does not leave it there: on its next reconcile it applies the pending
+change the only way it can, by cycling the VM. Observed on VMID 191 (2026-08-10), the
+write landing at 08:58:5x:
+
+```
+08:58:58  qmshutdown  <provider credential>  OK
+08:59:01  qmstart     <provider credential>  OK
+```
+
+The gap was about three seconds and the guest came back clean — a single-node k3s
+cluster on that VM returned Ready with every pod Running — but it is a **real reboot
+of a live machine, triggered by the provider without further prompting**. On anything
+carrying state, schedule it.
+
+Two consequences worth knowing before you start:
+
+- **It fires on the provider's own schedule**, not when you force a reconcile. On 191
+  the restart happened roughly a minute *before* the
+  `reconcile.crossplane.io/requested` annotation was set. Writing the value is what
+  commits you.
+- **`Synced` recovers regardless of the restart.** `GET /config` without `current=1`
+  returns the config file *including* pending changes, and that is what bpg reads — so
+  the base64 value is visible to `observe` immediately. The restart is about the
+  *guest* seeing the new SMBIOS, not about fixing `Synced`.
+
+An earlier revision of this section claimed no restart was needed. That was wrong,
+and it was wrong in the risky direction — corrected here after observing the cycle.
 
 ## IP surfacing (`status.share.ip`)
 
