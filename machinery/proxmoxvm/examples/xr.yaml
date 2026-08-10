@@ -14,5 +14,11 @@ spec:
     cpu: "2"
     memory: "4096"
     disk: "64"
+    # Opt out of the EnvironmentConfig's cloneDatastore: renders exactly as if
+    # the field were absent. This is what an ALREADY-BUILT VM must carry before
+    # its environment gains a cloneDatastore, or the ForceNew clone block would
+    # be rewritten under it. An empty string would NOT work — it is falsy and
+    # falls through to the EnvironmentConfig.
+    cloneDatastore: none
   cloudInit:
     ipv4Address: dhcp
