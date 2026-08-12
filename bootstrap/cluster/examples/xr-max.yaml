@@ -51,6 +51,16 @@ spec:
   kubeconfig:
     vaultPath: kubeconfigs-archive/max-cluster
     secretNamespace: crossplane-system  # pragma: allowlist secret
+    # THE TWO BELOW ARE DIFFERENT KINDS OF OBJECT, and both are restated here
+    # only because this file exists to set every field — the defaults are right.
+    #
+    # vaultSecretName is a SECRET in the pipeline namespace, holding the AppRole
+    # the upload play writes with. `vault` is the fleet's vault-vsphere
+    # credential; it is what sops-git-secrets actually materializes.
+    vaultSecretName: vault  # pragma: allowlist secret
+    # providerConfigRef is a CLUSTERPROVIDERCONFIG the ClusterAccess child reads
+    # back through, emitted by the provider-kubeconfig-vault chart. Same name the
+    # Secret used to carry, which is exactly how the two got confused.
     providerConfigRef: vault-kubeconfigs
 
   # Sibling of `platform`, not a key inside it: `platform` is a verbatim

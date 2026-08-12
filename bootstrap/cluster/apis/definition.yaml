@@ -229,18 +229,31 @@ spec:
                       default: crossplane-system
                     vaultSecretName:
                       type: string
-                      default: vault-kubeconfigs
+                      default: vault
                       description: >-
                         Secret in the pipeline namespace holding the Vault
                         address and AppRole the kubeconfig UPLOAD authenticates
-                        with. Not the same thing as providerConfigRef below,
-                        and not the same Vault as `vault`: in this fleet that
-                        default points at the infra Vault and carries no
-                        AppRole, so leaving it unset fails the upload with
-                        "failed to determine alias name from login request".
+                        with. NOT the same thing as providerConfigRef below,
+                        which is a ClusterProviderConfig — the two deliberately
+                        no longer share a name. `vault` is the fleet's
+                        vault-vsphere credential, which owns the kubeconfigs KV
+                        mount. This defaulted to `vault-kubeconfigs` until
+                        v0.3.1, a Secret nothing ever created: sops-git-secrets
+                        names a Secret from metadata.name inside its blob, so
+                        that name needed a fourth blob duplicating a credential
+                        already on every cluster. The upload failed with
+                        "failed to determine alias name from login request" on
+                        every fresh management cluster until someone made the
+                        alias by hand.
                     providerConfigRef:
                       type: string
                       default: vault-kubeconfigs
+                      description: >-
+                        ClusterProviderConfig (kubeconfig.stuttgart-things.com)
+                        the ClusterAccess child READS the kubeconfig back
+                        through — emitted by the provider-kubeconfig-vault
+                        chart. Keeps the name vaultSecretName gave up; they are
+                        different kinds of object and only ever looked alike.
                 platformEnabled:
                   type: boolean
                   default: true
