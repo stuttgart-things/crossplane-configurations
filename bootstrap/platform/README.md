@@ -261,6 +261,18 @@ spec:
 
 App definitions come from the [`xplane-flux-catalog`](https://github.com/stuttgart-things/kcl/tree/main/crossplane/xplane-flux-catalog) KCL module, which holds **structural facts only** — artifact URL, component paths, ordering, timeouts. Substitution *values* are environment-specific and belong on the XR (below), not in the catalog, which would otherwise drift from each app's README in stuttgart-things/flux.
 
+Catalogued as of `xplane-platform` v0.6.1 (catalog 0.4.0). `stuttgart-things/flux` publishes 40 artifacts; these are the ones a `Platform` can name:
+
+| app | needs | note |
+|---|---|---|
+| `cert-manager` | nothing | `selfsigned` and `approle-issuer` are opt-in components |
+| `trust-manager` | `cert-manager:install` | the catalog's only cross-artifact dependency |
+| `openebs` | **nothing** | the one entry that is complete as `openebs: {enabled: true}` |
+| `headlamp` | `DOMAIN`, `HOSTNAME`, `GATEWAY_NAME` | and a Gateway that already exists on the target |
+| `dapr` | a Secret for `template-execution` | or disable that component |
+
+**`openebs` pins the flux artifact at `v1.19.1` for a reason.** The artifact pins the openebs *chart* separately as `OPENEBS_VERSION` (default `4.2.0`), and the chart changes shape at 4.5: `loki` and `alloy` become dependencies, **both defaulting to true**, and `localpv-provisioner` — the thing behind `openebs-hostpath` — becomes conditional. Before [flux#192](https://github.com/stuttgart-things/flux/pull/192) the artifact had no keys to turn any of that off, so raising `OPENEBS_VERSION` from an XR would have silently added a Loki StatefulSet, the MinIO StatefulSet backing it and an Alloy DaemonSet. Do not pin an older artifact tag.
+
 ### Overrides
 
 ```yaml
