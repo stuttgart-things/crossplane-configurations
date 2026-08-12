@@ -149,7 +149,23 @@ Be precise about what has and has not been proven, because the gaps are where th
 
 **`distribution: kind` is fixed but NOT yet re-proven.** The first live kind build (kind1 → Proxmox LabUL, 2026-08-10) produced a cluster named `dev` and a deadlocked cilium — [#232](https://github.com/stuttgart-things/crossplane-configurations/issues/232), fixed in v0.2.1 by passing `kind_cluster_name`. The fix is covered by unit tests in the KCL module, not by a live build; until a kind `ClusterStack` reaches `status.ready: true` with `kubectl get nodes` `Ready` on the target, treat the kind path as unverified. The k3s chain below is the one with a live run behind it.
 
-**`distribution: rke2` (new in v0.3.0) is proven at the play level, not as a `ClusterStack`.** The catalog entry was written only after a reference run, as `xplane-cluster-catalog`'s `main.k` demands: on 2026-08-11 an `AnsibleRun` on the u26-kind3 machinery cluster drove `sthings.rke.rke2_cluster` against a Proxmox VM that same cluster had built and base-OS'd (VMID 132), and produced `v1.35.1+rke2r1` `Ready` with cilium up. So the vars, the inventory groups and the CNI ownership in the catalog are what a live run used — but the *chain* (one `ClusterStack` → VM → rke2 → kubeconfig upload → `ClusterAccess`) has not been driven end to end. Treat it exactly like kind: unverified until an rke2 `ClusterStack` reaches `status.ready: true`.
+**`distribution: rke2` (new in v0.3.0) is PROVEN as a `ClusterStack`** — u26-kind3 → Proxmox LabUL, 2026-08-12, on v0.3.1. One XR of six lines (`provider`, `size`, `distribution`, `environmentConfig`, `platformEnabled: false`) produced a VM, base-OS'd it, installed rke2, uploaded the kubeconfig to Vault, and had `ClusterAccess` read it back:
+
+```
+u26-rke2-1   true   ready   proxmox   rke2   https://10.31.102.191:6443
+  status.share: clusterType rke2, serverVersion v1.35.1+rke2r1, cniOwnership self
+  ClusterProviderConfigs: u26-rke2-1-kubernetes, u26-rke2-1-helm
+  target cluster: u26-rke2-1.labul.sva.de  Ready  control-plane,etcd  v1.35.1+rke2r1
+                  cilium + cilium-envoy + cilium-operator Running
+```
+
+70 minutes wall clock: ~7 to a base-OS'd VM, ~10 for rke2, ~2 for the upload. Nothing in the XR names the IP or the cluster name twice.
+
+The catalog entry behind it was written only after a separate reference run, as `xplane-cluster-catalog`'s `main.k` demands: on 2026-08-11 an `AnsibleRun` drove `sthings.rke.rke2_cluster` against a VM u26-kind3 had built (VMID 132), producing the same version pair.
+
+**What this run cost, and what it therefore proves about a fresh cluster:** two RBAC grants, both documented in [remote-cluster](../remote-cluster/) §3 and neither previously exercised — `create remoteclusters`, and `patch clusterproviderconfigs.helm.m.crossplane.io` for a dry-run SSA on an *Observe-only* Object. The second is the one to remember, because it fails deceptively: `status.ready` goes **true** and `status.share` fills in, while only Crossplane's own `Ready` condition stays False. A stack can look finished and not be.
+
+**`platformEnabled: true` on rke2 is still unproven** — this run deliberately stopped at `ClusterAccess`, per the teardown note below.
 
 The **kubeconfig stage** for rke2 is proven too, and separately — it is the only thing xplane-cluster 0.4.0 changed in code. On 2026-08-12 an `AnsibleRun` carrying exactly the vars the Composition emits (`kubeconfigStage.vars` + `clusterNameVars` + the new `_serverPaths` lookup) ran against that same VM: the kubeconfig was fetched from `/etc/rancher/rke2/rke2.yaml`, IP-rewritten, stored raw under `kubeconfigs/rke2-reference`, and `kubectl` against it returned the `Ready` node. Three things that a render cannot check — `ansible_become` reaches a 0600 root:root file, and `replace_ip` is **not** a no-op on rke2 (its kubeconfig ships `server: https://127.0.0.1:6443`, so uploading it verbatim would store a kubeconfig no other machine can use, failing much later in `ClusterAccess`).
 

@@ -1,44 +1,87 @@
 ---
 # CLUSTER PRECONDITION, not part of the package.
 #
-# The in-cluster provider-kubernetes ServiceAccount needs to CREATE
-# RemoteClusters. This is easy to miss because it was never needed before:
-# RemoteClusters have always been applied by hand, so the provider only ever
-# had to read the ones that already existed. The moment a Composition creates
-# one, the missing verb surfaces as:
+# The in-cluster provider-kubernetes ServiceAccount needs rights this
+# Configuration is the first thing in the fleet to ask for. Both rules below
+# were found the same way — a live build wedged with `status.ready` never
+# arriving and a Forbidden buried in a composed Object's condition.
 #
-#   create failed: cannot create object: remoteclusters.kubeconfig.stuttgart-things.com
-#   "<name>" is forbidden: User "system:serviceaccount:crossplane-system:provider-kubernetes"
-#   cannot create resource "remoteclusters" in API group "kubeconfig.stuttgart-things.com"
-#   at the cluster scope
+# It does NOT apply where the provider's SA is already cluster-admin. Check
+# both before applying:
 #
-# Hit for real on kind1 while first building a cluster through the `cluster`
-# Configuration (2026-07-27). It does NOT apply where the provider's SA is
-# already cluster-admin — check before applying:
-#
+#   SA=$(kubectl get sa -n crossplane-system -o name | grep provider-kubernetes | head -1 | cut -d/ -f2)
 #   kubectl auth can-i create remoteclusters.kubeconfig.stuttgart-things.com \
-#     --as=system:serviceaccount:crossplane-system:provider-kubernetes
-#
-# Find the actual SA name with:
-#   kubectl get sa -n crossplane-system | grep provider-kubernetes
+#     --as=system:serviceaccount:crossplane-system:$SA
+#   kubectl auth can-i patch clusterproviderconfigs.helm.m.crossplane.io \
+#     --as=system:serviceaccount:crossplane-system:$SA
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: provider-kubernetes-remoteclusters
+  name: provider-kubernetes-remote-cluster
 rules:
+  # (1) CREATE RemoteClusters. Easy to miss, because it was never needed
+  # before: RemoteClusters have always been applied by hand, so the provider
+  # only ever had to READ the ones that already existed. The moment a
+  # Composition creates one:
+  #
+  #   create failed: cannot create object: remoteclusters.kubeconfig.stuttgart-things.com
+  #   "<name>" is forbidden: User "system:serviceaccount:crossplane-system:provider-kubernetes"
+  #   cannot create resource "remoteclusters" in API group
+  #   "kubeconfig.stuttgart-things.com" at the cluster scope
+  #
+  # Hit on kind1 (2026-07-27) and again on u26-kind3 (2026-08-12).
   - apiGroups: ["kubeconfig.stuttgart-things.com"]
     resources: ["remoteclusters", "remoteclusters/status"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # (2) PATCH on helm ClusterProviderConfigs — REQUIRED EVEN THOUGH THE OBJECT
+  # THAT NEEDS IT IS OBSERVE-ONLY. This Composition emits `observe-helm` with
+  # managementPolicies: ["Observe"]; it only watches the ClusterProviderConfig
+  # the RemoteCluster creates, and never writes it. But provider-kubernetes
+  # computes desired state with a DRY-RUN server-side apply, and the API server
+  # authorizes a dry-run SSA exactly like a real write. Read verbs alone give:
+  #
+  #   observe failed: cannot get desired state: cannot dry run SSA:
+  #   clusterproviderconfigs.helm.m.crossplane.io "<name>-helm" is forbidden:
+  #   ... cannot patch resource "clusterproviderconfigs" in API group
+  #   "helm.m.crossplane.io" at the cluster scope
+  #
+  # The symptom is nasty: `status.ready` goes TRUE and status.share carries the
+  # endpoint and serverVersion, because those come from the RemoteCluster, which
+  # is fine. Only Crossplane's own Ready condition stays False, with
+  # "Unready resources: observe-helm". A stack looks finished and is not.
+  #
+  # Only `helm` needs listing. The kubernetes.m.crossplane.io twin
+  # (`observe-kubernetes`) works already, because provider-kubernetes OWNS that
+  # CRD and its generated crossplane:provider:<name>:system ClusterRole covers
+  # it; helm.m belongs to provider-helm. Drop this rule if spec.providers omits
+  # "helm".
+  - apiGroups: ["helm.m.crossplane.io"]
+    resources: ["clusterproviderconfigs", "clusterproviderconfigs/status"]
+    verbs: ["get", "list", "watch", "patch"]
 ---
+# BIND THE GROUP, NOT THE ServiceAccount.
+#
+# The obvious binding names the SA — and on a real cluster the SA is
+# `crossplane-contrib-provider-kubernetes-f6665ef36536`, where the suffix is
+# derived from the installed package revision. It CHANGES on every provider
+# upgrade, so a name-bound ClusterRoleBinding silently stops granting anything
+# and the next build fails with the errors above, long after anyone connects it
+# to a provider bump.
+#
+# Binding system:serviceaccounts:crossplane-system covers whichever SA the
+# provider currently runs as. It is broader than one SA — every controller in
+# that namespace gets these verbs — which is acceptable for a namespace that
+# already hosts cluster-scoped infrastructure controllers, and is the pattern
+# the stuttgart-things fleet already uses for its other scoped provider roles.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: provider-kubernetes-remoteclusters
+  name: provider-kubernetes-remote-cluster
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: provider-kubernetes-remoteclusters
+  name: provider-kubernetes-remote-cluster
 subjects:
-  - kind: ServiceAccount
-    name: provider-kubernetes
-    namespace: crossplane-system
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: system:serviceaccounts:crossplane-system
