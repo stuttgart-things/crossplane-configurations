@@ -165,7 +165,9 @@ The catalog entry behind it was written only after a separate reference run, as 
 
 **What this run cost, and what it therefore proves about a fresh cluster:** two RBAC grants, both documented in [remote-cluster](../remote-cluster/) §3 and neither previously exercised — `create remoteclusters`, and `patch clusterproviderconfigs.helm.m.crossplane.io` for a dry-run SSA on an *Observe-only* Object. The second is the one to remember, because it fails deceptively: `status.ready` goes **true** and `status.share` fills in, while only Crossplane's own `Ready` condition stays False. A stack can look finished and not be.
 
-**`platformEnabled: true` on rke2 is still unproven** — this run deliberately stopped at `ClusterAccess`, per the teardown note below.
+**`platformEnabled: true` on rke2 is proven too** — same cluster, same day. Flipping the flag brought the Platform child up in about two minutes: `flux-operator` (chart 0.55.0) installed, the `FluxInstance` reconciled to Flux v2.9.2, the `cert-manager` OCIRepository and Kustomization applied v1.18.1, and cert-manager, cainjector and webhook all Running on the target. `componentCount 2 / readyComponents 2`.
+
+Note what was *not* set: `cni`. On rke2 the ansible role already installed cilium, so the Composition derived `cni.enabled = false` from the catalog's `cniOwnership: self` and composed no `Cni` child — the one field whose hand-setting puts two CNIs on one datapath.
 
 The **kubeconfig stage** for rke2 is proven too, and separately — it is the only thing xplane-cluster 0.4.0 changed in code. On 2026-08-12 an `AnsibleRun` carrying exactly the vars the Composition emits (`kubeconfigStage.vars` + `clusterNameVars` + the new `_serverPaths` lookup) ran against that same VM: the kubeconfig was fetched from `/etc/rancher/rke2/rke2.yaml`, IP-rewritten, stored raw under `kubeconfigs/rke2-reference`, and `kubectl` against it returned the `Ready` node. Three things that a render cannot check — `ansible_become` reaches a 0600 root:root file, and `replace_ip` is **not** a no-op on rke2 (its kubeconfig ships `server: https://127.0.0.1:6443`, so uploading it verbatim would store a kubeconfig no other machine can use, failing much later in `ClusterAccess`).
 
@@ -175,7 +177,20 @@ Two values in that entry are pinned **against** the play's own defaults, deliber
 
 **Teardown needs two phases — and with them it is clean.** Deleting a `ClusterStack` that has a Platform child in one step does **not** work: a live run tore the whole tree down in parallel within about three seconds, the `ClusterAccess`'s `RemoteCluster` (owner of the kubeconfig Secret and both ClusterProviderConfigs) went while the Platform's own resources still needed those credentials, and four resources were left behind — a stuck `flux-instance` Object, a `flux-operator` Release that was never deleted at all, and both ClusterProviderConfigs.
 
-The `Usage` resources cannot prevent this. They are **composed children of the same XR**, so deleting the `ClusterStack` removes them in the same parallel sweep, and a Usage whose object is gone blocks nothing. Crossplane's own design note for the type describes this failure exactly (a cluster deleted before the Helm Release that lives on it) and enforces the relation through an admission webhook — a webhook that needs its rule object to still exist. The Usages are kept because they do work when a child is deleted on its own; they just cannot order the teardown of their own parent.
+The three `Usage` resources that order the children cannot prevent this. They are **composed children of the same XR**, so deleting the `ClusterStack` removes them in the same parallel sweep, and a Usage whose object is gone blocks nothing. They are kept because they do work when a child is deleted on its own; they just cannot order the teardown of their own parent.
+
+**Since v0.3.2 a fourth Usage makes the wrong order impossible rather than silently lossy.** It protects the **composite itself** — `of: ClusterStack/<name>`, `by: Platform/<name>-platform` — and that is what lets it escape the sweep: Crossplane's no-usages webhook matches `apiGroups[*] / resources[*]` on DELETE by the `crossplane.io/in-use` label, so it fires on an XR as readily as on a managed resource, and it fires at **admission**, before Crossplane deletes anything.
+
+```
+$ kubectl delete clusterstack u26-rke2-1
+Error: admission webhook "nousages.protection.crossplane.io" denied the request:
+This resource is in-use by 1 usage(s), including the *v1beta1.Usage
+"stack-uses-platform" (in namespace "default") by resource Platform/u26-rke2-1-platform.
+```
+
+It is emitted only while the Platform child exists, so `platformEnabled: false` clears it and the delete goes through. It carries `replayDeletion: false`, unlike the other three: replay re-issues a blocked delete once the blocker is gone, which is convenient for a child and dangerous for a whole stack — an abandoned `kubectl delete` would turn a later, unrelated `platformEnabled: false` into a surprise teardown.
+
+**Namespace deletion is the footgun.** The namespace controller issues a DELETE per object, hits the same webhook, and the namespace sits in `Terminating`. True of Usages in general; worse here because the blocked object is the composite. Clear the guard first (`platformEnabled: false`, or delete the Usage) before deleting a namespace that holds a `ClusterStack`.
 
 ### The supported procedure
 
@@ -189,6 +204,8 @@ kubectl wait --for=delete platform/<name>-platform -n <ns> --timeout=5m
 # Phase 2 — now delete the stack itself.
 kubectl delete clusterstack <name> -n <ns>
 ```
+
+Since v0.3.2 you cannot get this wrong by accident — skipping phase 1 is rejected, not silently mis-executed.
 
 Verified end to end on a live cluster: phase 1 removed the Platform child and its resources in 50 seconds with nothing wedged, and phase 2 left **zero** leftovers — no Objects, Releases, ClusterProviderConfigs, kubeconfig Secret, RemoteCluster or PipelineRuns, and the Proxmox VM destroyed.
 
