@@ -138,7 +138,7 @@ The base-OS stage is absent on purpose: it runs from the VM XR's own `spec.ansib
 Beyond the wrapped Configurations' own (see each):
 
 - **Tekton** plus the `ansible-credentials` Secret in the pipeline namespace, and an in-cluster provider-kubernetes config — the ansible stages need them.
-- **`provider-kubeconfig`** with a `vault-kubeconfigs` ClusterProviderConfig — see [remote-cluster](../remote-cluster/).
+- **`provider-kubeconfig`** with a `vault-kubeconfigs` ClusterProviderConfig — see [remote-cluster](../remote-cluster/). That is the **read** side. The **write** side is a Secret in the pipeline namespace, `kubeconfig.vaultSecretName`, defaulting to `vault` — the same name the fleet's sops-git-secrets already materializes, so nothing extra is needed. Until v0.3.1 it defaulted to `vault-kubeconfigs`, matching the ClusterProviderConfig's name but naming a Secret nothing creates; every fresh management cluster failed the upload with `failed to determine alias name from login request` until the alias was made by hand.
 - A per-environment **`EnvironmentConfig`** for the chosen provider (`proxmoxvm.…/environment` or `vspherevm.…/environment`) matching `spec.environmentConfig`.
 
 ## Verification status
@@ -150,6 +150,10 @@ Be precise about what has and has not been proven, because the gaps are where th
 **`distribution: kind` is fixed but NOT yet re-proven.** The first live kind build (kind1 → Proxmox LabUL, 2026-08-10) produced a cluster named `dev` and a deadlocked cilium — [#232](https://github.com/stuttgart-things/crossplane-configurations/issues/232), fixed in v0.2.1 by passing `kind_cluster_name`. The fix is covered by unit tests in the KCL module, not by a live build; until a kind `ClusterStack` reaches `status.ready: true` with `kubectl get nodes` `Ready` on the target, treat the kind path as unverified. The k3s chain below is the one with a live run behind it.
 
 **`distribution: rke2` (new in v0.3.0) is proven at the play level, not as a `ClusterStack`.** The catalog entry was written only after a reference run, as `xplane-cluster-catalog`'s `main.k` demands: on 2026-08-11 an `AnsibleRun` on the u26-kind3 machinery cluster drove `sthings.rke.rke2_cluster` against a Proxmox VM that same cluster had built and base-OS'd (VMID 132), and produced `v1.35.1+rke2r1` `Ready` with cilium up. So the vars, the inventory groups and the CNI ownership in the catalog are what a live run used — but the *chain* (one `ClusterStack` → VM → rke2 → kubeconfig upload → `ClusterAccess`) has not been driven end to end. Treat it exactly like kind: unverified until an rke2 `ClusterStack` reaches `status.ready: true`.
+
+The **kubeconfig stage** for rke2 is proven too, and separately — it is the only thing xplane-cluster 0.4.0 changed in code. On 2026-08-12 an `AnsibleRun` carrying exactly the vars the Composition emits (`kubeconfigStage.vars` + `clusterNameVars` + the new `_serverPaths` lookup) ran against that same VM: the kubeconfig was fetched from `/etc/rancher/rke2/rke2.yaml`, IP-rewritten, stored raw under `kubeconfigs/rke2-reference`, and `kubectl` against it returned the `Ready` node. Three things that a render cannot check — `ansible_become` reaches a 0600 root:root file, and `replace_ip` is **not** a no-op on rke2 (its kubeconfig ships `server: https://127.0.0.1:6443`, so uploading it verbatim would store a kubeconfig no other machine can use, failing much later in `ClusterAccess`).
+
+That run is also what found the `vaultSecretName` default bug fixed in v0.3.1.
 
 Two values in that entry are pinned **against** the play's own defaults, deliberately: `rke2_k8s_version: 1.35.1` and `rke2_release_kind: rke2r1`, where `sthings.rke.rke2_cluster` defaults to 1.36.1 / rke2r2. Every rke2 cluster this fleet runs is on the former pair; shipping the play default would have pinned a combination nobody here has booted — the same trap the k3s entry already records.
 

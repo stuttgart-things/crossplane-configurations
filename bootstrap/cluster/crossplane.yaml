@@ -37,7 +37,9 @@ metadata:
 
       - Tekton + the ansible credentials Secret + an in-cluster
         provider-kubernetes config (for the ansible stages).
-      - `provider-kubeconfig` with a `vault-kubeconfigs` ClusterProviderConfig.
+      - `provider-kubeconfig` with a `vault-kubeconfigs` ClusterProviderConfig
+        (the read side). The upload's write credential is the `vault` Secret
+        sops-git-secrets already ships — no extra Secret to create.
       - A per-environment EnvironmentConfig for the chosen provider.
 
       Distributions: k3s, kind and — since v0.3.0 — single-node rke2.
