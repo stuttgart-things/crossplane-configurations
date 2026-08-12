@@ -77,6 +77,20 @@ spec:
   ```
   Health returns in under a minute. Corollary: `functionRef: function-kcl` resolves only because the fleet pre-installs short names via Argo CD — on a bare cluster the auto-installed dependency lands as `crossplane-contrib-function-kcl` and a short-named `functionRef` would not resolve.
 
+  **THE SAME COLLISION HAPPENS WITH OUR OWN CONFIGURATIONS, and there is no mirror trick to dodge it.** Hit on u26-kind3, 2026-08-12: upgrading the short-named `flux-apps` CR to v0.1.3 took **all 20 Configurations** to `Healthy=False` with `node ghcr.io/stuttgart-things/crossplane-configurations/platform already exists`.
+
+  The mechanism: the machinery play applies Configurations under **short names** (`platform`, `flux-apps`, …), while `cluster` and `platform` declare `dependsOn` on the same packages. Upgrading a short-named CR briefly removes its Lock entry, the resolver sees an unsatisfied dependency and auto-installs a **long-named duplicate** — and because both point at the *identical* ghcr path, the graph collides the moment the upgrade finishes. A Function can survive this on a cross-mirror pair; our Configurations have exactly one source, so any duplicate is fatal.
+
+  It is also whack-a-mole: deleting one duplicate makes the resolver re-run and create a duplicate for the *next* package in the graph. Loop until the Lock has no duplicate sources:
+
+  ```bash
+  kubectl get lock lock -o json | jq -r '.packages[].source' | sort | uniq -d   # the duplicates
+  # delete only the long, package-manager-derived CR; keep the short one the play owns
+  kubectl delete configuration.pkg stuttgart-things-crossplane-configurations-<name>
+  ```
+
+  Two rounds were enough there, and health returned within a minute of the last delete. **Check first that the long-named CR does not own the XRDs** (`kubectl get xrd <x> -o jsonpath='{.metadata.ownerReferences}'`) — in that incident they belonged to the short-named chain, which is what made deleting safe.
+
   **So every `examples/functions.yaml` pins `xpkg.upbound.io`, deliberately.** Our `dependsOn` entries all use `xpkg.crossplane.io`, and the package manager derives a long CR name from that path — so a short-named CR on the *same* registry is the collision above, by construction. The differing mirror is load-bearing, not legacy drift. Do not "modernise" these to `xpkg.crossplane.io`; the rule in the section above ("use the crossplane.io path for new work") is about `dependsOn`, not about Function CRs we author.
 
   **`task apply-dev` no longer applies `examples/functions.yaml` unless you pass `FUNCTIONS=1`.** It used to, and that made the task destructive against any fleet cluster in two ways — hit for real on kind1, 2026-07-20, which took all six Functions to `Healthy=False`:
