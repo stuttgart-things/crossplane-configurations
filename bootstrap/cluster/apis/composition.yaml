@@ -39,7 +39,7 @@ spec:
         metadata:
           name: cluster
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-cluster:0.3.2
+          source: oci://ghcr.io/stuttgart-things/xplane-cluster:0.4.0
     # Propagates the composed children's readiness to the XR. status.ready is
     # set by the module itself (from the Platform child, or from ClusterAccess
     # when platformEnabled is false); this makes the XR's Ready condition track

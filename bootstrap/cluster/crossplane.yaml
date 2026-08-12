@@ -40,7 +40,8 @@ metadata:
       - `provider-kubeconfig` with a `vault-kubeconfigs` ClusterProviderConfig.
       - A per-environment EnvironmentConfig for the chosen provider.
 
-      Multi-node, rke2 and day-2 scaling are deliberately unsupported in v0.1.0.
+      Distributions: k3s, kind and — since v0.3.0 — single-node rke2.
+      Multi-node and day-2 scaling remain deliberately unsupported.
 spec:
   crossplane:
     version: ">=v2.1.3"

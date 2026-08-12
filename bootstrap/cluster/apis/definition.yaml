@@ -75,11 +75,12 @@ spec:
                   type: string
                   default: k3s
                   description: >-
-                    Kubernetes distribution from the catalog (k3s | kind).
-                    Determines the install playbooks, the required inventory
-                    groups, and WHO OWNS THE CNI — which is why
-                    `platform.cni.enabled` must not be set by hand: a k3s role
-                    installs cilium itself, a kind cluster is built without one.
+                    Kubernetes distribution from the catalog
+                    (k3s | kind | rke2). Determines the install playbooks, the
+                    required inventory groups, and WHO OWNS THE CNI — which is
+                    why `platform.cni.enabled` must not be set by hand: the k3s
+                    and rke2 roles install cilium themselves, a kind cluster is
+                    built without one.
                 clusterName:
                   type: string
                   description: >-

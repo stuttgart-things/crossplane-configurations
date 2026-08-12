@@ -48,7 +48,7 @@ spec:
 flowchart TD
     CS["ClusterStack<br/>the XR you apply"]
     VM["NativeProxmoxVM | NativeVsphereVM<br/>{name}-vm<br/>VM + base-OS ansible"]
-    D["AnsibleRun<br/>{name}-distribution<br/>k3s / kind install"]
+    D["AnsibleRun<br/>{name}-distribution<br/>k3s / kind / rke2 install"]
     K["AnsibleRun<br/>{name}-kubeconfig<br/>kubeconfig → Vault"]
     A["ClusterAccess<br/>{name}-access<br/>→ ClusterProviderConfigs"]
     P["Platform<br/>{name}-platform<br/>flux, apps, cilium, issuer"]
@@ -102,7 +102,7 @@ This does **not** make the endpoint highly available: it is one node's address, 
 
 ## What you cannot set
 
-- **`platform.cni.enabled`** — derived from the distribution's CNI ownership. k3s installs cilium itself (its config disables flannel and kube-proxy, so the role *must*); kind is built deliberately without one. Setting it by hand is how a cluster ends up with two CNIs. Your other `cni` keys (chart version, values) pass through untouched.
+- **`platform.cni.enabled`** — derived from the distribution's CNI ownership. k3s installs cilium itself (its config disables flannel and kube-proxy, so the role *must*), and rke2 does the same via `rke2_cni: none` + `install_cilium: true`; kind is built deliberately without one. Setting it by hand is how a cluster ends up with two CNIs. Your other `cni` keys (chart version, values) pass through untouched.
 - **`platform.clusterName`** — supplied from `clusterName`.
 - **Placement** — node, datastore, bridge, vlan, pool (Proxmox) or the MOIDs (vSphere) live in the per-environment `EnvironmentConfig`. Keeping them out is what makes `provider` a one-word switch rather than a second placement API.
 
@@ -149,6 +149,10 @@ Be precise about what has and has not been proven, because the gaps are where th
 
 **`distribution: kind` is fixed but NOT yet re-proven.** The first live kind build (kind1 → Proxmox LabUL, 2026-08-10) produced a cluster named `dev` and a deadlocked cilium — [#232](https://github.com/stuttgart-things/crossplane-configurations/issues/232), fixed in v0.2.1 by passing `kind_cluster_name`. The fix is covered by unit tests in the KCL module, not by a live build; until a kind `ClusterStack` reaches `status.ready: true` with `kubectl get nodes` `Ready` on the target, treat the kind path as unverified. The k3s chain below is the one with a live run behind it.
 
+**`distribution: rke2` (new in v0.3.0) is proven at the play level, not as a `ClusterStack`.** The catalog entry was written only after a reference run, as `xplane-cluster-catalog`'s `main.k` demands: on 2026-08-11 an `AnsibleRun` on the u26-kind3 machinery cluster drove `sthings.rke.rke2_cluster` against a Proxmox VM that same cluster had built and base-OS'd (VMID 132), and produced `v1.35.1+rke2r1` `Ready` with cilium up. So the vars, the inventory groups and the CNI ownership in the catalog are what a live run used — but the *chain* (one `ClusterStack` → VM → rke2 → kubeconfig upload → `ClusterAccess`) has not been driven end to end. Treat it exactly like kind: unverified until an rke2 `ClusterStack` reaches `status.ready: true`.
+
+Two values in that entry are pinned **against** the play's own defaults, deliberately: `rke2_k8s_version: 1.35.1` and `rke2_release_kind: rke2r1`, where `sthings.rke.rke2_cluster` defaults to 1.36.1 / rke2r2. Every rke2 cluster this fleet runs is on the former pair; shipping the play default would have pinned a combination nobody here has booted — the same trap the k3s entry already records.
+
 **Teardown needs two phases — and with them it is clean.** Deleting a `ClusterStack` that has a Platform child in one step does **not** work: a live run tore the whole tree down in parallel within about three seconds, the `ClusterAccess`'s `RemoteCluster` (owner of the kubeconfig Secret and both ClusterProviderConfigs) went while the Platform's own resources still needed those credentials, and four resources were left behind — a stuck `flux-instance` Object, a `flux-operator` Release that was never deleted at all, and both ClusterProviderConfigs.
 
 The `Usage` resources cannot prevent this. They are **composed children of the same XR**, so deleting the `ClusterStack` removes them in the same parallel sweep, and a Usage whose object is gone blocks nothing. Crossplane's own design note for the type describes this failure exactly (a cluster deleted before the Helm Release that lives on it) and enforces the relation through an admission webhook — a webhook that needs its rule object to still exist. The Usages are kept because they do work when a child is deleted on its own; they just cannot order the teardown of their own parent.
@@ -173,7 +177,7 @@ A `ClusterStack` with `platformEnabled: false` from the start tears down cleanly
 ## Not supported yet
 
 - **Multi-node.** `size: medium-ha` renders an error, by design: no distribution in the catalog declares a verified multi-node path. Tracked as [#170](https://github.com/stuttgart-things/crossplane-configurations/issues/170) (static addressing + aggregate gate) and [#171](https://github.com/stuttgart-things/crossplane-configurations/issues/171) (the API endpoint is a single node IP, so three masters would be HA in name only).
-- **rke2.** The fleet runs it through ansible, but no Crossplane path has built one — the catalog deliberately has no entry.
+- **Multi-node rke2.** The single-node path exists as of v0.3.0, but the catalog entry declares `multiNode = False` — not a statement about rke2 upstream (the fleet runs multinode rke2 through ansible today), but about this path: a `ClusterStack` composes one VM child, so N masters need N VMs, static addressing and an aggregate ready gate. Same open item as k3s, [#170](https://github.com/stuttgart-things/crossplane-configurations/issues/170).
 - **Day-2 scaling** — [#172](https://github.com/stuttgart-things/crossplane-configurations/issues/172).
 
 ## Local render
