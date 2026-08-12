@@ -57,6 +57,19 @@ Each Kustomization references an **existing** Flux source (`GitRepository` / `OC
 
 **Precedence:** `spec.apps[].*` > `spec.*` > `flux-apps-defaults` EnvironmentConfig > module fallback.
 
+### `postBuild` is always emitted (since v0.1.3 / module 0.2.0)
+
+Even for an app that sets neither `substitute` nor `substituteFrom`. It used to be conditional, and that was a trap worth knowing about because the failure looks like a manifest bug rather than a missing block:
+
+```
+Namespace/${OPENEBS_NAMESPACE:-openebs} dry-run failed (Invalid):
+metadata.name: Invalid value: "${OPENEBS_NAMESPACE:-openebs}"
+```
+
+`kustomize-controller` runs its variable-substitution pass **only when `spec.postBuild` is non-nil**. With no block at all, Flux never substitutes — so every `${VAR:-default}` fallback in the app's manifests silently stops being a fallback and the literal string is applied. An empty `substitute: {}` is enough to switch the pass on.
+
+Hit on `u26-rke2-1` (2026-08-12) enabling `openebs`, whose catalog entry declares *zero required substitutions* precisely because all its variables have manifest defaults — so the app most likely to be enabled bare was the one guaranteed to break. `substituteFrom` stays conditional, where an empty list would really mean a source list with no sources.
+
 ### Status
 
 | Field | Type | Description |
