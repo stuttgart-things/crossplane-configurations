@@ -207,6 +207,22 @@ kubectl delete clusterstack <name> -n <ns>
 
 Since v0.3.2 you cannot get this wrong by accident — skipping phase 1 is rejected, not silently mis-executed.
 
+**Played through end to end on `u26-rke2-1`, 2026-08-12, on v0.3.2** — an rke2 stack with a live Platform (Flux + cert-manager on the target), not a dry run:
+
+| step | result |
+|---|---|
+| Composition emits the guard | `stack-uses-platform`, `of: ClusterStack/u26-rke2-1`, `by: Platform/…`, `replayDeletion: false`; `crossplane.io/in-use=true` on the composite |
+| **real** `kubectl delete clusterstack` | rejected by the webhook. No `deletionTimestamp`, all three platform XRs still `Ready` — the command was a no-op, not a partial teardown |
+| phase 1 (`platformEnabled: false`) | ~80 s. Guard removed after ~16 s, Platform child finished ~60 s later. `access-uses-vm` correctly survived |
+| phase 2 (`kubectl delete`) | **22 seconds**, and zero leftovers |
+| Proxmox | VM 132 destroyed |
+
+Nothing was left behind: no ClusterStack, VM, AnsibleRuns, ClusterAccess, Usages, RemoteCluster, Objects, Releases, ClusterProviderConfigs, kubeconfig Secret or PipelineRuns. Only the two `in-cluster` ClusterProviderConfigs that belong to the management cluster remained.
+
+Compare the same command *before* the guard: on kind1 it tore the tree down in about three seconds and stranded four resources, reporting success.
+
+**One honest gap.** The guard clears as soon as the Composition stops emitting it, which is ~60 s *before* the Platform child finishes deleting. A `kubectl delete` fired inside that window is accepted and can still strand resources. That is exactly what the `kubectl wait --for=delete platform/<name>-platform` line above is for — the guard removes the silent failure from the common case, it does not remove the wait.
+
 Verified end to end on a live cluster: phase 1 removed the Platform child and its resources in 50 seconds with nothing wedged, and phase 2 left **zero** leftovers — no Objects, Releases, ClusterProviderConfigs, kubeconfig Secret, RemoteCluster or PipelineRuns, and the Proxmox VM destroyed.
 
 A `ClusterStack` with `platformEnabled: false` from the start tears down cleanly in one step; the two phases are only needed once a Platform child exists.
