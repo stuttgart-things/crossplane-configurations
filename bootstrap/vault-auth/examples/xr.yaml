@@ -13,7 +13,10 @@ spec:
   providerConfigKind: ClusterProviderConfig
 
   # Secret (same namespace as this XR) containing `terraform.tfvars` with
-  #   vault_token = "hvs...."
+  #   vault_role_id  = "...."
+  #   vault_secret_id = "...."
+  # AppRole, not a static token — the field name is historical. The AppRole
+  # needs `sudo` on `sys/auth/*`. See examples/vault-secret.yaml.
   vaultTokenSecret: vault # pragma: allowlist secret
   vaultTokenSecretKey: terraform.tfvars # pragma: allowlist secret
 
