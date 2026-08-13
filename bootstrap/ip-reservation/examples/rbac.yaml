@@ -1,10 +1,22 @@
 ---
+# CLUSTER PRECONDITION, not part of the package.
+#
 # RBAC for the in-cluster provider-kubernetes ServiceAccount. It observes
 # RemoteClusters (provider-kubeconfig) and manages IPReservations
-# (provider-clusterbook) on the management cluster. On the fleet clusters this
-# SA is cluster-admin and this is unnecessary; on tighter clusters grant it
-# explicitly (resolve the SA with:
-#   kubectl get sa -n crossplane-system -o name | grep provider-kubernetes).
+# (provider-clusterbook) on the management cluster.
+#
+# It does NOT apply where the provider's SA is already cluster-admin, which is
+# the case on the fleet clusters. Check before applying:
+#
+#   SA=$(kubectl get sa -n crossplane-system -o name | grep provider-kubernetes | head -1 | cut -d/ -f2)
+#   kubectl auth can-i patch remoteclusters.kubeconfig.stuttgart-things.com \
+#     --as=system:serviceaccount:crossplane-system:$SA
+#   kubectl auth can-i create ipreservations.ipreservation.clusterbook.stuttgart-things.com \
+#     --as=system:serviceaccount:crossplane-system:$SA
+#
+# Note the `patch` on remoteclusters: the Object that reads them is Observe-only,
+# but provider-kubernetes computes its desired state with a dry-run SSA patch,
+# and the API server authorizes that exactly like a real write (#242).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -17,6 +29,17 @@ rules:
     resources: ["ipreservations"]
     verbs: ["*"]
 ---
+# Binding system:serviceaccounts:crossplane-system covers whichever SA the
+# provider currently runs as. It is broader than one SA — every controller in
+# that namespace gets these verbs — which is acceptable for a namespace that
+# already hosts cluster-scoped infrastructure controllers, and is the pattern
+# the sibling remote-cluster Configuration already uses.
+#
+# It also makes this file applicable AS IS. It previously named the SA
+# literally, hash and all, with an XXXXXXXXXXXX placeholder to fill in — so
+# `kubectl apply -f` straight from the repo produced a binding to a subject that
+# does not exist, and the machinery play (which fetches these examples raw from
+# main) could not carry it at all.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -26,7 +49,6 @@ roleRef:
   kind: ClusterRole
   name: provider-kubernetes-ip-reservation
 subjects:
-  - kind: ServiceAccount
-    # Replace the hash with the actual provider-kubernetes SA (see header).
-    name: crossplane-contrib-provider-kubernetes-XXXXXXXXXXXX
-    namespace: crossplane-system
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: system:serviceaccounts:crossplane-system
