@@ -18,8 +18,19 @@ KCL module (pulled from OCI at render time).
   `spec.providerConfigName` (examples reference `default` — see
   [`examples/cluster-provider-config.yaml`](examples/cluster-provider-config.yaml)).
 - A Secret co-located in the XR's namespace holding `terraform.tfvars` with
-  `vault_token = "hvs...."` (name from `spec.vaultTokenSecret`, default
-  `vault` — see [`examples/vault-secret.yaml`](examples/vault-secret.yaml)).
+  `vault_role_id` and `vault_secret_id` (name from `spec.vaultTokenSecret`,
+  default `vault` — see
+  [`examples/vault-secret.yaml`](examples/vault-secret.yaml)). AppRole, **not**
+  a static token, despite the field name: the composed module declares both as
+  required variables and has no `vault_token` variable at all.
+- The AppRole must carry **`sudo` on `sys/auth/*`** — enabling an auth mount is
+  a root-protected operation. A wildcard policy without `sudo`
+  (`path "*" { capabilities = ["create","read","update","delete","list"] }`)
+  authenticates fine and then 403s on the mount, which reads like a broken
+  package rather than a missing capability.
+- That policy also needs **`delete` on `sys/auth/*`** if the XR is ever to be
+  deleted. Without it `tofu destroy` 403s, the Workspace hangs in its finalizer
+  and the Vault mount is orphaned — verified on kind3, 2026-08-13.
 
 ## Install
 
@@ -85,7 +96,7 @@ CONFIG=bootstrap/vault-auth XR=xr.yaml task render
 | `vaultAddr` | ✅ | — | Vault server URL. |
 | `skipTlsVerify` | | `true` | |
 | `kubernetesHost` | | `https://kubernetes.default.svc:443` | Used when any `k8sAuths` entry has `backendConfig`. |
-| `vaultTokenSecret` | | `vault` | Name of the Secret (same ns) holding `vault_token`. |
+| `vaultTokenSecret` | | `vault` | Name of the Secret (same ns) holding `vault_role_id` + `vault_secret_id`. AppRole, not a token — the field name is historical. |
 | `vaultTokenSecretKey` | | `terraform.tfvars` | |
 | `providerConfigName` | | `default` | OpenTofu `(Cluster)ProviderConfig` name. |
 | `providerConfigKind` | | `ClusterProviderConfig` | Or `ProviderConfig`. |

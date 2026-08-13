@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/version: v0.1.1
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -34,8 +34,13 @@ metadata:
       - An OpenTofu `ClusterProviderConfig` whose name matches the XR's
         `spec.providerConfigName` (examples reference `default`).
       - A Secret (co-located in the XR's namespace) holding
-        `terraform.tfvars` with `vault_token = "hvs...."` — name from
-        `spec.vaultTokenSecret` (default `vault`).
+        `terraform.tfvars` with `vault_role_id` + `vault_secret_id` — name
+        from `spec.vaultTokenSecret` (default `vault`). AppRole, not a static
+        token, despite the field name.
+      - The AppRole needs `sudo` AND `delete` on `sys/auth/*`. Enabling an
+        auth mount is root-protected, so a wildcard policy without `sudo`
+        403s; without `delete`, `tofu destroy` 403s and the mount is
+        orphaned.
       - When any `k8sAuths` entry sets `backendConfig`, the referenced
         ServiceAccount-token Secret must already exist (see README).
 spec:
