@@ -439,6 +439,23 @@ spec:
                             type: string
                         networkKey:
                           type: string
+                        fqdn:
+                          type: string
+                          description: >-
+                            Wildcard DNS name as clusterbook returned it, e.g.
+                            "*.<cluster>.<zone>". Kept verbatim beside `domain` so a
+                            wrong domain is traceable to the reservation rather than
+                            guessed at.
+                        zone:
+                          type: string
+                          description: DNS zone the wildcard was created in.
+                        domain:
+                          type: string
+                          description: >-
+                            `fqdn` reduced to the usable name — the leading "*." belongs
+                            to the DNS record, not the domain. This is what a Gateway
+                            listener hostname, a certificate CN or CILIUM_GATEWAY_DOMAIN
+                            wants. Absent (not blank) when the reservation carries no DNS.
                     cilium:
                       type: object
                       properties:
