@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.3.2
+    meta.crossplane.io/version: v0.3.3
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -80,6 +80,27 @@ spec:
       version: ">=v0.3.0"
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/flux-apps
       version: ">=v0.1.2"
+    # spec.ipReservation and spec.vaultIssuer compose child XRs too, so their
+    # XRDs have to be on the cluster for those toggles to converge. Declared
+    # here rather than installed by the machinery play: the package carries its
+    # own runtime surface instead of delegating it to an Ansible role.
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/ip-reservation
+      version: ">=v0.1.0"
+    # vaultIssuer composes both of these: VaultK8sAuth (the Vault k8s-auth
+    # mount) and VaultPkiSecret (CA bundle -> cert-manager namespace).
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/vault-auth
+      version: ">=v0.1.0"
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/vault-pki-secrets
+      version: ">=v0.1.4"
+    # NOT declared, deliberately:
+    #   - bootstrap/cilium — spec.cilium composes a Cilium XR, but the package
+    #     was never published. The Gateway path uses the flux/infra/cilium
+    #     catalog app via spec.apps instead (#248), so spec.cilium stays
+    #     unusable until someone publishes it.
+    #   - provider-clusterbook — ip-reservation classes it (and
+    #     provider-kubeconfig) as a fleet cluster precondition, not a package
+    #     dep, so it does not arrive transitively. The machinery play installs
+    #     it.
     # Providers the composed Configurations apply managed resources with.
     # Pulled transitively via the Configurations above; pinned here too so the
     # package states its full runtime surface.
@@ -87,11 +108,18 @@ spec:
       version: ">=v1.0.0,<v2.0.0"
     - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
       version: ">=v1.2.0,<v2.0.0"
+    # vault-auth drives Vault through OpenTofu. provider-opentofu is published
+    # only on the Upbound mirror.
+    - provider: xpkg.upbound.io/upbound/provider-opentofu
+      version: ">=v1.0.3,<v2.0.0"
     # Functions used by this Composition's pipeline (kcl, auto-ready) and by
-    # the composed Configurations' pipelines (environment-configs).
+    # the composed Configurations' pipelines (environment-configs,
+    # go-templating for vault-pki-secrets).
     - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
       version: ">=v0.12.0,<v0.13.0"
     - function: xpkg.crossplane.io/crossplane-contrib/function-environment-configs
       version: ">=v0.7.0,<v0.8.0"
     - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
       version: ">=v0.6.5,<v0.7.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-go-templating
+      version: ">=v0.12.1,<v0.13.0"
