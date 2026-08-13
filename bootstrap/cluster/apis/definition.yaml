@@ -318,6 +318,16 @@ spec:
                     cniOwnership:
                       type: string
                       description: Resolved from the catalog; explains the cni.enabled the Platform child received.
+                    domain:
+                      type: string
+                      description: >-
+                        The cluster's DNS domain, discovered by the ipReservation child
+                        two levels down and republished by platform. Same move as
+                        apiEndpoint: stated once where it is discovered, read everywhere
+                        else — a Gateway hostname or CILIUM_GATEWAY_DOMAIN reads it here
+                        instead of repeating it on the XR. Absent when ipReservation is
+                        off or carries no DNS; never published blank, because an empty
+                        domain substituted into a hostname looks valid and is not.
                 stages:
                   type: object
                   description: Per-stage readiness, in build order.
