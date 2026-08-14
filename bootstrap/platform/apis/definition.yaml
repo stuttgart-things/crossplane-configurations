@@ -353,6 +353,37 @@ spec:
                     issuerName:
                       type: string
                       default: vault-pki-k8s
+                    wildcardCertificate:
+                      type: object
+                      description: >-
+                        Issue `*.{domain}` through the ClusterIssuer above into a
+                        Secret a Gateway listener can reference. Opt-in, and
+                        additionally gated on the domain having been DISCOVERED by
+                        the ipReservation child — the certificate reads the same
+                        value the cilium substitutions do, so its CN and the
+                        listener hostname cannot disagree. Without a domain nothing
+                        is composed: a Certificate whose only dnsName is "*." is
+                        rejected, and a Gateway waiting on a Secret that never
+                        arrives is worse than one that was never asked to.
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        secretName:
+                          type: string
+                          default: wildcard-tls
+                          description: >-
+                            Name of the TLS Secret on the target, and of the
+                            Certificate itself. Must match what the Gateway
+                            listener names in certificateRefs — for the cilium
+                            catalog app that is CILIUM_GATEWAY_TLS_SECRET.
+                        namespace:
+                          type: string
+                          default: default
+                          description: >-
+                            Namespace on the target. cert-manager writes the Secret
+                            where the Certificate lives, and a Gateway can only
+                            reference one in its OWN namespace.
                     opentofuProviderConfigRef:
                       type: string
                       default: in-cluster
