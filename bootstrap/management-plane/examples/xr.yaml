@@ -1,0 +1,15 @@
+---
+# The realistic case: name the target cluster, take the fleet's package set.
+#
+# This is the whole surface for a normal management cluster. The package list —
+# 4 providers, 5 functions, 11 configurations, plus the 11 that arrive through
+# dependsOn — lives in the catalog, because it is the same on every management
+# cluster here and does not belong copied into each XR.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ManagementPlane
+metadata:
+  name: mgmt-1
+  namespace: default
+spec:
+  clusterName: mgmt-1
+  profile: machinery

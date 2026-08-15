@@ -1,0 +1,39 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: management-plane
+  labels:
+    crossplane.io/xrd: managementplanes.config.stuttgart-things.com
+    service: management-plane
+spec:
+  compositeTypeRef:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: ManagementPlane
+  mode: Pipeline
+  pipeline:
+    # Emit the Crossplane install, the package CRs and the in-cluster provider
+    # configs, and patch the XR status, in one pass. On the first reconcile
+    # `ocds` is empty, so status.ready starts false and converges.
+    #
+    # The logic lives in the xplane-management-plane KCL module (which depends
+    # on xplane-crossplane-catalog for the package set) rather than inline:
+    # inline KCL cannot be unit-tested, and the rules worth testing here are not
+    # cosmetic — the install ORDER is forced by CRDs (pkg.crossplane.io arrives
+    # with Crossplane, each ProviderConfig CRD with its provider), and every
+    # gate must be ONE-WAY. Not emitting a composed resource is how Crossplane
+    # deletes it, so a gate that closed again would uninstall the fleet's
+    # packages the moment the Crossplane Deployment blipped NotReady.
+    - step: management-plane
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: management-plane
+        spec:
+          source: oci://ghcr.io/stuttgart-things/xplane-management-plane:0.1.0
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready
