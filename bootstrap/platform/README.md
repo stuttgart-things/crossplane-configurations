@@ -120,16 +120,16 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.3.1` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-platform` KCL module | `0.3.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
-| `xplane-flux-catalog` KCL module | `0.2.1` | dependency of `xplane-platform` — the app definitions |
+| `platform` Configuration | `v0.3.10` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-platform` KCL module | `0.11.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `xplane-flux-catalog` KCL module | `0.8.0` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
 | `cni` Configuration | `>=v0.1.0` | `dependsOn` — pulled automatically |
 | `xplane-cni` KCL module | `0.1.0` | cni's Composition (OCI, pulled at render time) |
 | `flux-init` Configuration | `>=v0.3.0` | `dependsOn` — pulled automatically |
 | `xplane-flux-init` KCL module | `0.3.0` | flux-init's Composition (OCI, pulled at render time) |
 | `flux-apps` Configuration | `>=v0.1.2` | `dependsOn` — pulled automatically |
-| `xplane-flux-apps` KCL module | `0.1.0` | flux-apps' Composition (OCI, pulled at render time) |
+| `xplane-flux-apps` KCL module | `0.2.0` | flux-apps' Composition (OCI, pulled at render time) |
 | provider-helm | `>=v1.0.0,<v2.0.0` | `dependsOn` |
 | provider-kubernetes | `>=v1.2.0,<v2.0.0` | `dependsOn` |
 | function-kcl | `>=v0.12.0,<v0.13.0` | `dependsOn` |
@@ -261,15 +261,21 @@ spec:
 
 App definitions come from the [`xplane-flux-catalog`](https://github.com/stuttgart-things/kcl/tree/main/crossplane/xplane-flux-catalog) KCL module, which holds **structural facts only** — artifact URL, component paths, ordering, timeouts. Substitution *values* are environment-specific and belong on the XR (below), not in the catalog, which would otherwise drift from each app's README in stuttgart-things/flux.
 
-Catalogued as of `xplane-platform` v0.6.1 (catalog 0.4.0). `stuttgart-things/flux` publishes 40 artifacts; these are the ones a `Platform` can name:
+Catalogued as of `xplane-platform` 0.11.0 (catalog 0.8.0). `stuttgart-things/flux` publishes **48** artifacts across three directories — `apps/` (26), `infra/` (14) and `cicd/` (8); these are the ones a `Platform` can name:
 
 | app | needs | note |
 |---|---|---|
 | `cert-manager` | nothing | `selfsigned` and `approle-issuer` are opt-in components |
 | `trust-manager` | `cert-manager:install` | the catalog's only cross-artifact dependency |
 | `openebs` | **nothing** | the one entry that is complete as `openebs: {enabled: true}` |
-| `headlamp` | `DOMAIN`, `HOSTNAME`, `GATEWAY_NAME` | and a Gateway that already exists on the target |
+| `cilium` | `CILIUM_GATEWAY_TLS_SECRET` | config-only (component `config`, not `install`); the other three required variables are discovered — see below |
+| `headlamp` | `HOSTNAME`, `GATEWAY_NAME` | `DOMAIN` is discovered; needs a Gateway that already exists on the target |
+| `machinery` | `GATEWAY_NAME`, `MACHINERY_VERSION` | `DOMAIN` is discovered. The service that watches Crossplane resources — **not** the bootstrap play of the same name |
 | `dapr` | a Secret for `template-execution` | or disable that component |
+
+**`machinery` demands a version even though the artifact defaults one.** The default reads `1.13.4`, the published tags read `v1.13.4` — the `OCIRepository` never resolves and the failure does not name the default as the cause. Declaring it required turns that into a render-time rejection naming the variable. Drop it once [flux#193](https://github.com/stuttgart-things/flux/issues/193) lands.
+
+Values marked *discovered* come from `substitutionSources` on the catalog `Component`: the module reads them out of this XR's own `status.components` and only when the XR does not state them. An explicit value on the XR always wins. That is why `cilium`'s pool addresses and gateway domain, and `headlamp`'s and `machinery`'s `DOMAIN`, no longer appear on the XRs in this repo — they would only drift from the reservation that produced them.
 
 **`openebs` pins the flux artifact at `v1.19.1` for a reason.** The artifact pins the openebs *chart* separately as `OPENEBS_VERSION` (default `4.2.0`), and the chart changes shape at 4.5: `loki` and `alloy` become dependencies, **both defaulting to true**, and `localpv-provisioner` — the thing behind `openebs-hostpath` — becomes conditional. Before [flux#192](https://github.com/stuttgart-things/flux/pull/192) the artifact had no keys to turn any of that off, so raising `OPENEBS_VERSION` from an XR would have silently added a Loki StatefulSet, the MinIO StatefulSet backing it and an Alloy DaemonSet. Do not pin an older artifact tag.
 
