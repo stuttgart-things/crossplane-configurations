@@ -124,6 +124,28 @@ spec:
             _cloneDatastore = _vm?.cloneDatastore or _env?.cloneDatastore or ""
             _emitCloneDatastore = _cloneDatastore != "" and _cloneDatastore != "none"
 
+            # Node the TEMPLATE lives on, as opposed to the node the VM runs on.
+            # bpg splits these: forProvider.nodeName is the TARGET, and
+            # clone.nodeName is the SOURCE ("leave blank, if equal to the
+            # node_name argument"). Emitting only the target is what forces the
+            # two to be the same — so a template that moves takes every build
+            # with it, with an error that names neither:
+            #
+            #   unable to find configuration file for VM 211 on node 'ul-pve01'
+            #
+            # Hit for real on 2026-08-15, after the LabUL rebuild moved the
+            # ubuntu26 templates from ul-pve01 to ul-pve11. See #235.
+            #
+            # SAME SENTINEL DISCIPLINE AS cloneDatastore, and for the same
+            # reason: clone.nodeName is ForceNew. Adding templateNode to an
+            # EnvironmentConfig rewrites the clone block of every EXISTING VM
+            # under it — destroy + recreate, unattended where
+            # compositionUpdatePolicy is Automatic. Set `templateNode: none` on
+            # the XRs already built first, then add the real value to the
+            # EnvironmentConfig; new VMs pick it up, old ones stay exempt.
+            _templateNode = _vm?.templateNode or _env?.templateNode or ""
+            _emitTemplateNode = _templateNode != "" and _templateNode != "none"
+
             _providerConfigName = _spec?.providerConfigRef?.name or _env?.providerConfigName or "default"
             _providerConfigKind = _spec?.providerConfigRef?.kind or _env?.providerConfigKind or "ClusterProviderConfig"
 
@@ -278,6 +300,8 @@ spec:
                 full = True
                 if _emitCloneDatastore:
                     datastoreId = _cloneDatastore
+                if _emitTemplateNode:
+                    nodeName = _templateNode
             }] if str(_templateVmId) != "" else []
 
             # Network device (optional VLAN tag).

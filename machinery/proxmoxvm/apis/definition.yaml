@@ -99,6 +99,31 @@ spec:
                         VMID (not name) — resolve your template (e.g. sthings-u26)
                         to its VMID and set it here or, preferably, on the
                         EnvironmentConfig.
+                    templateNode:
+                      type: string
+                      description: |
+                        Node the TEMPLATE lives on (clone.nodeName), as opposed
+                        to `node`, which is where the VM RUNS. bpg treats them
+                        separately — "leave blank, if equal to the node_name
+                        argument" — and emitting only the target is what forces
+                        the two to be the same. A template that then moves takes
+                        every build with it, with an error naming neither:
+
+                          unable to find configuration file for VM 211 on node
+                          'ul-pve01'
+
+                        Hit for real after the LabUL rebuild moved the ubuntu26
+                        templates. Prefer setting it on the EnvironmentConfig:
+                        where a template lives is a fact about the template, not
+                        about the VM.
+
+                        SAME ROLLOUT TRAP AS cloneDatastore: clone.nodeName is
+                        ForceNew, so adding this to an EnvironmentConfig rewrites
+                        the clone block of every EXISTING VM under it — destroy +
+                        recreate, unattended where compositionUpdatePolicy is
+                        Automatic. Set `templateNode: none` on the XRs already
+                        built first, then add the real value to the
+                        EnvironmentConfig.
                     cloneDatastore:
                       type: string
                       description: |
