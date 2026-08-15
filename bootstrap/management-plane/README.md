@@ -100,15 +100,34 @@ Configurations it installs. They are applied as Objects onto a *different*
 cluster; pulling them onto this one would install the whole fleet's
 Configurations on the seed.
 
-## Not yet covered
+## RBAC
 
-**Cluster-scoped RBAC** — the `rbac.yaml` manifests from `remote-cluster` and
-`ip-reservation`, and the `cluster-admin` binding some providers need. The
-machinery play applies them from raw URLs today. Left out rather than guessed
-at: binding a provider ServiceAccount *by name* is exactly the trap
+One `ClusterRoleBinding`: the group `system:serviceaccounts:crossplane-system`
+to `cluster-admin`.
+
+**The group, not a ServiceAccount.** Crossplane's provider SAs carry a
+per-revision generated name, so binding one by name applies to nothing — and
+RBAC does not validate subjects, so it looks like it worked. That is the trap
 [#251](https://github.com/stuttgart-things/crossplane-configurations/issues/251)
-fixed — the name carries a generated hash — and the group-based alternative
-wants deciding.
+fixed.
+
+**`cluster-admin`, deliberately.** On a management cluster the providers create
+arbitrary cluster content; that is the job. The two narrower ClusterRoles the
+machinery play fetches from raw URLs (`provider-kubernetes-remote-cluster`,
+`provider-kubernetes-ip-reservation`) bind the *same group*, so this subsumes
+both — they stop being a precondition.
+
+Emitted alongside the Release rather than behind a gate:
+`rbac.authorization.k8s.io` is built in, so unlike everything else here it needs
+no CRD first, and the providers hold their permissions before the first reconcile
+rather than after a failed one.
+
+`spec.clusterAdminRbac: false` turns it off, for a cluster where something else
+grants the equivalent. Not a hardening knob — what it removes is the ability to
+reconcile anything at all. Without it the cluster has every XRD and can act on
+none of them, which presents as a hang rather than an error.
+
+## Not yet covered
 
 **Capability charts** are out and stay out: their values are per-environment,
 which is the line the catalog holds.
@@ -117,7 +136,7 @@ which is the line the catalog holds.
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `management-plane` Configuration | `v0.1.0` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-management-plane` KCL module | `0.1.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `management-plane` Configuration | `v0.2.0` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-management-plane` KCL module | `0.2.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
 | `xplane-crossplane-catalog` KCL module | `0.1.0` | dependency of the above — the package set |
 | Crossplane on the TARGET cluster | `2.3.3` | the `machinery` profile |
