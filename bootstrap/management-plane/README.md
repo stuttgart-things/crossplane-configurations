@@ -136,7 +136,7 @@ which is the line the catalog holds.
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `management-plane` Configuration | `v0.2.0` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-management-plane` KCL module | `0.2.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
-| `xplane-crossplane-catalog` KCL module | `0.1.0` | dependency of the above — the package set |
+| `management-plane` Configuration | `v0.2.1` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-management-plane` KCL module | `0.3.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `xplane-crossplane-catalog` KCL module | `0.2.0` | dependency of the above — the package set |
 | Crossplane on the TARGET cluster | `2.3.3` | the `machinery` profile |
