@@ -92,6 +92,29 @@ u26-kind1   true    ready      proxmox    k3s            https://10.31.102.108:6
 
 `spec.platformEnabled: false` stops once the cluster is targetable (ClusterAccess ready) — the useful shape for a machine that only needs to exist and be reachable. It is deliberately a **sibling** of `spec.platform` rather than a key inside it: `platform` is a verbatim passthrough of the `Platform` XRD's spec, and a block that preserves unknown fields must not also declare known ones, or schema converters emit `additionalProperties: false` and reject every passthrough key.
 
+## Making it a cluster that builds clusters
+
+`spec.managementPlaneEnabled: true` composes a **ManagementPlane** child alongside the Platform: Crossplane on the target, plus the providers, functions, configurations and in-cluster provider configs that let it build other clusters.
+
+```yaml
+spec:
+  provider: proxmox
+  distribution: rke2
+  managementPlaneEnabled: true
+  managementPlane:
+    profile: machinery
+```
+
+That is the whole seed→control-plane path in one XR: VM, base OS, rke2, kubeconfig, ClusterAccess, Platform **and** the control plane on top.
+
+**Default false**, unlike `platformEnabled`. Most stacks build workload clusters; a control plane is the exception, and installing Crossplane plus the fleet's twenty packages on a machine that did not ask for it is not a default anyone wants to discover.
+
+The child is gated on `ClusterAccess`, exactly like the Platform child — both need only the ClusterProviderConfigs and neither needs the other, so they install in parallel. `status.stage` gains `management-plane`, and `ready` now means *both* components are done; a disabled one counts as done rather than pending.
+
+What gets installed is not in this XR: it comes from a named profile in [`xplane-crossplane-catalog`](https://github.com/stuttgart-things/kcl/tree/main/crossplane/xplane-crossplane-catalog), because the package set is a fleet fact. See [management-plane](../management-plane/).
+
+`clusterName` is supplied by this Composition and a passed-through one **cannot** win — it is the one field this layer owns, and two sources would let the child point at a different cluster than the stack that built it.
+
 ## The API endpoint is derived, not copied
 
 When `platform.vaultIssuer` is enabled and `kubernetesHost` is unset, it is injected from `ClusterAccess`'s discovered `status.share.apiEndpoint`. Every `Platform` in the fleet states it by hand today — a literal node IP that goes stale the moment the machine is rebuilt with a new DHCP lease, and nothing notices until an issuer stops working.

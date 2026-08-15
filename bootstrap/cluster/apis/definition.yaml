@@ -265,6 +265,35 @@ spec:
                     key inside it: `platform` is a verbatim passthrough of
                     another XRD's spec, and `enabled` is this Configuration's own
                     switch, not a Platform field.
+                managementPlaneEnabled:
+                  type: boolean
+                  default: false
+                  description: >-
+                    Compose a ManagementPlane child — i.e. make this cluster one
+                    that BUILDS clusters, not one that runs workloads.
+
+                    Default false, unlike platformEnabled: a control plane is the
+                    exception, and installing Crossplane plus the fleet's twenty
+                    packages on a machine that did not ask for it is not a
+                    default anyone wants to discover.
+
+                    A SIBLING of `managementPlane` for the same reason
+                    platformEnabled is one — see below.
+                managementPlane:
+                  type: object
+                  description: >-
+                    Passed through to the ManagementPlane child verbatim
+                    (profile, crossplaneVersion, packageOverrides,
+                    clusterAdminRbac, …). `clusterName` is supplied by this
+                    Composition and cannot be overridden here: it is the one
+                    field this layer owns, and two sources would let the child
+                    point at a different cluster than the stack that built it.
+
+                    No properties are declared on purpose: a block that preserves
+                    unknown fields must not also declare known ones, or schema
+                    converters emit `additionalProperties: false` and reject
+                    every passthrough key.
+                  x-kubernetes-preserve-unknown-fields: true
                 platform:
                   type: object
                   description: >-
