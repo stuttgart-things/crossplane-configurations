@@ -67,6 +67,17 @@ spec:
   # passthrough of the Platform XRD's spec, and a preserve-unknown-fields block
   # that also declares known properties makes schema converters reject every
   # passthrough key.
+  # Make this cluster one that BUILDS clusters. Off by default — a control
+  # plane is the exception, not the norm.
+  managementPlaneEnabled: true
+  managementPlane:
+    # The package set comes from a named profile in xplane-crossplane-catalog,
+    # not from here: it is a fleet fact, version-controlled and unit-tested.
+    profile: machinery
+    # Bind the crossplane-system ServiceAccount GROUP to cluster-admin on the
+    # target. Default true, and turning it off is not a hardening knob — what it
+    # removes is the ability to reconcile anything at all.
+    clusterAdminRbac: true
   platformEnabled: true
   platform:
     fluxInit:

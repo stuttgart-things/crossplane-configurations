@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.3.3
+    meta.crossplane.io/version: v0.4.0
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -61,6 +61,12 @@ spec:
       version: ">=v0.1.0"
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/platform
       version: ">=v0.3.1"
+    # spec.managementPlaneEnabled composes a ManagementPlane child, so its XRD
+    # has to be on the cluster for that toggle to converge. Same reason platform
+    # is here. >=v0.2.0: v0.1.0 installs no RBAC, so a cluster built with it has
+    # every XRD and can reconcile none of them — a hang, not an error.
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/management-plane
+      version: ">=v0.2.0"
     - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
       version: ">=v0.12.0,<v0.13.0"
     - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
