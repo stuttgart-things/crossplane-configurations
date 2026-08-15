@@ -1,0 +1,34 @@
+---
+# Every field set, including the ones a normal cluster should not need.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ManagementPlane
+metadata:
+  name: mgmt-1
+  namespace: default
+spec:
+  # Explicit refs instead of deriving them from clusterName. clusterName is kept
+  # so the XR still says which cluster this is; the refs win.
+  clusterName: mgmt-1
+  helmProviderConfigRef: mgmt-1-helm
+  kubernetesProviderConfigRef: mgmt-1-kubernetes
+
+  profile: machinery
+
+  # Hold this cluster's core behind the fleet. Normally unset — the profile
+  # states the version the fleet runs.
+  crossplaneVersion: "2.3.3"
+
+  # Where Crossplane lands on the TARGET cluster.
+  namespace: crossplane-system
+
+  # Per-package escape hatch. Keyed by the CR NAME the catalog derives, not the
+  # short name — `platform` here would be rejected as unknown, which is the
+  # point: silently ignoring it would leave you believing a pin took effect.
+  #
+  # The value is the WHOLE reference. A tag-only override would keep the
+  # catalog's registry, and the registry is load-bearing: function-kcl sits on
+  # xpkg.upbound.io precisely because our dependsOn entries use
+  # xpkg.crossplane.io, and aligning the two freezes the package resolver.
+  packageOverrides:
+    stuttgart-things-crossplane-configurations-platform: ghcr.io/stuttgart-things/crossplane-configurations/platform:v0.3.11
+    stuttgart-things-crossplane-configurations-cluster: ghcr.io/stuttgart-things/crossplane-configurations/cluster:v0.3.3

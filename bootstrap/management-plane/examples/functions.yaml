@@ -1,0 +1,25 @@
+---
+# Short CR names on `xpkg.upbound.io` — BOTH halves matter, do not "modernise"
+# either one. The reasoning is the same as every other Configuration here and is
+# spelled out in bootstrap/platform/examples/functions.yaml: short names because
+# `functionRef` resolves by CR name, the upbound mirror because `dependsOn` uses
+# xpkg.crossplane.io and the package manager derives a long-named CR from it —
+# two Lock nodes with an identical source freeze the resolver for every package
+# on the cluster.
+#
+# `task apply-dev` skips this file unless you pass FUNCTIONS=1: the pins here
+# drift behind the fleet, so applying it to a live cluster can silently
+# DOWNGRADE a Function.
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: function-kcl
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-kcl:v0.12.0
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: function-auto-ready
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-auto-ready:v0.6.5

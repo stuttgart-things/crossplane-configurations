@@ -1,0 +1,11 @@
+---
+# Only the XRD-required field. Everything else comes from defaults:
+# profile=machinery, namespace=crossplane-system, and the provider config refs
+# derive as mgmt-1-helm / mgmt-1-kubernetes.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ManagementPlane
+metadata:
+  name: mgmt-1
+  namespace: default
+spec:
+  clusterName: mgmt-1
