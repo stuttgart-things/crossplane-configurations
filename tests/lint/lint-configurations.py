@@ -230,6 +230,65 @@ def check_functions(config: str, cdir: Path, f: Findings) -> None:
                             f"CLAUDE.md); do NOT 'modernise' to xpkg.crossplane.io")
 
 
+# A row of the root README's Configurations table:
+#   | <category> | [<name>](<path>/) | <version> | <description> | <OCI> |
+README_ROW = re.compile(
+    r"^\|\s*[a-z0-9-]+\s*\|\s*\[([^\]]+)\]\(([^)]+)\)\s*\|\s*(\S+)\s*\|"
+)
+
+# Version cell for a Configuration that exists in the repo but was never pushed.
+# Not a placeholder to be filled in later — it says "no OCI artifact exists".
+UNPUBLISHED = "—"
+
+
+def check_readme_table(root: Path, configs: list[Path], f: Findings) -> None:
+    """The root README's Configurations table must list every package, at its
+    real version.
+
+    Repo-level, not per-Configuration. `task push` bumps
+    meta.crossplane.io/version in the package and nothing updates the table, so
+    this drifts silently — by 2026-08 it was wrong for 11 of 26 rows and missing
+    3 packages entirely, which makes the table worse than no table: it reads as
+    authoritative while pointing at versions that were months old.
+
+    An error rather than a warning on purpose: the fix is one line, and only a
+    failing check reliably lands it in the same PR as the bump.
+    """
+    readme = root / "README.md"
+    if not readme.exists():
+        f.error("README.md", "missing")
+        return
+
+    listed: dict[str, str] = {}
+    for line in readme.read_text().splitlines():
+        m = README_ROW.match(line)
+        if m:
+            listed[m.group(2).rstrip("/")] = m.group(3)
+
+    for cdir in configs:
+        rel = str(cdir.relative_to(root))
+        if rel not in listed:
+            f.error("README.md", f"Configurations table has no row for {rel}")
+            continue
+        if listed[rel] == UNPUBLISHED:
+            continue
+        try:
+            meta = load_single(cdir / "crossplane.yaml")
+            actual = (meta.get("metadata", {}).get("annotations", {})
+                      or {}).get("meta.crossplane.io/version")
+        except Exception:
+            continue  # check_crossplane_meta reports the parse failure
+        if actual and listed[rel] != actual:
+            f.error("README.md",
+                    f"{rel}: table says {listed[rel]}, "
+                    f"crossplane.yaml says {actual}")
+
+    known = {str(c.relative_to(root)) for c in configs}
+    for path in sorted(set(listed) - known):
+        f.error("README.md",
+                f"table row {path} has no crossplane.yaml — stale or mistyped")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -252,6 +311,8 @@ def main() -> int:
         check_definition(config, cdir, f)
         check_composition(config, cdir, f)
         check_functions(config, cdir, f)
+
+    check_readme_table(root, configs, f)
 
     for w in f.warnings:
         print(f"WARN  {w}")

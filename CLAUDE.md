@@ -129,6 +129,7 @@ spec:
 
 - Verification pipeline (render + kubeconform + xpkg build) is tracked as a Dagger-side issue: [stuttgart-things/dagger#277](https://github.com/stuttgart-things/dagger/issues/277). Lands as `crossplane.Verify(...)` plus a `call-crossplane-verify.yaml` reusable workflow.
 - When adding new Configurations, update the **Configurations** table in [`README.md`](README.md) and add the per-Configuration README. Keep the table sorted by `category`, then `name`.
+- **The table is linted** (`tests/lint/lint-configurations.py`, ERROR level): every Configuration needs a row, and its version cell must equal `meta.crossplane.io/version`. So a `task push` bump belongs in the same PR as the table edit — which is the point, since the table had drifted on 11 of 26 rows before the check existed. A Configuration that is deliberately never published carries `—` in the version cell instead of a version.
 
 ## Related repos
 
