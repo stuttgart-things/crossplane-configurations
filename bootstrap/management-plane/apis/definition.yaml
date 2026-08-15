@@ -60,6 +60,20 @@ spec:
                   type: string
                   default: crossplane-system
                   description: Namespace Crossplane is installed into on the TARGET cluster.
+                clusterAdminRbac:
+                  type: boolean
+                  default: true
+                  description: >-
+                    Bind the group system:serviceaccounts:crossplane-system to
+                    cluster-admin on the target. THE GROUP, not a ServiceAccount:
+                    Crossplane's provider SAs carry a per-revision generated
+                    name, so binding one by name applies to nothing — and RBAC
+                    does not validate subjects, so it looks like it worked.
+                    cluster-admin because on a management cluster the providers
+                    create arbitrary cluster content; that is the job. Turning it
+                    off is for a cluster where something else grants the
+                    equivalent — it is not a hardening knob, since what it
+                    removes is the ability to reconcile anything at all.
                 packageOverrides:
                   type: object
                   additionalProperties:
@@ -109,6 +123,11 @@ spec:
                           type: integer
                         emitted:
                           type: integer
+                    rbac:
+                      type: object
+                      properties:
+                        clusterAdmin:
+                          type: boolean
                 transitive:
                   type: array
                   items:
