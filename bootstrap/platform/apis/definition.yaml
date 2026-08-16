@@ -518,6 +518,24 @@ spec:
                           type: integer
                         readyCount:
                           type: integer
+                        # Components held back this reconcile, waiting on a value
+                        # this same Composition still has to produce. Absent from
+                        # appCount, so without this list an app enabled on the XR
+                        # would not appear anywhere. Entries read
+                        # "{app}-{component}: {VARIABLE}".
+                        #
+                        # MUST stay in lockstep with what the module writes. This
+                        # schema is structural: an undeclared status field does
+                        # not get pruned, it fails the whole status apply with
+                        # `field not declared in schema`, and with it every
+                        # compose — Ready stays True on the stale result while
+                        # Synced goes False, so the XR looks healthy at a glance.
+                        # v0.3.15 shipped the field without this block and did
+                        # exactly that on kind3.
+                        pendingSubstitutions:
+                          type: array
+                          items:
+                            type: string
                     ipReservation:
                       type: object
                       properties:
