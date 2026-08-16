@@ -96,7 +96,8 @@ spec:
                           type: object
                           required:
                             - name
-                            - rules
+                            - kvMount
+                            - read
                           properties:
                             name:
                               type: string
@@ -104,12 +105,37 @@ spec:
                                 Suffix. The policy is named {clusterName}-{name},
                                 so two clusters granting the same kind of access
                                 do not collide on one Vault object.
-                            rules:
+                            kvMount:
                               type: string
+                              minLength: 1
                               description: >-
-                                HCL body, verbatim. The cluster's own subtree is
-                                the usual case:
-                                path "kv/data/<cluster>/*" { capabilities = ["read"] }
+                                The KV v2 mount the grants apply to, e.g.
+                                `clusters`. One mount per policy: a grant that
+                                spans mounts is two grants with two lifetimes.
+                            read:
+                              type: array
+                              minItems: 1
+                              description: >-
+                                Subtrees of kvMount to grant read on. The literal
+                                `own` expands to THIS cluster's subtree, and it is
+                                the only value that resolves to a cluster name — a
+                                cluster cannot spell a neighbour's name here and be
+                                granted it, it would get a subtree of that literal.
+                                A list because one cluster rarely wants one subtree:
+                                its own, plus whatever the role it plays grants it.
+                                The policy body itself is BUILT by the module, never
+                                supplied: free-form HCL plus the ability to bind the
+                                result to your own role is the right to grant
+                                yourself anything, and Vault cannot restrict what a
+                                policy body contains. See
+                                crossplane-configurations#285.
+                              items:
+                                type: string
+                                pattern: "^[a-z0-9][a-z0-9._-]*$"
+                                description: >-
+                                  A plain subtree name — no slash, glob or
+                                  traversal, so nothing can reach the path the
+                                  module anchors at {kvMount}/data/.
                       boundServiceAccountNamespaces:
                         type: array
                         items:

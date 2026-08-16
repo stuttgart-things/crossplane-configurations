@@ -84,16 +84,53 @@ k8sAuths:
     boundServiceAccountNamespaces: ["external-secrets"]
     policies:
       - name: kv-own
-        rules: |
-          path "kv/data/mgmt-test1/*" { capabilities = ["read"] }
+        kvMount: clusters
+        read: [own]
       - name: kv-cicd
-        rules: |
-          path "kv/data/cicd/*" { capabilities = ["read"] }
+        kvMount: clusters
+        read: [cicd]
 ```
 
 A **list**, because a cluster usually wants more than one: its own KV subtree,
 plus whatever the role it plays grants it. Those are separate grants with
 separate lifetimes, not one policy with a longer body.
+
+### The body is built here, not supplied
+
+`policies[]` took an HCL `rules` string until v0.3.0. It does not any more, and
+the reason is not tidiness: a free-form body plus the ability to bind the result
+to your own auth role is the right to grant yourself anything. A cluster could
+declare `path "clusters/*" { capabilities = ["read"] }` and read every other
+cluster's secrets. Restricting the policy **name** does not help — Vault cannot
+restrict what a policy body contains, so the body has to come from the module
+([#285](https://github.com/stuttgart-things/crossplane-configurations/issues/285)).
+
+What you configure is the part that is safe to configure. The example above
+becomes:
+
+```hcl
+path "clusters/data/mgmt-test1/*"     { capabilities = ["read"] }
+path "clusters/metadata/mgmt-test1/*" { capabilities = ["read", "list"] }
+path "clusters/data/cicd/*"           { capabilities = ["read"] }
+path "clusters/metadata/cicd/*"       { capabilities = ["read", "list"] }
+```
+
+- `own` is the **only** value that resolves to a cluster name. Writing a
+  neighbour's name there grants a subtree of that literal, which is not where
+  anyone's secrets live.
+- Subtree names are constrained to `^[a-z0-9][a-z0-9._-]*$`, so no slash, glob
+  or traversal reaches the path the module anchors.
+- Every path is anchored at `{kvMount}/data/` or `{kvMount}/metadata/`, every
+  capability list is a literal. No input reaches `sys/`, `auth/` or `sudo`.
+
+`metadata` gets `list` as well as `read` deliberately: without it `vault kv list`
+and the external-secrets `find` selector fail on a tree the token can otherwise
+read — which presents as a missing secret rather than a missing capability.
+
+Note that creating policies at all needs an approle allowed to write them, and
+the fleet's bootstrap approle is not (`sudo` on `sys/auth`, nothing on
+`sys/policies/acl`). Against `infra.sthings-vsphere`, keep using `tokenPolicies`
+against a policy created in the privileged Terraform.
 
 They are created in the **same OpenTofu plan** as the role that names them, and
 that is the whole point. Vault accepts a role referencing a policy that does not

@@ -33,13 +33,16 @@ spec:
     - name: eso
       boundServiceAccountNames: ["external-secrets"]
       boundServiceAccountNamespaces: ["external-secrets"]
+      # The body is BUILT from these — never supplied as HCL. `own` is the
+      # only value that becomes a cluster name, so a neighbour's name here
+      # grants a subtree of that literal and nothing else.
       policies:
         - name: kv-own
-          rules: |
-            path "kv/data/vcluster-tink2/*" { capabilities = ["read"] }
+          kvMount: kv
+          read: [own]
         - name: kv-cicd
-          rules: |
-            path "kv/data/cicd/*" { capabilities = ["read"] }
+          kvMount: kv
+          read: [cicd]
     - name: dev
       tokenPolicies: ["read-all-s3-kvv2", "read-write-all-s3-kvv2"]
       tokenTtl: 7200
