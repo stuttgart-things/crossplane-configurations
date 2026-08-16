@@ -1,0 +1,105 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ManagementPlane
+metadata:
+  name: mgmt-1
+  namespace: default
+status:
+  components:
+    crossplane:
+      ready: false
+      version: 2.3.3
+    packages:
+      ready: 0
+      total: 20
+    providerConfigs:
+      emitted: 0
+      total: 3
+    rbac:
+      clusterAdmin: true
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: mgmt-1-crossplane, mgmt-1-rbac'
+    reason: Creating
+    status: "False"
+    type: Ready
+  crossplaneVersion: 2.3.3
+  profile: machinery
+  ready: false
+  transitive:
+  - ansible-run
+  - cni
+  - flux-apps
+  - flux-init
+  - ip-reservation
+  - management-plane
+  - platform
+  - proxmoxvm
+  - remote-cluster
+  - vault-auth
+  - vault-pki-secrets
+  - vspherevm
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: mgmt-1-crossplane
+  labels:
+    crossplane.io/composite: mgmt-1
+  name: mgmt-1-crossplane
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ManagementPlane
+    name: mgmt-1
+    uid: ""
+spec:
+  forProvider:
+    chart:
+      name: crossplane
+      repository: https://charts.crossplane.io/stable
+      version: 2.3.3
+    namespace: crossplane-system
+    skipCreateNamespace: false
+    wait: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: mgmt-1-helm
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: mgmt-1-rbac
+  labels:
+    crossplane.io/composite: mgmt-1
+  name: mgmt-1-rbac
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ManagementPlane
+    name: mgmt-1
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: crossplane-providers-cluster-admin
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: system:serviceaccounts:crossplane-system
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: mgmt-1-kubernetes

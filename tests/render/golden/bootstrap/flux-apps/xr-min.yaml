@@ -43,6 +43,8 @@ spec:
       spec:
         interval: 1h
         path: ./apps/podinfo
+        postBuild:
+          substitute: {}
         prune: true
         retryInterval: 1m
         sourceRef:

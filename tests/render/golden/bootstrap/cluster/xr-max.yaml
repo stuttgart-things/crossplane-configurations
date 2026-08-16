@@ -28,6 +28,9 @@ status:
     kubeconfig:
       emitted: false
       succeeded: false
+    managementPlane:
+      emitted: false
+      ready: false
     platform:
       emitted: false
       ready: false
