@@ -377,6 +377,15 @@ spec:
                               names them: Vault accepts a role referencing a
                               policy that does not exist, and the token then
                               simply has no permissions, with no error anywhere.
+                              REQUIRES AN APPROLE THAT MAY WRITE POLICIES. The
+                              fleet's bootstrap approle may not — sudo on
+                              sys/auth only — and the resulting 403 on
+                              sys/policies/acl aborts the plan BEFORE the role is
+                              created, leaving a mount without a role. That
+                              surfaces far from its cause, as `invalid role name`
+                              at login. Against infra.sthings-vsphere use
+                              tokenPolicies and create the policy elsewhere; see
+                              crossplane-configurations#285.
                             items:
                               type: object
                               required:
