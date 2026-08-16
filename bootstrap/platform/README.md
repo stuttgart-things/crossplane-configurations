@@ -120,9 +120,9 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.3.12` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-platform` KCL module | `0.13.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
-| `xplane-flux-catalog` KCL module | `0.10.0` | dependency of `xplane-platform` — the app definitions |
+| `platform` Configuration | `v0.3.13` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-platform` KCL module | `0.15.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `xplane-flux-catalog` KCL module | `0.11.0` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
 | `cni` Configuration | `>=v0.1.0` | `dependsOn` — pulled automatically |
 | `xplane-cni` KCL module | `0.1.0` | cni's Composition (OCI, pulled at render time) |
@@ -272,7 +272,7 @@ Catalogued as of `xplane-platform` 0.13.0 (catalog 0.10.0). `stuttgart-things/fl
 | `headlamp` | `HOSTNAME`, `GATEWAY_NAME` | `DOMAIN` is discovered; needs a Gateway that already exists on the target |
 | `machinery` | `GATEWAY_NAME` | `DOMAIN` is discovered. The service that watches Crossplane resources — **not** the bootstrap play of the same name |
 | `dapr` | a Secret for `template-execution` | or disable that component |
-| `external-secrets` | nothing | `cluster-store-vault` is an opt-in component; its Vault defaults describe this fleet's usual mount |
+| `external-secrets` | nothing for `install` | `cluster-store-vault` is opt-in and needs an `eso` entry in `vaultIssuer.additionalAuths` — it discovers that mount rather than taking the artifact's default, which names one specific cluster |
 | `nfs-csi` | `NFS_SERVER_FQDN`, `NFS_SHARE_PATH` | facts about the network, not the cluster — nothing can discover them |
 | `vault` | `ISSUER_KIND`, `ISSUER_NAME`, `VAULT_INGRESS_HOSTNAME` | a Vault **on** this cluster, not the fleet's. `VAULT_INGRESS_DOMAIN` is discovered; `httproute` and `autounseal` are opt-in |
 
@@ -282,7 +282,42 @@ Values marked *discovered* come from `substitutionSources` on the catalog `Compo
 
 **`openebs` pins the flux artifact at `v1.19.1` for a reason.** The artifact pins the openebs *chart* separately as `OPENEBS_VERSION` (default `4.2.0`), and the chart changes shape at 4.5: `loki` and `alloy` become dependencies, **both defaulting to true**, and `localpv-provisioner` — the thing behind `openebs-hostpath` — becomes conditional. Before [flux#192](https://github.com/stuttgart-things/flux/pull/192) the artifact had no keys to turn any of that off, so raising `OPENEBS_VERSION` from an XR would have silently added a Loki StatefulSet, the MinIO StatefulSet backing it and an Alloy DaemonSet. Do not pin an older artifact tag.
 
-### Overrides
+#### A cluster that finds its own Vault
+
+`vaultIssuer.additionalAuths` creates further Kubernetes-auth mounts beside
+cert-manager's. external-secrets is why it exists — it needs a mount and role of
+its own, and reusing cert-manager's would hand a secrets reader the right to
+issue certificates.
+
+```yaml
+vaultIssuer:
+  enabled: true
+  pkiRole: sthings-vsphere
+  additionalAuths:
+    - name: eso
+      boundServiceAccountNames: ["external-secrets"]
+      boundServiceAccountNamespaces: ["external-secrets"]
+      policies:
+        - name: kv-own
+          rules: |
+            path "kv/data/mgmt-1/*" { capabilities = ["read"] }
+apps:
+  external-secrets:
+    components:
+      cluster-store-vault:
+        enabled: true
+```
+
+Nobody types a mount path. What Vault created lands on
+`status.components.vaultIssuer.auths`, keyed by name, and the catalog entry
+reads `vaultIssuer.auths.eso.mountPath` from there.
+
+The two variables are **required** despite the artifact defaulting them, and
+that is the point: the defaults name one specific cluster's mount, so on any
+other cluster they would authenticate against the wrong Vault while looking
+configured. Required, they are either discovered or rejected by name.
+
+## Overrides
 
 ```yaml
 apps:
