@@ -31,10 +31,13 @@ status:
       sourceCount: 0
       sourcesReady: false
     ipReservation:
+      domain: ""
       enabled: false
+      fqdn: ""
       ipAddresses: []
       networkKey: ""
       ready: false
+      zone: ""
     vaultIssuer:
       authReady: false
       caReady: false
