@@ -15,9 +15,21 @@ on:
     paths-ignore:
       - 'tests/**'
 
+# One run per branch. Without this a second push leaves the first run alive and
+# competing for dagger-labda, which is the runner every heavy job here shares —
+# and contention there is what turns a 30-second preview into a 20-minute one.
+#
+# PR runs only: a push to main must never cancel a run that is publishing.
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   discover:
-    runs-on: dagger-labda
+    # git diff + jq. Nothing here needs dagger or the self-hosted runner, and a
+    # slot on dagger-labda is the scarce resource.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       configs: ${{ steps.find.outputs.configs }}
     steps:
@@ -85,6 +97,7 @@ jobs:
   lint-invariants:
     name: Lint Configuration invariants
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -113,7 +126,14 @@ jobs:
   # ephemeral ttl.sh registry, then surface a copy-paste install manifest as a
   # sticky PR comment. ttl.sh is anonymous → no secrets, safe for fork PRs.
   preview:
-    needs: discover
+    # AFTER verify, not beside it. Both are dagger jobs on the same self-hosted
+    # runner, sharing one engine; running them together is what produced the
+    # 20-to-35-minute preview hangs seen on 2026-08-16, twice, on the same PR.
+    # Serialising costs the ~30 seconds verify takes and removes the contention.
+    #
+    # It also means no preview is built for a PR that does not verify, which is
+    # the case where nobody wants one.
+    needs: [discover, verify]
     if: github.event_name == 'pull_request' && needs.discover.outputs.configs != '[]'
     permissions:
       contents: read
@@ -122,6 +142,11 @@ jobs:
       matrix:
         config: ${{ fromJson(needs.discover.outputs.configs) }}
     runs-on: dagger-labda
+    # Without a timeout a hung job blocks the PR for GitHub's default of SIX
+    # HOURS. Observed twice on 2026-08-16: the job sat in_progress with no log
+    # output for 23 and 35 minutes and only a manual cancel + rerun cleared it.
+    # A cap turns that into a fast, visible failure someone can rerun.
+    timeout-minutes: 20
     env:
       # 24h is ttl.sh's maximum TTL — long enough to outlive a review cycle.
       TTL: "24h"
@@ -212,7 +237,9 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    runs-on: dagger-labda
+    # Downloads artifacts and posts a comment — no dagger involved.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/download-artifact@v8
         with:
