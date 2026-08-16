@@ -104,8 +104,8 @@ spec:
     pkiMount: pki
     pkiRole: sthings-vsphere
     tokenPolicies: ["pki-issue"]
-    approleSecret: vault-approle
-    caSourceSecret: vault-pki-source-ca
+    approleSecret: vault-approle # pragma: allowlist secret
+    caSourceSecret: vault-pki-source-ca # pragma: allowlist secret
     additionalAuths:
       - name: eso
         boundServiceAccountNames: ["external-secrets"]
