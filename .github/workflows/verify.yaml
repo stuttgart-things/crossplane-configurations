@@ -126,13 +126,14 @@ jobs:
   # ephemeral ttl.sh registry, then surface a copy-paste install manifest as a
   # sticky PR comment. ttl.sh is anonymous → no secrets, safe for fork PRs.
   preview:
-    # AFTER verify, not beside it. Both are dagger jobs on the same self-hosted
-    # runner, sharing one engine; running them together is what produced the
-    # 20-to-35-minute preview hangs seen on 2026-08-16, twice, on the same PR.
-    # Serialising costs the ~30 seconds verify takes and removes the contention.
+    # AFTER verify, not beside it — so no preview is built for a PR that does
+    # not verify, which is the case where nobody wants one.
     #
-    # It also means no preview is built for a PR that does not verify, which is
-    # the case where nobody wants one.
+    # This ordering was originally introduced to cure the long preview hangs of
+    # 2026-08-16, on the theory that two dagger jobs sharing one engine on
+    # dagger-labda were contending. That theory was WRONG, and the ordering did
+    # not cure anything — see the step timeout below for what actually hangs.
+    # Kept only for the reason above.
     needs: [discover, verify]
     if: github.event_name == 'pull_request' && needs.discover.outputs.configs != '[]'
     permissions:
@@ -142,11 +143,13 @@ jobs:
       matrix:
         config: ${{ fromJson(needs.discover.outputs.configs) }}
     runs-on: dagger-labda
-    # Without a timeout a hung job blocks the PR for GitHub's default of SIX
-    # HOURS. Observed twice on 2026-08-16: the job sat in_progress with no log
-    # output for 23 and 35 minutes and only a manual cancel + rerun cleared it.
-    # A cap turns that into a fast, visible failure someone can rerun.
+    # Backstop only — the step timeout below is what should fire. Without any
+    # timeout a hung job blocks the PR for GitHub's default of SIX HOURS.
     timeout-minutes: 20
+    # A preview is a convenience, not a gate: verify is what actually tests the
+    # Configuration. ttl.sh is a free anonymous registry with no uptime promise,
+    # and letting its bad days block a reviewed PR buys nothing.
+    continue-on-error: true
     env:
       # 24h is ttl.sh's maximum TTL — long enough to outlive a review cycle.
       TTL: "24h"
@@ -177,6 +180,27 @@ jobs:
 
       - name: Build & push ttl.sh preview
         id: push
+        # THE hang. Traced on 2026-08-16 (PR #279): the whole dagger pipeline —
+        # engine start, container, `crossplane xpkg build`, finished .xpkg — took
+        # FOUR SECONDS, and then
+        #
+        #   withExec crossplane xpkg push ttl.sh/…/flux-apps:24h
+        #
+        # produced not one further byte until the 20-minute job timeout killed
+        # it. Reproduced independently from a workstation at the same moment:
+        # ttl.sh's read path was healthy (`GET /v2/` 200 in 0.34s) while
+        # `POST /v2/<name>/blobs/uploads/` hung past 30s with zero bytes. The
+        # registry's write path was down; nothing here was at fault.
+        #
+        # `crossplane xpkg push` sets no client-side timeout, so it blocks
+        # forever. This cap turns a ttl.sh outage into a two-minute, clearly
+        # labelled failure instead of twenty minutes of an occupied runner.
+        #
+        # Note what this is NOT: it is not dagger contention, not the shared
+        # engine, not the runner. Those were the earlier theories and they cost
+        # a serialisation change that cured nothing. If previews hang again,
+        # check ttl.sh's blob-upload endpoint FIRST.
+        timeout-minutes: 2
         uses: dagger/dagger-for-github@27b130bf0f79a7f6fbbbe0fbca6760dc9bb40a77 # v8.4.1
         with:
           # Must match every other dagger job that can run on dagger-labda at
