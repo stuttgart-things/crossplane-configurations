@@ -120,9 +120,9 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.3.11` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-platform` KCL module | `0.12.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
-| `xplane-flux-catalog` KCL module | `0.9.0` | dependency of `xplane-platform` — the app definitions |
+| `platform` Configuration | `v0.3.12` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-platform` KCL module | `0.13.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `xplane-flux-catalog` KCL module | `0.10.0` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
 | `cni` Configuration | `>=v0.1.0` | `dependsOn` — pulled automatically |
 | `xplane-cni` KCL module | `0.1.0` | cni's Composition (OCI, pulled at render time) |
@@ -261,7 +261,7 @@ spec:
 
 App definitions come from the [`xplane-flux-catalog`](https://github.com/stuttgart-things/kcl/tree/main/crossplane/xplane-flux-catalog) KCL module, which holds **structural facts only** — artifact URL, component paths, ordering, timeouts. Substitution *values* are environment-specific and belong on the XR (below), not in the catalog, which would otherwise drift from each app's README in stuttgart-things/flux.
 
-Catalogued as of `xplane-platform` 0.12.0 (catalog 0.9.0). `stuttgart-things/flux` publishes **48** artifacts across three directories — `apps/` (26), `infra/` (14) and `cicd/` (8); these are the ones a `Platform` can name:
+Catalogued as of `xplane-platform` 0.13.0 (catalog 0.10.0). `stuttgart-things/flux` **publishes 40** artifacts — `apps/` (26) and `infra/` (14). A third directory, `cicd/` (8: argo-cd, crossplane, tekton, komoplane, kro, …), exists in git but is **not published**: the release workflow enumerates `find apps infra -mindepth 1`, so those components have no OCI artifact and cannot be catalogued at all. These are the ones a `Platform` can name:
 
 | app | needs | note |
 |---|---|---|
@@ -272,6 +272,9 @@ Catalogued as of `xplane-platform` 0.12.0 (catalog 0.9.0). `stuttgart-things/flu
 | `headlamp` | `HOSTNAME`, `GATEWAY_NAME` | `DOMAIN` is discovered; needs a Gateway that already exists on the target |
 | `machinery` | `GATEWAY_NAME` | `DOMAIN` is discovered. The service that watches Crossplane resources — **not** the bootstrap play of the same name |
 | `dapr` | a Secret for `template-execution` | or disable that component |
+| `external-secrets` | nothing | `cluster-store-vault` is an opt-in component; its Vault defaults describe this fleet's usual mount |
+| `nfs-csi` | `NFS_SERVER_FQDN`, `NFS_SHARE_PATH` | facts about the network, not the cluster — nothing can discover them |
+| `vault` | `ISSUER_KIND`, `ISSUER_NAME`, `VAULT_INGRESS_HOSTNAME` | a Vault **on** this cluster, not the fleet's. `VAULT_INGRESS_DOMAIN` is discovered; `httproute` and `autounseal` are opt-in |
 
 **`machinery` costs a single typed value.** It used to demand a version too, because the artifact's own default was wrong (`1.13.4` against published tags of `v1.13.4`, so the `OCIRepository` never resolved and the failure did not name the version as the cause). [flux#193](https://github.com/stuttgart-things/flux/issues/193) fixed that and made the artifact ship its watch set as a file, so enabling the app is now enough — before, the service came up watching `StoragePlatform` and `NetworkIntegration`, a dashboard but not this fleet's.
 
