@@ -91,6 +91,18 @@ spec:
 
   Two rounds were enough there, and health returned within a minute of the last delete. **Check first that the long-named CR does not own the XRDs** (`kubectl get xrd <x> -o jsonpath='{.metadata.ownerReferences}'`) — in that incident they belonged to the short-named chain, which is what made deleting safe.
 
+  **It needs BOTH a short name and a dependent.** Six upgrades on kind3, 2026-08-16: `flux-apps`, `proxmoxvm` and `platform` (four times) each fired the collision, and each was cured by exactly ONE delete of the long-named duplicate — never a second round. Upgrading the LONG-named CR (`stuttgart-things-crossplane-configurations-vault-auth` v0.2.0 → v0.3.0) produced no duplicate at all, because the package manager derives that same name and has nothing to add. And `cluster` — short-named, but nothing `dependsOn` it, since it sits at the top of the chain — upgraded with no duplicate either. So the trigger is a short-named CR that something else depends on: the resolver briefly sees an unsatisfied dependency and installs a long-named one to fill it. That makes an upgrade predictable rather than a gamble: short name WITH a dependent → expect one round; long name, or nothing depending on it → expect nothing.
+
+  A routine that works, rather than improvising each time:
+
+  ```bash
+  kubectl patch configuration.pkg <short> --type=merge -p '{"spec":{"package":"<ref>:<new>"}}'
+  sleep 30
+  kubectl get lock lock -o json | jq -r '.packages[].source' | sort | uniq -d       # the duplicate
+  kubectl get xrd <x> -o jsonpath='{.metadata.ownerReferences}'                     # must be the SHORT chain
+  kubectl delete configuration.pkg stuttgart-things-crossplane-configurations-<name>
+  ```
+
   **So every `examples/functions.yaml` pins `xpkg.upbound.io`, deliberately.** Our `dependsOn` entries all use `xpkg.crossplane.io`, and the package manager derives a long CR name from that path — so a short-named CR on the *same* registry is the collision above, by construction. The differing mirror is load-bearing, not legacy drift. Do not "modernise" these to `xpkg.crossplane.io`; the rule in the section above ("use the crossplane.io path for new work") is about `dependsOn`, not about Function CRs we author.
 
   **`task apply-dev` no longer applies `examples/functions.yaml` unless you pass `FUNCTIONS=1`.** It used to, and that made the task destructive against any fleet cluster in two ways — hit for real on kind1, 2026-07-20, which took all six Functions to `Healthy=False`:
