@@ -330,6 +330,67 @@ spec:
                       items:
                         type: string
                       description: Vault policies for the auth role (default ["pki-issue"])
+                    additionalAuths:
+                      type: array
+                      description: >-
+                        Further Kubernetes-auth mounts beside cert-manager's,
+                        each with its own bound ServiceAccount and its own
+                        policies.
+
+                        external-secrets is why this exists: it needs a mount
+                        and role of its own. Reusing cert-manager's would hand a
+                        secrets reader the right to issue certificates.
+
+                        Each entry appears on status.components.vaultIssuer.auths
+                        keyed by name once Vault has created it, which is what
+                        lets a catalog app discover its own cluster's mount
+                        instead of being told the name by hand.
+                      items:
+                        type: object
+                        required:
+                          - name
+                        properties:
+                          name:
+                            type: string
+                            description: >-
+                              Mount path becomes {clusterName}-{name}, role
+                              becomes {name}.
+                          boundServiceAccountNames:
+                            type: array
+                            items:
+                              type: string
+                          boundServiceAccountNamespaces:
+                            type: array
+                            items:
+                              type: string
+                          tokenPolicies:
+                            type: array
+                            items:
+                              type: string
+                            description: Policies that already exist in Vault.
+                          policies:
+                            type: array
+                            description: >-
+                              Policies to CREATE for this auth, named
+                              {clusterName}-{name} and appended to tokenPolicies.
+                              Created in the same OpenTofu plan as the role that
+                              names them: Vault accepts a role referencing a
+                              policy that does not exist, and the token then
+                              simply has no permissions, with no error anywhere.
+                            items:
+                              type: object
+                              required:
+                                - name
+                                - rules
+                              properties:
+                                name:
+                                  type: string
+                                rules:
+                                  type: string
+                                  description: >-
+                                    HCL body. The cluster's own subtree is the
+                                    usual case, plus whatever the role it plays
+                                    grants it.
                     kubernetesHost:
                       type: string
                       description: Target API host for the Vault mount config (kubernetes_host)
@@ -513,6 +574,19 @@ spec:
                           type: boolean
                         issuerReady:
                           type: boolean
+                        auths:
+                          type: object
+                          description: >-
+                            What Vault actually created, keyed by auth name —
+                            mountPath, role and the policies created for it.
+
+                            Keyed rather than listed on purpose: this is what a
+                            catalog `substitutionSources` path addresses
+                            (vaultIssuer.auths.eso.mountPath), and an index would
+                            break the moment someone reorders additionalAuths —
+                            silently pointing external-secrets at cert-manager's
+                            mount.
+                          x-kubernetes-preserve-unknown-fields: true
                 componentCount:
                   type: integer
                   description: Number of enabled components

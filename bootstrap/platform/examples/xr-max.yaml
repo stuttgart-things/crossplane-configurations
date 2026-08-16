@@ -94,3 +94,29 @@ spec:
           substituteFrom:
             - kind: Secret
               name: dapr-backstage-template-execution-vars
+
+  # Tokenless cert-manager -> Vault-PKI issuer, plus a SECOND auth for
+  # external-secrets. Two mounts rather than one on purpose: reusing
+  # cert-manager's would hand a secrets reader the right to issue certificates.
+  vaultIssuer:
+    enabled: true
+    vaultAddr: https://vault.example.com
+    pkiMount: pki
+    pkiRole: sthings-vsphere
+    tokenPolicies: ["pki-issue"]
+    approleSecret: vault-approle # pragma: allowlist secret
+    caSourceSecret: vault-pki-source-ca # pragma: allowlist secret
+    additionalAuths:
+      - name: eso
+        boundServiceAccountNames: ["external-secrets"]
+        boundServiceAccountNamespaces: ["external-secrets"]
+        # Created in the same OpenTofu plan as the role that names them. The
+        # cluster's own subtree, plus the cicd tree it reads by virtue of the
+        # role it plays — separate grants, separate lifetimes.
+        policies:
+          - name: kv-own
+            rules: |
+              path "kv/data/staging/*" { capabilities = ["read"] }
+          - name: kv-cicd
+            rules: |
+              path "kv/data/cicd/*" { capabilities = ["read"] }
