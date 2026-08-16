@@ -659,15 +659,15 @@ spec:
                 ready:
                   type: boolean
                   description: True when every enabled component is Ready
-      # Ready alone is misleading here: a component held back waiting on a value
-      # this Composition still has to produce is absent from appCount, so
-      # readyCount == appCount stays true while something the XR asked for is
-      # missing. PENDING is what makes that visible where people actually look
-      # — `kubectl get platform`, not `describe` (#284).
+      # No READY or AGE column here on purpose. Crossplane appends SYNCED, READY,
+      # COMPOSITION and AGE to every composite by itself, so those would be
+      # duplicates — and the READY one would CONTRADICT: ours comes from
+      # status.ready, which each module aggregates over a chosen SUBSET of its
+      # composed resources, while Crossplane's covers all of them. Two columns
+      # of the same name disagreeing is worse than one column less; a
+      # ManagementPlane sat at our-READY=true / Crossplane-READY=False for 30
+      # hours with an unready ProviderConfig. See #288 and #292.
       additionalPrinterColumns:
-        - name: READY
-          type: boolean
-          jsonPath: .status.ready
         - name: COMPONENTS
           type: string
           jsonPath: .status.componentCount
