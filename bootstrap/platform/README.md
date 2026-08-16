@@ -120,7 +120,7 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.3.16` | [`crossplane.yaml`](crossplane.yaml) |
+| `platform` Configuration | `v0.3.17` | [`crossplane.yaml`](crossplane.yaml) |
 | `xplane-platform` KCL module | `0.17.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
 | `xplane-flux-catalog` KCL module | `0.12.0` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
@@ -297,16 +297,47 @@ vaultIssuer:
     - name: eso
       boundServiceAccountNames: ["external-secrets"]
       boundServiceAccountNamespaces: ["external-secrets"]
-      policies:
-        - name: kv-own
-          rules: |
-            path "kv/data/mgmt-1/*" { capabilities = ["read"] }
+      tokenPolicies: ["mgmt-1-secrets"]     # created elsewhere — see below
 apps:
   external-secrets:
     components:
       cluster-store-vault:
         enabled: true
 ```
+
+##### `tokenPolicies`, not `policies`, against `infra.sthings-vsphere`
+
+`additionalAuths[].policies` asks the same OpenTofu plan to **create** the
+policy. That works only where the approle may write policies, and the fleet's
+bootstrap approle may not:
+
+```
+PUT https://vault.infra.sthings-vsphere.labul.sva.de/v1/sys/policies/acl/mgmt-test1-secrets
+Code: 403 — permission denied
+```
+
+It has `sudo` on `sys/auth` — enough to create mounts — and nothing on
+`sys/policies/acl/*`.
+
+**The failure does not look like a permission problem.** OpenTofu stops at the
+first error, and the role depends on the policy through `token_policies`, so the
+**mount is created and the role is not**. What you then see is external-secrets
+reporting
+
+```
+PUT /v1/auth/mgmt-test1-eso/login → 400: invalid role name "eso"
+```
+
+which sends you looking at role names and mount paths, two levels away from the
+cause. The real message sits gzip+base64-encoded inside the Workspace's
+`Synced` condition. Hit on `mgmt-test1`, 2026-08-16
+([#285](https://github.com/stuttgart-things/crossplane-configurations/issues/285)).
+
+So point `tokenPolicies` at a policy created outside this Configuration — the
+way `u26-rke2-1` does, whose `u26-rke2-1-secrets` comes from the Terraform under
+`stuttgart-things/clusters/labul/vsphere/infra-sthings`. Vault accepts a role
+naming a policy that does not exist; the token simply carries no permissions,
+silently, so create the policy before you rely on reading anything.
 
 Nobody types a mount path. What Vault created lands on
 `status.components.vaultIssuer.auths`, keyed by name, and the catalog entry
