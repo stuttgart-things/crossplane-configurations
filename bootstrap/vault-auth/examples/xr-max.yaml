@@ -24,6 +24,22 @@ spec:
   vaultTokenSecretKey: terraform.tfvars # pragma: allowlist secret
 
   k8sAuths:
+    # An auth that CREATES its policies, alongside the ones it merely
+    # references. Two of them, because a cluster usually wants more than one:
+    # its own KV subtree, plus whatever the role it plays grants it. They are
+    # created in the same OpenTofu plan as the role that names them — Vault
+    # accepts a role referencing a policy that does not exist, and the token
+    # then simply has no permissions, with no error anywhere.
+    - name: eso
+      boundServiceAccountNames: ["external-secrets"]
+      boundServiceAccountNamespaces: ["external-secrets"]
+      policies:
+        - name: kv-own
+          rules: |
+            path "kv/data/vcluster-tink2/*" { capabilities = ["read"] }
+        - name: kv-cicd
+          rules: |
+            path "kv/data/cicd/*" { capabilities = ["read"] }
     - name: dev
       tokenPolicies: ["read-all-s3-kvv2", "read-write-all-s3-kvv2"]
       tokenTtl: 7200
