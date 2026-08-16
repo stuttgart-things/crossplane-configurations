@@ -72,6 +72,70 @@ kubectl apply -f apis/composition.yaml
    kubectl get workspaces.opentofu.m.upbound.io -A
    ```
 
+## Policies: created, not assumed
+
+`tokenPolicies` **references** policies that already exist in Vault. `policies`
+**creates** them, named `{clusterName}-{name}` and appended to `tokenPolicies`:
+
+```yaml
+k8sAuths:
+  - name: eso
+    boundServiceAccountNames: ["external-secrets"]
+    boundServiceAccountNamespaces: ["external-secrets"]
+    policies:
+      - name: kv-own
+        rules: |
+          path "kv/data/mgmt-test1/*" { capabilities = ["read"] }
+      - name: kv-cicd
+        rules: |
+          path "kv/data/cicd/*" { capabilities = ["read"] }
+```
+
+A **list**, because a cluster usually wants more than one: its own KV subtree,
+plus whatever the role it plays grants it. Those are separate grants with
+separate lifetimes, not one policy with a longer body.
+
+They are created in the **same OpenTofu plan** as the role that names them, and
+that is the whole point. Vault accepts a role referencing a policy that does not
+exist — the token then simply has no permissions, with no error at creation,
+nothing in the audit trail pointing at the cause, and a consumer that reports
+403 as if it were a network problem. In one plan the role references the policy
+resource, so tofu orders creation and reverses it on destroy.
+
+The names are derived rather than typed, so they cannot be misspelled into that
+same silence.
+
+**The AppRole needs `sys/policies/acl/*` write** for this. Without it the
+Workspace fails at apply with a permission error, which is at least loud.
+
+## What the XR publishes
+
+`status.share.auths[]`, lifted from the Workspace outputs:
+
+```yaml
+status:
+  share:
+    clusterName: mgmt-test1
+    vaultAddr: https://vault.example
+    ready: true
+    auths:
+      - name: eso
+        workspace: mgmt-test1-eso-vault-auth
+        ready: true
+        mountPath: mgmt-test1-eso          # what Vault actually created
+        role: eso
+        policies: [mgmt-test1-kv-own, mgmt-test1-kv-cicd]
+```
+
+`mountPath`, `role` and `policies` are **absent** while the Workspace is still
+applying — never published empty. A consumer resolving a substitution source to
+`""` would send a blank mount path to Vault, and Vault answers that with a 403
+that names nothing: the value looks supplied and is not. Absent is a state a
+consumer can act on.
+
+This is what lets external-secrets discover its own cluster's Vault mount rather
+than being told it by hand.
+
 ## Development
 
 ### Render the Composition

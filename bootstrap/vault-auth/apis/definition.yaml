@@ -71,6 +71,45 @@ spec:
                         items:
                           type: string
                         default: ["default"]
+                      policies:
+                        type: array
+                        description: >-
+                          Vault policies to CREATE for this auth, each named
+                          {clusterName}-{name} and appended to tokenPolicies.
+
+                          A list because a cluster usually wants more than one:
+                          its own KV subtree, plus whatever the role it plays
+                          grants it — a cluster with the cicd profile reads the
+                          cicd tree as well as its own. Separate grants with
+                          separate lifetimes, not one policy with a longer body.
+
+                          Created in the SAME OpenTofu plan as the role that
+                          names them, which is the point: Vault accepts a role
+                          referencing a policy that does not exist, and the
+                          token then simply has no permissions — no error at
+                          creation, nothing in the audit trail, and a consumer
+                          reporting 403 as if it were a network problem.
+
+                          Leave unset to keep referencing policies that already
+                          exist in Vault, via tokenPolicies.
+                        items:
+                          type: object
+                          required:
+                            - name
+                            - rules
+                          properties:
+                            name:
+                              type: string
+                              description: >-
+                                Suffix. The policy is named {clusterName}-{name},
+                                so two clusters granting the same kind of access
+                                do not collide on one Vault object.
+                            rules:
+                              type: string
+                              description: >-
+                                HCL body, verbatim. The cluster's own subtree is
+                                the usual case:
+                                path "kv/data/<cluster>/*" { capabilities = ["read"] }
                       boundServiceAccountNamespaces:
                         type: array
                         items:
@@ -113,4 +152,16 @@ spec:
               properties:
                 share:
                   type: object
+                  description: >-
+                    What the auth actually created, lifted from the OpenTofu
+                    Workspace outputs. Until v0.2.0 a VaultK8sAuth reported
+                    readiness and nothing else, so anything wanting to USE the
+                    mount had to be told its name by hand — which is what blocks
+                    external-secrets from discovering its own cluster's Vault.
+
+                    mountPath, role and policies are ABSENT while the Workspace
+                    is still applying, never published empty: a consumer
+                    resolving a substitution source to "" would send a blank
+                    mount path to Vault, and Vault answers that with a 403 that
+                    names nothing.
                   x-kubernetes-preserve-unknown-fields: true
