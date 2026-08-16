@@ -141,7 +141,19 @@ spec:
                           - secretName
                     required:
                       - name
-                      - tokenPolicies
+                    x-kubernetes-validations:
+                      # tokenPolicies was required until v0.2.0, when `policies`
+                      # arrived: an auth that CREATES its policies references
+                      # none, and forcing it to write `tokenPolicies: []` is
+                      # noise that reads like a mistake.
+                      #
+                      # One of the two is still required, because an auth with
+                      # neither grants nothing but looks configured — the role
+                      # is created, the token carries only Vault's `default`
+                      # policy, and the failure surfaces later as a 403 from
+                      # whatever tried to use it.
+                      - rule: "has(self.tokenPolicies) || has(self.policies)"
+                        message: an auth must reference policies (tokenPolicies) or create them (policies) — one with neither is created successfully and can do nothing
               required:
                 - clusterName
                 - vaultAddr
