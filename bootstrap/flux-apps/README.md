@@ -66,9 +66,25 @@ Namespace/${OPENEBS_NAMESPACE:-openebs} dry-run failed (Invalid):
 metadata.name: Invalid value: "${OPENEBS_NAMESPACE:-openebs}"
 ```
 
-`kustomize-controller` runs its variable-substitution pass **only when `spec.postBuild` is non-nil**. With no block at all, Flux never substitutes — so every `${VAR:-default}` fallback in the app's manifests silently stops being a fallback and the literal string is applied. An empty `substitute: {}` is enough to switch the pass on.
+`kustomize-controller` runs its variable-substitution pass **only when `spec.postBuild` is non-nil**. With no block at all, Flux never substitutes — so every `${VAR:-default}` fallback in the app's manifests silently stops being a fallback and the literal string is applied.
 
 Hit on `u26-rke2-1` (2026-08-12) enabling `openebs`, whose catalog entry declares *zero required substitutions* precisely because all its variables have manifest defaults — so the app most likely to be enabled bare was the one guaranteed to break. `substituteFrom` stays conditional, where an empty list would really mean a source list with no sources.
+
+### …and `substitute` is never empty (since v0.1.4 / module 0.3.0)
+
+v0.1.3 emitted `postBuild` unconditionally but left `substitute` an empty map, on the assumption that a *present* `postBuild` was the whole condition. It was not: on `u26-rke2-1` the stored Kustomization carried `postBuild` and openebs still applied the literal `${OPENEBS_NAMESPACE:-openebs}`. An empty map does not survive the trip from KCL output through the Object to the stored resource, so what Flux read back was the nil block again — the exact bug, one layer down.
+
+So a bare app now gets one key that exists only to keep the map non-empty:
+
+```yaml
+postBuild:
+  substitute:
+    XPLANE_FLUX_APPS: substitution-marker
+```
+
+It is deliberately visible and deliberately named: it appears in `kubectl get kustomization -o yaml` on every app this Configuration deploys, and the name says who put it there. A variable no manifest references costs nothing to substitute.
+
+The marker key must not start with an underscore. The first attempt called it `_XPLANE_FLUX_APPS`, and KCL treats underscore-prefixed attributes as private and drops them from the output — reproducing the empty map, and with it the very bug being fixed. There is a test for that alone.
 
 ### Status
 
