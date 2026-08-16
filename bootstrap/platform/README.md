@@ -120,8 +120,8 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.3.17` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-platform` KCL module | `0.17.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `platform` Configuration | `v0.4.0` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-platform` KCL module | `0.18.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
 | `xplane-flux-catalog` KCL module | `0.12.0` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
 | `cni` Configuration | `>=v0.1.0` | `dependsOn` — pulled automatically |
@@ -425,11 +425,27 @@ They are absent from `appCount`, so they are named on the status; without that a
 status:
   components:
     fluxApps:
+      pendingCount: 1
       pendingSubstitutions:
         - "external-secrets-cluster-store-vault: VAULT_K8S_AUTH_MOUNT_PATH"
 ```
 
 The list is expected to empty out on its own. One that stays put names both the variable and the component that wants it.
+
+Since v0.4.0 the count also has a printer column, because a status field on a
+green object goes unread — `readyCount == appCount` stays true while a held-back
+component is missing, so the XR looks finished:
+
+```console
+$ kubectl get platform
+NAME                  READY   COMPONENTS   PENDING   CLUSTER
+mgmt-test1-platform   true    4            1         mgmt-test1
+```
+
+`ready` is deliberately **not** flipped by a pending component. It means "what is
+there works", and the deferral exists precisely so a transient wait does not
+paint everything red. A `PendingSubstitutions` condition carries the same fact
+for tooling and `kubectl describe`.
 
 ## Adding a component
 

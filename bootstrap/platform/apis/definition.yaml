@@ -377,29 +377,57 @@ spec:
                               names them: Vault accepts a role referencing a
                               policy that does not exist, and the token then
                               simply has no permissions, with no error anywhere.
-                              REQUIRES AN APPROLE THAT MAY WRITE POLICIES. The
-                              fleet's bootstrap approle may not — sudo on
-                              sys/auth only — and the resulting 403 on
-                              sys/policies/acl aborts the plan BEFORE the role is
-                              created, leaving a mount without a role. That
-                              surfaces far from its cause, as `invalid role name`
-                              at login. Against infra.sthings-vsphere use
-                              tokenPolicies and create the policy elsewhere; see
+                              The BODY is built by the module from kvMount and
+                              read below — it is never supplied. Free-form HCL
+                              plus the ability to bind the result to your own
+                              role is the right to grant yourself anything, and
+                              restricting the policy NAME does not help because
+                              Vault cannot restrict what a body contains.
+                              STILL REQUIRES AN APPROLE THAT MAY WRITE POLICIES,
+                              which the fleet's bootstrap approle is not — it
+                              holds sudo on sys/auth and nothing on
+                              sys/policies/acl. That 403 aborts the plan BEFORE
+                              the role is created, leaving a mount without a
+                              role, which surfaces far from its cause as
+                              `invalid role name` at login. So against
+                              infra.sthings-vsphere keep using tokenPolicies and
+                              create the policy elsewhere; see
                               crossplane-configurations#285.
                             items:
                               type: object
                               required:
                                 - name
-                                - rules
+                                - kvMount
+                                - read
                               properties:
                                 name:
                                   type: string
-                                rules:
-                                  type: string
                                   description: >-
-                                    HCL body. The cluster's own subtree is the
-                                    usual case, plus whatever the role it plays
-                                    grants it.
+                                    Suffix. The policy is named
+                                    {clusterName}-{name}.
+                                kvMount:
+                                  type: string
+                                  minLength: 1
+                                  description: >-
+                                    The KV v2 mount the grants apply to, e.g.
+                                    `clusters`. One mount per policy.
+                                read:
+                                  type: array
+                                  minItems: 1
+                                  description: >-
+                                    Subtrees of kvMount to grant read on. `own`
+                                    expands to THIS cluster's subtree and is the
+                                    only value that resolves to a cluster name —
+                                    a cluster cannot spell a neighbour's name
+                                    here and be granted it. A list because one
+                                    cluster rarely wants one subtree: its own,
+                                    plus whatever the role it plays grants it.
+                                  items:
+                                    type: string
+                                    pattern: "^[a-z0-9][a-z0-9._-]*$"
+                                    description: >-
+                                      A plain subtree name — no slash, glob or
+                                      traversal.
                     kubernetesHost:
                       type: string
                       description: Target API host for the Vault mount config (kubernetes_host)
@@ -545,6 +573,14 @@ spec:
                           type: array
                           items:
                             type: string
+                        # The same thing as a scalar, so a printer column can
+                        # show it: jsonPath cannot count a list, and the count
+                        # is what belongs in `kubectl get platform`. Ready stays
+                        # green while a component is held back — the list said
+                        # so already, but nobody reads a status field on a green
+                        # object (#284). The list is the WHAT, this the WHETHER.
+                        pendingCount:
+                          type: integer
                     ipReservation:
                       type: object
                       properties:
@@ -623,3 +659,21 @@ spec:
                 ready:
                   type: boolean
                   description: True when every enabled component is Ready
+      # Ready alone is misleading here: a component held back waiting on a value
+      # this Composition still has to produce is absent from appCount, so
+      # readyCount == appCount stays true while something the XR asked for is
+      # missing. PENDING is what makes that visible where people actually look
+      # — `kubectl get platform`, not `describe` (#284).
+      additionalPrinterColumns:
+        - name: READY
+          type: boolean
+          jsonPath: .status.ready
+        - name: COMPONENTS
+          type: string
+          jsonPath: .status.componentCount
+        - name: PENDING
+          type: integer
+          jsonPath: .status.components.fluxApps.pendingCount
+        - name: CLUSTER
+          type: string
+          jsonPath: .spec.clusterName

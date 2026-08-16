@@ -113,10 +113,12 @@ spec:
         # Created in the same OpenTofu plan as the role that names them. The
         # cluster's own subtree, plus the cicd tree it reads by virtue of the
         # role it plays — separate grants, separate lifetimes.
+        # The body is BUILT from these — never supplied as HCL. `own` is the
+        # only value that becomes a cluster name.
         policies:
           - name: kv-own
-            rules: |
-              path "kv/data/staging/*" { capabilities = ["read"] }
+            kvMount: kv
+            read: [own]
           - name: kv-cicd
-            rules: |
-              path "kv/data/cicd/*" { capabilities = ["read"] }
+            kvMount: kv
+            read: [cicd]
