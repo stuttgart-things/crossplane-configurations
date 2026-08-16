@@ -120,8 +120,8 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.3.14` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-platform` KCL module | `0.16.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `platform` Configuration | `v0.3.15` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-platform` KCL module | `0.17.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
 | `xplane-flux-catalog` KCL module | `0.12.0` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
 | `cni` Configuration | `>=v0.1.0` | `dependsOn` — pulled automatically |
@@ -129,7 +129,7 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 | `flux-init` Configuration | `>=v0.3.0` | `dependsOn` — pulled automatically |
 | `xplane-flux-init` KCL module | `0.3.0` | flux-init's Composition (OCI, pulled at render time) |
 | `flux-apps` Configuration | `>=v0.1.2` | `dependsOn` — pulled automatically |
-| `xplane-flux-apps` KCL module | `0.2.0` | flux-apps' Composition (OCI, pulled at render time) |
+| `xplane-flux-apps` KCL module | `0.3.0` | flux-apps' Composition (OCI, pulled at render time) |
 | provider-helm | `>=v1.0.0,<v2.0.0` | `dependsOn` |
 | provider-kubernetes | `>=v1.2.0,<v2.0.0` | `dependsOn` |
 | function-kcl | `>=v0.12.0,<v0.13.0` | `dependsOn` |
@@ -373,8 +373,32 @@ apps:
 | apps enabled while `fluxInit.enabled: false` | rejected by a **CEL rule at apply time** — fluxInit creates the sources apps reference |
 | a component depending on a **disabled** sibling | rejected at render, naming the offenders — it would otherwise sit in `DependencyNotReady` forever |
 | unknown app name | rejected by the catalog |
-| a required substitution variable is not supplied | rejected at render — Flux replaces an undefined variable with an **empty string** rather than failing, so it would deploy silently broken. Satisfied by `substitute` keys, or skipped when the component carries a `substituteFrom` (build-time, not statically checkable) |
+| a required substitution variable is not supplied, and **no** `substitutionSources` entry says where it could come from | rejected at render — Flux replaces an undefined variable with an **empty string** rather than failing, so it would deploy silently broken. Satisfied by `substitute` keys, or skipped when the component carries a `substituteFrom` (build-time, not statically checkable) |
+| a required substitution variable is not supplied, but a `substitutionSources` entry does | the **component** is deferred, not rejected — see below |
 | `enabled: false` | **prunes** — the entry stops being emitted, and flux-apps' Objects use `managementPolicies: ["*"]`, so the Kustomization and its workload are removed |
+
+### Deferring, not aborting (since v0.3.15 / module 0.17.0)
+
+A required variable nothing supplies is two different things, and treating them alike made some apps impossible to enable at all ([#277](https://github.com/stuttgart-things/crossplane-configurations/issues/277)):
+
+- **no source declared** — nothing will ever supply it: a typo, or a decision nobody made. Fatal, by name.
+- **a source declared** — the platform *can* discover it, just not yet. The status it reads is produced by this very Composition, so on the reconcile that enables both halves it is legitimately absent.
+
+The second used to be fatal too, which deadlocked. Enabling `vaultIssuer.additionalAuths[eso]` and `apps.external-secrets` in one step aborted the render **before** it emitted the `VaultK8sAuth` the app was waiting for, so the value never appeared and the next reconcile aborted identically. And because a failed render emits nothing, it took every *unrelated* component with it. Only a second, manual apply escaped — which is not a state that converges on its own.
+
+Now such a component is held back — **alone**, not with its siblings. `external-secrets/install` deploys the operator on the very reconcile `external-secrets/cluster-store-vault` waits through, and the store needs a CRD that operator owns anyway.
+
+They are absent from `appCount`, so they are named on the status; without that an app enabled on the XR would simply not appear anywhere, indistinguishable from being ignored:
+
+```yaml
+status:
+  components:
+    fluxApps:
+      pendingSubstitutions:
+        - "external-secrets-cluster-store-vault: VAULT_K8S_AUTH_MOUNT_PATH"
+```
+
+The list is expected to empty out on its own. One that stays put names both the variable and the component that wants it.
 
 ## Adding a component
 
