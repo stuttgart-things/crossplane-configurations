@@ -120,7 +120,7 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.4.0` | [`crossplane.yaml`](crossplane.yaml) |
+| `platform` Configuration | `v0.4.1` | [`crossplane.yaml`](crossplane.yaml) |
 | `xplane-platform` KCL module | `0.18.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
 | `xplane-flux-catalog` KCL module | `0.12.0` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |

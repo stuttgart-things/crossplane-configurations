@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.4.0
+    meta.crossplane.io/version: v0.4.1
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -88,8 +88,14 @@ spec:
       version: ">=v0.1.0"
     # vaultIssuer composes both of these: VaultK8sAuth (the Vault k8s-auth
     # mount) and VaultPkiSecret (CA bundle -> cert-manager namespace).
+    # >=v0.3.0, not v0.1.0: platform v0.4.0 passes additionalAuths[].policies
+    # straight through to the VaultK8sAuth child, and v0.4.0 changed their shape
+    # — kvMount + read instead of a free-form `rules` body. Against vault-auth
+    # <v0.3.0 the child XR carries fields its XRD does not declare, which the
+    # structural schema rejects. The floor is what turns that into a refused
+    # install instead of a Composition that renders and then does nothing.
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/vault-auth
-      version: ">=v0.1.0"
+      version: ">=v0.3.0"
     # >=v0.1.5, not v0.1.4: the tokenless path needs the schema where
     # tokenSecretRef is OPTIONAL. #152 made it so in the repo but the package
     # was never re-published, so v0.1.4 on ghcr still requires the field — and
