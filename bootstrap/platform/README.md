@@ -120,9 +120,9 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.3.13` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-platform` KCL module | `0.15.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
-| `xplane-flux-catalog` KCL module | `0.11.0` | dependency of `xplane-platform` — the app definitions |
+| `platform` Configuration | `v0.3.14` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-platform` KCL module | `0.16.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `xplane-flux-catalog` KCL module | `0.12.0` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
 | `cni` Configuration | `>=v0.1.0` | `dependsOn` — pulled automatically |
 | `xplane-cni` KCL module | `0.1.0` | cni's Composition (OCI, pulled at render time) |
@@ -272,7 +272,7 @@ Catalogued as of `xplane-platform` 0.13.0 (catalog 0.10.0). `stuttgart-things/fl
 | `headlamp` | `HOSTNAME`, `GATEWAY_NAME` | `DOMAIN` is discovered; needs a Gateway that already exists on the target |
 | `machinery` | `GATEWAY_NAME` | `DOMAIN` is discovered. The service that watches Crossplane resources — **not** the bootstrap play of the same name |
 | `dapr` | a Secret for `template-execution` | or disable that component |
-| `external-secrets` | nothing for `install` | `cluster-store-vault` is opt-in and needs an `eso` entry in `vaultIssuer.additionalAuths` — it discovers that mount rather than taking the artifact's default, which names one specific cluster |
+| `external-secrets` | nothing for `install` | `cluster-store-vault` is opt-in, needs an `eso` entry in `vaultIssuer.additionalAuths`, and requires **five** variables the artifact defaults — every default names a different deployment, so a store taking them looks configured and reaches the wrong Vault. Two are discovered from that auth; three are decisions |
 | `nfs-csi` | `NFS_SERVER_FQDN`, `NFS_SHARE_PATH` | facts about the network, not the cluster — nothing can discover them |
 | `vault` | `ISSUER_KIND`, `ISSUER_NAME`, `VAULT_INGRESS_HOSTNAME` | a Vault **on** this cluster, not the fleet's. `VAULT_INGRESS_DOMAIN` is discovered; `httproute` and `autounseal` are opt-in |
 
