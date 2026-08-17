@@ -614,6 +614,22 @@ spec:
                     cilium:
                       type: object
                       properties:
+                        # The Gateway's name, published so nothing has to be
+                        # told it. The cilium artifact took it as
+                        # ${CILIUM_GATEWAY_NAME:-cilium-gateway} all along, so
+                        # it was configurable and never configured — and every
+                        # app that needed it carried GATEWAY_NAME as a required
+                        # substitution. The module now sets it and publishes the
+                        # same value; the catalog feeds it back to cilium and
+                        # out to machinery and headlamp through
+                        # substitutionSources.
+                        #
+                        # Present even when the cilium INSTALL child is disabled
+                        # — the usual case on rke2, where the CNI comes from the
+                        # AnsibleRun and only the config app runs. The name
+                        # belongs to the cluster, not to that child.
+                        gatewayName:
+                          type: string
                         enabled:
                           type: boolean
                         ready:
