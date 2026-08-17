@@ -1,0 +1,65 @@
+---
+# Every field set — two capabilities, both optional and defaulted placement
+# fields, per-capability store override.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Capability
+metadata:
+  name: labul-capability
+  namespace: default
+spec:
+  clusterName: u26-rke2-1
+  kubernetesProviderConfigRef: u26-rke2-1-kubernetes
+  environment: labul
+  namespace: crossplane-system
+  workloadNamespace: default
+  secretStoreRef: vault-cluster-secrets
+  refreshInterval: 30m
+  capabilities:
+    proxmoxvm:
+      enabled: true
+      vault:
+        secret: default
+        # Per-capability override: proxmox credentials may live in a different
+        # store from vsphere's.
+        secretStoreName: vault-cluster-secrets
+      placement:
+        node: ul-pve01
+        datastore: V5010-01-1
+        bridge: vmbrvlan
+        vlanTag: "102"
+        pool: stuttgart-things
+        templateVmId: "211"
+        # DANGEROUS on an environment with existing VMs: bpg's clone block is
+        # ForceNew, so adding this rewrites the clone block of every VM already
+        # built under this EnvironmentConfig and the provider answers with
+        # destroy + recreate. Requires proxmoxvm >= v0.11.0, whose `none`
+        # sentinel is how an individual XR declines it.
+        cloneDatastore: V5010-01-1
+        snippetsDatastore: local
+        smbiosManufacturer: stuttgart-things
+        smbiosProduct: sthings-u26
+        # Catalog defaults, restated to show they are overridable.
+        cpuType: host
+        osType: l26
+        bios: seabios
+        diskInterface: virtio0
+        networkModel: virtio
+        ciUsername: sthings
+    vspherevm:
+      enabled: true
+      vault:
+        secret: default
+      placement:
+        # vSphere places by managed-object ID, not by name; templateUuid is the
+        # BIOS config.uuid rather than the VM name.
+        templateUuid: 4234df9c-0000-0000-0000-000000000000
+        datastoreId: datastore-12
+        resourcePoolId: resgroup-8
+        networkId: dvportgroup-2048
+        folder: stuttgart-things/testing
+        domain: labul.sva.de
+        hostSystemId: host-42
+        firmware: bios
+        guestId: ubuntu64Guest
+        scsiType: pvscsi
+        adapterType: vmxnet3

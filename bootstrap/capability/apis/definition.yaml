@@ -1,0 +1,154 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: capabilities.config.stuttgart-things.com
+spec:
+  group: config.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: Capability
+    plural: capabilities
+    singular: capability
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - clusterName
+                - kubernetesProviderConfigRef
+                - capabilities
+              properties:
+                clusterName:
+                  type: string
+                  description: >-
+                    Name of the TARGET cluster. Used to derive the default
+                    environment label, and therefore the name of every emitted
+                    object.
+                kubernetesProviderConfigRef:
+                  type: string
+                  description: >-
+                    Name of the Kubernetes ClusterProviderConfig for the target
+                    cluster — the one every emitted object is applied through.
+                environment:
+                  type: string
+                  description: >-
+                    Environment label. Defaults to clusterName. Set it when one
+                    cluster serves two environments (labda AND labul), so their
+                    ClusterProviderConfigs and credential Secrets do not collide.
+                namespace:
+                  type: string
+                  default: crossplane-system
+                  description: >-
+                    Namespace on the target where the provider reads its
+                    credential Secret. NOT where workload secrets go — see
+                    workloadNamespace.
+                workloadNamespace:
+                  type: string
+                  default: default
+                  description: >-
+                    Namespace on the target where the VM XRs live. A
+                    capability's workload secrets go here, because the
+                    namespaced EnvironmentVM CRD resolves passwordSecretRef in
+                    the managed resource's own namespace — a cloud-init password
+                    placed beside the provider is a Secret nothing reads.
+                secretStoreRef:
+                  type: string
+                  default: vault-cluster-secrets
+                  description: >-
+                    ClusterSecretStore every ExternalSecret reads from. The
+                    default is what the platform Configuration's external-secrets
+                    app creates. Per-capability overrides live under
+                    capabilities.<name>.vault.secretStoreName.
+                refreshInterval:
+                  type: string
+                  default: 1h
+                  description: ExternalSecret refresh interval.
+                capabilities:
+                  type: object
+                  description: >-
+                    Capabilities to configure, keyed by catalog name (proxmoxvm,
+                    vspherevm). An unknown name fails the render, naming what is
+                    known.
+                  additionalProperties:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: false
+                      vault:
+                        type: object
+                        description: Where this capability's credentials come from.
+                        properties:
+                          secret:
+                            type: string
+                            default: default
+                            description: >-
+                              Key of the Vault KV-v2 secret holding the
+                              credential fields. Which FIELDS are read is a
+                              catalog fact, not a choice.
+                          secretStoreName:
+                            type: string
+                            description: Overrides spec.secretStoreRef for this capability.
+                      placement:
+                        type: object
+                        description: >-
+                          Placement facts — which node, datastore, template.
+                          Keys are capability-specific and validated against the
+                          catalog: a field that is required and absent, or
+                          present and unknown, fails the render rather than
+                          producing a half-configured provider.
+                        additionalProperties:
+                          x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+                  description: True when every object of every enabled capability is Ready.
+                capabilityCount:
+                  type: integer
+                readyCount:
+                  type: integer
+                capabilities:
+                  type: object
+                  description: Per-capability readiness and the names of what was created.
+                  additionalProperties:
+                    type: object
+                    properties:
+                      ready:
+                        type: boolean
+                      environmentConfig:
+                        type: string
+                      credentialsSecret:
+                        type: string
+                      providerConfig:
+                        type: string
+      additionalPrinterColumns:
+        - name: CAPABILITIES
+          type: integer
+          jsonPath: .status.capabilityCount
+        - name: READY-COUNT
+          type: integer
+          jsonPath: .status.readyCount
+        - name: CLUSTER
+          type: string
+          jsonPath: .spec.clusterName
+        - name: SYNCED
+          type: string
+          jsonPath: .status.conditions[?(@.type=='Synced')].status
+        - name: READY
+          type: string
+          jsonPath: .status.conditions[?(@.type=='Ready')].status
+        - name: AGE
+          type: date
+          jsonPath: .metadata.creationTimestamp

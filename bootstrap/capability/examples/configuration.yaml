@@ -1,0 +1,7 @@
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: capability
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/capability:v0.1.0
