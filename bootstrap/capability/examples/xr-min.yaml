@@ -22,7 +22,7 @@ spec:
       vault:
         mount: cicd-proxmox-labul
       placement:
-        node: ul-pve01
+        node: ul-pve11
         datastore: V5010-01-1
         bridge: vmbrvlan
         vlanTag: "102"

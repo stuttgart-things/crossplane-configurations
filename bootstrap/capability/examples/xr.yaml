@@ -34,7 +34,11 @@ spec:
         # vm_ssh_password, ...) is a catalog fact.
         secret: default  # pragma: allowlist secret
       placement:
-        node: ul-pve01
+        # The ACTIVE LabUL nodes are ul-pve10 and ul-pve11. The capability
+        # Helm chart still says ul-pve01, which is why this is spelled out:
+        # copying that value builds nothing, and the error names the node
+        # rather than the source of the value.
+        node: ul-pve11
         # VLAN-trunk bridge; the template ships on vmbr0/untagged.
         bridge: vmbrvlan
         vlanTag: "102"
@@ -43,3 +47,10 @@ spec:
         # bpg clones BY VMID, so this number is the template reference — there
         # is no name or selector to fall back on.
         templateVmId: "211"
+        # REQUIRED in LabUL, not an optimisation. Without it Proxmox allocates
+        # the clone on the TEMPLATE's datastore — the NFS store DD-sthings,
+        # where an ACL added in 2026-08 removed Datastore.AllocateSpace, so
+        # every clone 403s. Safe on a NEW environment; on one that already has
+        # VMs it rewrites their ForceNew clone block (destroy + recreate), so
+        # pin those with the `none` sentinel first.
+        cloneDatastore: V5010-01-1
