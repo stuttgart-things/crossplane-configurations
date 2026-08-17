@@ -2,5 +2,35 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "customManagers": [
+    {
+      "description": "The KCL module each Composition pulls at render time. Bumping these was hand work: notice the module published, edit the pin, bump meta.crossplane.io/version, fix the README table, open the PR. Renovate does the noticing and the typing; verify still decides whether it may land \u2014 since dagger v0.122.0 it also validates the rendered status against the XRD, which is the failure class an automated module bump would otherwise carry onto a cluster.",
+      "customType": "regex",
+      "matchStrings": [
+        "source:\\s*oci://(?<depName>ghcr\\.io/stuttgart-things/[^:\\s]+):(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver",
+      "fileMatch": [
+        "^.+/apis/composition\\.yaml$"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Our own KCL modules, one PR each. NOT grouped: a module bump is a behaviour change with its own reasoning, and today's chains showed why the reasoning matters \u2014 a catalog version that needs a newer platform to publish what it reads is a decision, not a routine update.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "ghcr.io/stuttgart-things/xplane-**"
+      ],
+      "semanticCommitType": "feat",
+      "commitMessageTopic": "KCL module {{depName}}",
+      "addLabels": [
+        "kcl-module"
+      ]
+    }
   ]
 }
