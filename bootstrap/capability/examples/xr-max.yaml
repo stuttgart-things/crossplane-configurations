@@ -57,7 +57,11 @@ spec:
     # No ClusterProviderConfig: ansible configures a Configuration, not a
     # provider. Its credentials Secret lands in `namespace` below — the Tekton
     # pipeline reads it there, and one beside the provider would never be read.
-    ansible:
+    # Named for the Configuration it configures, not for the tool: the
+    # ansible-run Composition selects its EnvironmentConfig on
+    # ansible-run.resources.stuttgart-things.com/environment, and the catalog
+    # derives that label from the entry name.
+    ansible-run:
       enabled: true
       vault:
         mount: cicd-proxmox-labul
