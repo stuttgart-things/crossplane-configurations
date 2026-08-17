@@ -22,7 +22,7 @@ spec:
       vault:
         # KV-v2 key under the store's path. Which FIELDS are read
         # (pve_api_url, vm_ssh_password, ...) is a catalog fact.
-        secret: default
+        secret: default  # pragma: allowlist secret
       placement:
         node: ul-pve01
         # VLAN-trunk bridge; the template ships on vmbr0/untagged.

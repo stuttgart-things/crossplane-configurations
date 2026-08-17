@@ -12,16 +12,16 @@ spec:
   environment: labul
   namespace: crossplane-system
   workloadNamespace: default
-  secretStoreRef: vault-cluster-secrets
+  secretStoreRef: vault-cluster-secrets  # pragma: allowlist secret
   refreshInterval: 30m
   capabilities:
     proxmoxvm:
       enabled: true
       vault:
-        secret: default
+        secret: default  # pragma: allowlist secret
         # Per-capability override: proxmox credentials may live in a different
         # store from vsphere's.
-        secretStoreName: vault-cluster-secrets
+        secretStoreName: vault-cluster-secrets  # pragma: allowlist secret
       placement:
         node: ul-pve01
         datastore: V5010-01-1
@@ -48,7 +48,7 @@ spec:
     vspherevm:
       enabled: true
       vault:
-        secret: default
+        secret: default  # pragma: allowlist secret
       placement:
         # vSphere places by managed-object ID, not by name; templateUuid is the
         # BIOS config.uuid rather than the VM name.
