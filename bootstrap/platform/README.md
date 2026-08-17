@@ -266,7 +266,7 @@ Catalogued as of `xplane-platform` 0.21.0 (catalog 0.17.0). `stuttgart-things/fl
 | app | needs | note |
 |---|---|---|
 | `cert-manager` | nothing | `selfsigned` and `approle-issuer` are opt-in components |
-| `trust-manager` | `cert-manager:install` | cross-artifact: its CRDs come from cert-manager |
+| `trust-manager` | `cert-manager:install` | the catalog's only cross-artifact dependency — and it is one because the artifact really does need cert-manager's CRDs, not because the project is associated with it |
 | `openebs` | **nothing** | the one entry that is complete as `openebs: {enabled: true}` |
 | `cilium` | `CILIUM_GATEWAY_TLS_SECRET` | config-only (component `config`, not `install`); the other three required variables are discovered — see below |
 | `headlamp` | `HOSTNAME`, `GATEWAY_NAME` | `DOMAIN` is discovered; needs a Gateway that already exists on the target |
@@ -274,7 +274,7 @@ Catalogued as of `xplane-platform` 0.21.0 (catalog 0.17.0). `stuttgart-things/fl
 | `dapr` | a Secret for `template-execution` | or disable that component |
 | `external-secrets` | nothing for `install` | `cluster-store-vault` is opt-in, needs an `eso` entry in `vaultIssuer.additionalAuths`, and requires **five** variables the artifact defaults — every default names a different deployment, so a store taking them looks configured and reaches the wrong Vault. Two are discovered from that auth; three are decisions |
 | `nfs-csi` | `NFS_SERVER_FQDN`, `NFS_SHARE_PATH` | facts about the network, not the cluster — nothing can discover them |
-| `sops-secrets-operator` | `cert-manager:install` | turns an age-encrypted `SopsSecret` in git into a Secret — how the age key reaches the cluster is deliberately not part of the app |
+| `sops-secrets-operator` | nothing | turns an age-encrypted `SopsSecret` in git into a Secret. **No cert-manager**, despite upstream: this is `stuttgart-things/sops-secrets-operator` (group `sops.stuttgart-things.com`), whose artifact installs CRDs, RBAC and a Deployment and no webhook. How the age key reaches the cluster is deliberately not part of the app |
 | `tekton` | nothing for `install` | `dashboard` is opt-in and needs `TEKTON_DASHBOARD_HOSTNAME` + `GATEWAY_NAME`; its domain is discovered |
 | `vault` | `ISSUER_KIND`, `ISSUER_NAME`, `VAULT_INGRESS_HOSTNAME` | a Vault **on** this cluster, not the fleet's. `VAULT_INGRESS_DOMAIN` is discovered; `httproute` and `autounseal` are opt-in |
 
