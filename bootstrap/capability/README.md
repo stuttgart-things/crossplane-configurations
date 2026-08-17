@@ -123,6 +123,21 @@ capability configuration is incomplete: proxmoxvm: missing required placement ["
 An empty string counts as missing: an XRD default or a half-filled values file
 arrives as `""`, exactly as unusable as absent for a node name.
 
+## Readiness
+
+Not one policy for all four objects.
+
+| object | policy | why |
+|---|---|---|
+| `ClusterSecretStore` | `DeriveFromObject` | its `Valid` condition IS the proof that the Vault login works |
+| `ExternalSecret` | `DeriveFromObject` | its `Ready` condition is the only signal that Vault answered — a capability whose credentials 403 must not report ready |
+| `EnvironmentConfig` | `DeriveFromCelQuery` (`true`) | it has no conditions at all |
+| `ClusterProviderConfig` | `DeriveFromCelQuery` (`true`) | same, and measured in [#294](https://github.com/stuttgart-things/crossplane-configurations/issues/294): `SuccessfulCreate` was never evaluated, `AllTrue` false on an empty condition list |
+
+`DeriveFromObject` everywhere leaves the two status-less objects at
+`Ready=False` forever while what they created is present and correct — found on
+the first live apply against `u26-rke2-1`.
+
 ## Naming
 
 Objects are `<capability>-<environment>` — the store included, rather than the
