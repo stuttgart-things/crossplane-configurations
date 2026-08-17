@@ -54,6 +54,17 @@ spec:
         diskInterface: virtio0
         networkModel: virtio
         ciUsername: sthings
+    # No ClusterProviderConfig: ansible configures a Configuration, not a
+    # provider. Its credentials Secret lands in `namespace` below — the Tekton
+    # pipeline reads it there, and one beside the provider would never be read.
+    ansible:
+      enabled: true
+      vault:
+        mount: cicd-proxmox-labul
+        secret: default  # pragma: allowlist secret
+      placement:
+        namespace: tekton-ci
+        storageClass: openebs-hostpath
     vspherevm:
       enabled: true
       vault:

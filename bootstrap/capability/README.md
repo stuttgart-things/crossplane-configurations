@@ -193,7 +193,17 @@ For those clusters the charts remain the answer.
 
 | capability | Vault keys | required placement |
 |---|---|---|
+| `ansible` | `vm_ssh_user`, `vm_ssh_password` | `namespace`, `storageClass` |
 | `proxmoxvm` | `pve_api_url`, `pve_api_user`, `pve_api_password`, `vm_ssh_user`, `vm_ssh_password` | `node`, `datastore`, `bridge`, `vlanTag`, `pool`, `templateVmId` |
 | `vspherevm` | `vsphere_user`, `vsphere_password`, `vsphere_server` | `templateUuid`, `datastoreId`, `resourcePoolId`, `networkId`, `folder`, `domain` |
 
 Adding one is an entry in the catalog module, not a change here.
+
+`ansible` is the entry that shows the shape holds. It has **no**
+`ClusterProviderConfig` — it configures a Configuration, not a provider — its
+credentials are two plain keys read as environment variables by a Tekton
+pipeline rather than one JSON document, its collection set is a **list** that
+must not be stringified (Tekton answers a string with `ParameterTypeMismatch`,
+naming the Tekton parameter and nothing about the source of the value), and its
+credentials Secret lives in the pipeline's namespace rather than beside the
+provider.
