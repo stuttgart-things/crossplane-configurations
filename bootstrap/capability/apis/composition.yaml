@@ -26,7 +26,7 @@ spec:
         metadata:
           name: capability
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-capability:0.1.0
+          source: oci://ghcr.io/stuttgart-things/xplane-capability:0.2.0
     - step: automatically-detect-ready-composed-resources
       functionRef:
         name: function-auto-ready

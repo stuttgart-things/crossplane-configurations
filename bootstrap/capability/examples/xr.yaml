@@ -13,6 +13,12 @@ spec:
   clusterName: u26-rke2-1
   kubernetesProviderConfigRef: u26-rke2-1-kubernetes
   environment: labul
+  vault:
+    server: https://vault.infra.sthings-vsphere.labul.sva.de
+    # auth.mountPath defaults to <clusterName>-eso, role to eso, the
+    # ServiceAccount to external-secrets/external-secrets and the CA to
+    # vault-pki-ca in cert-manager — the shape the platform's external-secrets
+    # app already produces on this cluster.
   # Where the VM XRs live. The cloud-init password lands here, not beside the
   # provider — see the README.
   workloadNamespace: default
@@ -20,8 +26,12 @@ spec:
     proxmoxvm:
       enabled: true
       vault:
-        # KV-v2 key under the store's path. Which FIELDS are read
-        # (pve_api_url, vm_ssh_password, ...) is a catalog fact.
+        # The KV-v2 mount. Naming it creates this capability's own
+        # ClusterSecretStore — a store fixes ONE mount, and the cluster's
+        # existing vault-cluster-secrets points at `clusters`, not here.
+        mount: cicd-proxmox-labul
+        # Key within that mount. Which FIELDS are read (pve_api_url,
+        # vm_ssh_password, ...) is a catalog fact.
         secret: default  # pragma: allowlist secret
       placement:
         node: ul-pve01

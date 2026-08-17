@@ -65,10 +65,59 @@ spec:
                   type: string
                   default: vault-cluster-secrets
                   description: >-
-                    ClusterSecretStore every ExternalSecret reads from. The
+                    Fallback ClusterSecretStore, used only by a capability that
+                    names neither its own KV mount nor an existing store. The
                     default is what the platform Configuration's external-secrets
-                    app creates. Per-capability overrides live under
-                    capabilities.<name>.vault.secretStoreName.
+                    app creates.
+                vault:
+                  type: object
+                  description: >-
+                    Cluster-wide Vault coordinates for the ClusterSecretStores
+                    this Configuration creates. A ClusterSecretStore fixes ONE KV
+                    mount and capabilities do not share one, so the mount is
+                    per-capability while everything here is stated once.
+                  properties:
+                    server:
+                      type: string
+                      description: >-
+                        Vault address. Required as soon as any capability names
+                        a KV mount, because everything else about its store is
+                        derived.
+                    auth:
+                      type: object
+                      description: Kubernetes auth for those stores.
+                      properties:
+                        mountPath:
+                          type: string
+                          description: >-
+                            Vault auth mount. Defaults to <clusterName>-eso —
+                            the derivation the capability Helm charts have to be
+                            handed from outside.
+                        role:
+                          type: string
+                          default: eso
+                        serviceAccountName:
+                          type: string
+                          default: external-secrets
+                        serviceAccountNamespace:
+                          type: string
+                          default: external-secrets
+                    caProvider:
+                      type: object
+                      description: >-
+                        Secret holding the CA that signs the Vault certificate.
+                        Defaults to vault-pki-ca in cert-manager, which is what
+                        the platform's vaultIssuer produces.
+                      properties:
+                        name:
+                          type: string
+                          default: vault-pki-ca
+                        namespace:
+                          type: string
+                          default: cert-manager
+                        key:
+                          type: string
+                          default: ca.crt
                 refreshInterval:
                   type: string
                   default: 1h
@@ -89,6 +138,14 @@ spec:
                         type: object
                         description: Where this capability's credentials come from.
                         properties:
+                          mount:
+                            type: string
+                            description: >-
+                              Vault KV-v2 mount holding this capability's
+                              credentials (cicd-proxmox-labul). Naming it creates
+                              a ClusterSecretStore for this capability, since a
+                              store fixes one mount and capabilities do not share
+                              one.
                           secret:
                             type: string
                             default: default
@@ -98,7 +155,12 @@ spec:
                               catalog fact, not a choice.
                           secretStoreName:
                             type: string
-                            description: Overrides spec.secretStoreRef for this capability.
+                            description: >-
+                              Use an EXISTING ClusterSecretStore instead of
+                              creating one. Wins over mount.
+                          server:
+                            type: string
+                            description: Overrides spec.vault.server for this capability.
                       placement:
                         type: object
                         description: >-
@@ -130,6 +192,8 @@ spec:
                       environmentConfig:
                         type: string
                       credentialsSecret:
+                        type: string
+                      secretStore:
                         type: string
                       providerConfig:
                         type: string
