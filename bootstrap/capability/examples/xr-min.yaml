@@ -14,9 +14,13 @@ metadata:
 spec:
   clusterName: u26-rke2-1
   kubernetesProviderConfigRef: u26-rke2-1-kubernetes
+  vault:
+    server: https://vault.infra.sthings-vsphere.labul.sva.de
   capabilities:
     proxmoxvm:
       enabled: true
+      vault:
+        mount: cicd-proxmox-labul
       placement:
         node: ul-pve01
         datastore: V5010-01-1

@@ -13,15 +13,24 @@ spec:
   namespace: crossplane-system
   workloadNamespace: default
   secretStoreRef: vault-cluster-secrets  # pragma: allowlist secret
+  vault:
+    server: https://vault.infra.sthings-vsphere.labul.sva.de
+    auth:
+      mountPath: u26-rke2-1-eso
+      role: eso
+      serviceAccountName: external-secrets
+      serviceAccountNamespace: external-secrets
+    caProvider:
+      name: vault-pki-ca
+      namespace: cert-manager
+      key: ca.crt
   refreshInterval: 30m
   capabilities:
     proxmoxvm:
       enabled: true
       vault:
+        mount: cicd-proxmox-labul
         secret: default  # pragma: allowlist secret
-        # Per-capability override: proxmox credentials may live in a different
-        # store from vsphere's.
-        secretStoreName: vault-cluster-secrets  # pragma: allowlist secret
       placement:
         node: ul-pve01
         datastore: V5010-01-1
@@ -48,6 +57,9 @@ spec:
     vspherevm:
       enabled: true
       vault:
+        # A different mount, which is exactly why each capability gets its own
+        # store rather than sharing the cluster's.
+        mount: cicd-vsphere-labul
         secret: default  # pragma: allowlist secret
       placement:
         # vSphere places by managed-object ID, not by name; templateUuid is the

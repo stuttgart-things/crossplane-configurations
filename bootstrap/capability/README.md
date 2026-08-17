@@ -37,9 +37,9 @@ spec:
         templateVmId: "211"
 ```
 
-That XR produces four objects on the target: the credential `ExternalSecret`,
-the `ClusterProviderConfig`, the `EnvironmentConfig`, and the cloud-init
-password `ExternalSecret`. Everything not stated — `cpuType`, `bios`,
+That XR produces five objects on the target: the `ClusterSecretStore`, the
+credential `ExternalSecret`, the `ClusterProviderConfig`, the
+`EnvironmentConfig`, and the cloud-init password `ExternalSecret`. Everything not stated — `cpuType`, `bios`,
 `diskInterface`, the annotation, `providerConfigName` — is a catalog default or
 derived.
 
@@ -69,8 +69,16 @@ secretStore.name: vault-cicd-proxmox-labul
 ```
 
 Their own comment says the mount is injected from outside. Here the cluster name
-is the XR's, so the derivation happens where the fact lives — and the
-`ClusterSecretStore` the platform already created is the default.
+is the XR's, so `<clusterName>-eso` is derived where the fact lives.
+
+That only means something because the store is emitted **here**. A
+`ClusterSecretStore` fixes ONE Vault KV mount, and capabilities do not share
+one: proxmox credentials live under `cicd-proxmox-labul`, vsphere under its own,
+while the cluster's existing `vault-cluster-secrets` points at `clusters`. So a
+capability names its `mount` and gets a store; server, CA, auth mount, role and
+ServiceAccount are cluster properties, stated once or derived. A capability may
+instead name an existing store, in which case nothing is created — and the
+derivation belongs to whoever made it.
 
 **Package installation stays out.** The charts can install the Configuration and
 the Provider, which is what their long comments about duplicate lock nodes are
@@ -117,8 +125,8 @@ arrives as `""`, exactly as unusable as absent for a node name.
 
 ## Naming
 
-Objects are `<capability>-<environment>`, credentials
-`<capability>-creds-<environment>`. Two environments on one cluster (labda *and*
+Objects are `<capability>-<environment>` — the store included, rather than the
+charts' `vault-<mount>` — and credentials `<capability>-creds-<environment>`. Two environments on one cluster (labda *and*
 labul) must not share a `ClusterProviderConfig` or a Secret.
 
 `environment` defaults to `clusterName` but usually should not stay there: the
