@@ -154,6 +154,25 @@ two owners and each ESO refresh would overwrite the other. Nothing else refers
 to the name — only the `ClusterProviderConfig` this Configuration also emits —
 so a migration means deleting the chart's Secret, not renaming anything.
 
+## Two LabUL values that are easy to get wrong
+
+Both were found by building a VM through this Configuration rather than by
+reading the chart it was transcribed from:
+
+* **`node: ul-pve11`.** The active LabUL Proxmox nodes are `ul-pve10` and
+  `ul-pve11`. The capability Helm chart still carries `ul-pve01`, so copying it
+  builds nothing and the error names the node rather than where the value came
+  from.
+* **`cloneDatastore: V5010-01-1` is required, not an optimisation.** Without it
+  Proxmox allocates the clone on the *template's* datastore — the NFS store
+  `DD-sthings`, where an ACL added in 2026-08 removed `Datastore.AllocateSpace`
+  — and every clone 403s. It is safe to set on a NEW environment; on one that
+  already has VMs it rewrites their `ForceNew` clone block (destroy + recreate),
+  so pin those with the `none` sentinel first.
+
+`xr-min.yaml` deliberately omits `cloneDatastore`: its job is to exercise the
+XRD's required set and the catalog defaults, not to be deployable in LabUL.
+
 ## Cluster preconditions
 
 - the `ClusterProviderConfig` named by `spec.kubernetesProviderConfigRef`
