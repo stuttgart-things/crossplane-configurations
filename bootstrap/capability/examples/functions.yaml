@@ -1,0 +1,21 @@
+---
+# Functions this Composition's pipeline references.
+#
+# Pinned to xpkg.upbound.io DELIBERATELY, and short-named. The Configuration's
+# dependsOn uses xpkg.crossplane.io, from which the package manager derives a
+# LONG CR name; a short-named CR on the same registry would be a second lock
+# node with an identical source, which freezes the resolver for every package on
+# the cluster (#247). The differing mirror is what keeps the two nodes distinct.
+apiVersion: pkg.crossplane.io/v1
+kind: Function
+metadata:
+  name: function-kcl
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-kcl:v0.12.0
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Function
+metadata:
+  name: function-auto-ready
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-auto-ready:v0.6.5

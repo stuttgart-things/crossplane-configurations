@@ -1,0 +1,32 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: capability
+  labels:
+    crossplane.io/xrd: capabilities.config.stuttgart-things.com
+    provider-kubernetes: "true"
+    service: capability
+spec:
+  compositeTypeRef:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: Capability
+  mode: Pipeline
+  pipeline:
+    # Render the credential ExternalSecret, ClusterProviderConfig and
+    # EnvironmentConfig per enabled capability, and patch the XR status — one
+    # pass, as in flux-apps. Structure comes from xplane-capability-catalog,
+    # which this module pins.
+    - step: capability
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: capability
+        spec:
+          source: oci://ghcr.io/stuttgart-things/xplane-capability:0.1.0
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

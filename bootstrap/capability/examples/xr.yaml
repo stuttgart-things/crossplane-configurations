@@ -1,0 +1,35 @@
+---
+# The realistic case: a LabUL management cluster that builds Proxmox VMs.
+#
+# `environment: labul` rather than the cluster name, because the placement facts
+# below are properties of LabUL and not of this cluster — a second cluster in the
+# same lab wants the same label so the EnvironmentConfig means the same thing.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Capability
+metadata:
+  name: u26-rke2-1-capability
+  namespace: default
+spec:
+  clusterName: u26-rke2-1
+  kubernetesProviderConfigRef: u26-rke2-1-kubernetes
+  environment: labul
+  # Where the VM XRs live. The cloud-init password lands here, not beside the
+  # provider — see the README.
+  workloadNamespace: default
+  capabilities:
+    proxmoxvm:
+      enabled: true
+      vault:
+        # KV-v2 key under the store's path. Which FIELDS are read
+        # (pve_api_url, vm_ssh_password, ...) is a catalog fact.
+        secret: default  # pragma: allowlist secret
+      placement:
+        node: ul-pve01
+        # VLAN-trunk bridge; the template ships on vmbr0/untagged.
+        bridge: vmbrvlan
+        vlanTag: "102"
+        datastore: V5010-01-1
+        pool: stuttgart-things
+        # bpg clones BY VMID, so this number is the template reference — there
+        # is no name or selector to fall back on.
+        templateVmId: "211"

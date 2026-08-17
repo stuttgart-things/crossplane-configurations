@@ -1,0 +1,52 @@
+---
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: capability
+  annotations:
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: stuttgart-things <patrick.hermann@sva.de>
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Configures what a management cluster can DO. A namespaced Capability XR
+      names capabilities (proxmoxvm, vspherevm) and their placement facts, and
+      the Composition emits, per capability, the credential ExternalSecret, the
+      ClusterProviderConfig and the EnvironmentConfig onto a target cluster.
+      The native replacement for the per-capability Helm charts on clusters that
+      have external-secrets.
+    meta.crossplane.io/readme: |
+      # capability
+
+      A provider is installed on every management cluster and on its own does
+      nothing useful: without a ClusterProviderConfig it does not know where to
+      connect, without credentials it may not log in, and without an
+      EnvironmentConfig it does not know which node, datastore or template to
+      place a VM on. This Configuration emits those three objects.
+
+      ## Cluster preconditions
+
+      - the `ClusterProviderConfig` named by `spec.kubernetesProviderConfigRef`
+      - external-secrets on the target, with a `ClusterSecretStore` (the
+        platform Configuration's external-secrets app creates
+        `vault-cluster-secrets`)
+      - the provider whose config is emitted, installed by `management-plane`
+
+      ## Not covered
+
+      The sops / sops-git credential backends the capability Helm charts offer.
+      They exist so a cluster WITHOUT Vault can still have credentials, and such
+      a cluster cannot use this Configuration at all — it would get an
+      ExternalSecret nothing serves.
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    # Every emitted object is applied to the target cluster through the
+    # namespaced Kubernetes provider.
+    - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
+      version: ">=v1.2.0,<v2.0.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-kcl
+      version: ">=v0.12.0,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"

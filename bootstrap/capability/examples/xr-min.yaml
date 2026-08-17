@@ -1,0 +1,26 @@
+---
+# Only what the XRD requires — exercises the defaults: namespace
+# crossplane-system, workloadNamespace default, store vault-cluster-secrets,
+# environment = clusterName.
+#
+# One capability, six placement facts. Everything else (cpuType, bios,
+# diskInterface, the annotation, providerConfigName) comes from the catalog or
+# is derived.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Capability
+metadata:
+  name: u26-rke2-1-capability
+  namespace: default
+spec:
+  clusterName: u26-rke2-1
+  kubernetesProviderConfigRef: u26-rke2-1-kubernetes
+  capabilities:
+    proxmoxvm:
+      enabled: true
+      placement:
+        node: ul-pve01
+        datastore: V5010-01-1
+        bridge: vmbrvlan
+        vlanTag: "102"
+        pool: stuttgart-things
+        templateVmId: "211"
