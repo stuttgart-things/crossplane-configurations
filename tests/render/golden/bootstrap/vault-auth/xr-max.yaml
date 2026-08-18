@@ -7,10 +7,25 @@ metadata:
 status:
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: vcluster-tink2-cicd-vault-auth, vcluster-tink2-dev-vault-auth'
+    message: 'Unready resources: vcluster-tink2-cicd-vault-auth, vcluster-tink2-dev-vault-auth,
+      and vcluster-tink2-eso-vault-auth'
     reason: Creating
     status: "False"
     type: Ready
+  share:
+    auths:
+    - name: eso
+      ready: false
+      workspace: vcluster-tink2-eso-vault-auth
+    - name: dev
+      ready: false
+      workspace: vcluster-tink2-dev-vault-auth
+    - name: cicd
+      ready: false
+      workspace: vcluster-tink2-cicd-vault-auth
+    clusterName: vcluster-tink2
+    ready: false
+    vaultAddr: https://vault.example.com
 ---
 apiVersion: opentofu.m.upbound.io/v1beta1
 kind: Workspace
@@ -61,13 +76,25 @@ spec:
         path = "${var.cluster_name}-${var.auth_name}"
       }
 
+      # Empty map when no policies were declared, so a caller that only references
+      # existing ones gets a plan identical to before.
+      resource "vault_policy" "auth" {
+        for_each = var.policies
+        name     = "${var.cluster_name}-${each.key}"
+        policy   = each.value
+      }
+
       resource "vault_kubernetes_auth_backend_role" "service_account" {
         backend                          = vault_auth_backend.kubernetes.path
         role_name                        = var.auth_name
         bound_service_account_names      = var.bound_service_account_names
         bound_service_account_namespaces = var.bound_service_account_namespaces
         token_ttl                        = var.token_ttl
-        token_policies                   = var.token_policies
+        # The reference is what orders the two: tofu creates the policy before the
+        # role that names it, and destroys them in the reverse order. Splitting this
+        # across two systems is what makes "role bound to a policy that is not there
+        # yet" possible, and Vault reports that as nothing at all.
+        token_policies                   = concat(var.token_policies, [for p in vault_policy.auth : p.name])
       }
 
       variable "auth_name" {
@@ -102,6 +129,11 @@ spec:
         default = []
       }
 
+      variable "policies" {
+        type    = map(string)
+        default = {}
+      }
+
       variable "token_ttl" {
         type    = number
         default = 3600
@@ -123,6 +155,10 @@ spec:
 
       output "auth_role_name" {
         value = vault_kubernetes_auth_backend_role.service_account.role_name
+      }
+
+      output "policy_names" {
+        value = [for p in vault_policy.auth : p.name]
       }
     remotePullPolicy: Always
     source: Inline
@@ -149,6 +185,8 @@ spec:
       value: '["default"]'
     - key: bound_service_account_namespaces
       value: '["tekton-ci"]'
+    - key: policies
+      value: '{}'
   managementPolicies:
   - '*'
   providerConfigRef:
@@ -208,13 +246,25 @@ spec:
         path = "${var.cluster_name}-${var.auth_name}"
       }
 
+      # Empty map when no policies were declared, so a caller that only references
+      # existing ones gets a plan identical to before.
+      resource "vault_policy" "auth" {
+        for_each = var.policies
+        name     = "${var.cluster_name}-${each.key}"
+        policy   = each.value
+      }
+
       resource "vault_kubernetes_auth_backend_role" "service_account" {
         backend                          = vault_auth_backend.kubernetes.path
         role_name                        = var.auth_name
         bound_service_account_names      = var.bound_service_account_names
         bound_service_account_namespaces = var.bound_service_account_namespaces
         token_ttl                        = var.token_ttl
-        token_policies                   = var.token_policies
+        # The reference is what orders the two: tofu creates the policy before the
+        # role that names it, and destroys them in the reverse order. Splitting this
+        # across two systems is what makes "role bound to a policy that is not there
+        # yet" possible, and Vault reports that as nothing at all.
+        token_policies                   = concat(var.token_policies, [for p in vault_policy.auth : p.name])
       }
 
       variable "auth_name" {
@@ -249,6 +299,11 @@ spec:
         default = []
       }
 
+      variable "policies" {
+        type    = map(string)
+        default = {}
+      }
+
       variable "token_ttl" {
         type    = number
         default = 3600
@@ -270,6 +325,10 @@ spec:
 
       output "auth_role_name" {
         value = vault_kubernetes_auth_backend_role.service_account.role_name
+      }
+
+      output "policy_names" {
+        value = [for p in vault_policy.auth : p.name]
       }
 
       provider "kubernetes" {}
@@ -348,6 +407,8 @@ spec:
       value: '["default","vault-auth"]'
     - key: bound_service_account_namespaces
       value: '["default","applications"]'
+    - key: policies
+      value: '{}'
     - key: kubernetes_host
       value: https://kubernetes.default.svc:443
     - key: sa_secret_name
@@ -362,6 +423,178 @@ spec:
       value: "true"
     - key: disable_local_ca_jwt
       value: "true"
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: default
+---
+apiVersion: opentofu.m.upbound.io/v1beta1
+kind: Workspace
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vcluster-tink2-eso-vault-auth
+  labels:
+    crossplane.io/composite: vault-auth-max
+  name: vcluster-tink2-eso-vault-auth
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultK8sAuth
+    name: vault-auth-max
+    uid: ""
+spec:
+  forProvider:
+    entrypoint: ""
+    inlineFormat: HCL
+    module: |
+      terraform {
+        required_providers {
+          vault = {
+            source  = "hashicorp/vault"
+            version = "~> 3.25"
+          }
+        }
+      }
+
+      provider "vault" {
+        address          = var.vault_addr
+        skip_tls_verify  = var.skip_tls_verify
+        skip_child_token = true
+
+        auth_login {
+          path = "auth/approle/login"
+          parameters = {
+            role_id   = var.vault_role_id
+            secret_id = var.vault_secret_id
+          }
+        }
+      }
+
+      resource "vault_auth_backend" "kubernetes" {
+        type = "kubernetes"
+        path = "${var.cluster_name}-${var.auth_name}"
+      }
+
+      # Empty map when no policies were declared, so a caller that only references
+      # existing ones gets a plan identical to before.
+      resource "vault_policy" "auth" {
+        for_each = var.policies
+        name     = "${var.cluster_name}-${each.key}"
+        policy   = each.value
+      }
+
+      resource "vault_kubernetes_auth_backend_role" "service_account" {
+        backend                          = vault_auth_backend.kubernetes.path
+        role_name                        = var.auth_name
+        bound_service_account_names      = var.bound_service_account_names
+        bound_service_account_namespaces = var.bound_service_account_namespaces
+        token_ttl                        = var.token_ttl
+        # The reference is what orders the two: tofu creates the policy before the
+        # role that names it, and destroys them in the reverse order. Splitting this
+        # across two systems is what makes "role bound to a policy that is not there
+        # yet" possible, and Vault reports that as nothing at all.
+        token_policies                   = concat(var.token_policies, [for p in vault_policy.auth : p.name])
+      }
+
+      variable "auth_name" {
+        type = string
+      }
+
+      variable "cluster_name" {
+        type = string
+      }
+
+      variable "vault_addr" {
+        type = string
+      }
+
+      variable "skip_tls_verify" {
+        type    = bool
+        default = false
+      }
+
+      variable "vault_role_id" {
+        type      = string
+        sensitive = true
+      }
+
+      variable "vault_secret_id" {
+        type      = string
+        sensitive = true
+      }
+
+      variable "token_policies" {
+        type    = list(string)
+        default = []
+      }
+
+      variable "policies" {
+        type    = map(string)
+        default = {}
+      }
+
+      variable "token_ttl" {
+        type    = number
+        default = 3600
+      }
+
+      variable "bound_service_account_names" {
+        type    = list(string)
+        default = ["default"]
+      }
+
+      variable "bound_service_account_namespaces" {
+        type    = list(string)
+        default = ["default"]
+      }
+
+      output "auth_backend_path" {
+        value = vault_auth_backend.kubernetes.path
+      }
+
+      output "auth_role_name" {
+        value = vault_kubernetes_auth_backend_role.service_account.role_name
+      }
+
+      output "policy_names" {
+        value = [for p in vault_policy.auth : p.name]
+      }
+    remotePullPolicy: Always
+    source: Inline
+    varFiles:
+    - format: HCL
+      secretKeyRef:
+        key: terraform.tfvars
+        name: vault
+      source: SecretKey
+    vars:
+    - key: auth_name
+      value: eso
+    - key: cluster_name
+      value: vcluster-tink2
+    - key: vault_addr
+      value: https://vault.example.com
+    - key: skip_tls_verify
+      value: "true"
+    - key: token_policies
+      value: '["read-secrets"]'
+    - key: token_ttl
+      value: "3600"
+    - key: bound_service_account_names
+      value: '["external-secrets"]'
+    - key: bound_service_account_namespaces
+      value: '["external-secrets"]'
+    - key: policies
+      value: '{"kv-own": "path \"kv/data/vcluster-tink2\" { capabilities = [\"read\"]
+        }\npath \"kv/data/vcluster-tink2/*\" { capabilities = [\"read\"] }\npath \"kv/metadata/vcluster-tink2\"
+        { capabilities = [\"read\", \"list\"] }\npath \"kv/metadata/vcluster-tink2/*\"
+        { capabilities = [\"read\", \"list\"] }\n", "kv-cicd": "path \"kv/data/cicd\"
+        { capabilities = [\"read\"] }\npath \"kv/data/cicd/*\" { capabilities = [\"read\"]
+        }\npath \"kv/metadata/cicd\" { capabilities = [\"read\", \"list\"] }\npath
+        \"kv/metadata/cicd/*\" { capabilities = [\"read\", \"list\"] }\n"}'
   managementPolicies:
   - '*'
   providerConfigRef:

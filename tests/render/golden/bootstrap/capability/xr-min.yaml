@@ -1,0 +1,260 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Capability
+metadata:
+  name: u26-rke2-1-capability
+  namespace: default
+status:
+  capabilities:
+    proxmoxvm:
+      credentialsSecret: proxmoxvm-creds-u26-rke2-1
+      environmentConfig: proxmoxvm-u26-rke2-1
+      providerConfig: proxmoxvm-u26-rke2-1
+      ready: false
+      secretStore: proxmoxvm-u26-rke2-1
+  capabilityCount: 1
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: proxmoxvm-ci-password-secret, proxmoxvm-credentials,
+      proxmoxvm-environment-config, and 2 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  readyCount: 0
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmoxvm-ci-password-secret
+  labels:
+    crossplane.io/composite: u26-rke2-1-capability
+  name: proxmoxvm-ci-password-secret
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: u26-rke2-1-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: proxmoxvm-ci-password
+        namespace: default
+      spec:
+        dataFrom:
+        - extract:
+            conversionStrategy: Default
+            decodingStrategy: None
+            key: default
+            metadataPolicy: None
+        refreshInterval: 1h
+        secretStoreRef:
+          kind: ClusterSecretStore
+          name: proxmoxvm-u26-rke2-1
+        target:
+          creationPolicy: Owner
+          deletionPolicy: Retain
+          name: proxmoxvm-ci-password
+          template:
+            data:
+              password: '{{ .vm_ssh_password }}'
+            engineVersion: v2
+            mergePolicy: Replace
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    policy: DeriveFromObject
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmoxvm-credentials
+  labels:
+    crossplane.io/composite: u26-rke2-1-capability
+  name: proxmoxvm-credentials
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: u26-rke2-1-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: proxmoxvm-creds-u26-rke2-1
+        namespace: crossplane-system
+      spec:
+        dataFrom:
+        - extract:
+            conversionStrategy: Default
+            decodingStrategy: None
+            key: default
+            metadataPolicy: None
+        refreshInterval: 1h
+        secretStoreRef:
+          kind: ClusterSecretStore
+          name: proxmoxvm-u26-rke2-1
+        target:
+          creationPolicy: Owner
+          deletionPolicy: Retain
+          name: proxmoxvm-creds-u26-rke2-1
+          template:
+            data:
+              credentials: '{"endpoint":"{{ .pve_api_url }}","username":"{{ .pve_api_user
+                }}","password":"{{ .pve_api_password }}","insecure":"true","ssh_username":"{{
+                .vm_ssh_user }}","ssh_password":"{{ .vm_ssh_password }}"}'
+            engineVersion: v2
+            mergePolicy: Replace
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    policy: DeriveFromObject
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmoxvm-environment-config
+  labels:
+    crossplane.io/composite: u26-rke2-1-capability
+  name: proxmoxvm-environment-config
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: u26-rke2-1-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: apiextensions.crossplane.io/v1beta1
+      data:
+        annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
+        bios: seabios
+        bridge: vmbrvlan
+        ciPasswordSecretKey: password
+        ciPasswordSecretName: proxmoxvm-ci-password
+        ciUsername: sthings
+        cpuType: host
+        datastore: V5010-01-1
+        diskInterface: virtio0
+        networkModel: virtio
+        node: ul-pve11
+        osType: l26
+        pool: stuttgart-things
+        providerConfigKind: ClusterProviderConfig
+        providerConfigName: proxmoxvm-u26-rke2-1
+        templateVmId: "211"
+        vlanTag: "102"
+      kind: EnvironmentConfig
+      metadata:
+        labels:
+          proxmoxvm.resources.stuttgart-things.com/environment: u26-rke2-1
+        name: proxmoxvm-u26-rke2-1
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    celQuery: "true"
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmoxvm-provider-config
+  labels:
+    crossplane.io/composite: u26-rke2-1-capability
+  name: proxmoxvm-provider-config
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: u26-rke2-1-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: proxmoxbpg.m.crossplane.io/v1beta1
+      kind: ClusterProviderConfig
+      metadata:
+        name: proxmoxvm-u26-rke2-1
+      spec:
+        credentials:
+          secretRef:
+            key: credentials
+            name: proxmoxvm-creds-u26-rke2-1
+            namespace: crossplane-system
+          source: Secret
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    celQuery: "true"
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmoxvm-secret-store
+  labels:
+    crossplane.io/composite: u26-rke2-1-capability
+  name: proxmoxvm-secret-store
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: u26-rke2-1-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: external-secrets.io/v1
+      kind: ClusterSecretStore
+      metadata:
+        name: proxmoxvm-u26-rke2-1
+      spec:
+        provider:
+          vault:
+            auth:
+              kubernetes:
+                mountPath: u26-rke2-1-eso
+                role: eso
+                serviceAccountRef:
+                  name: external-secrets
+                  namespace: external-secrets
+            caProvider:
+              key: ca.crt
+              name: vault-pki-ca
+              namespace: cert-manager
+              type: Secret
+            path: cicd-proxmox-labul
+            server: https://vault.infra.sthings-vsphere.labul.sva.de
+            version: v2
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    policy: DeriveFromObject

@@ -11,6 +11,17 @@ status:
     reason: Creating
     status: "False"
     type: Ready
+  share:
+    auths:
+    - name: dev
+      ready: false
+      workspace: vcluster-tink2-dev-vault-auth
+    - name: cicd
+      ready: false
+      workspace: vcluster-tink2-cicd-vault-auth
+    clusterName: vcluster-tink2
+    ready: false
+    vaultAddr: https://vault.example.com
 ---
 apiVersion: opentofu.m.upbound.io/v1beta1
 kind: Workspace
@@ -61,13 +72,25 @@ spec:
         path = "${var.cluster_name}-${var.auth_name}"
       }
 
+      # Empty map when no policies were declared, so a caller that only references
+      # existing ones gets a plan identical to before.
+      resource "vault_policy" "auth" {
+        for_each = var.policies
+        name     = "${var.cluster_name}-${each.key}"
+        policy   = each.value
+      }
+
       resource "vault_kubernetes_auth_backend_role" "service_account" {
         backend                          = vault_auth_backend.kubernetes.path
         role_name                        = var.auth_name
         bound_service_account_names      = var.bound_service_account_names
         bound_service_account_namespaces = var.bound_service_account_namespaces
         token_ttl                        = var.token_ttl
-        token_policies                   = var.token_policies
+        # The reference is what orders the two: tofu creates the policy before the
+        # role that names it, and destroys them in the reverse order. Splitting this
+        # across two systems is what makes "role bound to a policy that is not there
+        # yet" possible, and Vault reports that as nothing at all.
+        token_policies                   = concat(var.token_policies, [for p in vault_policy.auth : p.name])
       }
 
       variable "auth_name" {
@@ -102,6 +125,11 @@ spec:
         default = []
       }
 
+      variable "policies" {
+        type    = map(string)
+        default = {}
+      }
+
       variable "token_ttl" {
         type    = number
         default = 3600
@@ -123,6 +151,10 @@ spec:
 
       output "auth_role_name" {
         value = vault_kubernetes_auth_backend_role.service_account.role_name
+      }
+
+      output "policy_names" {
+        value = [for p in vault_policy.auth : p.name]
       }
     remotePullPolicy: Always
     source: Inline
@@ -149,6 +181,8 @@ spec:
       value: '["default"]'
     - key: bound_service_account_namespaces
       value: '["default"]'
+    - key: policies
+      value: '{}'
   managementPolicies:
   - '*'
   providerConfigRef:
@@ -204,13 +238,25 @@ spec:
         path = "${var.cluster_name}-${var.auth_name}"
       }
 
+      # Empty map when no policies were declared, so a caller that only references
+      # existing ones gets a plan identical to before.
+      resource "vault_policy" "auth" {
+        for_each = var.policies
+        name     = "${var.cluster_name}-${each.key}"
+        policy   = each.value
+      }
+
       resource "vault_kubernetes_auth_backend_role" "service_account" {
         backend                          = vault_auth_backend.kubernetes.path
         role_name                        = var.auth_name
         bound_service_account_names      = var.bound_service_account_names
         bound_service_account_namespaces = var.bound_service_account_namespaces
         token_ttl                        = var.token_ttl
-        token_policies                   = var.token_policies
+        # The reference is what orders the two: tofu creates the policy before the
+        # role that names it, and destroys them in the reverse order. Splitting this
+        # across two systems is what makes "role bound to a policy that is not there
+        # yet" possible, and Vault reports that as nothing at all.
+        token_policies                   = concat(var.token_policies, [for p in vault_policy.auth : p.name])
       }
 
       variable "auth_name" {
@@ -245,6 +291,11 @@ spec:
         default = []
       }
 
+      variable "policies" {
+        type    = map(string)
+        default = {}
+      }
+
       variable "token_ttl" {
         type    = number
         default = 3600
@@ -266,6 +317,10 @@ spec:
 
       output "auth_role_name" {
         value = vault_kubernetes_auth_backend_role.service_account.role_name
+      }
+
+      output "policy_names" {
+        value = [for p in vault_policy.auth : p.name]
       }
     remotePullPolicy: Always
     source: Inline
@@ -292,6 +347,8 @@ spec:
       value: '["default"]'
     - key: bound_service_account_namespaces
       value: '["default"]'
+    - key: policies
+      value: '{}'
   managementPolicies:
   - '*'
   providerConfigRef:

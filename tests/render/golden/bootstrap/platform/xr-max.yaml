@@ -9,6 +9,7 @@ status:
   components:
     cilium:
       enabled: false
+      gatewayName: cilium-gateway
       gatewayReady: false
       loadBalancerReady: false
       networkKey: ""
@@ -21,6 +22,8 @@ status:
     fluxApps:
       appCount: 0
       enabled: true
+      pendingCount: 0
+      pendingSubstitutions: []
       ready: false
       readyCount: 0
     fluxInit:
@@ -52,6 +55,11 @@ status:
     reason: Creating
     status: "False"
     type: Ready
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: no components are waiting on a discovered value
+    reason: AllSupplied
+    status: "False"
+    type: PendingSubstitutions
   ready: false
   readyComponents: 0
   shared:
@@ -443,11 +451,14 @@ spec:
     - external-secrets
     name: eso
     policies:
-    - name: kv-own
-      rules: |
-        path "kv/data/staging/*" { capabilities = ["read"] }
-    - name: kv-cicd
-      rules: path "kv/data/cicd/*" { capabilities = ["read"] }
+    - kvMount: kv
+      name: kv-own
+      read:
+      - own
+    - kvMount: kv
+      name: kv-cicd
+      read:
+      - cicd
   providerConfigKind: ClusterProviderConfig
   providerConfigName: in-cluster
   skipTlsVerify: true

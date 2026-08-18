@@ -9,6 +9,7 @@ status:
   components:
     cilium:
       enabled: false
+      gatewayName: cilium-gateway
       gatewayReady: false
       loadBalancerReady: false
       networkKey: ""
@@ -21,6 +22,8 @@ status:
     fluxApps:
       appCount: 0
       enabled: true
+      pendingCount: 0
+      pendingSubstitutions: []
       ready: false
       readyCount: 0
     fluxInit:
@@ -51,6 +54,11 @@ status:
     reason: Creating
     status: "False"
     type: Ready
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: no components are waiting on a discovered value
+    reason: AllSupplied
+    status: "False"
+    type: PendingSubstitutions
   ready: false
   readyComponents: 0
   shared:

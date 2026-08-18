@@ -1,0 +1,129 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ArgocdCluster
+metadata:
+  name: argocd-cluster-min
+  namespace: crossplane-system
+status:
+  allocationIp: ""
+  clusterSecretName: cluster-my-cluster
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: clusterbook-cluster, external-secret'
+    reason: Creating
+    status: "False"
+    type: Ready
+  fqdn: ""
+  ready: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: clusterbook-cluster
+  labels:
+    crossplane.io/composite: argocd-cluster-min
+  name: argocd-cluster-min-clusterbook
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ArgocdCluster
+    name: argocd-cluster-min
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: clusterbook.stuttgart-things.com/v1alpha1
+      kind: ClusterbookCluster
+      metadata:
+        name: my-cluster
+      spec:
+        annotations: {}
+        argocdNamespace: argocd
+        clusterName: my-cluster
+        clusterType: default
+        createDNS: true
+        kubeconfigSecretRef:
+          name: my-cluster
+          namespace: argocd
+        labels:
+          allow-all: "false"
+          auto-project: "true"
+          cicd-platform: "false"
+          cicd-platform/argo-rollouts: "false"
+          cicd-platform/crossplane: "false"
+          cicd-platform/dapr: "false"
+          cicd-platform/kargo: "false"
+          cicd-platform/kro: "false"
+          cicd-platform/openebs: "false"
+          cicd-platform/tekton: "false"
+          env: LabUL
+          network-platform: "false"
+          network-platform/cert-manager-cluster-ca: "false"
+          network-platform/cert-manager-install: "false"
+          network-platform/cert-manager-selfsigned: "false"
+          network-platform/cert-manager-vault-pki: "false"
+          network-platform/cilium-gateway: "false"
+          network-platform/cilium-gateway-secondary: "false"
+          network-platform/cilium-lb: "false"
+          network-platform/trust-manager-bundle: "false"
+          network-platform/trust-manager-install: "false"
+          role: dev
+          security-platform: "false"
+          security-platform/external-secrets: "false"
+          security-platform/kyverno: "false"
+          storage-platform: "false"
+          storage-platform/longhorn: "false"
+          storage-platform/nfs-csi-install: "false"
+          storage-platform/nfs-csi-storageclasses: "false"
+          storage-platform/openebs: "false"
+        networkKey: 10.31.102
+        preserveKubeconfigServer: true
+        providerConfigRef:
+          name: default
+        releaseOnDelete: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: platform-sthings-registrar-kubernetes
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: external-secret
+  labels:
+    crossplane.io/composite: argocd-cluster-min
+  name: argocd-cluster-min-kubeconfig
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ArgocdCluster
+    name: argocd-cluster-min
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: my-cluster-kubeconfig
+        namespace: argocd
+      spec:
+        data:
+        - remoteRef:
+            key: kubeconfigs/data/my-cluster
+            property: kubeconfig
+          secretKey: kubeconfig
+        refreshInterval: 1h
+        secretStoreRef:
+          kind: ClusterSecretStore
+          name: vault-kubeconfigs
+        target:
+          name: my-cluster
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: platform-sthings-registrar-kubernetes
