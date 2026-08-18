@@ -28,6 +28,15 @@ spec:
     # it times out and retries rather than failing fast. The gate is one-way —
     # once a child exists it keeps being emitted, since not emitting it is what
     # makes Crossplane delete it.
+    #
+    # Since xplane-platform 0.22.0 the vaultIssuer branch is gated the same way,
+    # on cert-manager's WEBHOOK deployment being ready on the target. That gate
+    # exists for ArgoCD-driven clusters, where cert-manager arrives through an
+    # ApplicationSet this Composition cannot see: without it a one-shot apply
+    # composes a ClusterIssuer whose CRD does not exist yet. It converged by
+    # retry, but "waiting for ArgoCD" and "broken" looked identical for minutes.
+    # VaultK8sAuth and the reviewer chain stay ungated — they are the slow half
+    # and touch nothing of cert-manager's.
     - step: platform
       functionRef:
         name: function-kcl
@@ -37,7 +46,7 @@ spec:
         metadata:
           name: platform
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-platform:0.21.1
+          source: oci://ghcr.io/stuttgart-things/xplane-platform:0.22.0
     - step: automatically-detect-ready-composed-resources
       functionRef:
         name: function-auto-ready
