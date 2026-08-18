@@ -1,0 +1,268 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: argocd-cluster
+spec:
+  compositeTypeRef:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: ArgocdCluster
+  mode: Pipeline
+  pipeline:
+    # One KCL step for the two objects. The only real logic here is flattening
+    # `spec.profiles` into the flat label map the ClusterbookCluster wants — and
+    # that logic is worth having in exactly one place, because getting it wrong
+    # is silent: a missing label is not "off", it is "on" for most AppSets.
+    - step: render
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: argocd-cluster
+        spec:
+          source: | # pragma: allowlist secret
+            oxr = option("params").oxr
+
+            _name = oxr.metadata.name
+            _ns = oxr.metadata?.namespace or "crossplane-system"
+            _spec = oxr.spec
+            _cluster = _spec.clusterName
+
+            _argocd = _spec?.argocd or {}
+            _argoPcr = _argocd?.providerConfigRef or "platform-sthings-registrar-kubernetes"
+            _argoNs = _argocd?.namespace or "argocd"
+
+            _kc = _spec?.kubeconfig or {}
+            _storeKind = _kc?.secretStoreKind or "ClusterSecretStore"
+            _storeName = _kc?.secretStoreName or "vault-kubeconfigs"
+            # KVv2 is addressed through /data/ — a path without it reads the
+            # metadata endpoint and yields an empty secret rather than an error.
+            _remoteKey = _kc?.remoteKey or "kubeconfigs/data/{}".format(_cluster)
+            _property = _kc?.property or "kubeconfig"
+            _refresh = _kc?.refreshInterval or "1h"
+
+            _cb = _spec?.clusterbook or {}
+            _prof = _spec?.profiles or {}
+
+            # --- profiles -> flat label map -------------------------------
+            # Booleans become the STRINGS "true"/"false", never omitted. Most
+            # AppSet selectors use `NotIn ["false"]`, so leaving a component out
+            # switches it ON. Writing every value explicitly is the only way the
+            # XR means what it says.
+            _b = lambda v: any -> str {
+                "true" if v else "false"
+            }
+            # Read an optional boolean with a default. NOT `x?.k if x?.k !=
+            # Undefined else default` — KCL's `?.` yields None on an EMPTY dict
+            # and Undefined on a populated one that lacks the key, so that form
+            # silently returns the default only in the second case. An XR with no
+            # `profiles` block at all then got `auto-project: 'false'` while one
+            # with an unrelated profile got 'true'. Explicit key test instead.
+            _dflt = lambda d: any, k: str, dv: bool -> bool {
+                d[k] if (d and k in d) else dv
+            }
+            # A component is only meaningful under an enabled umbrella; with the
+            # umbrella off we still emit the component as "false" so the intent
+            # survives a later umbrella flip.
+            _sub = lambda umbrella: any, v: any -> str {
+                "true" if (umbrella and v) else "false"
+            }
+
+            _net = _prof?.network or {}
+            _netOn = _dflt(_net, "enabled", False)
+            _sec = _prof?.security or {}
+            _secOn = _dflt(_sec, "enabled", False)
+            _sto = _prof?.storage or {}
+            _stoOn = _dflt(_sto, "enabled", False)
+            _ci = _prof?.cicd or {}
+            _ciOn = _dflt(_ci, "enabled", False)
+
+            _profileLabels = {
+                "env" = _cb?.env or "LabUL"
+                "role" = _cb?.role or "dev"
+                "auto-project" = _b(_dflt(_prof, "autoProject", True))
+                "allow-all" = _b(_dflt(_prof, "allowAll", False))
+
+                "network-platform" = _b(_netOn)
+                "network-platform/cilium-lb" = _sub(_netOn, _dflt(_net, "ciliumLb", True))
+                "network-platform/cilium-gateway" = _sub(_netOn, _dflt(_net, "ciliumGateway", True))
+                "network-platform/cilium-gateway-secondary" = _sub(_netOn, _dflt(_net, "ciliumGatewaySecondary", False))
+                "network-platform/cert-manager-install" = _sub(_netOn, _dflt(_net, "certManagerInstall", True))
+                "network-platform/cert-manager-selfsigned" = _sub(_netOn, _dflt(_net, "certManagerSelfsigned", True))
+                "network-platform/cert-manager-cluster-ca" = _sub(_netOn, _dflt(_net, "certManagerClusterCa", True))
+                "network-platform/cert-manager-vault-pki" = _sub(_netOn, _dflt(_net, "certManagerVaultPki", False))
+                "network-platform/trust-manager-install" = _sub(_netOn, _dflt(_net, "trustManagerInstall", True))
+                "network-platform/trust-manager-bundle" = _sub(_netOn, _dflt(_net, "trustManagerBundle", True))
+
+                # security-platform selects OPT-IN today (matchLabels on the
+                # component), unlike the 33 AppSets that use NotIn ["false"].
+                # See stuttgart-things/argocd#318 — once that is aligned this
+                # block behaves like the others and needs no special care.
+                "security-platform" = _b(_secOn)
+                "security-platform/external-secrets" = _sub(_secOn, _dflt(_sec, "externalSecrets", True))
+                "security-platform/kyverno" = _sub(_secOn, _dflt(_sec, "kyverno", True))
+
+                "storage-platform" = _b(_stoOn)
+                "storage-platform/openebs" = _sub(_stoOn, _dflt(_sto, "openebs", False))
+                "storage-platform/longhorn" = _sub(_stoOn, _dflt(_sto, "longhorn", False))
+                "storage-platform/nfs-csi-install" = _sub(_stoOn, _dflt(_sto, "nfsCsiInstall", False))
+                "storage-platform/nfs-csi-storageclasses" = _sub(_stoOn, _dflt(_sto, "nfsCsiStorageclasses", False))
+
+                "cicd-platform" = _b(_ciOn)
+                "cicd-platform/crossplane" = _sub(_ciOn, _dflt(_ci, "crossplane", False))
+                "cicd-platform/kro" = _sub(_ciOn, _dflt(_ci, "kro", False))
+                "cicd-platform/tekton" = _sub(_ciOn, _dflt(_ci, "tekton", False))
+                "cicd-platform/dapr" = _sub(_ciOn, _dflt(_ci, "dapr", False))
+                "cicd-platform/kargo" = _sub(_ciOn, _dflt(_ci, "kargo", False))
+                "cicd-platform/argo-rollouts" = _sub(_ciOn, _dflt(_ci, "argoRollouts", False))
+                "cicd-platform/openebs" = _sub(_ciOn, _dflt(_ci, "openebs", False))
+            }
+
+            _previewLabels = {"{}-pr-preview".format(p) = "true" for p in (_prof?.previews or [])}
+
+            # The nfs-csi StorageClass AppSet needs this GATE label (operator
+            # Exists) on top of its component switch. Setting the switch alone
+            # installs nothing — documented in platforms/README.md, and worth
+            # honouring here rather than making every caller remember it.
+            _nfs = _spec?.nfs or {}
+            _nfsGate = {"storage-platform.stuttgart-things.com/nfs-config" = "true"} if _nfs?.server else {}
+
+            _labels = _profileLabels | _previewLabels | _nfsGate | (_spec?.extraLabels or {})
+
+            # --- annotations ----------------------------------------------
+            # NOT set here: …/allocation-ip, …/allocation-zone, …/cluster-type,
+            # …/cluster-name, …/fqdn, …/ip, …/zone. The Clusterbook controller
+            # stamps those onto the rendered Secret; writing them into the CR
+            # would be shadowed at best and contradictory at worst.
+            _v = _spec?.vault or {}
+            _vaultAnn = {
+                "clusterbook.stuttgart-things.com/vault-server" = _v.server
+                "clusterbook.stuttgart-things.com/vault-pki-path" = _v.pkiPath
+                "clusterbook.stuttgart-things.com/vault-token-secret" = _v?.tokenSecret or "cert-manager-vault-token"
+                "clusterbook.stuttgart-things.com/wildcard-issuer-name" = _v?.wildcardIssuerName or "vault-pki"
+            } if _v?.server else {}
+
+            _nfsAnn = {
+                "storage-platform.stuttgart-things.com/nfs-server" = _nfs.server
+                "storage-platform.stuttgart-things.com/nfs-share" = _nfs?.share or "/"
+                "storage-platform.stuttgart-things.com/nfs-version" = _nfs?.version or "4.1"
+            } if _nfs?.server else {}
+
+            _annotations = _vaultAnn | _nfsAnn | (_spec?.extraAnnotations or {})
+
+            # --- object 1: the ExternalSecret ------------------------------
+            # target.name is the cluster name because that is what
+            # ClusterbookCluster.spec.kubeconfigSecretRef points at. The single
+            # key must be `kubeconfig` — the operator reads exactly that.
+            _externalSecret = {
+                apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                kind = "Object"
+                metadata = {
+                    name = "{}-kubeconfig".format(_name)
+                    namespace = _ns
+                    annotations = {"krm.kcl.dev/composition-resource-name" = "external-secret"}
+                }
+                spec = {
+                    providerConfigRef = {kind = "ClusterProviderConfig", name = _argoPcr}
+                    forProvider.manifest = {
+                        apiVersion = "external-secrets.io/v1"
+                        kind = "ExternalSecret"
+                        metadata = {
+                            name = "{}-kubeconfig".format(_cluster)
+                            namespace = _argoNs
+                        }
+                        spec = {
+                            refreshInterval = _refresh
+                            secretStoreRef = {kind = _storeKind, name = _storeName}
+                            target.name = _cluster
+                            data = [{
+                                secretKey = "kubeconfig"
+                                remoteRef = {key = _remoteKey, property = _property}
+                            }]
+                        }
+                    }
+                }
+            }
+
+            # --- object 2: the ClusterbookCluster --------------------------
+            _clusterbook = {
+                apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
+                kind = "Object"
+                metadata = {
+                    name = "{}-clusterbook".format(_name)
+                    namespace = _ns
+                    annotations = {"krm.kcl.dev/composition-resource-name" = "clusterbook-cluster"}
+                }
+                spec = {
+                    providerConfigRef = {kind = "ClusterProviderConfig", name = _argoPcr}
+                    # The CR carries a finalizer and releaseOnDelete; the Object
+                    # must be allowed to Delete so the operator can run it and
+                    # hand the reserved IP back. Observe-only here would leave the
+                    # registration behind on teardown.
+                    forProvider.manifest = {
+                        apiVersion = "clusterbook.stuttgart-things.com/v1alpha1"
+                        kind = "ClusterbookCluster"
+                        metadata.name = _cluster
+                        spec = {
+                            clusterName = _cluster
+                            clusterType = _cb?.clusterType or "default"
+                            networkKey = _spec.networkKey
+                            providerConfigRef.name = _cb?.providerConfigRef or "default"
+                            argocdNamespace = _argoNs
+                            createDNS = _dflt(_cb, "createDNS", True)
+                            releaseOnDelete = _dflt(_cb, "releaseOnDelete", True)
+                            preserveKubeconfigServer = _dflt(_cb, "preserveKubeconfigServer", True)
+                            kubeconfigSecretRef = {name = _cluster, namespace = _argoNs}
+                            labels = _labels
+                            annotations = _annotations
+                        }
+                    }
+                }
+            }
+
+            items = [_externalSecret, _clusterbook]
+
+    # Republish what the operator decided, so a downstream stage can wait on
+    # something meaningful. `ready` is deliberately gated on the CR being Ready
+    # and not merely on both Objects applying: an applied ClusterbookCluster
+    # whose reservation has not happened yet is not a registered cluster.
+    - step: patch-status
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: patch-status
+        spec:
+          target: XR
+          source: |
+            oxr = option("params").oxr
+            ocds = option("params").ocds
+
+            _cluster = oxr.spec.clusterName
+            _cb = ocds["clusterbook-cluster"]?.Resource?.status?.atProvider?.manifest or {}
+            _cbStatus = _cb?.status or {}
+
+            _cbReady = any_true([
+                c.type == "Ready" and c.status == "True"
+                for c in (_cbStatus?.conditions or [])
+            ])
+
+            items = [{
+                apiVersion = oxr.apiVersion
+                kind = oxr.kind
+                metadata = {name = oxr.metadata.name, namespace = oxr.metadata?.namespace}
+                status = {
+                    ready = _cbReady
+                    clusterSecretName = _cbStatus?.secretName or "cluster-{}".format(_cluster)
+                    allocationIp = _cbStatus?.ip or ""
+                    fqdn = _cbStatus?.fqdn or ""
+                }
+            }]
+
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

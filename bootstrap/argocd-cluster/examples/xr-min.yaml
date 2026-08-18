@@ -1,0 +1,17 @@
+---
+# Minimum: only the two XRD-required fields. Everything else comes from defaults —
+# argocd namespace, the vault-kubeconfigs store, remoteKey
+# kubeconfigs/data/{clusterName}, and ALL platform profiles off.
+#
+# The result is a registered cluster with no software on it: ArgoCD knows it, the
+# operator has reserved IP and DNS, and exactly one Application exists (the
+# AppProject from auto-project). That is a useful first step — it separates
+# "registration works" from "fan-out works".
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ArgocdCluster
+metadata:
+  name: argocd-cluster-min
+  namespace: crossplane-system
+spec:
+  clusterName: my-cluster
+  networkKey: '10.31.102'

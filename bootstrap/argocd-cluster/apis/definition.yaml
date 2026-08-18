@@ -1,0 +1,349 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: argocdclusters.config.stuttgart-things.com
+spec:
+  group: config.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    # DELIBERATELY *NOT* `ArgocdPlatformCluster` or anything carrying "Platform".
+    # `Platform` is already a kind in this very group — the Flux-driven branch —
+    # and the two are ALTERNATIVES: a cluster gets its platform from `Platform`
+    # or from the Clusterbook labels this XR writes, never both. Two kinds both
+    # named "…Platform…" that exclude each other invite exactly the confusion
+    # `ClusterStack.platformEnabled: false` exists to prevent.
+    #
+    # `ArgocdCluster` also mirrors `ClusterAccess`: both are registrations with a
+    # consumer, named after what they produce rather than what follows from it.
+    # An XR with every profile off yields a registered cluster and no software —
+    # the platform fan-out is an effect, not the essence.
+    kind: ArgocdCluster
+    plural: argocdclusters
+    singular: argocdcluster
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - clusterName
+                - networkKey
+              properties:
+                clusterName:
+                  type: string
+                  description: >-
+                    Name of the target cluster. The single shared input: it names
+                    the ClusterbookCluster, the kubeconfig Secret in `argocd`, the
+                    Vault path it is read from, and the AppProject the generated
+                    Applications land in. Must match the `clusterName` the
+                    ClusterStack used, because the upload play wrote the Vault
+                    secret under that name.
+                networkKey:
+                  type: string
+                  description: >-
+                    Clusterbook network pool the LOAD BALANCER address is reserved
+                    from, e.g. `10.31.102`. This is NOT the node address — the node
+                    gets its IP from DHCP or from ClusterStack.vm.ipv4Address, and
+                    the two differ. Observed on argoplatform-test1: node
+                    10.31.102.110, reservation 10.31.102.8. The reservation feeds
+                    the cilium-lb AppSet through the `…/allocation-ip` annotation.
+
+                # ---- where the two objects get written -----------------------
+                argocd:
+                  type: object
+                  description: >-
+                    How to reach the ArgoCD cluster. Both composed objects are
+                    written there through provider-kubernetes; nothing is created
+                    on the management cluster.
+                  properties:
+                    providerConfigRef:
+                      type: string
+                      default: platform-sthings-registrar-kubernetes
+                      description: >-
+                        provider-kubernetes ClusterProviderConfig pointing at the
+                        ArgoCD cluster. A cluster precondition — see the README.
+                        The identity behind it should be scoped to
+                        `clusterbookclusters` (cluster-wide) and `externalsecrets`
+                        in the argocd namespace, NOT an admin kubeconfig: that
+                        credential would have to live in the same `kubeconfigs/`
+                        mount every registered cluster can read, which inverts the
+                        trust direction.
+                    namespace:
+                      type: string
+                      default: argocd
+                      description: >-
+                        Namespace on the ArgoCD cluster holding the ExternalSecret
+                        and the kubeconfig Secret. Must match the ArgoCD instance's
+                        own namespace, since that is where it looks for cluster
+                        Secrets.
+
+                # ---- how ESO gets the kubeconfig -----------------------------
+                kubeconfig:
+                  type: object
+                  description: >-
+                    Where ESO reads the kubeconfig from. The XR emits an
+                    ExternalSecret and never handles the credential itself — it
+                    appears in no XR status, no composition cache and no git repo.
+                  properties:
+                    secretStoreKind:
+                      type: string
+                      default: ClusterSecretStore
+                      enum:
+                        - ClusterSecretStore
+                        - SecretStore
+                    secretStoreName:
+                      type: string
+                      default: vault-kubeconfigs
+                      description: >-
+                        Store on the ArgoCD cluster that can read the mount. A
+                        cluster precondition.
+                    remoteKey:
+                      type: string
+                      description: >-
+                        KVv2 path of the kubeconfig. Defaults to
+                        `kubeconfigs/data/{clusterName}` — the convention
+                        `upload_kubeconfig_vault` writes with. Note the `/data/`
+                        segment: ESO addresses KVv2 through the data path.
+                    property:
+                      type: string
+                      default: kubeconfig
+                      description: Field within the secret holding the raw kubeconfig YAML.
+                    refreshInterval:
+                      type: string
+                      default: 1h
+
+                # ---- the ClusterbookCluster ----------------------------------
+                clusterbook:
+                  type: object
+                  description: Passed through to the ClusterbookCluster spec.
+                  properties:
+                    clusterType:
+                      type: string
+                      default: default
+                    providerConfigRef:
+                      type: string
+                      default: default
+                      description: ClusterbookProviderConfig on the ArgoCD cluster.
+                    createDNS:
+                      type: boolean
+                      default: true
+                    releaseOnDelete:
+                      type: boolean
+                      default: true
+                      description: >-
+                        Return the reserved IP to the pool on delete. Verified to
+                        work — the reservation was free again immediately.
+                    preserveKubeconfigServer:
+                      type: boolean
+                      default: true
+                      description: >-
+                        Keep `server` from the kubeconfig instead of rebuilding it
+                        from the FQDN. NOTE: this does NOT decide whether generated
+                        Applications use `destination.name` or `destination.server`
+                        — that is each AppSet's own template. Both homerun2-dev and
+                        argoplatform-test1 run with `true` and their Applications
+                        differ.
+                    env:
+                      type: string
+                      default: LabUL
+                    role:
+                      type: string
+                      default: dev
+
+                # ---- the platform switches -----------------------------------
+                profiles:
+                  type: object
+                  description: >-
+                    Structured form of the Clusterbook platform labels. The CR
+                    wants a flat map of ~30 strings; this is the human-facing
+                    shape and the composition flattens it.
+
+                    IMPORTANT: the composition emits explicit `'false'` for every
+                    component it turns off. Most AppSet selectors match with
+                    `NotIn ["false"]`, where OMITTING a label means ON — leaving a
+                    component out is therefore NOT the same as disabling it.
+                  properties:
+                    autoProject:
+                      type: boolean
+                      default: true
+                      description: Generates an AppProject named after the cluster.
+                    allowAll:
+                      type: boolean
+                      default: false
+                    network:
+                      type: object
+                      description: cilium + cert-manager + trust-manager
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        ciliumLb:
+                          type: boolean
+                          default: true
+                        ciliumGateway:
+                          type: boolean
+                          default: true
+                        ciliumGatewaySecondary:
+                          type: boolean
+                          default: false
+                        certManagerInstall:
+                          type: boolean
+                          default: true
+                        certManagerSelfsigned:
+                          type: boolean
+                          default: true
+                        certManagerClusterCa:
+                          type: boolean
+                          default: true
+                        certManagerVaultPki:
+                          type: boolean
+                          default: false
+                          description: >-
+                            Needs the four vault annotations below. Left off by
+                            default because an enabled component without its
+                            parameters fails at sync time, not at apply time.
+                        trustManagerInstall:
+                          type: boolean
+                          default: true
+                        trustManagerBundle:
+                          type: boolean
+                          default: true
+                    security:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        externalSecrets:
+                          type: boolean
+                          default: true
+                        kyverno:
+                          type: boolean
+                          default: true
+                    storage:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        openebs:
+                          type: boolean
+                          default: false
+                        longhorn:
+                          type: boolean
+                          default: false
+                        nfsCsiInstall:
+                          type: boolean
+                          default: false
+                        nfsCsiStorageclasses:
+                          type: boolean
+                          default: false
+                    cicd:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        crossplane:
+                          type: boolean
+                          default: false
+                        kro:
+                          type: boolean
+                          default: false
+                        tekton:
+                          type: boolean
+                          default: false
+                        dapr:
+                          type: boolean
+                          default: false
+                        kargo:
+                          type: boolean
+                          default: false
+                        argoRollouts:
+                          type: boolean
+                          default: false
+                        openebs:
+                          type: boolean
+                          default: false
+                    previews:
+                      type: array
+                      description: >-
+                        PR-preview profiles, each emitted as `<name>-pr-preview:
+                        'true'`. Known today: homerun2, machinery,
+                        machinery-catalog-locator.
+                      default: []
+                      items:
+                        type: string
+
+                # ---- component parameters ------------------------------------
+                vault:
+                  type: object
+                  description: >-
+                    Annotations the cert-manager-vault-pki AppSet reads. Only
+                    needed when profiles.network.certManagerVaultPki is true.
+                  properties:
+                    server:
+                      type: string
+                    pkiPath:
+                      type: string
+                    tokenSecret:
+                      type: string
+                      default: cert-manager-vault-token
+                    wildcardIssuerName:
+                      type: string
+                      default: vault-pki
+                nfs:
+                  type: object
+                  description: >-
+                    Annotations the nfs-csi-storageclasses AppSet reads. That
+                    AppSet ALSO requires the gate label
+                    `storage-platform.stuttgart-things.com/nfs-config`, which the
+                    composition emits whenever this block is present.
+                  properties:
+                    server:
+                      type: string
+                    share:
+                      type: string
+                    version:
+                      type: string
+                      default: "4.1"
+
+                extraLabels:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: >-
+                    Escape hatch for labels the profiles above do not model yet.
+                    Merged last, so it wins.
+                extraAnnotations:
+                  type: object
+                  additionalProperties:
+                    type: string
+
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+                  description: >-
+                    True once both objects are applied AND the ClusterbookCluster
+                    reports Ready. A Ready ExternalSecret alone is not enough — the
+                    cluster is only registered once the operator has rendered the
+                    ArgoCD Secret.
+                clusterSecretName:
+                  type: string
+                  description: Name of the Secret the operator renders, `cluster-{clusterName}`.
+                allocationIp:
+                  type: string
+                  description: LB address the operator reserved. Read back from the CR, not set by the XR.
+                fqdn:
+                  type: string
