@@ -30,7 +30,13 @@ spec:
     # makes Crossplane delete it.
     #
     # Since xplane-platform 0.22.0 the vaultIssuer branch is gated the same way,
-    # on cert-manager's WEBHOOK deployment being ready on the target. That gate
+    # on the ENDPOINTS of cert-manager's webhook Service carrying a ready address
+    # on the target. 0.22.1 moved it there from the Deployment: an Observe child
+    # embeds a metadata-only manifest, and `kubeconform -strict` rejects a
+    # Deployment without a spec — which failed this Configuration's own verify
+    # job. Endpoints has no required properties, and it is the better signal
+    # anyway: an address appears only once the pod is ready AND the Service
+    # selects it. That gate
     # exists for ArgoCD-driven clusters, where cert-manager arrives through an
     # ApplicationSet this Composition cannot see: without it a one-shot apply
     # composes a ClusterIssuer whose CRD does not exist yet. It converged by
@@ -46,7 +52,7 @@ spec:
         metadata:
           name: platform
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-platform:0.22.0
+          source: oci://ghcr.io/stuttgart-things/xplane-platform:0.22.1
     - step: automatically-detect-ready-composed-resources
       functionRef:
         name: function-auto-ready
