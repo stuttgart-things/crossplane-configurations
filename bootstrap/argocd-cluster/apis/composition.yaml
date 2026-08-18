@@ -168,11 +168,28 @@ spec:
             # target.name is the cluster name because that is what
             # ClusterbookCluster.spec.kubeconfigSecretRef points at. The single
             # key must be `kubeconfig` — the operator reads exactly that.
+            # NAME: `-argocd-externalsecret`, NOT `-kubeconfig`. A ClusterStack
+            # composes its kubeconfig STAGE as an Object named
+            # `{clusterName}-kubeconfig`, and Object names are namespaced. Put
+            # both XRs in one namespace — the obvious layout, since they describe
+            # one cluster — and the two collide:
+            #
+            #   cannot apply composed resource "external-secret":
+            #   Object "homerun2-test1-kubeconfig" is invalid:
+            #   metadata.ownerReferences: Only one reference can have Controller
+            #   set to true. Found "true" in references for
+            #   AnsibleRun/homerun2-test1-kubeconfig and ArgocdCluster/...
+            #
+            # It stayed hidden until 2026-08-18 only because the first XR happened
+            # to live in `crossplane-system` while its ClusterStack lived in
+            # `default`. The suffix now says what the object IS, not what it
+            # carries — the ExternalSecret inside keeps `{cluster}-kubeconfig`,
+            # which lives on the ArgoCD cluster and collides with nothing.
             _externalSecret = {
                 apiVersion = "kubernetes.m.crossplane.io/v1alpha1"
                 kind = "Object"
                 metadata = {
-                    name = "{}-kubeconfig".format(_name)
+                    name = "{}-argocd-externalsecret".format(_name)
                     namespace = _ns
                     annotations = {"krm.kcl.dev/composition-resource-name" = "external-secret"}
                 }
