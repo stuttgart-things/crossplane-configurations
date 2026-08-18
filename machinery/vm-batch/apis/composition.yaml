@@ -183,10 +183,19 @@ spec:
                     }
                     spec = {
                         pipelineRunName = _pipelineRunName
-                        namespace = _ansible?.pipelineNamespace or "tekton-ci"
-                        gitRepoUrl = _ansible?.gitRepoUrl or "https://github.com/stuttgart-things/stage-time.git"
-                        ansibleWorkingImage = _ansible?.ansibleWorkingImage or "ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test"
-                        ansibleCredentialsSecretName = _ansible?.credentialsSecretName or "ansible-credentials"
+                        # Same contract as the VM children above (#317): pass
+                        # the environment down and forward only what the XR set,
+                        # so ansible-run's own EnvironmentConfig is not masked by
+                        # a hardcoded value that only matches one cluster.
+                        environmentConfig = _environmentConfig
+                        if _ansible?.pipelineNamespace:
+                            namespace = _ansible.pipelineNamespace
+                        if _ansible?.gitRepoUrl:
+                            gitRepoUrl = _ansible.gitRepoUrl
+                        if _ansible?.ansibleWorkingImage:
+                            ansibleWorkingImage = _ansible.ansibleWorkingImage
+                        if _ansible?.credentialsSecretName:
+                            ansibleCredentialsSecretName = _ansible.credentialsSecretName
                         ansiblePlaybooks = _playbooks
                         if len(_varsFile) > 0:
                             ansibleVarsFile = _varsFile

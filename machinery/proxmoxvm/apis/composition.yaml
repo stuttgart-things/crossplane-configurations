@@ -406,10 +406,27 @@ spec:
             # --- Optional Ansible base-OS provisioning ---
             # Gated on the composed VM being Ready with an IP (read from ocds),
             # so the AnsibleRun is only emitted once the VM can be reached. The
-            # inventory auto-populates with the VM IP unless overridden. Shared
-            # fields fall back to the EnvironmentConfig `ansible` sub-block.
+            # inventory auto-populates with the VM IP unless overridden.
+            #
+            # SHARED ANSIBLE DEFAULTS ARE NOT OURS TO RESOLVE (#317). Until
+            # v0.12.1 this read them from an `ansible` sub-block of the
+            # *proxmoxvm* EnvironmentConfig — a block that exists on no cluster,
+            # so `_env?.ansible` was ALWAYS `{}` and every value fell through to
+            # a hardcoded default. Those defaults then reached the child as
+            # explicit spec fields, which is worse than absent: ansible-run's
+            # XRD deliberately leaves `namespace`, `ansibleWorkingImage` and
+            # `ansibleCredentialsSecretName` undefaulted so its OWN
+            # EnvironmentConfig stays authoritative, and an explicit value masks
+            # it. The failure is invisible on the management cluster, where a
+            # hand-made `ansible-credentials` Secret happens to match the
+            # hardcode, and fatal on a capability-provisioned cluster, where the
+            # Secret is named after the environment.
+            #
+            # So: pass `environmentConfig` DOWN and let the ansible-run layer
+            # apply its own precedence (explicit XR value > EnvironmentConfig >
+            # module default). Only fields the user actually set on
+            # `spec.ansible` are forwarded; unset ones are omitted, not guessed.
             _ansible = _spec?.ansible or {}
-            _envAnsible = _env?.ansible or {}
             _ansibleEnabled = _ansible?.enabled or False
 
             # Find the composed VM by KIND (ocds is keyed by composition-resource-name,
@@ -459,8 +476,8 @@ spec:
                     spec = _prevAnsibleSpec
                 }]
             elif _ansibleEnabled and _vmReady and _vmIP != "":
-                _playbooks = _ansible?.playbooks or _envAnsible?.playbooks or ["sthings.baseos.setup"]
-                _varsFile = _ansible?.varsFile or _envAnsible?.varsFile or []
+                _playbooks = _ansible?.playbooks or ["sthings.baseos.setup"]
+                _varsFile = _ansible?.varsFile or []
 
                 # Set the guest hostname through the baseos play as well as via
                 # the cloud-init meta-data snippet. The snippet above is the
@@ -493,10 +510,24 @@ spec:
                     }
                     spec = {
                         pipelineRunName = _pipelineRunName
-                        namespace = _ansible?.pipelineNamespace or _envAnsible?.pipelineNamespace or "tekton-ci"
-                        gitRepoUrl = _ansible?.gitRepoUrl or _envAnsible?.gitRepoUrl or "https://github.com/stuttgart-things/stage-time.git"
-                        ansibleWorkingImage = _ansible?.ansibleWorkingImage or _envAnsible?.ansibleWorkingImage or "ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test"
-                        ansibleCredentialsSecretName = _ansible?.credentialsSecretName or _envAnsible?.credentialsSecretName or "ansible-credentials"
+                        # The whole point of the fix: without this the child
+                        # keeps the ansible-run XRD's `default`, matches no
+                        # EnvironmentConfig at all, and silently uses module
+                        # defaults. `spec.environmentConfig` is the same
+                        # environment name for both layers — only the selector
+                        # LABEL differs, and each Configuration owns its own.
+                        environmentConfig = _spec?.environmentConfig or "default"
+                        # Forwarded ONLY when set. An omitted field lets the
+                        # ansible-run EnvironmentConfig win; a defaulted one
+                        # would mask it. See the block comment above.
+                        if _ansible?.pipelineNamespace:
+                            namespace = _ansible.pipelineNamespace
+                        if _ansible?.gitRepoUrl:
+                            gitRepoUrl = _ansible.gitRepoUrl
+                        if _ansible?.ansibleWorkingImage:
+                            ansibleWorkingImage = _ansible.ansibleWorkingImage
+                        if _ansible?.credentialsSecretName:
+                            ansibleCredentialsSecretName = _ansible.credentialsSecretName
                         ansiblePlaybooks = _playbooks
                         if len(_varsFileFinal) > 0:
                             ansibleVarsFile = _varsFileFinal
@@ -504,7 +535,10 @@ spec:
                         wrapInCrossplane = _ansible?.wrapInCrossplane or True
                         crossplaneObjectName = _pipelineRunName
                         crossplaneNamespace = _namespace
-                        crossplaneProviderConfig = _ansible?.crossplaneProviderConfig or _envAnsible?.crossplaneProviderConfig or "in-cluster"
+                        # Not env-sourced: the PipelineRun is applied to THIS
+                        # cluster, so "in-cluster" is a property of where the
+                        # Composition runs, not of the target environment.
+                        crossplaneProviderConfig = _ansible?.crossplaneProviderConfig or "in-cluster"
                         if _ansible?.extraCollections and len(_ansible.extraCollections) > 0:
                             installExtraCollections = "true"
                             ansibleExtraCollections = _ansible.extraCollections
