@@ -44,7 +44,8 @@ spec:
         interval: 1h
         path: ./apps/podinfo
         postBuild:
-          substitute: {}
+          substitute:
+            XPLANE_FLUX_APPS: substitution-marker
         prune: true
         retryInterval: 1m
         sourceRef:

@@ -1,0 +1,609 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Capability
+metadata:
+  name: labul-capability
+  namespace: default
+status:
+  capabilities:
+    ansible-run:
+      credentialsSecret: ansible-run-creds-labul
+      environmentConfig: ansible-run-labul
+      ready: false
+      secretStore: ansible-run-labul
+    proxmoxvm:
+      credentialsSecret: proxmoxvm-creds-labul
+      environmentConfig: proxmoxvm-labul
+      providerConfig: proxmoxvm-labul
+      ready: false
+      secretStore: proxmoxvm-labul
+    vspherevm:
+      credentialsSecret: vspherevm-creds-labul
+      environmentConfig: vspherevm-labul
+      providerConfig: vspherevm-labul
+      ready: false
+      secretStore: vspherevm-labul
+  capabilityCount: 3
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: ansible-run-credentials, ansible-run-environment-config,
+      ansible-run-secret-store, and 9 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  readyCount: 0
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: ansible-run-credentials
+  labels:
+    crossplane.io/composite: labul-capability
+  name: ansible-run-credentials
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: labul-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: ansible-run-creds-labul
+        namespace: tekton-ci
+      spec:
+        dataFrom:
+        - extract:
+            conversionStrategy: Default
+            decodingStrategy: None
+            key: default
+            metadataPolicy: None
+        refreshInterval: 30m
+        secretStoreRef:
+          kind: ClusterSecretStore
+          name: ansible-run-labul
+        target:
+          creationPolicy: Owner
+          deletionPolicy: Retain
+          name: ansible-run-creds-labul
+          template:
+            data:
+              ANSIBLE_PASSWORD: '{{ .vm_ssh_password }}'
+              ANSIBLE_USER: '{{ .vm_ssh_user }}'
+            engineVersion: v2
+            mergePolicy: Replace
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    policy: DeriveFromObject
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: ansible-run-environment-config
+  labels:
+    crossplane.io/composite: labul-capability
+  name: ansible-run-environment-config
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: labul-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: apiextensions.crossplane.io/v1beta1
+      data:
+        ansibleCredentialsSecretName: ansible-run-creds-labul
+        ansibleExtraCollections:
+        - community.crypto:3.2.1
+        - community.general:13.0.1
+        - ansible.posix:2.2.0
+        - kubernetes.core:6.4.0
+        - community.docker:5.2.1
+        - community.vmware:6.2.0
+        - awx.awx:24.6.1
+        - community.hashi_vault:7.1.0
+        - ansible.netcommon:8.5.2
+        - https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.730.1176/sthings-baseos-26.730.1176.tar.gz
+        - https://github.com/stuttgart-things/ansible/releases/download/sthings-awx-26.729.1166/sthings-awx-26.729.1166.tar.gz
+        - https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.730.1176/sthings-rke-26.730.1176.tar.gz
+        - https://github.com/stuttgart-things/ansible/releases/download/sthings-container-26.730.1176/sthings-container-26.730.1176.tar.gz
+        ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:14.0.0
+        gitPath: pipelines/execute-ansible-playbooks.yaml
+        gitRepoUrl: https://github.com/stuttgart-things/stage-time.git
+        gitRevision: main
+        namespace: tekton-ci
+        storageClass: openebs-hostpath
+      kind: EnvironmentConfig
+      metadata:
+        labels:
+          ansible-run.resources.stuttgart-things.com/environment: labul
+        name: ansible-run-labul
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    celQuery: "true"
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: ansible-run-secret-store
+  labels:
+    crossplane.io/composite: labul-capability
+  name: ansible-run-secret-store
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: labul-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: external-secrets.io/v1
+      kind: ClusterSecretStore
+      metadata:
+        name: ansible-run-labul
+      spec:
+        provider:
+          vault:
+            auth:
+              kubernetes:
+                mountPath: u26-rke2-1-eso
+                role: eso
+                serviceAccountRef:
+                  name: external-secrets
+                  namespace: external-secrets
+            caProvider:
+              key: ca.crt
+              name: vault-pki-ca
+              namespace: cert-manager
+              type: Secret
+            path: cicd-proxmox-labul
+            server: https://vault.infra.sthings-vsphere.labul.sva.de
+            version: v2
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    policy: DeriveFromObject
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmoxvm-ci-password-secret
+  labels:
+    crossplane.io/composite: labul-capability
+  name: proxmoxvm-ci-password-secret
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: labul-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: proxmoxvm-ci-password
+        namespace: default
+      spec:
+        dataFrom:
+        - extract:
+            conversionStrategy: Default
+            decodingStrategy: None
+            key: default
+            metadataPolicy: None
+        refreshInterval: 30m
+        secretStoreRef:
+          kind: ClusterSecretStore
+          name: proxmoxvm-labul
+        target:
+          creationPolicy: Owner
+          deletionPolicy: Retain
+          name: proxmoxvm-ci-password
+          template:
+            data:
+              password: '{{ .vm_ssh_password }}'
+            engineVersion: v2
+            mergePolicy: Replace
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    policy: DeriveFromObject
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmoxvm-credentials
+  labels:
+    crossplane.io/composite: labul-capability
+  name: proxmoxvm-credentials
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: labul-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: proxmoxvm-creds-labul
+        namespace: crossplane-system
+      spec:
+        dataFrom:
+        - extract:
+            conversionStrategy: Default
+            decodingStrategy: None
+            key: default
+            metadataPolicy: None
+        refreshInterval: 30m
+        secretStoreRef:
+          kind: ClusterSecretStore
+          name: proxmoxvm-labul
+        target:
+          creationPolicy: Owner
+          deletionPolicy: Retain
+          name: proxmoxvm-creds-labul
+          template:
+            data:
+              credentials: '{"endpoint":"{{ .pve_api_url }}","username":"{{ .pve_api_user
+                }}","password":"{{ .pve_api_password }}","insecure":"true","ssh_username":"{{
+                .vm_ssh_user }}","ssh_password":"{{ .vm_ssh_password }}"}'
+            engineVersion: v2
+            mergePolicy: Replace
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    policy: DeriveFromObject
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmoxvm-environment-config
+  labels:
+    crossplane.io/composite: labul-capability
+  name: proxmoxvm-environment-config
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: labul-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: apiextensions.crossplane.io/v1beta1
+      data:
+        annotation: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
+        bios: seabios
+        bridge: vmbrvlan
+        ciPasswordSecretKey: password
+        ciPasswordSecretName: proxmoxvm-ci-password
+        ciUsername: sthings
+        cloneDatastore: V5010-01-1
+        cpuType: host
+        datastore: V5010-01-1
+        diskInterface: virtio0
+        networkModel: virtio
+        node: ul-pve11
+        osType: l26
+        pool: stuttgart-things
+        providerConfigKind: ClusterProviderConfig
+        providerConfigName: proxmoxvm-labul
+        smbiosManufacturer: stuttgart-things
+        smbiosProduct: sthings-u26
+        snippetsDatastore: local
+        templateVmId: "211"
+        vlanTag: "102"
+      kind: EnvironmentConfig
+      metadata:
+        labels:
+          proxmoxvm.resources.stuttgart-things.com/environment: labul
+        name: proxmoxvm-labul
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    celQuery: "true"
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmoxvm-provider-config
+  labels:
+    crossplane.io/composite: labul-capability
+  name: proxmoxvm-provider-config
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: labul-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: proxmoxbpg.m.crossplane.io/v1beta1
+      kind: ClusterProviderConfig
+      metadata:
+        name: proxmoxvm-labul
+      spec:
+        credentials:
+          secretRef:
+            key: credentials
+            name: proxmoxvm-creds-labul
+            namespace: crossplane-system
+          source: Secret
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    celQuery: "true"
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmoxvm-secret-store
+  labels:
+    crossplane.io/composite: labul-capability
+  name: proxmoxvm-secret-store
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: labul-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: external-secrets.io/v1
+      kind: ClusterSecretStore
+      metadata:
+        name: proxmoxvm-labul
+      spec:
+        provider:
+          vault:
+            auth:
+              kubernetes:
+                mountPath: u26-rke2-1-eso
+                role: eso
+                serviceAccountRef:
+                  name: external-secrets
+                  namespace: external-secrets
+            caProvider:
+              key: ca.crt
+              name: vault-pki-ca
+              namespace: cert-manager
+              type: Secret
+            path: cicd-proxmox-labul
+            server: https://vault.infra.sthings-vsphere.labul.sva.de
+            version: v2
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    policy: DeriveFromObject
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vspherevm-credentials
+  labels:
+    crossplane.io/composite: labul-capability
+  name: vspherevm-credentials
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: labul-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: vspherevm-creds-labul
+        namespace: crossplane-system
+      spec:
+        dataFrom:
+        - extract:
+            conversionStrategy: Default
+            decodingStrategy: None
+            key: default
+            metadataPolicy: None
+        refreshInterval: 30m
+        secretStoreRef:
+          kind: ClusterSecretStore
+          name: vspherevm-labul
+        target:
+          creationPolicy: Owner
+          deletionPolicy: Retain
+          name: vspherevm-creds-labul
+          template:
+            data:
+              credentials: '{"user":"{{ .vsphere_user }}","password":"{{ .vsphere_password
+                }}","server":"{{ .vsphere_server }}","allow_unverified_ssl":"true"}'
+            engineVersion: v2
+            mergePolicy: Replace
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    policy: DeriveFromObject
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vspherevm-environment-config
+  labels:
+    crossplane.io/composite: labul-capability
+  name: vspherevm-environment-config
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: labul-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: apiextensions.crossplane.io/v1beta1
+      data:
+        adapterType: vmxnet3
+        annotation: VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+        datastoreId: datastore-12
+        domain: labul.sva.de
+        firmware: bios
+        folder: stuttgart-things/testing
+        guestId: ubuntu64Guest
+        hostSystemId: host-42
+        networkId: dvportgroup-2048
+        providerConfigKind: ClusterProviderConfig
+        providerConfigName: vspherevm-labul
+        resourcePoolId: resgroup-8
+        scsiType: pvscsi
+        templateUuid: 4234df9c-0000-0000-0000-000000000000
+      kind: EnvironmentConfig
+      metadata:
+        labels:
+          vspherevm.resources.stuttgart-things.com/environment: labul
+        name: vspherevm-labul
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    celQuery: "true"
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vspherevm-provider-config
+  labels:
+    crossplane.io/composite: labul-capability
+  name: vspherevm-provider-config
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: labul-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: vspherevm.m.stuttgart-things.com/v1beta1
+      kind: ClusterProviderConfig
+      metadata:
+        name: vspherevm-labul
+      spec:
+        credentials:
+          secretRef:
+            key: credentials
+            name: vspherevm-creds-labul
+            namespace: crossplane-system
+          source: Secret
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    celQuery: "true"
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vspherevm-secret-store
+  labels:
+    crossplane.io/composite: labul-capability
+  name: vspherevm-secret-store
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: labul-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: external-secrets.io/v1
+      kind: ClusterSecretStore
+      metadata:
+        name: vspherevm-labul
+      spec:
+        provider:
+          vault:
+            auth:
+              kubernetes:
+                mountPath: u26-rke2-1-eso
+                role: eso
+                serviceAccountRef:
+                  name: external-secrets
+                  namespace: external-secrets
+            caProvider:
+              key: ca.crt
+              name: vault-pki-ca
+              namespace: cert-manager
+              type: Secret
+            path: cicd-vsphere-labul
+            server: https://vault.infra.sthings-vsphere.labul.sva.de
+            version: v2
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    policy: DeriveFromObject

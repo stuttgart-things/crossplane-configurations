@@ -1,0 +1,146 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ArgocdCluster
+metadata:
+  name: argocd-cluster-max
+  namespace: crossplane-system
+status:
+  allocationIp: ""
+  clusterSecretName: cluster-everything
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: clusterbook-cluster, external-secret'
+    reason: Creating
+    status: "False"
+    type: Ready
+  fqdn: ""
+  ready: false
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: clusterbook-cluster
+  labels:
+    crossplane.io/composite: argocd-cluster-max
+  name: argocd-cluster-max-clusterbook
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ArgocdCluster
+    name: argocd-cluster-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: clusterbook.stuttgart-things.com/v1alpha1
+      kind: ClusterbookCluster
+      metadata:
+        name: everything
+      spec:
+        annotations:
+          clusterbook.stuttgart-things.com/vault-auth-method: kubernetes
+          clusterbook.stuttgart-things.com/vault-k8s-auth-mount: everything-certmanager
+          clusterbook.stuttgart-things.com/vault-k8s-auth-role: cert-manager
+          clusterbook.stuttgart-things.com/vault-k8s-auth-sa: cert-manager
+          clusterbook.stuttgart-things.com/vault-pki-path: pki/sign/sthings-vsphere
+          clusterbook.stuttgart-things.com/vault-server: https://vault.infra.sthings-vsphere.labul.sva.de
+          clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token
+          clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki
+          example.stuttgart-things.com/note: catches templating breakage
+          storage-platform.stuttgart-things.com/nfs-server: 10.31.101.26
+          storage-platform.stuttgart-things.com/nfs-share: /data/col1/sthings
+          storage-platform.stuttgart-things.com/nfs-version: "3"
+        argocdNamespace: argocd
+        clusterName: everything
+        clusterType: default
+        createDNS: true
+        kubeconfigSecretRef:
+          name: everything
+          namespace: argocd
+        labels:
+          allow-all: "false"
+          auto-project: "true"
+          cicd-platform: "true"
+          cicd-platform/argo-rollouts: "true"
+          cicd-platform/crossplane: "true"
+          cicd-platform/dapr: "true"
+          cicd-platform/kargo: "true"
+          cicd-platform/kro: "true"
+          cicd-platform/openebs: "false"
+          cicd-platform/tekton: "true"
+          env: LabUL
+          homerun2-pr-preview: "true"
+          machinery-catalog-locator-pr-preview: "true"
+          machinery-pr-preview: "true"
+          network-platform: "true"
+          network-platform/cert-manager-cluster-ca: "true"
+          network-platform/cert-manager-install: "true"
+          network-platform/cert-manager-selfsigned: "true"
+          network-platform/cert-manager-vault-pki: "true"
+          network-platform/cilium-gateway: "true"
+          network-platform/cilium-gateway-secondary: "true"
+          network-platform/cilium-lb: "true"
+          network-platform/trust-manager-bundle: "true"
+          network-platform/trust-manager-install: "true"
+          role: dev
+          security-platform: "true"
+          security-platform/external-secrets: "true"
+          security-platform/kyverno: "true"
+          some-future-profile: "true"
+          storage-platform: "true"
+          storage-platform.stuttgart-things.com/nfs-config: "true"
+          storage-platform/longhorn: "false"
+          storage-platform/nfs-csi-install: "true"
+          storage-platform/nfs-csi-storageclasses: "true"
+          storage-platform/openebs: "true"
+        networkKey: 10.31.102
+        preserveKubeconfigServer: true
+        providerConfigRef:
+          name: default
+        releaseOnDelete: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: platform-sthings-registrar-kubernetes
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: external-secret
+  labels:
+    crossplane.io/composite: argocd-cluster-max
+  name: argocd-cluster-max-kubeconfig
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ArgocdCluster
+    name: argocd-cluster-max
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: everything-kubeconfig
+        namespace: argocd
+      spec:
+        data:
+        - remoteRef:
+            key: kubeconfigs/data/everything
+            property: kubeconfig
+          secretKey: kubeconfig
+        refreshInterval: 30m
+        secretStoreRef:
+          kind: ClusterSecretStore
+          name: vault-kubeconfigs
+        target:
+          name: everything
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: platform-sthings-registrar-kubernetes

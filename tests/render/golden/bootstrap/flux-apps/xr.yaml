@@ -51,6 +51,7 @@ spec:
             CROSSPLANE_K8S_PROVIDER_VERSION: v0.18.0
             CROSSPLANE_NAMESPACE: crossplane-system
             CROSSPLANE_VERSION: 1.20.0
+            XPLANE_FLUX_APPS: substitution-marker
         prune: true
         retryInterval: 1m
         sourceRef:
@@ -95,6 +96,7 @@ spec:
           substitute:
             TEKTON_NAMESPACE: tekton-pipelines
             TEKTON_VERSION: 0.76.1
+            XPLANE_FLUX_APPS: substitution-marker
         prune: true
         retryInterval: 1m
         sourceRef:

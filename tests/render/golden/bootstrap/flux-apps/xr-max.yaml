@@ -70,6 +70,7 @@ spec:
           substitute:
             CROSSPLANE_NAMESPACE: crossplane-system
             CROSSPLANE_VERSION: 1.20.0
+            XPLANE_FLUX_APPS: substitution-marker
         prune: true
         retryInterval: 2m
         sourceRef:
@@ -122,7 +123,8 @@ spec:
         interval: 10m
         path: ./clusters/prod/infrastructure
         postBuild:
-          substitute: {}
+          substitute:
+            XPLANE_FLUX_APPS: substitution-marker
           substituteFrom:
           - kind: ConfigMap
             name: cluster-vars
@@ -179,7 +181,8 @@ spec:
         interval: 10m
         path: ./apps/secrets
         postBuild:
-          substitute: {}
+          substitute:
+            XPLANE_FLUX_APPS: substitution-marker
         prune: true
         retryInterval: 2m
         sourceRef:
