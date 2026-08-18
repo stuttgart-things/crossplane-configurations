@@ -653,6 +653,25 @@ spec:
                           type: boolean
                         issuerReady:
                           type: boolean
+                        certManagerReady:
+                          type: boolean
+                          description: >-
+                            cert-manager's webhook deployment reports a ready
+                            replica on the TARGET. The gate the issuer, the CA
+                            Secret and the TokenRequest RBAC wait on — they all
+                            land in cert-manager's namespace or need its CRDs.
+                            Checks the webhook rather than the CRD because
+                            creating a ClusterIssuer goes through the validating
+                            webhook, so a present CRD with a webhook that is not
+                            serving fails the apply the same way.
+                        waitingForCertManager:
+                          type: boolean
+                          description: >-
+                            The branch is held back, not broken. Without this
+                            field the two are indistinguishable from outside —
+                            both show not-ready, no issuer, no CA — and on an
+                            ArgoCD-driven cluster the wait is normal and can last
+                            minutes while an ApplicationSet installs cert-manager.
                         auths:
                           type: object
                           description: >-
