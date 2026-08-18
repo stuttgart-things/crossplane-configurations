@@ -22,6 +22,12 @@ spec:
   clusterName: homerun2-dev
   networkKey: '10.31.101'
 
+  # The ClusterStack that built this cluster. Composes a Usage, so a
+  # `kubectl delete clusterstack` fails at admission naming this registration
+  # instead of destroying a VM ArgoCD still believes is reachable. Leave it out
+  # for clusters no ClusterStack built.
+  clusterStackRef: homerun2-dev
+
   profiles:
     network:
       enabled: true

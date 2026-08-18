@@ -251,7 +251,55 @@ spec:
                 }
             }
 
-            items = [_externalSecret, _clusterbook]
+            # --- optional: protect the ClusterStack that built this cluster ---
+            # Measured on homerun2-test1 on 2026-08-18: the ClusterStack chain
+            # carries four Usages (access-uses-vm, platform-uses-vm,
+            # platform-uses-access, stack-uses-platform) and this XR appears in
+            # NONE of them. So nothing stopped a `kubectl delete clusterstack`
+            # while the cluster was still registered with ArgoCD — the teardown
+            # ordering the README calls load-bearing was pure discipline.
+            #
+            # Getting it wrong is not cosmetic. Of the 14 Applications that XR
+            # generated, 3 have no ownerReference (they are app-of-apps children,
+            # linked upward only by tracking-id) and one of those carries two
+            # pre-delete finalizers whose cleanup hook runs ON THE TARGET. Destroy
+            # the VM first and that Application cannot be deleted at all until
+            # someone strips the finalizer by hand.
+            #
+            # OPT-IN with an explicit name, deliberately NOT derived from
+            # clusterName. That the two XRs share a name is a convention, not a
+            # link, and this Configuration is meant to work for clusters no
+            # ClusterStack ever built — a guessed reference would then point at
+            # nothing and block on a resource that does not exist.
+            _stackRef = _spec?.clusterStackRef or ""
+            _usage = {
+                apiVersion = "protection.crossplane.io/v1beta1"
+                kind = "Usage"
+                metadata = {
+                    name = "{}-argocd-uses-stack".format(_name)
+                    namespace = _ns
+                    annotations = {"krm.kcl.dev/composition-resource-name" = "argocd-uses-stack"}
+                }
+                spec = {
+                    of = {
+                        apiVersion = "config.stuttgart-things.com/v1alpha1"
+                        kind = "ClusterStack"
+                        resourceRef.name = _stackRef
+                    }
+                    by = {
+                        apiVersion = oxr.apiVersion
+                        kind = oxr.kind
+                        resourceRef.name = _name
+                    }
+                    # false: deleting this XR must not replay a delete onto the
+                    # ClusterStack. The Usage states an ordering, it does not make
+                    # the stack a dependent.
+                    replayDeletion = False
+                    reason = "Cluster is registered with ArgoCD. Delete the ArgocdCluster first, or generated Applications outlive the cluster they target."
+                }
+            }
+
+            items = [_externalSecret, _clusterbook] + ([_usage] if _stackRef else [])
 
     # Republish what the operator decided, so a downstream stage can wait on
     # something meaningful. `ready` is deliberately gated on the CR being Ready

@@ -87,6 +87,48 @@ Doing 2 before 1 makes 1 impossible. Two reasons, both observed:
 Same class of problem as `vault-auth` on the Crossplane side, which can never
 destroy if its cluster dies first.
 
+### Measured on homerun2-test1, 2026-08-18
+
+Of the **14** Applications one XR generated, **11** carry an `ownerReference` to
+their ApplicationSet and are collected on deregistration. **3 do not** — they are
+app-of-apps children, linked upward only by `tracking-id`:
+
+```
+external-secrets-security-homerun2-test1
+openebs-storage-install-homerun2-test1
+kyverno-security-homerun2-test1     finalizers: pre-delete-finalizer.argocd.argoproj.io
+                                                pre-delete-finalizer.argocd.argoproj.io/cleanup
+```
+
+The last one is the trap. Its cleanup hook runs **on the target cluster**, whose
+address is the node IP. Destroy the VM first and that Application cannot be
+deleted at all until someone strips the finalizer by hand.
+
+Separately, **29 of 53** ApplicationSets carry `preserveResourcesOnDeletion:
+true`. Deliberate — it stops an AppSet refactor from wiping production — but it
+means deregistration removes nothing from the target.
+
+### `spec.clusterStackRef` makes the first ordering rule enforceable
+
+Set it to the name of the `ClusterStack` that built the cluster and the XR
+composes a `Usage`. `kubectl delete clusterstack` then fails at admission naming
+this registration, instead of quietly destroying a VM that ArgoCD still believes
+is reachable:
+
+```yaml
+spec:
+  clusterName: homerun2-test1
+  clusterStackRef: homerun2-test1
+```
+
+Optional, and an explicit name rather than one derived from `clusterName`: that
+the two share a name is a convention, not a link, and this Configuration is meant
+to work for clusters no `ClusterStack` ever built.
+
+It does **not** solve the three orphans — that is an ArgoCD-side concern, either
+`ownerReferences` from the app-of-apps parents or
+`preserveResourcesOnDeletion: false` for cluster-bound apps.
+
 ## What this does NOT do
 
 * **It does not create the cluster.** That is `ClusterStack` with
