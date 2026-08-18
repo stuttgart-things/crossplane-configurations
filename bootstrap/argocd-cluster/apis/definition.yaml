@@ -290,17 +290,59 @@ spec:
                   description: >-
                     Annotations the cert-manager-vault-pki AppSet reads. Only
                     needed when profiles.network.certManagerVaultPki is true.
+
+                    The AppSet passes BOTH auth blocks to the chart and lets
+                    `authMethod` decide which one renders. It also does not fail
+                    on a missing annotation — its own comment says "Missing
+                    annotations render as "", and the chart treats an empty
+                    method as token". So an incomplete kubernetes block does not
+                    error out; it silently falls back to token auth and then
+                    fails later on a token secret that may not exist. Set either
+                    the token field or all four kubernetes fields, not half of
+                    one.
                   properties:
                     server:
                       type: string
+                      description: Vault address, e.g. https://vault.infra.sthings-vsphere.labul.sva.de
                     pkiPath:
                       type: string
+                      description: Signing path, e.g. pki/sign/sthings-vsphere
+                    authMethod:
+                      type: string
+                      enum:
+                        - token
+                        - kubernetes
+                      default: token
+                      description: >-
+                        Which auth block the chart renders. Left at `token` for
+                        parity with the clusters registered today; `kubernetes`
+                        needs the three fields below AND a Vault-side role bound
+                        to that ServiceAccount.
                     tokenSecret:
                       type: string
                       default: cert-manager-vault-token
+                      description: >-
+                        Secret on the TARGET cluster holding the Vault token
+                        under key `token`. Provisioned out of band — see the
+                        vault-pki-secrets Configuration — not by this XR.
+                    k8sAuthMount:
+                      type: string
+                      description: >-
+                        Vault auth mount path for authMethod kubernetes,
+                        e.g. `<cluster>-certmanager`.
+                    k8sAuthRole:
+                      type: string
+                      description: Vault role bound to the ServiceAccount below.
+                    k8sAuthServiceAccount:
+                      type: string
+                      description: ServiceAccount cert-manager authenticates as.
                     wildcardIssuerName:
                       type: string
                       default: vault-pki
+                      description: >-
+                        Read by the cert-manager-cluster-ca AppSet, not by
+                        vault-pki — it lives here because both are network
+                        profile components and the value is one per cluster.
                 nfs:
                   type: object
                   description: >-

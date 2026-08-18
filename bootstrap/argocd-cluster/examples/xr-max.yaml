@@ -76,6 +76,13 @@ spec:
   vault:
     server: https://vault.infra.sthings-vsphere.labul.sva.de
     pkiPath: pki/sign/sthings-vsphere
+    # kubernetes here so xr-max exercises the branch that emits the three
+    # k8s-auth annotations. Most clusters run authMethod: token, where those
+    # three are omitted — see xr.yaml.
+    authMethod: kubernetes
+    k8sAuthMount: everything-certmanager
+    k8sAuthRole: cert-manager
+    k8sAuthServiceAccount: cert-manager
     tokenSecret: cert-manager-vault-token  # pragma: allowlist secret
     wildcardIssuerName: vault-pki
 
