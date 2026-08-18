@@ -20,8 +20,8 @@ spec:
     namespace: argocd
 
   kubeconfig:
-    secretStoreKind: ClusterSecretStore
-    secretStoreName: vault-kubeconfigs
+    secretStoreKind: ClusterSecretStore  # pragma: allowlist secret
+    secretStoreName: vault-kubeconfigs  # pragma: allowlist secret
     remoteKey: kubeconfigs/data/everything
     property: kubeconfig
     refreshInterval: 30m
@@ -76,7 +76,7 @@ spec:
   vault:
     server: https://vault.infra.sthings-vsphere.labul.sva.de
     pkiPath: pki/sign/sthings-vsphere
-    tokenSecret: cert-manager-vault-token
+    tokenSecret: cert-manager-vault-token  # pragma: allowlist secret
     wildcardIssuerName: vault-pki
 
   nfs:
