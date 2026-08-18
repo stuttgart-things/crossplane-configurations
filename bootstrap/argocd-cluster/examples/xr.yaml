@@ -1,0 +1,37 @@
+---
+# The shape a real cluster uses: network and security on, storage and cicd off,
+# PR previews enabled. Mirrors what homerun2-dev carries today.
+#
+# Note certManagerVaultPki: it needs the spec.vault block below. An enabled
+# component without its parameters fails at SYNC time on the target cluster, not
+# when this XR is applied — which is why the XRD leaves it off by default.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ArgocdCluster
+metadata:
+  name: homerun2-dev
+  namespace: crossplane-system
+spec:
+  clusterName: homerun2-dev
+  networkKey: '10.31.101'
+
+  profiles:
+    network:
+      enabled: true
+      certManagerVaultPki: true
+      ciliumGatewaySecondary: false
+    security:
+      enabled: true
+      externalSecrets: true
+      kyverno: true
+    storage:
+      enabled: false
+    cicd:
+      enabled: false
+    previews:
+      - homerun2
+      - machinery
+      - machinery-catalog-locator
+
+  vault:
+    server: https://vault.infra.sthings-vsphere.labul.sva.de
+    pkiPath: pki/sign/sthings-vsphere

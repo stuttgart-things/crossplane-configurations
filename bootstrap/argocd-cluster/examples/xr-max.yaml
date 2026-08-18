@@ -1,0 +1,91 @@
+---
+# Every spec field set. Not a sensible cluster — the point is to catch templating
+# breakage, so profiles that would never be combined are all on at once.
+#
+# Note storage: nfsCsiStorageclasses needs spec.nfs, and setting the component
+# switch alone installs NOTHING — the AppSet also requires the gate label
+# `storage-platform.stuttgart-things.com/nfs-config`, which the composition emits
+# from spec.nfs.server being present.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ArgocdCluster
+metadata:
+  name: argocd-cluster-max
+  namespace: crossplane-system
+spec:
+  clusterName: everything
+  networkKey: '10.31.102'
+
+  argocd:
+    providerConfigRef: platform-sthings-registrar-kubernetes
+    namespace: argocd
+
+  kubeconfig:
+    secretStoreKind: ClusterSecretStore
+    secretStoreName: vault-kubeconfigs
+    remoteKey: kubeconfigs/data/everything
+    property: kubeconfig
+    refreshInterval: 30m
+
+  clusterbook:
+    clusterType: default
+    providerConfigRef: default
+    createDNS: true
+    releaseOnDelete: true
+    preserveKubeconfigServer: true
+    env: LabUL
+    role: dev
+
+  profiles:
+    autoProject: true
+    allowAll: false
+    network:
+      enabled: true
+      ciliumLb: true
+      ciliumGateway: true
+      ciliumGatewaySecondary: true
+      certManagerInstall: true
+      certManagerSelfsigned: true
+      certManagerClusterCa: true
+      certManagerVaultPki: true
+      trustManagerInstall: true
+      trustManagerBundle: true
+    security:
+      enabled: true
+      externalSecrets: true
+      kyverno: true
+    storage:
+      enabled: true
+      openebs: true
+      longhorn: false
+      nfsCsiInstall: true
+      nfsCsiStorageclasses: true
+    cicd:
+      enabled: true
+      crossplane: true
+      kro: true
+      tekton: true
+      dapr: true
+      kargo: true
+      argoRollouts: true
+      openebs: false
+    previews:
+      - homerun2
+      - machinery
+      - machinery-catalog-locator
+
+  vault:
+    server: https://vault.infra.sthings-vsphere.labul.sva.de
+    pkiPath: pki/sign/sthings-vsphere
+    tokenSecret: cert-manager-vault-token
+    wildcardIssuerName: vault-pki
+
+  nfs:
+    server: 10.31.101.26
+    share: /data/col1/sthings
+    # LabUL's NFS server is v3-only — the AppSet default is 4.1
+    version: "3"
+
+  extraLabels:
+    some-future-profile: 'true'
+  extraAnnotations:
+    example.stuttgart-things.com/note: catches templating breakage
