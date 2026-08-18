@@ -56,6 +56,12 @@ infra Vault, authenticating with Kubernetes auth — no credential at rest.
 **3. The kubeconfig in Vault**, written by the `kubeconfig` stage of
 `ClusterStack`. Raw YAML, not base64.
 
+> Put this XR in the **same namespace as its `ClusterStack`** — they describe one
+> cluster. That layout was broken until v0.1.2: the composed Object was named
+> `{clusterName}-kubeconfig`, exactly what `ClusterStack` calls its kubeconfig
+> stage, and the two fought over one object (`Only one reference can have
+> Controller set to true`). It is now `{name}-argocd-externalsecret`.
+
 ## Teardown — the ordering is load-bearing
 
 Tested, and it does **not** clean up by itself:
