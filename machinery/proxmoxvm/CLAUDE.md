@@ -117,9 +117,28 @@ agentEnabled, cloudInit.ipv4Address) carry XRD defaults.
 `node, datastore, bridge, vlanTag, pool, templateVmId, cpuType, osType, bios,
 diskInterface, networkModel, annotation, ciUsername, providerConfigName,
 providerConfigKind`, optional `smbiosManufacturer` / `smbiosProduct` (PegaProx
-workaround override), plus an optional `ansible` sub-block. See
-`examples/environmentconfig.yaml` (values are LabUL placeholders — set the real
-`templateVmId` before cluster use).
+workaround override). See `examples/environmentconfig.yaml` (values are LabUL
+placeholders — set the real `templateVmId` before cluster use).
+
+**There is no `ansible` sub-block, and there never was (#317).** Until v0.12.1
+the Composition read shared ansible defaults from `_env?.ansible` — a key no
+cluster carries, so it was always `{}` and every value fell through to a
+hardcoded fallback. Those fallbacks then reached the composed `AnsibleRun` as
+explicit spec fields, which is worse than omitting them: `ansible-run`'s XRD
+leaves `namespace`, `ansibleWorkingImage` and `ansibleCredentialsSecretName`
+undefaulted **on purpose** so its own EnvironmentConfig stays authoritative, and
+an explicit value masks it. On top of that the child never received
+`environmentConfig`, so it kept the XRD default `default`, matched no
+EnvironmentConfig at all, and used module defaults.
+
+The failure is invisible on the management cluster — kind3 has a hand-made
+`ansible-credentials` Secret that happens to match the hardcode — and fatal on a
+capability-provisioned cluster, where the Secret is named per environment
+(`ansible-run-creds-labul`). Since v0.12.1 the Composition passes
+`spec.environmentConfig` down and forwards only fields the XR actually set.
+Ansible defaults belong in the **ansible-run** EnvironmentConfig
+(`ansible-run.resources.stuttgart-things.com/environment=<env>`), which the
+`capability` Configuration emits.
 
 ## Credentials
 The `ClusterProviderConfig` references a Secret whose `credentials` JSON maps to

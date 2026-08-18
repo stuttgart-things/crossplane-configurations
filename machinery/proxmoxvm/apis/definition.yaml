@@ -267,10 +267,16 @@ spec:
                     Optional base-OS provisioning. When `enabled: true`, once the
                     VM is Ready with an IP the Composition emits an `AnsibleRun`
                     (Tekton) whose inventory is auto-populated with the VM IP.
-                    Shared fields (playbooks, varsFile, gitRepoUrl,
-                    ansibleWorkingImage, credentialsSecretName,
-                    crossplaneProviderConfig, pipelineNamespace) default from the
-                    EnvironmentConfig `ansible` sub-block when unset here.
+                    Fields set here are forwarded to that `AnsibleRun`; fields
+                    left UNSET are omitted from it, so ansible-run resolves them
+                    against its OWN EnvironmentConfig — selected by this XR's
+                    `spec.environmentConfig`, which the Composition passes down.
+                    Precedence is therefore: value here > ansible-run
+                    EnvironmentConfig > ansible-run module default. Before
+                    v0.12.1 these defaulted from an `ansible` sub-block of the
+                    *proxmoxvm* EnvironmentConfig; that block existed nowhere and
+                    the hardcoded fallbacks masked the ansible-run
+                    EnvironmentConfig entirely (#317).
                     Requires the ansible-run preconditions on the cluster (Tekton,
                     the credentials Secret, an in-cluster provider-kubernetes
                     config).
