@@ -57,6 +57,31 @@ spec:
                     10.31.102.110, reservation 10.31.102.8. The reservation feeds
                     the cilium-lb AppSet through the `…/allocation-ip` annotation.
 
+                clusterStackRef:
+                  type: string
+                  description: >-
+                    Name of the `ClusterStack` in this namespace that built the
+                    cluster. Set it and the XR composes a `Usage` stating that
+                    the stack is in use, so `kubectl delete clusterstack` fails
+                    at admission naming this registration instead of quietly
+                    destroying a VM that ArgoCD still believes is reachable.
+
+                    Measured on homerun2-test1: the ClusterStack chain carries
+                    four Usages and this XR appeared in none of them, so the
+                    teardown ordering the README calls load-bearing was pure
+                    discipline. Getting it wrong is not cosmetic — 3 of the 14
+                    generated Applications have no ownerReference, and one of
+                    those carries pre-delete finalizers whose cleanup hook runs
+                    ON THE TARGET. Destroy the cluster first and that
+                    Application cannot be deleted until someone strips the
+                    finalizer by hand.
+
+                    OPTIONAL and an explicit name on purpose. That both XRs
+                    share the cluster's name is a convention, not a link, and
+                    this Configuration is meant to work for clusters no
+                    ClusterStack ever built — a derived reference would then
+                    block on a resource that does not exist.
+
                 # ---- where the two objects get written -----------------------
                 argocd:
                   type: object
