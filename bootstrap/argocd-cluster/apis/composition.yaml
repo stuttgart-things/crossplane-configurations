@@ -137,12 +137,24 @@ spec:
             # stamps those onto the rendered Secret; writing them into the CR
             # would be shadowed at best and contradictory at worst.
             _v = _spec?.vault or {}
-            _vaultAnn = {
+            # The AppSet reads EIGHT annotations and errors on none of them: a
+            # missing one renders as "" and the chart then treats the empty
+            # method as "token". Half a kubernetes block therefore does not
+            # fail — it quietly authenticates the wrong way. All of them are
+            # emitted, with the kubernetes ones only when that method is chosen.
+            _authMethod = _v?.authMethod or "token"
+            _k8sAuthAnn = {
+                "clusterbook.stuttgart-things.com/vault-k8s-auth-mount" = _v?.k8sAuthMount or ""
+                "clusterbook.stuttgart-things.com/vault-k8s-auth-role" = _v?.k8sAuthRole or ""
+                "clusterbook.stuttgart-things.com/vault-k8s-auth-sa" = _v?.k8sAuthServiceAccount or ""
+            } if _authMethod == "kubernetes" else {}
+            _vaultAnn = ({
                 "clusterbook.stuttgart-things.com/vault-server" = _v.server
                 "clusterbook.stuttgart-things.com/vault-pki-path" = _v.pkiPath
+                "clusterbook.stuttgart-things.com/vault-auth-method" = _authMethod
                 "clusterbook.stuttgart-things.com/vault-token-secret" = _v?.tokenSecret or "cert-manager-vault-token"
                 "clusterbook.stuttgart-things.com/wildcard-issuer-name" = _v?.wildcardIssuerName or "vault-pki"
-            } if _v?.server else {}
+            } | _k8sAuthAnn) if _v?.server else {}
 
             _nfsAnn = {
                 "storage-platform.stuttgart-things.com/nfs-server" = _nfs.server

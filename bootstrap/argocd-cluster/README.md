@@ -107,6 +107,41 @@ both labels explicitly, so it works either way.
 alone installs nothing — `storage-platform.stuttgart-things.com/nfs-config` must
 exist too. The composition emits it whenever `spec.nfs.server` is set.
 
+## Vault PKI: eight annotations, and none of them fail loudly
+
+`certManagerVaultPki` is the one component whose parameters the AppSet reads as
+**eight** separate annotations. Its own comment explains the trap:
+
+> Both blocks are always passed; the chart renders only the one matching
+> `method`. … **Missing annotations render as `""`, and the chart treats an empty
+> method as `token`.**
+
+So half a kubernetes block does not error — it quietly authenticates the wrong
+way and then fails later on a token secret that may not exist. `spec.vault`
+therefore models all of them, and the composition emits the three kubernetes
+ones only when `authMethod: kubernetes` is actually chosen.
+
+| field | annotation | when |
+|---|---|---|
+| `server` | `…/vault-server` | always |
+| `pkiPath` | `…/vault-pki-path` | always |
+| `authMethod` | `…/vault-auth-method` | always, default `token` |
+| `tokenSecret` | `…/vault-token-secret` | always |
+| `wildcardIssuerName` | `…/wildcard-issuer-name` | always — read by cert-manager-**cluster-ca**, not by vault-pki |
+| `k8sAuthMount` | `…/vault-k8s-auth-mount` | only with `authMethod: kubernetes` |
+| `k8sAuthRole` | `…/vault-k8s-auth-role` | only with `authMethod: kubernetes` |
+| `k8sAuthServiceAccount` | `…/vault-k8s-auth-sa` | only with `authMethod: kubernetes` |
+
+Two things the XR does **not** provide, and cannot:
+
+* the `vault-pki-ca` Secret (key `ca.crt`) the chart references by fixed name,
+* the token Secret named by `tokenSecret`, under key `token`.
+
+Both are provisioned out of band — see the
+[vault-pki-secrets](../vault-pki-secrets/) Configuration, which exists for
+exactly this. Enabling `certManagerVaultPki` on a cluster without them yields a
+ClusterIssuer that never becomes ready.
+
 ## Seven values the XR must not set
 
 The Clusterbook controller stamps these onto the rendered Secret. Writing them
