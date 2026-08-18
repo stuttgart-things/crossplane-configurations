@@ -132,15 +132,75 @@ ones only when `authMethod: kubernetes` is actually chosen.
 | `k8sAuthRole` | `…/vault-k8s-auth-role` | only with `authMethod: kubernetes` |
 | `k8sAuthServiceAccount` | `…/vault-k8s-auth-sa` | only with `authMethod: kubernetes` |
 
-Two things the XR does **not** provide, and cannot:
+### The XR wires it up — it does not create the counterpart
 
-* the `vault-pki-ca` Secret (key `ca.crt`) the chart references by fixed name,
-* the token Secret named by `tokenSecret`, under key `token`.
+Setting `certManagerVaultPki: true` writes annotations. The AppSet turns them
+into a `ClusterIssuer`, and a ClusterIssuer is a *description* of how cert-manager
+should talk to Vault. Three things have to exist for that description to work,
+and **none of them come from this XR**:
 
-Both are provisioned out of band — see the
-[vault-pki-secrets](../vault-pki-secrets/) Configuration, which exists for
-exactly this. Enabling `certManagerVaultPki` on a cluster without them yields a
-ClusterIssuer that never becomes ready.
+| what | where | who creates it |
+|---|---|---|
+| `ClusterIssuer` | target cluster | the AppSet, from these annotations |
+| `vault-pki-ca` (key `ca.crt`) | **target cluster**, ns `cert-manager` | `VaultPkiSecret` |
+| k8s auth mount + role bound to cert-manager's SA | **inside Vault** | `VaultK8sAuth` |
+| *or* a token Secret | **target cluster** | `VaultPkiSecret` |
+
+The Vault side is the one that surprises: it is not a cluster object at all. Without
+it the ClusterIssuer sits there and reports `permission denied`.
+
+### Today the `Platform` XR does all of that — and `platformEnabled: false` removes it
+
+`Platform.spec.vaultIssuer` composes **eleven** children: `VaultK8sAuth`,
+`VaultPkiSecret`, the reviewer ServiceAccount with its token (which the Vault mount
+needs for TokenReview), the cert-manager TokenRequest RBAC, the ClusterIssuer and a
+wildcard certificate.
+
+A cluster built for this Configuration runs `ClusterStack` with
+`platformEnabled: false`, so all eleven are gone. That is a real gap, not a detail:
+the boundary this Configuration draws — Flux **or** ArgoCD — holds for *deploying*
+applications, but the prerequisites live in the same XR as the Flux path.
+
+### The fix needs no new code: `Platform` with only `vaultIssuer`
+
+```yaml
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata: {name: <cluster>-vaultprep, namespace: default}
+spec:
+  clusterName: <cluster>
+  kubernetesProviderConfigRef: <cluster>-kubernetes
+  helmProviderConfigRef: <cluster>-helm
+  fluxInit:
+    enabled: false          # no Flux on the target cluster
+  vaultIssuer:
+    enabled: true
+    vaultAddr: https://vault.infra.sthings-vsphere.labul.sva.de
+    kubernetesHost: https://<node-ip>:6443
+    pkiMount: pki
+    pkiRole: sthings-vsphere
+    authName: certmanager
+    autoReviewer: true      # provisions the reviewer SA + token itself
+    caSourceSecret: vault-pki-source-ca
+    issuerName: vault-pki-k8s
+    approleSecret: vault-approle
+```
+
+`apps` stays unset; `cni` and `ipReservation` default to `false`. Verified on
+2026-08-18 against `argoplatform-test1`: ten children Ready in 100 seconds, **no
+`FluxInit` composed**, no `flux-system` namespace on the target, and a test
+Certificate issued through Vault in 30 seconds over Kubernetes auth with no token
+anywhere.
+
+`Platform` is not a second deployment path here — it is prerequisite provisioning.
+The name misleads; what it does in this shape is "VaultIssuerPrep".
+
+### So keep `certManagerVaultPki` OFF when `Platform` provides the issuer
+
+`Platform` creates `vault-pki-k8s`. The AppSet would put a second issuer named
+`vault-pki` beside it, with the same Vault credentials — duplication without
+benefit. The `spec.vault` fields exist for the opposite case: taking the AppSet
+route **instead of** `Platform`. Enabling both is the mistake to avoid.
 
 ## Seven values the XR must not set
 

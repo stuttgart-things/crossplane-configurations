@@ -208,9 +208,15 @@ spec:
                           type: boolean
                           default: false
                           description: >-
-                            Needs the four vault annotations below. Left off by
-                            default because an enabled component without its
-                            parameters fails at sync time, not at apply time.
+                            Needs spec.vault below. Left off by default for two
+                            reasons: an enabled component without its parameters
+                            fails at sync time rather than apply time, AND the
+                            ClusterIssuer this produces needs a counterpart that
+                            no XR here creates — a k8s auth mount inside Vault
+                            plus the CA on the target cluster. Where a
+                            `Platform` XR with `vaultIssuer` already provides
+                            those, it also creates its own ClusterIssuer, and
+                            enabling this too yields a duplicate. See the README.
                         trustManagerInstall:
                           type: boolean
                           default: true
