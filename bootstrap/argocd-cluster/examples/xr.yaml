@@ -2,9 +2,17 @@
 # The shape a real cluster uses: network and security on, storage and cicd off,
 # PR previews enabled. Mirrors what homerun2-dev carries today.
 #
-# Note certManagerVaultPki: it needs the spec.vault block below. An enabled
-# component without its parameters fails at SYNC time on the target cluster, not
-# when this XR is applied — which is why the XRD leaves it off by default.
+# Note certManagerVaultPki. Two reasons the XRD leaves it off by default:
+#
+#   1. It needs the spec.vault block below. An enabled component without its
+#      parameters fails at SYNC time on the target cluster, not when this XR is
+#      applied.
+#   2. The annotations only WIRE UP a ClusterIssuer. Its counterpart — a k8s auth
+#      mount inside Vault and the CA Secret on the target — is not created by any
+#      XR here. Where a `Platform` XR with `vaultIssuer` already provides those, it
+#      brings its own ClusterIssuer too, and switching this on adds a second one
+#      with the same credentials. It is on HERE because homerun2-dev takes the
+#      AppSet route; a cluster prepared by `Platform` leaves it off. See README.
 apiVersion: config.stuttgart-things.com/v1alpha1
 kind: ArgocdCluster
 metadata:
