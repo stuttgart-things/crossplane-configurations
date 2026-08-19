@@ -436,12 +436,20 @@ tasks:
       - |
         set -euo pipefail
 
-        # WHY TWO PHASES. Deleting a ClusterStack that has a Platform child in
+        # WHY THREE PHASES. Deleting a ClusterStack that has a Platform child in
         # one step leaves resources behind: the whole tree is deleted in
         # parallel, so the ClusterAccess's RemoteCluster (owner of the kubeconfig
         # Secret and both ClusterProviderConfigs) can go while the Platform's own
         # Objects still need those credentials to finalize. Measured: four
         # leftovers, two of them permanent (crossplane-configurations#185).
+        #
+        # Phase 0 came later and for a different reason. An ArgocdCluster XR with
+        # `clusterStackRef` composes a Usage whose whole purpose is to BLOCK the
+        # delete in phase 2 — so a teardown that ignores it does not quietly do
+        # the wrong thing, it fails at admission. Deregistering first is also
+        # correct on its own terms: the generated Applications point at a cluster
+        # that is about to stop existing, and once it is gone the ones carrying a
+        # pre-delete hook cannot finalize at all.
         #
         # The Usage resources cannot prevent it — they are composed children of
         # the same XR, so they are swept away with everything else, and the
@@ -483,8 +491,18 @@ tasks:
         # case here — it is what the teardown is checking for.
         HAS_PLATFORM=$( { kubectl get platform "${NAME}-platform" -n "$NS" --no-headers 2>/dev/null || true; } | wc -l)
 
+        # Matched on clusterStackRef FIRST and on the name only as a fallback:
+        # the XR does not have to share the stack's name, and before
+        # argocd-cluster v0.2.0 there was no ref to match on at all. `?` on
+        # .items guards the case where the CRD is not installed.
+        ARGOCD_XRS=$( { kubectl get argocdcluster -n "$NS" -o json 2>/dev/null || true; } \
+          | jq -r --arg n "$NAME" '.items[]? | select(.spec.clusterStackRef == $n or .metadata.name == $n) | .metadata.name' 2>/dev/null | sort -u | tr '\n' ' ')
+        ARGOCD_XRS=$(echo "$ARGOCD_XRS" | sed -e 's/[[:space:]]*$//')
+
         gum style --foreground 4 "→ teardown $NAME (namespace $NS)"
+        echo "  argocd registration: $(if [ -z "$ARGOCD_XRS" ]; then echo "none — phase 0 is a no-op"; else echo "$ARGOCD_XRS"; fi)"
         echo "  platform child:  $(if [ "$HAS_PLATFORM" = "0" ]; then echo "none — phase 1 is a no-op"; else echo "present"; fi)"
+        echo "  phase 0:         delete the ArgocdCluster XR, wait for deregistration"
         echo "  phase 1:         platformEnabled=false, wait for the Platform child to go"
         echo "  phase 2:         delete the ClusterStack"
         echo
@@ -494,6 +512,35 @@ tasks:
           gum style --foreground 8 "  (YES=$YES — skipping confirmation)"
         else
           gum confirm "tear down $NAME?" || { gum style --foreground 3 "aborted"; exit 1; }
+        fi
+
+        # --- phase 0 ---
+        if [ -z "$ARGOCD_XRS" ]; then
+          gum style --foreground 8 "phase 0: no ArgocdCluster XR, skipping"
+        else
+          gum style --foreground 4 "phase 0: deregistering from ArgoCD"
+          for XR in $ARGOCD_XRS; do
+            kubectl delete argocdcluster "$XR" -n "$NS" --wait=false >/dev/null 2>&1 || true
+          done
+          i=0
+          while [ "$i" -lt 30 ]; do
+            LEFT=0
+            for XR in $ARGOCD_XRS; do
+              N=$( { kubectl get argocdcluster "$XR" -n "$NS" --no-headers 2>/dev/null || true; } | wc -l)
+              LEFT=$((LEFT + N))
+            done
+            if [ "$LEFT" = "0" ]; then break; fi
+            sleep 10
+            i=$((i + 1))
+          done
+          if [ "$LEFT" != "0" ]; then
+            gum style --foreground 1 "phase 0 did not finish in 5m — NOT continuing"
+            gum style --foreground 8 "  the Usage from clusterStackRef would block phase 2 anyway; clearing it by force"
+            gum style --foreground 8 "  would deregister nothing and leave the Applications behind."
+            kubectl get argocdcluster -n "$NS" --no-headers 2>/dev/null | grep -E "$(echo "$ARGOCD_XRS" | tr ' ' '|')" || true
+            exit 1
+          fi
+          gum style --foreground 2 "  ✓ deregistered"
         fi
 
         # --- phase 1 ---
@@ -542,7 +589,8 @@ tasks:
           "clusteraccess:clusteraccess" \
           "nativeproxmoxvm:nativeproxmoxvm" \
           "nativevspherevm:nativevspherevm" \
-          "ansibleruns:ansiblerun" ; do
+          "ansibleruns:ansiblerun" \
+          "argocdclusters:argocdcluster" ; do
           LABEL="${pair%%:*}"; KIND="${pair#*:}"
           N=$( { kubectl get "$KIND" -A --no-headers 2>/dev/null || true; } | grep -c "$NAME" || true)
           printf "  %-18s %s\n" "$LABEL" "$N"
