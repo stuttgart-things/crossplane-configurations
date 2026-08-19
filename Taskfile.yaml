@@ -499,9 +499,47 @@ tasks:
           | jq -r --arg n "$NAME" '.items[]? | select(.spec.clusterStackRef == $n or .metadata.name == $n) | .metadata.name' 2>/dev/null | sort -u | tr '\n' ' ')
         ARGOCD_XRS=$(echo "$ARGOCD_XRS" | sed -e 's/[[:space:]]*$//')
 
+        # Resolve a kubeconfig for the ArgoCD cluster NOW, while the XR still
+        # exists -- after phase 0 the reference is gone. Chain:
+        #   ArgocdCluster.spec.argocd.providerConfigRef
+        #     -> ClusterProviderConfig.spec.credentials.secretRef
+        #       -> Secret holding the kubeconfig
+        # The XRD defaults providerConfigRef, but structural defaulting does not
+        # fill fields inside an ABSENT spec.argocd -- so fall back by hand.
+        #
+        # ARGOCD_KUBECONFIG overrides all of this. The registrar identity is
+        # deliberately narrow (clusterbookclusters + externalsecrets only), so a
+        # fuller credential buys a fuller sweep; see the sweep below.
+        ARGOCD_KC=""
+        ARGOCD_NS_REMOTE="argocd"
+        if [ -n "${ARGOCD_KUBECONFIG:-}" ]; then
+          if [ -f "$ARGOCD_KUBECONFIG" ]; then ARGOCD_KC="$ARGOCD_KUBECONFIG"; else
+            gum style --foreground 3 "ARGOCD_KUBECONFIG=$ARGOCD_KUBECONFIG: file not found — falling back to the registrar"
+          fi
+        fi
+        if [ -z "$ARGOCD_KC" ]; then
+          PCREF=""
+          for XR in $ARGOCD_XRS; do
+            PCREF=$( { kubectl get argocdcluster "$XR" -n "$NS" -o jsonpath='{.spec.argocd.providerConfigRef}' 2>/dev/null || true; } )
+            ANS=$( { kubectl get argocdcluster "$XR" -n "$NS" -o jsonpath='{.spec.argocd.namespace}' 2>/dev/null || true; } )
+            if [ -n "$ANS" ]; then ARGOCD_NS_REMOTE="$ANS"; fi
+            break
+          done
+          PCREF="${PCREF:-platform-sthings-registrar-kubernetes}"
+          SREF=$( { kubectl get clusterproviderconfig.kubernetes.m.crossplane.io "$PCREF" -o json 2>/dev/null || true; } \
+            | jq -r '.spec.credentials.secretRef | "\(.namespace) \(.name) \(.key)"' 2>/dev/null || true)
+          if [ -n "$SREF" ] && [ "$SREF" != "null null null" ]; then
+            SNS=$(echo "$SREF" | awk '{print $1}'); SNAME=$(echo "$SREF" | awk '{print $2}'); SKEY=$(echo "$SREF" | awk '{print $3}')
+            CAND=$(mktemp)
+            { kubectl get secret "$SNAME" -n "$SNS" -o jsonpath="{.data.$SKEY}" 2>/dev/null || true; } | base64 -d > "$CAND" 2>/dev/null || true
+            if [ -s "$CAND" ]; then ARGOCD_KC="$CAND"; else rm -f "$CAND"; fi
+          fi
+        fi
+
         gum style --foreground 4 "→ teardown $NAME (namespace $NS)"
         echo "  argocd registration: $(if [ -z "$ARGOCD_XRS" ]; then echo "none — phase 0 is a no-op"; else echo "$ARGOCD_XRS"; fi)"
         echo "  platform child:  $(if [ "$HAS_PLATFORM" = "0" ]; then echo "none — phase 1 is a no-op"; else echo "present"; fi)"
+        echo "  argocd sweep:    $(if [ -n "$ARGOCD_KC" ]; then if [ -n "${ARGOCD_KUBECONFIG:-}" ]; then echo "via ARGOCD_KUBECONFIG (full)"; else echo "via registrar (partial — see below)"; fi; else echo "unavailable — ArgoCD side will NOT be checked"; fi)"
         echo "  phase 0:         delete the ArgocdCluster XR, wait for deregistration"
         echo "  phase 1:         platformEnabled=false, wait for the Platform child to go"
         echo "  phase 2:         delete the ClusterStack"
@@ -605,15 +643,80 @@ tasks:
           if [ "$N" != "0" ]; then FOUND=1; fi
         done
 
+
+        # --- ArgoCD side ----------------------------------------------------
+        # Everything above lives on the MANAGEMENT cluster. The registration
+        # leaves objects on the ARGOCD cluster too, and on 2026-08-19 those had
+        # to be found by hand after a teardown that reported "clean" here.
+        #
+        # What the registrar identity may read is narrow by design
+        # (clusterbookclusters cluster-wide, externalsecrets in the argocd
+        # namespace) -- exactly the two objects the ArgocdCluster XR composes.
+        # It may NOT list applications, appprojects or secrets, so the generated
+        # Applications and the per-cluster AppProject stay invisible unless a
+        # fuller credential is supplied via ARGOCD_KUBECONFIG.
+        #
+        # Whatever is not checked is SAID so. A sweep that stays silent about
+        # its blind spot reads as "nothing there", which is how the leftovers
+        # went unnoticed in the first place.
+        ARGOCD_UNCHECKED=""
+        if [ -z "$ARGOCD_KC" ]; then
+          gum style --foreground 3 "argocd side: NOT CHECKED (no kubeconfig could be resolved)"
+          gum style --foreground 8 "  pass ARGOCD_KUBECONFIG=<path> to sweep it"
+          ARGOCD_UNCHECKED="all"
+        else
+          gum style --foreground 4 "argocd side"
+          for pair in \
+            "clusterbookcluster:clusterbookclusters" \
+            "externalsecret:externalsecrets" ; do
+            LABEL="${pair%%:*}"; KIND="${pair#*:}"
+            if [ "$KIND" = "externalsecrets" ]; then
+              N=$( { KUBECONFIG="$ARGOCD_KC" kubectl get "$KIND" -n "$ARGOCD_NS_REMOTE" --no-headers --request-timeout=20s 2>/dev/null || true; } | grep -c "$NAME" || true)
+            else
+              N=$( { KUBECONFIG="$ARGOCD_KC" kubectl get "$KIND" --no-headers --request-timeout=20s 2>/dev/null || true; } | grep -c "$NAME" || true)
+            fi
+            printf "  %-18s %s\n" "$LABEL" "$N"
+            if [ "$N" != "0" ]; then FOUND=1; fi
+          done
+          # Only reachable with a fuller credential; skipped rather than faked.
+          for pair in \
+            "applications:applications.argoproj.io" \
+            "appprojects:appprojects.argoproj.io" \
+            "cluster-secrets:secrets" ; do
+            LABEL="${pair%%:*}"; KIND="${pair#*:}"
+            if KUBECONFIG="$ARGOCD_KC" kubectl auth can-i list "$KIND" -n "$ARGOCD_NS_REMOTE" --request-timeout=20s >/dev/null 2>&1; then
+              N=$( { KUBECONFIG="$ARGOCD_KC" kubectl get "$KIND" -n "$ARGOCD_NS_REMOTE" --no-headers --request-timeout=20s 2>/dev/null || true; } | grep -c "$NAME" || true)
+              printf "  %-18s %s\n" "$LABEL" "$N"
+              if [ "$N" != "0" ]; then FOUND=1; fi
+            else
+              printf "  %-18s not checked (RBAC)\n" "$LABEL"
+              ARGOCD_UNCHECKED="${ARGOCD_UNCHECKED}${LABEL} "
+            fi
+          done
+        fi
+
         echo
-        if [ "$FOUND" = "0" ]; then
+        if [ -n "$ARGOCD_UNCHECKED" ]; then
+          gum style --foreground 3 "⚠ argocd side only partly checked: ${ARGOCD_UNCHECKED}"
+          gum style --foreground 8 "  Applications generated by AppSets and the per-cluster AppProject can outlive"
+          gum style --foreground 8 "  a deregistration -- an Application from an AppSet with"
+          gum style --foreground 8 "  preserveResourcesOnDeletion: true has no ownerReference and is never collected,"
+          gum style --foreground 8 "  and it then blocks proj-<cluster> from finalizing (stuttgart-things/argocd#320)."
+          gum style --foreground 8 "  Check by hand against the ArgoCD cluster:"
+          gum style --foreground 8 "    kubectl get application,appproject -n $ARGOCD_NS_REMOTE | grep $NAME"
+        fi
+        if [ "$FOUND" = "0" ] && [ -z "$ARGOCD_UNCHECKED" ]; then
           gum style --foreground 2 --bold "✓ teardown clean — no leftovers"
+        elif [ "$FOUND" = "0" ]; then
+          gum style --foreground 2 --bold "✓ no leftovers in what was checked"
         else
           gum style --foreground 3 --bold "⚠ leftovers remain"
           gum style --foreground 8 "  Clear anything wedged on a finalizer with:"
           gum style --foreground 8 "    kubectl patch <resource> -n $NS --type=merge -p '{\"metadata\":{\"finalizers\":[]}}'"
           gum style --foreground 8 "  and report it on crossplane-configurations#185 — a clean two-phase teardown is the expectation."
         fi
+
+        if [ -n "$ARGOCD_KC" ] && [ "$ARGOCD_KC" != "${ARGOCD_KUBECONFIG:-}" ]; then rm -f "$ARGOCD_KC"; fi
 
   pre-commit:
     desc: Run pre-commit hooks across the repo (via the Dagger linting module)
