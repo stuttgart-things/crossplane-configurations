@@ -219,6 +219,23 @@ spec:
                 # --- Downstream passthrough ---------------------------------
                 kubeconfig:
                   type: object
+                  # Nur die ZWEI Kreuzungen, von denen wir wissen, dass sie falsch
+                  # sind. Bewusst kein "muss zur Ableitung passen": das wuerde den
+                  # Notausgang zumauern, den providerConfigRef darstellen soll.
+                  # Unbekannte Vault-Paarungen bleiben erlaubt — die kennt diese
+                  # Regel nicht und darf sie nicht verbieten. Siehe #336.
+                  x-kubernetes-validations:
+                    - rule: >-
+                        !has(self.providerConfigRef) ||
+                        !((self.vaultSecretName == 'vault-infra' && self.providerConfigRef == 'vault-kubeconfigs') ||
+                          (self.vaultSecretName == 'vault' && self.providerConfigRef == 'vault-kubeconfigs-infra'))
+                      message: >-
+                        vaultSecretName and providerConfigRef point at different
+                        Vaults. vaultSecretName says where the kubeconfig is
+                        UPLOADED, providerConfigRef where it is READ; they must
+                        name the same one. Leave providerConfigRef unset — it is
+                        derived from vaultSecretName. See
+                        crossplane-configurations#336.
                   description: Passed to the ClusterAccess child (remote-cluster Configuration).
                   properties:
                     vaultPath:
@@ -247,13 +264,29 @@ spec:
                         alias by hand.
                     providerConfigRef:
                       type: string
-                      default: vault-kubeconfigs
                       description: >-
                         ClusterProviderConfig (kubeconfig.stuttgart-things.com)
                         the ClusterAccess child READS the kubeconfig back
                         through — emitted by the provider-kubeconfig-vault
                         chart. Keeps the name vaultSecretName gave up; they are
                         different kinds of object and only ever looked alike.
+
+                        LEAVE THIS UNSET. Derived from vaultSecretName since
+                        xplane-cluster 0.9.0 (`vault` → `vault-kubeconfigs`,
+                        `vault-infra` → `vault-kubeconfigs-infra`). The two
+                        fields must name the same Vault, and nothing used to
+                        enforce that: the old defaults agreed only by accident,
+                        so setting vaultSecretName to vault-infra — which the
+                        ArgoCD path requires — sent the read to the other Vault.
+                        The RemoteCluster then failed with `secret not found`
+                        while the ClusterStack stayed Ready=True, because
+                        without a ready ClusterAccess the Platform branch is
+                        never emitted and nothing is left to wait for. Forty
+                        minutes to find, 2026-08-19. See
+                        crossplane-configurations#336.
+
+                        Set it only for a Vault pair the mapping does not know;
+                        an explicit value still wins.
                 platformEnabled:
                   type: boolean
                   default: true
