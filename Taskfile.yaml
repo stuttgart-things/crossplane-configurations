@@ -510,6 +510,25 @@ tasks:
         # ARGOCD_KUBECONFIG overrides all of this. The registrar identity is
         # deliberately narrow (clusterbookclusters + externalsecrets only), so a
         # fuller credential buys a fuller sweep; see the sweep below.
+        # Vault coordinates for the kubeconfig, resolved NOW: after phase 2 the
+        # ClusterStack is gone and with it spec.kubeconfig. The entry survives a
+        # teardown unless something removes it, and a stale entry is not inert --
+        # a rebuild under the same name finds it and reports SecretSynced with the
+        # address of a destroyed VM (crossplane-configurations#262, measured on
+        # argoplatform-test2 2026-08-19).
+        VAULT_PC=$( { kubectl get clusterstack "$NAME" -n "$NS" -o jsonpath='{.spec.kubeconfig.providerConfigRef}' 2>/dev/null || true; } )
+        VAULT_PATH=$( { kubectl get clusterstack "$NAME" -n "$NS" -o jsonpath='{.spec.kubeconfig.vaultPath}' 2>/dev/null || true; } )
+        VAULT_PATH="${VAULT_PATH:-$NAME}"
+        # Mirrors kubeconfigReadRef in xplane-cluster 0.9.0: the read side is
+        # derived from the upload side unless stated. Keep the two in step.
+        if [ -z "$VAULT_PC" ]; then
+          VAULT_UP=$( { kubectl get clusterstack "$NAME" -n "$NS" -o jsonpath='{.spec.kubeconfig.vaultSecretName}' 2>/dev/null || true; } )
+          case "${VAULT_UP:-vault}" in
+            vault-infra) VAULT_PC="vault-kubeconfigs-infra" ;;
+            *)           VAULT_PC="vault-kubeconfigs" ;;
+          esac
+        fi
+
         ARGOCD_KC=""
         ARGOCD_NS_REMOTE="argocd"
         if [ -n "${ARGOCD_KUBECONFIG:-}" ]; then
@@ -543,6 +562,7 @@ tasks:
         echo "  phase 0:         delete the ArgocdCluster XR, wait for deregistration"
         echo "  phase 1:         platformEnabled=false, wait for the Platform child to go"
         echo "  phase 2:         delete the ClusterStack"
+        echo "  phase 3:         delete the kubeconfig in Vault ($VAULT_PC, path $VAULT_PATH)"
         echo
         echo "  THIS DESTROYS THE CLUSTER AND ITS VM."
         echo
@@ -717,6 +737,55 @@ tasks:
         fi
 
         if [ -n "$ARGOCD_KC" ] && [ "$ARGOCD_KC" != "${ARGOCD_KUBECONFIG:-}" ]; then rm -f "$ARGOCD_KC"; fi
+
+        # --- phase 3: the kubeconfig in Vault -------------------------------
+        # LAST, and only after a clean sweep. If anything above failed, the Vault
+        # entry may be the only remaining way into the cluster -- removing it then
+        # would turn a recoverable teardown into an unrecoverable one.
+        #
+        # KVv2 `delete`, not `destroy`: marks the current version deleted and keeps
+        # the metadata. That takes the stale entry away from a rebuild under the
+        # same name -- which is the actual damage, see #262 -- while leaving a
+        # trace of which cluster existed when. `destroy` is the more thorough
+        # choice for a credential and remains a deliberate follow-up, not a
+        # silent default.
+        if [ "$FOUND" != "0" ]; then
+          gum style --foreground 3 "phase 3: skipped — leftovers remain, keeping the Vault entry as a way back in"
+        elif [ -z "$VAULT_PC" ]; then
+          gum style --foreground 3 "phase 3: skipped — no Vault ClusterProviderConfig resolved"
+        else
+          gum style --foreground 4 "phase 3: deleting the kubeconfig in Vault"
+          VJ=$( { kubectl get clusterproviderconfigs.kubeconfig.stuttgart-things.com "$VAULT_PC" -o json 2>/dev/null || true; } )
+          VADDR=$(echo "$VJ" | jq -r '.spec.vault.address // ""')
+          VMOUNT=$(echo "$VJ" | jq -r '.spec.vault.mountPath // ""')
+          VROLE=$(echo "$VJ" | jq -r '.spec.vault.auth.appRole.roleId // ""')
+          VAPATH=$(echo "$VJ" | jq -r '.spec.vault.auth.appRole.mountPath // "approle"')
+          VSNS=$(echo "$VJ" | jq -r '.spec.vault.auth.appRole.secretRef.namespace // ""')
+          VSNAME=$(echo "$VJ" | jq -r '.spec.vault.auth.appRole.secretRef.name // ""')
+          if [ -z "$VADDR" ] || [ -z "$VMOUNT" ] || [ -z "$VROLE" ] || [ -z "$VSNAME" ]; then
+            gum style --foreground 3 "  skipped — $VAULT_PC did not yield address/mount/approle"
+          else
+            VSID=$( { kubectl get secret "$VSNAME" -n "$VSNS" -o json 2>/dev/null || true; } \
+              | jq -r '.data // {} | to_entries[0].value // ""' | base64 -d 2>/dev/null | tr -d '[:space:]')
+            if [ -z "$VSID" ]; then
+              gum style --foreground 3 "  skipped — secret $VSNS/$VSNAME held no secret_id"
+            else
+              VTOK=$(curl -sk -X POST "$VADDR/v1/auth/$VAPATH/login" \
+                -d "{\"role_id\":\"$VROLE\",\"secret_id\":\"$VSID\"}" | jq -r '.auth.client_token // ""')
+              if [ -z "$VTOK" ]; then
+                gum style --foreground 1 "  AppRole login against $VADDR failed — entry NOT removed"
+              else
+                VCODE=$(curl -sk -o /dev/null -w '%{http_code}' -X DELETE \
+                  -H "X-Vault-Token: $VTOK" "$VADDR/v1/$VMOUNT/data/$VAULT_PATH")
+                case "$VCODE" in
+                  2*) gum style --foreground 2 "  ✓ $VMOUNT/$VAULT_PATH deleted (current version)" ;;
+                  404) gum style --foreground 8 "  nothing to delete at $VMOUNT/$VAULT_PATH" ;;
+                  *)  gum style --foreground 1 "  DELETE returned HTTP $VCODE — entry may still be there" ;;
+                esac
+              fi
+            fi
+          fi
+        fi
 
   pre-commit:
     desc: Run pre-commit hooks across the repo (via the Dagger linting module)
