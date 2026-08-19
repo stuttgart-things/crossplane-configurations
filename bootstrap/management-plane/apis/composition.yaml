@@ -33,7 +33,7 @@ spec:
         metadata:
           name: management-plane
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-management-plane:0.5.0
+          source: oci://ghcr.io/stuttgart-things/xplane-management-plane:0.5.1
     - step: automatically-detect-ready-composed-resources
       functionRef:
         name: function-auto-ready
