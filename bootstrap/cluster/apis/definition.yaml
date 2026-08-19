@@ -58,10 +58,26 @@ spec:
                   enum:
                     - proxmox
                     - vsphere
+                    - harvester
                   description: >-
-                    Which machine platform to build on. Selects the VM XR kind
-                    (NativeProxmoxVM / NativeVsphereVM) and nothing else — the
-                    ansible staging is identical for both.
+                    Which machine platform to build on. Selects the VM XR kind:
+                    NativeProxmoxVM, NativeVsphereVM or HarvesterVM.
+
+
+                    proxmox and vsphere differ only in field names — staging,
+                    gating and everything downstream are identical. Harvester
+                    does not: its boot disk is a PVC of its own, cpu is an object
+                    rather than a number, memory is a quantity string, cloud-init
+                    is a required block, and its `ansible.enabled` defaults to
+                    FALSE (xplane-cluster 0.10.0 switches it on, or the VM would
+                    come up with no base OS and the stack would wait forever on a
+                    stage that was never emitted).
+
+
+                    Harvester additionally needs an `EnvironmentConfig` carrying
+                    the storage class and image, the way proxmoxvm-labul does for
+                    Proxmox. Without one the VM has nothing to boot from.
+                    crossplane-configurations#258 Block B.
                 size:
                   type: string
                   default: medium
