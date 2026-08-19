@@ -45,13 +45,15 @@ status:
       authReady: false
       auths: {}
       caReady: false
+      certManagerReady: false
       enabled: true
       issuerReady: false
       ready: false
+      waitingForCertManager: true
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: production-cert-manager-tokenrequest-binding, production-cert-manager-tokenrequest-role,
-      production-cluster-issuer, and 8 more'
+    message: 'Unready resources: production-cert-manager-observe, production-flux-apps,
+      production-flux-init, and 5 more'
     reason: Creating
     status: "False"
     type: Ready
@@ -73,10 +75,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: production-cert-manager-tokenrequest-binding
+    crossplane.io/composition-resource-name: production-cert-manager-observe
   labels:
     crossplane.io/composite: production
-  name: production-cert-manager-tokenrequest-binding
+  name: production-cert-manager-observe
   namespace: crossplane-system
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -88,96 +90,13 @@ metadata:
 spec:
   forProvider:
     manifest:
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: RoleBinding
+      apiVersion: v1
+      kind: Endpoints
       metadata:
-        name: cert-manager-tokenrequest
+        name: cert-manager-webhook
         namespace: cert-manager
-      roleRef:
-        apiGroup: rbac.authorization.k8s.io
-        kind: Role
-        name: cert-manager-tokenrequest
-      subjects:
-      - kind: ServiceAccount
-        name: cert-manager
-        namespace: cert-manager
-  providerConfigRef:
-    kind: ClusterProviderConfig
-    name: production-kubernetes
----
-apiVersion: kubernetes.m.crossplane.io/v1alpha1
-kind: Object
-metadata:
-  annotations:
-    crossplane.io/composition-resource-name: production-cert-manager-tokenrequest-role
-  labels:
-    crossplane.io/composite: production
-  name: production-cert-manager-tokenrequest-role
-  namespace: crossplane-system
-  ownerReferences:
-  - apiVersion: config.stuttgart-things.com/v1alpha1
-    blockOwnerDeletion: true
-    controller: true
-    kind: Platform
-    name: production
-    uid: ""
-spec:
-  forProvider:
-    manifest:
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: Role
-      metadata:
-        name: cert-manager-tokenrequest
-        namespace: cert-manager
-      rules:
-      - apiGroups:
-        - ""
-        resourceNames:
-        - cert-manager
-        resources:
-        - serviceaccounts/token
-        verbs:
-        - create
-  providerConfigRef:
-    kind: ClusterProviderConfig
-    name: production-kubernetes
----
-apiVersion: kubernetes.m.crossplane.io/v1alpha1
-kind: Object
-metadata:
-  annotations:
-    crossplane.io/composition-resource-name: production-cluster-issuer
-  labels:
-    crossplane.io/composite: production
-  name: production-cluster-issuer
-  namespace: crossplane-system
-  ownerReferences:
-  - apiVersion: config.stuttgart-things.com/v1alpha1
-    blockOwnerDeletion: true
-    controller: true
-    kind: Platform
-    name: production
-    uid: ""
-spec:
-  forProvider:
-    manifest:
-      apiVersion: cert-manager.io/v1
-      kind: ClusterIssuer
-      metadata:
-        name: vault-pki-k8s
-      spec:
-        vault:
-          auth:
-            kubernetes:
-              mountPath: /v1/auth/production-certmanager
-              role: certmanager
-              serviceAccountRef:
-                name: cert-manager
-          caBundleSecretRef:
-            key: ca.crt
-            name: vault-pki-ca
-          path: pki/sign/sthings-vsphere
-          server: https://vault.example.com
+  managementPolicies:
+  - Observe
   providerConfigRef:
     kind: ClusterProviderConfig
     name: production-kubernetes
@@ -464,28 +383,3 @@ spec:
   skipTlsVerify: true
   vaultAddr: https://vault.example.com
   vaultTokenSecret: vault-approle
----
-apiVersion: config.stuttgart-things.com/v1alpha1
-kind: VaultPkiSecret
-metadata:
-  annotations:
-    crossplane.io/composition-resource-name: production-vault-pki
-  labels:
-    crossplane.io/composite: production
-  name: production-vault-pki
-  namespace: crossplane-system
-  ownerReferences:
-  - apiVersion: config.stuttgart-things.com/v1alpha1
-    blockOwnerDeletion: true
-    controller: true
-    kind: Platform
-    name: production
-    uid: ""
-spec:
-  caBundleSecretRef:
-    name: vault-pki-source-ca
-    namespace: crossplane-system
-  caSecretName: vault-pki-ca
-  namespace: cert-manager
-  providerConfigKind: ClusterProviderConfig
-  providerConfigRef: production-kubernetes

@@ -45,9 +45,11 @@ status:
       authReady: false
       auths: {}
       caReady: false
+      certManagerReady: false
       enabled: false
       issuerReady: false
       ready: false
+      waitingForCertManager: false
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: kind-test1-cni'

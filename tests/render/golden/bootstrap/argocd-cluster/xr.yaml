@@ -9,12 +9,43 @@ status:
   clusterSecretName: cluster-homerun2-dev
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: clusterbook-cluster, external-secret'
+    message: 'Unready resources: argocd-uses-stack, clusterbook-cluster, and external-secret'
     reason: Creating
     status: "False"
     type: Ready
   fqdn: ""
   ready: false
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: argocd-uses-stack
+  labels:
+    crossplane.io/composite: homerun2-dev
+  name: homerun2-dev-argocd-uses-stack
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ArgocdCluster
+    name: homerun2-dev
+    uid: ""
+spec:
+  by:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: ArgocdCluster
+    resourceRef:
+      name: homerun2-dev
+  of:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: ClusterStack
+    resourceRef:
+      name: homerun2-dev
+  reason: Cluster is registered with ArgoCD. Delete the ArgocdCluster first, or generated
+    Applications outlive the cluster they target.
+  replayDeletion: false
 ---
 apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
@@ -103,7 +134,7 @@ metadata:
     crossplane.io/composition-resource-name: external-secret
   labels:
     crossplane.io/composite: homerun2-dev
-  name: homerun2-dev-kubeconfig
+  name: homerun2-dev-argocd-externalsecret
   namespace: crossplane-system
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
