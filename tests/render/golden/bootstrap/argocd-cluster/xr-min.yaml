@@ -95,7 +95,7 @@ metadata:
     crossplane.io/composition-resource-name: external-secret
   labels:
     crossplane.io/composite: argocd-cluster-min
-  name: argocd-cluster-min-kubeconfig
+  name: argocd-cluster-min-argocd-externalsecret
   namespace: crossplane-system
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
