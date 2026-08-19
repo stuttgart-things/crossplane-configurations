@@ -144,7 +144,14 @@ spec:
                       description: Field within the secret holding the raw kubeconfig YAML.
                     refreshInterval:
                       type: string
-                      default: 1h
+                      default: 5m
+                      description: >-
+                        Wie oft ESO den Vault erneut fragt. 1h war fuer einen
+                        laufenden Cluster richtig und fuer die Bauphase zu traege:
+                        die kubeconfig entsteht erst waehrend des Baus, und bis zum
+                        ersten Refresh vergeht laenger als der Bau selbst dauert.
+                        Am 2026-08-19 an argoplatform-test2 gemessen — eine Stunde
+                        gegen die Adresse einer zerstoerten VM. Siehe #339.
 
                 # ---- the ClusterbookCluster ----------------------------------
                 clusterbook:

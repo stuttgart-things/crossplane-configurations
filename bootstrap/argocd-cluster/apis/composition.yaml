@@ -41,7 +41,7 @@ spec:
             # metadata endpoint and yields an empty secret rather than an error.
             _remoteKey = _kc?.remoteKey or "kubeconfigs/data/{}".format(_cluster)
             _property = _kc?.property or "kubeconfig"
-            _refresh = _kc?.refreshInterval or "1h"
+            _refresh = _kc?.refreshInterval or "5m"
 
             _cb = _spec?.clusterbook or {}
             _prof = _spec?.profiles or {}
