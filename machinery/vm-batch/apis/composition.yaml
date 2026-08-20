@@ -183,11 +183,26 @@ spec:
                     }
                     spec = {
                         pipelineRunName = _pipelineRunName
-                        # Same contract as the VM children above (#317): pass
-                        # the environment down and forward only what the XR set,
-                        # so ansible-run's own EnvironmentConfig is not masked by
-                        # a hardcoded value that only matches one cluster.
-                        environmentConfig = _environmentConfig
+                        # NOT _environmentConfig. That is the HYPERVISOR
+                        # environment (labul, labda) the VM children above are
+                        # placed in, resolved against the proxmoxvm/vspherevm
+                        # labels; ansible-run resolves its OWN label, and the
+                        # only ansible-run environment in the fleet is `default`
+                        # (EnvironmentConfig ansible-run-defaults). Passing the
+                        # hypervisor name down matched nothing and silently
+                        # dropped every ansible-run default — ansibleExtraCollections
+                        # among them, so the playbook ran against whatever
+                        # collection the working image had baked in. Diagnosed on
+                        # vspherevm (kind3, 2026-08-20, LabDA): baseos died in
+                        # install_configure_vault with "dict object has no
+                        # element 26" while the pinned collection release had
+                        # supported Ubuntu 26 all along. vm-batch carried the
+                        # same line and the same defect.
+                        #
+                        # Omitting it keeps ansible-run's XRD default `default`,
+                        # which is the label ansible-run-defaults actually has.
+                        if _ansible?.environmentConfig:
+                            environmentConfig = _ansible.environmentConfig
                         if _ansible?.pipelineNamespace:
                             namespace = _ansible.pipelineNamespace
                         if _ansible?.gitRepoUrl:

@@ -300,10 +300,34 @@ spec:
                     }
                     spec = {
                         pipelineRunName = _pipelineRunName
-                        # Without this the child keeps the ansible-run XRD's
-                        # `default`, matches no EnvironmentConfig, and silently
-                        # uses module defaults.
-                        environmentConfig = _spec?.environmentConfig or "default"
+                        # NOT the XR's own environmentConfig. That one names a
+                        # vSphere environment and is resolved against the
+                        # vspherevm label; ansible-run resolves its OWN label, and
+                        # the only ansible-run environment that exists in the
+                        # fleet is `default` (EnvironmentConfig
+                        # ansible-run-defaults). Forwarding the vSphere name
+                        # therefore matched nothing and silently dropped every
+                        # ansible-run default.
+                        #
+                        # That is not a cosmetic loss: ansibleExtraCollections
+                        # lives there, so the playbook ran against whatever
+                        # collection the working image happened to have baked in.
+                        # Found on kind3 2026-08-20 building into LabDA —
+                        # sthings.baseos.setup died in install_configure_vault
+                        # with "dict object has no element 26" (no Ubuntu 26 key
+                        # in the image's stale copy), while the pinned release
+                        # sthings-baseos-26.730.1176 has had that key for months.
+                        # The step log said it plainly: "No collections directory
+                        # found". Nothing about the failure pointed at the
+                        # environment selector, which is what made it expensive.
+                        #
+                        # Omitting the field keeps ansible-run's XRD default
+                        # `default` — exactly what ansible-run-defaults is
+                        # labelled with. Only forward when the caller explicitly
+                        # names an ansible-run environment, same "forwarded ONLY
+                        # when set" rule as the fields below.
+                        if _ansible?.environmentConfig:
+                            environmentConfig = _ansible.environmentConfig
                         # Forwarded ONLY when set — an omitted field lets the
                         # ansible-run EnvironmentConfig win.
                         if _ansible?.pipelineNamespace:
