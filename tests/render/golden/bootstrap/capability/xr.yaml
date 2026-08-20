@@ -15,8 +15,8 @@ status:
   capabilityCount: 1
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: proxmoxvm-ci-password-secret, proxmoxvm-credentials,
-      proxmoxvm-environment-config, and 2 more'
+    message: 'Unready resources: u26-rke2-1-labul-proxmoxvm-ci-password-secret, u26-rke2-1-labul-proxmoxvm-credentials,
+      u26-rke2-1-labul-proxmoxvm-environment-config, and 2 more'
     reason: Creating
     status: "False"
     type: Ready
@@ -27,10 +27,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: proxmoxvm-ci-password-secret
+    crossplane.io/composition-resource-name: u26-rke2-1-labul-proxmoxvm-ci-password-secret
   labels:
     crossplane.io/composite: u26-rke2-1-capability
-  name: proxmoxvm-ci-password-secret
+  name: u26-rke2-1-labul-proxmoxvm-ci-password-secret
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -77,10 +77,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: proxmoxvm-credentials
+    crossplane.io/composition-resource-name: u26-rke2-1-labul-proxmoxvm-credentials
   labels:
     crossplane.io/composite: u26-rke2-1-capability
-  name: proxmoxvm-credentials
+  name: u26-rke2-1-labul-proxmoxvm-credentials
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -129,10 +129,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: proxmoxvm-environment-config
+    crossplane.io/composition-resource-name: u26-rke2-1-labul-proxmoxvm-environment-config
   labels:
     crossplane.io/composite: u26-rke2-1-capability
-  name: proxmoxvm-environment-config
+  name: u26-rke2-1-labul-proxmoxvm-environment-config
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -180,10 +180,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: proxmoxvm-provider-config
+    crossplane.io/composition-resource-name: u26-rke2-1-labul-proxmoxvm-provider-config
   labels:
     crossplane.io/composite: u26-rke2-1-capability
-  name: proxmoxvm-provider-config
+  name: u26-rke2-1-labul-proxmoxvm-provider-config
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -217,10 +217,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: proxmoxvm-secret-store
+    crossplane.io/composition-resource-name: u26-rke2-1-labul-proxmoxvm-secret-store
   labels:
     crossplane.io/composite: u26-rke2-1-capability
-  name: proxmoxvm-secret-store
+  name: u26-rke2-1-labul-proxmoxvm-secret-store
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
