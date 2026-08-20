@@ -39,6 +39,10 @@ spec:
     cloneDatastore: V5010-01-1
   cloudInit:
     ipv4Address: dhcp
+    # DO NOT COPY THIS VALUE. Set here only to exercise the per-XR override
+    # against the EnvironmentConfig's `cloudInitDatastore` (DD-sthings) — leaving
+    # the cloud-init drive on `V5010-01-1` is exactly the configuration that
+    # orphans the cidata LV on stop and makes the VM unbootable (see README).
     datastoreId: V5010-01-1
     username: sthings
     # Also becomes the PVE VM name — Proxmox derives the guest hostname from it

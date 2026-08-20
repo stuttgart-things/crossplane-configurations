@@ -175,7 +175,13 @@ spec:
                       description: |
                         Datastore for the cloud-init drive bpg adds on clone (the
                         stuttgart-things Packer templates have no cloud-init
-                        disk). Defaults to the root disk's datastore when unset.
+                        disk). Falls back to the EnvironmentConfig
+                        `cloudInitDatastore`, then to the root disk's datastore.
+                        Worth pointing at a different store than the data disk:
+                        the cloud-init drive is freed and re-allocated on every
+                        stop/start, and on LabUL's `V5010-01-1` that round trip
+                        leaves an orphaned LV behind which makes the VM
+                        unbootable.
                     username:
                       type: string
                       description: |

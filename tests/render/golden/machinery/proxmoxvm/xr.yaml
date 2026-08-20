@@ -52,7 +52,7 @@ spec:
       interface: virtio0
       size: 64
     initialization:
-    - datastoreId: V5010-01-1
+    - datastoreId: DD-sthings
       ipConfig:
       - ipv4:
         - address: dhcp
