@@ -315,6 +315,14 @@ GHCR_TIMEOUT = 10
 # compare RELEASES, and a tag we cannot order is not evidence of anything.
 SEMVER_TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 
+# `Link: </v2/…/tags/list?last=…>; rel="next"` — the OCI distribution spec's
+# pagination cursor.
+NEXT_PAGE = re.compile(r'<([^>]+)>\s*;\s*rel="next"')
+
+# Backstop against a registry that never stops handing out cursors: 50 pages is
+# 5000 tags. Looping forever inside CI is a worse failure than a partial answer.
+MAX_TAG_PAGES = 50
+
 
 def _parse_tag(tag: str):
     m = SEMVER_TAG.match(tag)
@@ -375,18 +383,33 @@ def _fetch_tags(package: str) -> list[str] | None:
     public package; no credential is involved.
     """
     repo = f"{GHCR_REPO_PREFIX}/{package}"
+    tags: list[str] = []
     try:
         with urllib.request.urlopen(
             f"https://ghcr.io/token?scope=repository:{repo}:pull&service=ghcr.io",
             timeout=GHCR_TIMEOUT,
         ) as r:
             token = json.load(r)["token"]
-        req = urllib.request.Request(
-            f"https://ghcr.io/v2/{repo}/tags/list",
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        with urllib.request.urlopen(req, timeout=GHCR_TIMEOUT) as r:
-            return json.load(r).get("tags") or []
+        url = f"https://ghcr.io/v2/{repo}/tags/list"
+        # PAGINATED. Registries cap a tag list and hand out a
+        # `Link: …; rel="next"` cursor; reading only the first page reports the
+        # packages with the MOST releases as unpublished. Measured on
+        # xpkg.crossplane.io while writing the sibling check in
+        # stuttgart-things/kcl: exactly 100 tags, cursor set, and three correct
+        # Function pins came back as "does not exist". No package here is near
+        # the cap today — which is precisely why this would have gone unnoticed
+        # until the day one was.
+        for _ in range(MAX_TAG_PAGES):
+            req = urllib.request.Request(
+                url, headers={"Authorization": f"Bearer {token}"})
+            with urllib.request.urlopen(req, timeout=GHCR_TIMEOUT) as r:
+                tags.extend(json.load(r).get("tags") or [])
+                link = NEXT_PAGE.search(r.headers.get("Link", "") or "")
+            if not link:
+                return tags
+            nxt = link.group(1)
+            url = nxt if nxt.startswith("http") else f"https://ghcr.io{nxt}"
+        return tags
     except urllib.error.HTTPError as e:
         # 403/404 are ANSWERS: no public artifact exists under this name.
         #
