@@ -316,6 +316,22 @@ spec:
                       type: string
                     wrapInCrossplane:
                       type: boolean
+                    environmentConfig:
+                      type: string
+                      description: |
+                        Selects the ansible-run EnvironmentConfig for the emitted
+                        AnsibleRun, matched against the config-scoped label
+                        `ansible-run.resources.stuttgart-things.com/environment`.
+
+                        Leave unset unless such an EnvironmentConfig actually
+                        exists for the value. This is deliberately NOT defaulted
+                        from the XR's own `spec.environmentConfig`: that names a
+                        hypervisor environment (labul, labda) resolved against a
+                        different label, and forwarding it used to match nothing
+                        and silently drop every ansible-run default —
+                        ansibleExtraCollections included. Unset means the
+                        ansible-run XRD default `default`, which is the label
+                        `ansible-run-defaults` carries.
                 environmentConfig:
                   type: string
                   description: |
