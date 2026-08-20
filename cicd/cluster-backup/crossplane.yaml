@@ -4,7 +4,7 @@ kind: Configuration
 metadata:
   name: cluster-backup
   annotations:
-    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/version: v0.2.0
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
