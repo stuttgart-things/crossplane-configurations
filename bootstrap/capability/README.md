@@ -142,7 +142,7 @@ the first live apply against `u26-rke2-1`.
 
 **Two different names, and confusing them is the trap.** The `Object` resources
 this Composition composes live on the MANAGEMENT cluster and are named
-`<clusterName>-<capability>-<purpose>` (v0.5.0 and later). The resources those
+`<clusterName>-<environment>-<capability>-<purpose>` (v0.5.0 and later). The resources those
 Objects create on the TARGET cluster are named `<capability>-<environment>` —
 that is the name an XR refers to via `spec.environmentConfig`, and it did not
 change.
@@ -153,6 +153,13 @@ on kind3 2026-08-20: `u26-rke2-1-capability` held the `ansible-run-*` names, and
 a new `seed-labda-1-capability` in the same namespace listed those same Objects
 in its `resourceRefs` and sat at `Ready=False`. Its `vspherevm` half went
 through — chance, since u26 runs `proxmoxvm`.
+
+**The environment belongs in that name too, not just the cluster.** `spec.environment`
+exists precisely so one cluster can serve two of them (labda *and* labul), which
+means two `Capability` XRs on the same cluster — and those would collide again on
+a name built from `clusterName` alone. Prefixing by cluster only covers two
+*different* capabilities; the same capability in two environments needs the
+environment as well.
 
 Nothing was overwritten: Crossplane will not claim a resource already carrying
 another composite's `crossplane.io/composite` label. **That safety net is not
