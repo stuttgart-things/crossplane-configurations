@@ -368,13 +368,37 @@ def _fetch_digest(package: str, tag: str) -> str | None:
         return None
 
 
-def _fetch_tags(package: str) -> list[str] | None:
-    """Published tags for one package, or None if the registry could not be asked.
+class NotPublic(Exception):
+    """The registry has no anonymously pullable artifact under this name.
 
-    None means "no answer", NOT "no tags" — the caller must not treat the two
-    alike. That distinction is the whole reason this returns an Optional: a
-    timeout reported as "never published" would accuse every package on the
-    cluster the moment GHCR hiccups.
+    Carries WHY, because the two reasons need different fixes and GHCR
+    distinguishes them at the token endpoint — measured 2026-08-20:
+
+        403   the package does not exist. Nothing was ever pushed.
+        401   it exists but is PRIVATE. A push happened; the visibility flip
+              (UI-only) did not.
+
+    The second is the nastier one. `task push` reports success, the README and
+    crossplane.yaml agree, the tag is really there — and Crossplane still cannot
+    install it, because it pulls anonymously. Exactly that happened to
+    vault-config minutes after this check first flagged it as unpublished.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+def _fetch_tags(package: str) -> list[str] | None:
+    """Published tags for one package.
+
+    Returns the tag list, or None if the registry could not be asked. Raises
+    NotPublic when the registry ANSWERED that there is nothing to pull.
+
+    Three outcomes, not two, and conflating any pair of them breaks the check:
+    a timeout reported as "never published" accuses every package the moment
+    GHCR hiccups, and a private package reported as "unreachable" is silently
+    dropped — which is the failure this check exists to catch.
 
     Plain HTTP against the Docker registry API rather than shelling out to
     `oras`: the linter otherwise needs nothing but PyYAML, and it runs as a
@@ -383,14 +407,27 @@ def _fetch_tags(package: str) -> list[str] | None:
     public package; no credential is involved.
     """
     repo = f"{GHCR_REPO_PREFIX}/{package}"
-    tags: list[str] = []
     try:
         with urllib.request.urlopen(
             f"https://ghcr.io/token?scope=repository:{repo}:pull&service=ghcr.io",
             timeout=GHCR_TIMEOUT,
         ) as r:
             token = json.load(r)["token"]
-        url = f"https://ghcr.io/v2/{repo}/tags/list"
+    except urllib.error.HTTPError as e:
+        if e.code == 403:
+            raise NotPublic("nothing was ever pushed under this name") from None
+        if e.code == 401:
+            raise NotPublic(
+                "the package exists but is PRIVATE — Crossplane pulls "
+                "anonymously and will fail to install it. Flip it to Public in "
+                "the GitHub package settings") from None
+        return None
+    except Exception:
+        return None
+
+    url = f"https://ghcr.io/v2/{repo}/tags/list"
+    tags: list[str] = []
+    try:
         # PAGINATED. Registries cap a tag list and hand out a
         # `Link: …; rel="next"` cursor; reading only the first page reports the
         # packages with the MOST releases as unpublished. Measured on
@@ -411,24 +448,9 @@ def _fetch_tags(package: str) -> list[str] | None:
             url = nxt if nxt.startswith("http") else f"https://ghcr.io{nxt}"
         return tags
     except urllib.error.HTTPError as e:
-        # 403/404 are ANSWERS: no public artifact exists under this name.
-        #
-        # GHCR does not 404 for a package that was never pushed — it hands out a
-        # token that the tags endpoint then rejects, and the *token* request
-        # already comes back 403 (measured against `cilium` and `vault-config`,
-        # 2026-08-20). Treating that as "unreachable" would silently drop the
-        # third case this check exists for: a package marked '—' in the table
-        # while artifacts exist, or one that everyone assumes is published and
-        # is not.
-        #
-        # A private package answers 403 too. That is fine to fold in here: every
-        # Configuration in this repo is public by policy — `task push` verifies
-        # it after every push — and a private one could not be pulled by
-        # Crossplane anyway. Either way the operator needs to hear about it.
-        #
-        # Everything else (5xx, rate limit, a proxy in the way) is the registry
-        # declining to answer, which is not the package's fault.
-        return [] if e.code in (403, 404) else None
+        if e.code in (401, 403, 404):
+            raise NotPublic("the registry declined to list its tags") from None
+        return None
     except Exception:
         return None
 
@@ -486,16 +508,23 @@ def check_registry_parity(root: Path, configs: list[Path], f: Findings) -> None:
             continue
         targets.append((rel, name, version))
 
+    def probe(name: str):
+        """(tags, not-public-reason) — exactly one of the two is set."""
+        try:
+            return _fetch_tags(name), None
+        except NotPublic as e:
+            return [], e.reason
+
     # One round trip per package; serially that is ~30 s of pure waiting.
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         fetched = dict(zip(
             (t[1] for t in targets),
-            pool.map(_fetch_tags, (t[1] for t in targets)),
+            pool.map(probe, (t[1] for t in targets)),
         ))
 
     skipped = []
     for rel, name, version in targets:
-        tags = fetched.get(name)
+        tags, not_public = fetched.get(name, (None, None))
         if tags is None:
             skipped.append(name)
             continue
@@ -518,7 +547,12 @@ def check_registry_parity(root: Path, configs: list[Path], f: Findings) -> None:
         if declared is None:
             continue  # not semver; nothing to order it against
 
-        if version not in tags:
+        if not_public:
+            # NOT a warning like "not pushed yet": this one is a package that
+            # looks published from inside the repo and cannot be installed.
+            # `task push` reported success; only the visibility flip is missing.
+            f.error(rel, f"{version} is not anonymously pullable — {not_public}")
+        elif version not in tags:
             f.warn(rel, f"{version} is not in ghcr.io (newest published: "
                         f"{newest or 'none'}) — push it, or the play pins "
                         f"something other than what the repo documents")
