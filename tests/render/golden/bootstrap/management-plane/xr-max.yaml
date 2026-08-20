@@ -11,7 +11,7 @@ status:
       version: 2.3.3
     packages:
       ready: 0
-      total: 20
+      total: 21
     providerConfigs:
       emitted: 0
       total: 3
@@ -28,6 +28,7 @@ status:
   ready: false
   transitive:
   - ansible-run
+  - cloud-config
   - cni
   - flux-apps
   - flux-init
@@ -38,6 +39,7 @@ status:
   - remote-cluster
   - vault-auth
   - vault-pki-secrets
+  - volume-claim
   - vspherevm
 ---
 apiVersion: helm.m.crossplane.io/v1beta1
