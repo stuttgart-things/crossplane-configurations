@@ -235,16 +235,34 @@ spec:
                 # --- Downstream passthrough ---------------------------------
                 kubeconfig:
                   type: object
-                  # Nur die ZWEI Kreuzungen, von denen wir wissen, dass sie falsch
-                  # sind. Bewusst kein "muss zur Ableitung passen": das wuerde den
+                  # Nur Kreuzungen, von denen wir wissen, dass sie falsch sind.
+                  # Bewusst kein "muss zur Ableitung passen": das wuerde den
                   # Notausgang zumauern, den providerConfigRef darstellen soll.
                   # Unbekannte Vault-Paarungen bleiben erlaubt — die kennt diese
                   # Regel nicht und darf sie nicht verbieten. Siehe #336.
+                  #
+                  # Bis 2026-08-20 waren das ZWEI von Hand ausgeschriebene
+                  # Kreuzungen. Mit vault-labda (crossplane-configurations#258)
+                  # waeren es sechs geworden, und die Aufzaehlung haette bei jedem
+                  # weiteren Vault quadratisch zugelegt — mit der sicheren
+                  # Aussicht, dass irgendwann eine fehlt. Dieselbe Aussage steht
+                  # jetzt als Vergleich gegen die Ableitungstabelle da: greift NUR,
+                  # wenn BEIDE Seiten bekannte Namen sind und einander
+                  # widersprechen. Ein unbekannter Name auf einer der beiden Seiten
+                  # laesst die Regel weiterhin unberuehrt durch — der Notausgang
+                  # bleibt genau so weit offen wie vorher.
+                  #
+                  # Die Tabelle muss mit kubeconfigVaultPairs in xplane-cluster
+                  # (logic.k) uebereinstimmen; sie ist ihr Spiegel, nicht ihre
+                  # Quelle.
                   x-kubernetes-validations:
                     - rule: >-
                         !has(self.providerConfigRef) ||
-                        !((self.vaultSecretName == 'vault-infra' && self.providerConfigRef == 'vault-kubeconfigs') ||
-                          (self.vaultSecretName == 'vault' && self.providerConfigRef == 'vault-kubeconfigs-infra'))
+                        !(self.vaultSecretName in ['vault', 'vault-infra', 'vault-labda']) ||
+                        !(self.providerConfigRef in ['vault-kubeconfigs', 'vault-kubeconfigs-infra', 'vault-kubeconfigs-labda']) ||
+                        self.providerConfigRef == {'vault': 'vault-kubeconfigs',
+                                                   'vault-infra': 'vault-kubeconfigs-infra',
+                                                   'vault-labda': 'vault-kubeconfigs-labda'}[self.vaultSecretName]
                       message: >-
                         vaultSecretName and providerConfigRef point at different
                         Vaults. vaultSecretName says where the kubeconfig is
