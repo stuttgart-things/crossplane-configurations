@@ -140,6 +140,34 @@ the first live apply against `u26-rke2-1`.
 
 ## Naming
 
+**Two different names, and confusing them is the trap.** The `Object` resources
+this Composition composes live on the MANAGEMENT cluster and are named
+`<clusterName>-<capability>-<purpose>` (v0.5.0 and later). The resources those
+Objects create on the TARGET cluster are named `<capability>-<environment>` —
+that is the name an XR refers to via `spec.environmentConfig`, and it did not
+change.
+
+The cluster prefix on the management side exists because without it two
+`Capability` XRs in one namespace collide on every capability both enable. Seen
+on kind3 2026-08-20: `u26-rke2-1-capability` held the `ansible-run-*` names, and
+a new `seed-labda-1-capability` in the same namespace listed those same Objects
+in its `resourceRefs` and sat at `Ready=False`. Its `vspherevm` half went
+through — chance, since u26 runs `proxmoxvm`.
+
+Nothing was overwritten: Crossplane will not claim a resource already carrying
+another composite's `crossplane.io/composite` label. **That safety net is not
+the design.** The two XRs pointed at different clusters *and* different Vaults,
+so without it the new XR would have repointed the other cluster's store at the
+wrong Vault, silently. See
+[#356](https://github.com/stuttgart-things/crossplane-configurations/issues/356).
+
+**Upgrading to v0.5.0 renames the Objects.** Crossplane deletes the old ones and
+creates new ones, so on the target cluster the `EnvironmentConfig`,
+`ClusterProviderConfig`, `ClusterSecretStore` and `ExternalSecret` are briefly
+deleted and recreated. Their target names are unchanged and the `ExternalSecret`
+carries `deletionPolicy: Retain`, so the derived Secret survives — but there is
+a window. Do not roll it onto a cluster with running VM XRs in passing.
+
 Objects are `<capability>-<environment>` — the store included, rather than the
 charts' `vault-<mount>` — and credentials `<capability>-creds-<environment>`. Two environments on one cluster (labda *and*
 labul) must not share a `ClusterProviderConfig` or a Secret.

@@ -26,8 +26,8 @@ status:
   capabilityCount: 3
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: ansible-run-credentials, ansible-run-environment-config,
-      ansible-run-secret-store, and 9 more'
+    message: 'Unready resources: u26-rke2-1-ansible-run-credentials, u26-rke2-1-ansible-run-environment-config,
+      u26-rke2-1-ansible-run-secret-store, and 9 more'
     reason: Creating
     status: "False"
     type: Ready
@@ -38,10 +38,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: ansible-run-credentials
+    crossplane.io/composition-resource-name: u26-rke2-1-ansible-run-credentials
   labels:
     crossplane.io/composite: labul-capability
-  name: ansible-run-credentials
+  name: u26-rke2-1-ansible-run-credentials
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -89,10 +89,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: ansible-run-environment-config
+    crossplane.io/composition-resource-name: u26-rke2-1-ansible-run-environment-config
   labels:
     crossplane.io/composite: labul-capability
-  name: ansible-run-environment-config
+  name: u26-rke2-1-ansible-run-environment-config
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -143,10 +143,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: ansible-run-secret-store
+    crossplane.io/composition-resource-name: u26-rke2-1-ansible-run-secret-store
   labels:
     crossplane.io/composite: labul-capability
-  name: ansible-run-secret-store
+  name: u26-rke2-1-ansible-run-secret-store
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -190,10 +190,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: proxmoxvm-ci-password-secret
+    crossplane.io/composition-resource-name: u26-rke2-1-proxmoxvm-ci-password-secret
   labels:
     crossplane.io/composite: labul-capability
-  name: proxmoxvm-ci-password-secret
+  name: u26-rke2-1-proxmoxvm-ci-password-secret
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -240,10 +240,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: proxmoxvm-credentials
+    crossplane.io/composition-resource-name: u26-rke2-1-proxmoxvm-credentials
   labels:
     crossplane.io/composite: labul-capability
-  name: proxmoxvm-credentials
+  name: u26-rke2-1-proxmoxvm-credentials
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -292,10 +292,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: proxmoxvm-environment-config
+    crossplane.io/composition-resource-name: u26-rke2-1-proxmoxvm-environment-config
   labels:
     crossplane.io/composite: labul-capability
-  name: proxmoxvm-environment-config
+  name: u26-rke2-1-proxmoxvm-environment-config
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -346,10 +346,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: proxmoxvm-provider-config
+    crossplane.io/composition-resource-name: u26-rke2-1-proxmoxvm-provider-config
   labels:
     crossplane.io/composite: labul-capability
-  name: proxmoxvm-provider-config
+  name: u26-rke2-1-proxmoxvm-provider-config
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -383,10 +383,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: proxmoxvm-secret-store
+    crossplane.io/composition-resource-name: u26-rke2-1-proxmoxvm-secret-store
   labels:
     crossplane.io/composite: labul-capability
-  name: proxmoxvm-secret-store
+  name: u26-rke2-1-proxmoxvm-secret-store
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -430,10 +430,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: vspherevm-credentials
+    crossplane.io/composition-resource-name: u26-rke2-1-vspherevm-credentials
   labels:
     crossplane.io/composite: labul-capability
-  name: vspherevm-credentials
+  name: u26-rke2-1-vspherevm-credentials
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -481,10 +481,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: vspherevm-environment-config
+    crossplane.io/composition-resource-name: u26-rke2-1-vspherevm-environment-config
   labels:
     crossplane.io/composite: labul-capability
-  name: vspherevm-environment-config
+  name: u26-rke2-1-vspherevm-environment-config
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -528,10 +528,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: vspherevm-provider-config
+    crossplane.io/composition-resource-name: u26-rke2-1-vspherevm-provider-config
   labels:
     crossplane.io/composite: labul-capability
-  name: vspherevm-provider-config
+  name: u26-rke2-1-vspherevm-provider-config
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
@@ -565,10 +565,10 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: vspherevm-secret-store
+    crossplane.io/composition-resource-name: u26-rke2-1-vspherevm-secret-store
   labels:
     crossplane.io/composite: labul-capability
-  name: vspherevm-secret-store
+  name: u26-rke2-1-vspherevm-secret-store
   namespace: default
   ownerReferences:
   - apiVersion: config.stuttgart-things.com/v1alpha1
