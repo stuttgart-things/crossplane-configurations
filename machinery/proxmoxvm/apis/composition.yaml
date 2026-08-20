@@ -202,8 +202,24 @@ spec:
 
             # bpg adds a cloud-init drive on clone (the stuttgart-things Packer
             # templates ship none), so it needs a datastore. Default to the root
-            # disk's datastore; override via spec.cloudInit.datastoreId.
-            _ciDatastore = _ci?.datastoreId or _datastore or ""
+            # disk's datastore; override per XR via spec.cloudInit.datastoreId or
+            # per environment via the EnvironmentConfig's `cloudInitDatastore`.
+            #
+            # WHY THE ENVIRONMENT LEVEL EXISTS. The cloud-init drive is the one
+            # disk PVE frees and re-allocates on every stop/start, and on some
+            # storages that round trip is broken: on LabUL's `V5010-01-1` PVE
+            # cannot stat `/dev/V5010-01-1/vm-<id>-cloudinit.qcow2`, so the stop
+            # leaves the LV in the VG metadata without a device-mapper node and
+            # the next start dies on `lvcreate ... already exists`. The VM is
+            # then unbootable until the volume is deleted through the API.
+            # Confirmed host-side on 2026-08-20: the same VM on the NFS store
+            # `DD-sthings` stops and starts cleanly (the image simply persists,
+            # which is normal for a file-based storage — PVE regenerates its
+            # contents on start). The root cause on `V5010-01-1` is unfixed, so
+            # this steers the 4 MB cidata image away from it while the data disk
+            # stays put on `datastore`. That split is per environment, not per
+            # VM, hence the EnvironmentConfig key.
+            _ciDatastore = _ci?.datastoreId or _env?.cloudInitDatastore or _datastore or ""
 
             # --- hostname: the PVE VM NAME is the hostname ---
             # bpg has no hostname field, but PVE has an implicit one: whenever a VM

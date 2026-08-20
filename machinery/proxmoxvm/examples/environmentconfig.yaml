@@ -29,6 +29,18 @@ data:
   # block is ForceNew, so an env-level value would otherwise rewrite their clone
   # block and trigger destroy + recreate.
   cloneDatastore: V5010-01-1
+  # Datastore for the cloud-init drive. Deliberately NOT `datastore`: the
+  # cloud-init image is the one disk PVE frees and re-allocates on every
+  # stop/start, and on `V5010-01-1` that round trip is broken — the stop leaves
+  # an LV behind that no device node backs, and the next start dies on
+  # `lvcreate ... already exists` with the VM unbootable until the volume is
+  # deleted through the API. Verified host-side 2026-08-20: the same VM with its
+  # cidata image on the NFS store `DD-sthings` stops and starts cleanly. Only
+  # the 4 MB cidata image moves; the data disk stays on `datastore`.
+  # SAME FORCENEW CAVEAT AS `cloneDatastore` ABOVE, and unverified: bpg may treat
+  # a changed `initialization` block as a rebuild, so setting this against VMs
+  # that already exist can destroy and recreate them. Safe for new builds.
+  cloudInitDatastore: DD-sthings
   bridge: vmbrvlan          # VLAN-trunk bridge; template ships on vmbr0/untagged
   vlanTag: "102"            # 10.31.102.0/24
   pool: stuttgart-things
@@ -71,6 +83,9 @@ metadata:
 data:
   node: ul-pve01
   datastore: V5010-01-1
+  # Cloud-init drive on NFS rather than on `datastore` — see the note on the
+  # first EnvironmentConfig above (`V5010-01-1` orphans the cidata LV on stop).
+  cloudInitDatastore: DD-sthings
   bridge: vmbrvlan
   vlanTag: "102"
   pool: stuttgart-things

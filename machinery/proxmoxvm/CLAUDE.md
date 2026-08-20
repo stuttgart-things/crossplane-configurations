@@ -30,9 +30,26 @@ Configuration, mirroring `vspherevm`'s relationship to `vsphere-vm`.
 - **Template gotchas (baked into the examples):** the `sthings-u26` root disk is
   on **`virtio0`** (not `scsi0`) — `diskInterface` defaults to `virtio0`. The
   Packer templates carry **no cloud-init drive**, so bpg adds one on clone and
-  needs a datastore: `initialization.datastoreId` defaults to the root disk's
-  datastore (`_ciDatastore = _ci?.datastoreId or _datastore`), overridable via
-  `spec.cloudInit.datastoreId`.
+  needs a datastore: `initialization.datastoreId` falls back
+  `spec.cloudInit.datastoreId` → EnvironmentConfig `cloudInitDatastore` →
+  the root disk's `datastore`.
+- **Keep the cloud-init drive OFF `V5010-01-1`** (that is what the
+  `cloudInitDatastore` env key is for; LabUL points it at the NFS store
+  `DD-sthings`). The cidata image is the one disk PVE frees and re-allocates on
+  every stop/start, and on that storage the round trip is broken: PVE cannot
+  stat `/dev/V5010-01-1/vm-<id>-cloudinit.qcow2`, so the stop leaves the LV in
+  the VG metadata with no device-mapper node behind it and the next start dies
+  on `lvcreate ... already exists in volume group "V5010-01-1"`. The VM stays
+  unbootable until the volume is deleted through the API — and pause the MR
+  first, or the provider's retry loop orphans a fresh LV immediately (~20 failed
+  starts seen). Not node-bound: reproduced on `ul-pve11` and `ul-pve02`, 6 of 6
+  stopped VMs. Only the cloud-init volumes are affected (`qcow2` on LVM); the
+  data disks are `raw` and fine. Confirmed host-side 2026-08-20 by the LabUL
+  admin: the same VM with its cidata image on `DD-sthings` stops and starts
+  cleanly (the image simply persists, which is normal for a file-based storage).
+  The root cause on `V5010-01-1` is **unfixed** — likely the qcow2-on-LVM path
+  new in PVE 9 plus the dot in the LV name breaking udev symlinks — so this
+  steers around it rather than solving it.
 - **SMBIOS / PegaProx `illegal base64 data` — ROOT CAUSE REMOVED 2026-08-10.**
   The LabUL admin deleted the SMBIOS Auto-Configurator from the nodes; verified
   with a fresh VM (VMID 250) that held `base64=1` for 50+ min, ~5.5x the window
@@ -114,9 +131,10 @@ value would never win. Only purely per-VM fields (cpu, memory, disk,
 agentEnabled, cloudInit.ipv4Address) carry XRD defaults.
 
 ## EnvironmentConfig data keys
-`node, datastore, bridge, vlanTag, pool, templateVmId, cpuType, osType, bios,
-diskInterface, networkModel, annotation, ciUsername, providerConfigName,
-providerConfigKind`, optional `smbiosManufacturer` / `smbiosProduct` (PegaProx
+`node, datastore, cloudInitDatastore, bridge, vlanTag, pool, templateVmId,
+cpuType, osType, bios, diskInterface, networkModel, annotation, ciUsername,
+providerConfigName, providerConfigKind`, optional `smbiosManufacturer` /
+`smbiosProduct` (PegaProx
 workaround override). See `examples/environmentconfig.yaml` (values are LabUL
 placeholders — set the real `templateVmId` before cluster use).
 

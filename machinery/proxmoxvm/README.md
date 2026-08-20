@@ -104,10 +104,36 @@ Three template-specific gotchas the example values already account for:
   procedure exists to avoid.
 - **The Packer templates ship no cloud-init drive.** When `spec.cloudInit` is set,
   bpg adds a cloud-init drive on clone, which needs a datastore. The Composition
-  defaults `initialization.datastoreId` to the root disk's datastore; override via
-  `spec.cloudInit.datastoreId`. (The Telmate path instead provisions over SSH via
-  Ansible — key-based cloud-init is a newer path for these templates, so validate
-  it on first use.)
+  resolves `initialization.datastoreId` as `spec.cloudInit.datastoreId` →
+  EnvironmentConfig `cloudInitDatastore` → the root disk's datastore. (The Telmate
+  path instead provisions over SSH via Ansible — key-based cloud-init is a newer
+  path for these templates, so validate it on first use.)
+- **Put the cloud-init drive on a different storage than the data disk.** The
+  cidata image is the one disk PVE frees and re-allocates on every stop/start, and
+  on LabUL's `V5010-01-1` that round trip is broken. The stop fails to stat
+  `/dev/V5010-01-1/vm-<id>-cloudinit.qcow2` and leaves the LV in the VG metadata
+  with no device node behind it; the next start then dies on
+
+  ```
+  lvcreate ... error: Logical Volume "vm-<id>-cloudinit.qcow2" already exists in volume group "V5010-01-1"
+  ```
+
+  and the VM stays unbootable. Recovery is to **pause the MR first** — otherwise
+  the provider's retry loop orphans a fresh LV within seconds (~20 failed starts
+  observed) — then delete the volume through the API and unpause:
+
+  ```
+  kubectl annotate environmentvm.virtualenvironmentvm.proxmoxbpg.m.crossplane.io <name> crossplane.io/paused=true
+  DELETE /nodes/<node>/storage/V5010-01-1/content/V5010-01-1:vm-<id>-cloudinit.qcow2
+  ```
+
+  The cidata image is regenerated on start and the data disk is untouched. Not
+  node-bound (seen on `ul-pve11` and `ul-pve02`, 6 of 6 stopped VMs) and limited to
+  the cloud-init volumes — the `raw` data disks are fine. The LabUL admin confirmed
+  on 2026-08-20 that the same VM with its cidata image on the NFS store
+  `DD-sthings` stops and starts cleanly, which is why the shipped LabUL
+  EnvironmentConfig sets `cloudInitDatastore: DD-sthings`. The storage-side root
+  cause is unfixed.
 ## SMBIOS (`PegaProxManagment` / bpg `illegal base64 data`)
 
 > **RESOLVED 2026-08-10 — the root cause was removed, not worked around.** The
