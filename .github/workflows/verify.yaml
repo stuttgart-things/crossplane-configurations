@@ -1,19 +1,33 @@
 ---
 name: Verify Crossplane Configurations
 # The Configuration package pipeline (discover + pre-commit + verify + preview)
-# does not apply to the XR claims under tests/ — those are test-env manifests,
-# not packages. paths-ignore skips this whole workflow when a change touches
-# ONLY tests/ (a mixed PR that also edits a package still runs it in full).
-# Claims are linted instead by the lighter Kyverno gate (validate-claims.yaml).
+# does not apply to the XR claims under tests/envs — those are test-env
+# manifests, not packages — nor to the Kyverno policies that lint them. A change
+# touching ONLY those skips this whole workflow; a mixed PR that also edits a
+# package still runs it in full. Claims are linted instead by the lighter
+# Kyverno gate (validate-claims.yaml).
+#
+# NARROWED FROM `tests/**` ON 2026-08-20, and the reason is worth keeping.
+# tests/ does not only hold fixtures: tests/lint/ holds the invariant linter
+# that the lint-invariants job below RUNS. With the whole tree ignored, a PR
+# that changed only the linter did not run the linter — #355 touched nothing
+# else and came back with exactly one check (the Kyverno gate), so a change to
+# the thing that guards every package was itself unguarded. tests/render/ is
+# the same shape: check-golden.sh and render-golden.sh are code, not fixtures.
+#
+# paths-ignore has no negation, so the ignore list must name the fixture
+# directories rather than excluding the code ones.
 on:
   pull_request:
     paths-ignore:
-      - 'tests/**'
+      - 'tests/envs/**'
+      - 'tests/kyverno/**'
   push:
     branches:
       - main
     paths-ignore:
-      - 'tests/**'
+      - 'tests/envs/**'
+      - 'tests/kyverno/**'
 
 # One run per branch. Without this a second push leaves the first run alive and
 # competing for dagger-labda, which is the runner every heavy job here shares —
