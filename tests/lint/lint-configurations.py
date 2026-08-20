@@ -11,6 +11,11 @@ It is a *structural* check: it parses the package YAML and asserts shape. It doe
 NOT render Compositions (that is what `task verify` / the CI verify job do) — so
 it is fast, needs no cluster, and runs in pre-commit and CI.
 
+One check breaks that rule deliberately and is therefore opt-in: `--registry`
+asks ghcr.io whether the version the repo declares was ever published. Nothing
+else here can see that, because the repo agreeing with itself says nothing about
+what a `helm`/`task push` run can actually pull.
+
 A "Configuration" is any directory containing a `crossplane.yaml` that is not
 itself under an `examples/` subtree.
 
@@ -22,9 +27,14 @@ Rules are split by severity:
             fatal.
 
 Usage:
-    python3 tests/lint/lint-configurations.py [--root .] [--strict]
+    python3 tests/lint/lint-configurations.py [--root .] [--strict] [--registry]
 
-    --strict  treat warnings as errors too.
+    --strict    treat warnings as errors too.
+    --registry  additionally compare each package against its published tags in
+                ghcr.io. OFF by default: it is the one check here that needs
+                network, and a linter that goes red when a registry has a bad
+                day gets switched off — after which it checks nothing at all.
+                CI turns it on; local runs stay offline and instant.
 
 Requires PyYAML (declared as the pre-commit hook's additional_dependencies, and
 `pip install`ed in the CI job).
@@ -32,8 +42,12 @@ Requires PyYAML (declared as the pre-commit hook's additional_dependencies, and
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+import json
 import re
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import yaml
@@ -289,12 +303,234 @@ def check_readme_table(root: Path, configs: list[Path], f: Findings) -> None:
                 f"table row {path} has no crossplane.yaml — stale or mistyped")
 
 
+# ---------------------------------------------------------------------------
+# Registry parity (--registry)
+# ---------------------------------------------------------------------------
+
+GHCR_REPO_PREFIX = "stuttgart-things/crossplane-configurations"
+GHCR_TIMEOUT = 10
+
+# vX.Y.Z only. Anything else in the tag list — a branch build, a `latest`, a
+# digest-ish string — is ignored rather than guessed at: this check exists to
+# compare RELEASES, and a tag we cannot order is not evidence of anything.
+SEMVER_TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+
+
+def _parse_tag(tag: str):
+    m = SEMVER_TAG.match(tag)
+    return tuple(int(g) for g in m.groups()) if m else None
+
+
+def _fetch_digest(package: str, tag: str) -> str | None:
+    """Manifest digest of one tag, or None if it cannot be read.
+
+    Only used to tell two shapes of "registry is ahead" apart, which need
+    opposite reactions:
+
+      same digest as the declared version   someone re-pushed identical content
+                                            under a higher tag. Nothing is lost;
+                                            the tag is just a lie about history.
+      different digest                      an artifact whose source is not in
+                                            this repo. Do not push over it
+                                            before finding out what it is.
+
+    Without this the check can only say "registry is ahead", and the reader has
+    to do exactly this lookup by hand to know which of the two it is.
+    """
+    repo = f"{GHCR_REPO_PREFIX}/{package}"
+    try:
+        with urllib.request.urlopen(
+            f"https://ghcr.io/token?scope=repository:{repo}:pull&service=ghcr.io",
+            timeout=GHCR_TIMEOUT,
+        ) as r:
+            token = json.load(r)["token"]
+        req = urllib.request.Request(
+            f"https://ghcr.io/v2/{repo}/manifests/{tag}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": ", ".join((
+                    "application/vnd.oci.image.manifest.v1+json",
+                    "application/vnd.docker.distribution.manifest.v2+json",
+                )),
+            },
+        )
+        with urllib.request.urlopen(req, timeout=GHCR_TIMEOUT) as r:
+            return r.headers.get("Docker-Content-Digest")
+    except Exception:
+        return None
+
+
+def _fetch_tags(package: str) -> list[str] | None:
+    """Published tags for one package, or None if the registry could not be asked.
+
+    None means "no answer", NOT "no tags" — the caller must not treat the two
+    alike. That distinction is the whole reason this returns an Optional: a
+    timeout reported as "never published" would accuse every package on the
+    cluster the moment GHCR hiccups.
+
+    Plain HTTP against the Docker registry API rather than shelling out to
+    `oras`: the linter otherwise needs nothing but PyYAML, and it runs as a
+    pre-commit hook where an extra binary is one more thing to install and to
+    have missing. The anonymous token below is what `docker pull` uses for a
+    public package; no credential is involved.
+    """
+    repo = f"{GHCR_REPO_PREFIX}/{package}"
+    try:
+        with urllib.request.urlopen(
+            f"https://ghcr.io/token?scope=repository:{repo}:pull&service=ghcr.io",
+            timeout=GHCR_TIMEOUT,
+        ) as r:
+            token = json.load(r)["token"]
+        req = urllib.request.Request(
+            f"https://ghcr.io/v2/{repo}/tags/list",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        with urllib.request.urlopen(req, timeout=GHCR_TIMEOUT) as r:
+            return json.load(r).get("tags") or []
+    except urllib.error.HTTPError as e:
+        # 403/404 are ANSWERS: no public artifact exists under this name.
+        #
+        # GHCR does not 404 for a package that was never pushed — it hands out a
+        # token that the tags endpoint then rejects, and the *token* request
+        # already comes back 403 (measured against `cilium` and `vault-config`,
+        # 2026-08-20). Treating that as "unreachable" would silently drop the
+        # third case this check exists for: a package marked '—' in the table
+        # while artifacts exist, or one that everyone assumes is published and
+        # is not.
+        #
+        # A private package answers 403 too. That is fine to fold in here: every
+        # Configuration in this repo is public by policy — `task push` verifies
+        # it after every push — and a private one could not be pulled by
+        # Crossplane anyway. Either way the operator needs to hear about it.
+        #
+        # Everything else (5xx, rate limit, a proxy in the way) is the registry
+        # declining to answer, which is not the package's fault.
+        return [] if e.code in (403, 404) else None
+    except Exception:
+        return None
+
+
+def check_registry_parity(root: Path, configs: list[Path], f: Findings) -> None:
+    """Compare each package's declared version against what ghcr.io actually has.
+
+    `check_readme_table` keeps the README and crossplane.yaml agreeing with each
+    other. Neither of them knows whether the version they agree on was ever
+    pushed — so the two can be in perfect, documented agreement about an
+    artifact that does not exist. Found on 2026-08-19: four of 32 Configurations
+    had drifted, in three different directions (#345).
+
+    The cost is real and was paid twice. vspherevm v0.9.1 sat in the repo,
+    documented and tabled, for a day without being pushed; the machinery play
+    pinned v0.9.0 because that was the newest one that could actually be pulled,
+    so a run delivered something other than what the repo described, silently.
+    proxmoxvm and vm-batch were in the same state at the same time, from the
+    same commit.
+
+    Three cases, three severities — and telling them apart is the point:
+
+      registry lacks the version   WARNING  Normal between merge and push. As an
+                                            error it would block the very PR
+                                            that closes the gap.
+      registry has a HIGHER one    ERROR    An artifact whose source is not in
+                                            the repo. There is no legitimate
+                                            path to that state.
+      table says '—', tags exist   ERROR    Marked unpublished while published:
+                                            the table is asserting something
+                                            false.
+
+    A package the registry would not talk about is SKIPPED, not reported.
+    """
+    readme = root / "README.md"
+    listed: dict[str, str] = {}
+    if readme.exists():
+        for line in readme.read_text().splitlines():
+            m = README_ROW.match(line)
+            if m:
+                listed[m.group(2).rstrip("/")] = m.group(3)
+
+    # (config-relative-path, package-name, declared-version)
+    targets: list[tuple[str, str, str | None]] = []
+    for cdir in configs:
+        rel = str(cdir.relative_to(root))
+        try:
+            meta = load_single(cdir / "crossplane.yaml")
+        except Exception:
+            continue  # check_crossplane_meta already reported it
+        name = (meta.get("metadata", {}) or {}).get("name")
+        version = ((meta.get("metadata", {}).get("annotations", {}) or {})
+                   .get("meta.crossplane.io/version"))
+        if not name:
+            continue
+        targets.append((rel, name, version))
+
+    # One round trip per package; serially that is ~30 s of pure waiting.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        fetched = dict(zip(
+            (t[1] for t in targets),
+            pool.map(_fetch_tags, (t[1] for t in targets)),
+        ))
+
+    skipped = []
+    for rel, name, version in targets:
+        tags = fetched.get(name)
+        if tags is None:
+            skipped.append(name)
+            continue
+
+        semver = sorted(filter(None, (_parse_tag(t) for t in tags)))
+
+        newest = "v" + ".".join(map(str, semver[-1])) if semver else None
+
+        if listed.get(rel) == UNPUBLISHED:
+            if tags:
+                detail = f", newest {newest}" if newest else ""
+                f.error(rel, f"README table says {UNPUBLISHED} (unpublished) but "
+                             f"ghcr.io has {len(tags)} tag(s){detail}")
+            continue
+
+        if not version:
+            continue  # check_crossplane_meta reports the missing annotation
+
+        declared = _parse_tag(version)
+        if declared is None:
+            continue  # not semver; nothing to order it against
+
+        if version not in tags:
+            f.warn(rel, f"{version} is not in ghcr.io (newest published: "
+                        f"{newest or 'none'}) — push it, or the play pins "
+                        f"something other than what the repo documents")
+
+        if semver and semver[-1] > declared:
+            here = _fetch_digest(name, version)
+            there = _fetch_digest(name, newest)
+            if here and there and here == there:
+                f.error(rel, f"ghcr.io has {newest}, repo declares {version} — "
+                             f"same digest ({here[:19]}…), so identical content "
+                             f"was re-pushed under a higher tag. Nothing is lost; "
+                             f"the registry is simply claiming a version this repo "
+                             f"never had. Decide which of the two is real and make "
+                             f"the repo say so")
+            else:
+                f.error(rel, f"ghcr.io has {newest}, repo declares {version}, and "
+                             f"they are DIFFERENT artifacts — something was built "
+                             f"from a source that is not in this repo. Do not push "
+                             f"over it before finding out what it is")
+
+    if skipped:
+        print(f"note: registry parity skipped for {len(skipped)} package(s) "
+              f"(registry unreachable): {', '.join(sorted(skipped))}",
+              file=sys.stderr)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", default=".", help="repo root (default: cwd)")
     ap.add_argument("--strict", action="store_true",
                     help="treat warnings as errors")
+    ap.add_argument("--registry", action="store_true",
+                    help="also compare declared versions against ghcr.io tags "
+                         "(needs network; skipped silently if unreachable)")
     args = ap.parse_args()
 
     root = Path(args.root).resolve()
@@ -313,6 +549,8 @@ def main() -> int:
         check_functions(config, cdir, f)
 
     check_readme_table(root, configs, f)
+    if args.registry:
+        check_registry_parity(root, configs, f)
 
     for w in f.warnings:
         print(f"WARN  {w}")

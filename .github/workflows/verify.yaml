@@ -106,7 +106,19 @@ jobs:
         with:
           python-version: "3.14"
       - run: pip install "pyyaml==6.0.2"
-      - run: python3 tests/lint/lint-configurations.py
+      # --registry is on HERE and off locally, on purpose. It is the only check
+      # in this linter that needs network: it asks ghcr.io whether the version
+      # the repo and README agree on was ever actually pushed. Without it the
+      # two can be in perfect, documented agreement about an artifact that does
+      # not exist — which is exactly what happened to vspherevm v0.9.1
+      # (#345): documented and tabled for a day, never published, so the
+      # machinery play pinned v0.9.0 and a run delivered something other than
+      # what the repo described.
+      #
+      # A registry that cannot be reached is SKIPPED, not failed. A linter that
+      # goes red when GHCR has a bad day gets switched off, and then it checks
+      # nothing at all.
+      - run: python3 tests/lint/lint-configurations.py --registry
 
   verify:
     needs: discover
