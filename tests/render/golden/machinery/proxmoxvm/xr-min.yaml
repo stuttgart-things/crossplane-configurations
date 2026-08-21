@@ -4,8 +4,22 @@ kind: NativeProxmoxVM
 metadata:
   name: proxmoxvm-min
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: virtualenvironmentvm.proxmoxbpg.m.crossplane.io/v1alpha1
+      kind: EnvironmentVM
+      name: proxmoxvm-min
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: proxmoxvm-min'
     reason: Creating
@@ -34,7 +48,7 @@ metadata:
     controller: true
     kind: NativeProxmoxVM
     name: proxmoxvm-min
-    uid: ""
+    uid: 2eec2732-0922-5a31-a544-ec872970351b
 spec:
   forProvider:
     agent:

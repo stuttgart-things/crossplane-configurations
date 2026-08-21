@@ -4,9 +4,23 @@ kind: PackerRelease
 metadata:
   name: ubuntu26-labul-proxmox-release
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: PackerBuild
+      name: ubuntu26-labul-proxmox-release-build
 status:
   buildSucceeded: Unknown
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: ubuntu26-labul-proxmox-release-build'
     reason: Creating
@@ -33,7 +47,7 @@ metadata:
     controller: true
     kind: PackerRelease
     name: ubuntu26-labul-proxmox-release
-    uid: ""
+    uid: 10a58eaa-bc2d-501a-bcee-ff6f12f19d41
 spec:
   crossplaneObjectName: ubuntu26-labul-proxmox-release-build-run
   deriveReadiness: true

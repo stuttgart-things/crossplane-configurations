@@ -4,9 +4,56 @@ kind: Cilium
 metadata:
   name: u26-kind1-max
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: u26-kind1-max-cilium
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: u26-kind1-max-gateway-api
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-kind1-max-gateway
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-kind1-max-gateway-class
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-kind1-max-l2-policy
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-kind1-max-lb-pool
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: u26-kind1-max-gateway-class-uses-cilium
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: u26-kind1-max-gateway-class-uses-gw-api
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: u26-kind1-max-gateway-uses-cilium
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: u26-kind1-max-gateway-uses-gw-class
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: u26-kind1-max-l2-policy-uses-cilium
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: u26-kind1-max-lb-pool-uses-cilium
 status:
   ciliumVersion: 1.19.2
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: u26-kind1-max-cilium, u26-kind1-max-gateway, u26-kind1-max-gateway-api,
       and 9 more'
@@ -35,7 +82,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1-max
-    uid: ""
+    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
 spec:
   forProvider:
     chart:
@@ -81,7 +128,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1-max
-    uid: ""
+    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
 spec:
   forProvider:
     manifest:
@@ -133,7 +180,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1-max
-    uid: ""
+    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
 spec:
   forProvider:
     chart:
@@ -162,7 +209,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1-max
-    uid: ""
+    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
 spec:
   forProvider:
     manifest:
@@ -191,7 +238,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1-max
-    uid: ""
+    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -220,7 +267,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1-max
-    uid: ""
+    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -249,7 +296,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1-max
-    uid: ""
+    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -278,7 +325,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1-max
-    uid: ""
+    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -307,7 +354,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1-max
-    uid: ""
+    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
 spec:
   forProvider:
     manifest:
@@ -338,7 +385,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1-max
-    uid: ""
+    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -367,7 +414,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1-max
-    uid: ""
+    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
 spec:
   forProvider:
     manifest:
@@ -398,7 +445,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1-max
-    uid: ""
+    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1

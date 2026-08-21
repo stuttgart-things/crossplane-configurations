@@ -4,9 +4,23 @@ kind: FluxInit
 metadata:
   name: k3s-2-flux
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-2-flux-observe-rc
 status:
   clusterType: ""
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: k3s-2-flux-observe-rc'
     reason: Creating
@@ -33,7 +47,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: k3s-2-flux
-    uid: ""
+    uid: b766f098-83d4-5558-bb66-a798d6a3edf2
 spec:
   forProvider:
     manifest:

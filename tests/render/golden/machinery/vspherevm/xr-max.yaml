@@ -4,8 +4,22 @@ kind: NativeVsphereVM
 metadata:
   name: vspherevm-max
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: virtualmachine.vspherevm.m.stuttgart-things.com/v1alpha1
+      kind: VirtualMachine
+      name: vspherevm-max
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vspherevm-max'
     reason: Creating
@@ -34,7 +48,7 @@ metadata:
     controller: true
     kind: NativeVsphereVM
     name: vspherevm-max
-    uid: ""
+    uid: dffd83dc-ba83-54a9-942c-7684d303d001
 spec:
   forProvider:
     annotation: VSPHERE-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS

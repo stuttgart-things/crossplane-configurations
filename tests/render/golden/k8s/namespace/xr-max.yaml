@@ -4,8 +4,37 @@ kind: ManagedNamespace
 metadata:
   name: team-max
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: team-max-5aea4d643945
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: team-max-6d53e5dbcab6
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: team-max-8493a00a0476
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: team-max-87e76c478322
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: team-max-9da14854117b
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: team-max-e6f585cd58e0
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: team-max-limitrange, team-max-namespace, team-max-netpol-deny-all,
       and 3 more'
@@ -25,6 +54,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: managed-namespace
     crossplane.io/composite: team-max
+  name: team-max-6d53e5dbcab6
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -32,7 +62,7 @@ metadata:
     controller: true
     kind: ManagedNamespace
     name: team-max
-    uid: ""
+    uid: 88aea196-efa4-5482-9a2e-dc50a6c8fb61
 spec:
   forProvider:
     manifest:
@@ -73,6 +103,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: managed-namespace
     crossplane.io/composite: team-max
+  name: team-max-9da14854117b
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -80,7 +111,7 @@ metadata:
     controller: true
     kind: ManagedNamespace
     name: team-max
-    uid: ""
+    uid: 88aea196-efa4-5482-9a2e-dc50a6c8fb61
 spec:
   forProvider:
     manifest:
@@ -115,6 +146,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: managed-namespace
     crossplane.io/composite: team-max
+  name: team-max-5aea4d643945
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -122,7 +154,7 @@ metadata:
     controller: true
     kind: ManagedNamespace
     name: team-max
-    uid: ""
+    uid: 88aea196-efa4-5482-9a2e-dc50a6c8fb61
 spec:
   forProvider:
     manifest:
@@ -153,6 +185,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: managed-namespace
     crossplane.io/composite: team-max
+  name: team-max-87e76c478322
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -160,7 +193,7 @@ metadata:
     controller: true
     kind: ManagedNamespace
     name: team-max
-    uid: ""
+    uid: 88aea196-efa4-5482-9a2e-dc50a6c8fb61
 spec:
   forProvider:
     manifest:
@@ -194,6 +227,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: managed-namespace
     crossplane.io/composite: team-max
+  name: team-max-8493a00a0476
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -201,7 +235,7 @@ metadata:
     controller: true
     kind: ManagedNamespace
     name: team-max
-    uid: ""
+    uid: 88aea196-efa4-5482-9a2e-dc50a6c8fb61
 spec:
   forProvider:
     manifest:
@@ -235,6 +269,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: managed-namespace
     crossplane.io/composite: team-max
+  name: team-max-e6f585cd58e0
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -242,7 +277,7 @@ metadata:
     controller: true
     kind: ManagedNamespace
     name: team-max
-    uid: ""
+    uid: 88aea196-efa4-5482-9a2e-dc50a6c8fb61
 spec:
   forProvider:
     manifest:

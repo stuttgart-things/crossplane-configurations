@@ -4,9 +4,38 @@ kind: HarvesterVM
 metadata:
   name: harvester-vm-min
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: harvester-vm-min-8074708239d3
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: harvester-vm-min-a795888b888e
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: harvester-vm-min-1d6b5f07338f
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: harvester-vm-min-a19638623c93
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: CloudInit
+      name: harvester-vm-min
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: VolumeClaim
+      name: harvester-vm-min
 status:
   ansibleReady: true
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: cloud-init, harvester-vm-min-vm, harvester-vm-min-vmi,
       and 1 more'
@@ -34,7 +63,7 @@ metadata:
     controller: true
     kind: HarvesterVM
     name: harvester-vm-min
-    uid: ""
+    uid: c4d55fb4-626a-5ad6-a8d3-85494993267c
 spec:
   hostname: harvester-vm-min
   namespace: vms
@@ -52,6 +81,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-vm
     crossplane.io/composite: harvester-vm-min
+  name: harvester-vm-min-a19638623c93
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -59,7 +89,7 @@ metadata:
     controller: true
     kind: HarvesterVM
     name: harvester-vm-min
-    uid: ""
+    uid: c4d55fb4-626a-5ad6-a8d3-85494993267c
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -87,6 +117,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-vm
     crossplane.io/composite: harvester-vm-min
+  name: harvester-vm-min-1d6b5f07338f
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -94,7 +125,7 @@ metadata:
     controller: true
     kind: HarvesterVM
     name: harvester-vm-min
-    uid: ""
+    uid: c4d55fb4-626a-5ad6-a8d3-85494993267c
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -123,6 +154,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-vm
     crossplane.io/composite: harvester-vm-min
+  name: harvester-vm-min-a795888b888e
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -130,7 +162,7 @@ metadata:
     controller: true
     kind: HarvesterVM
     name: harvester-vm-min
-    uid: ""
+    uid: c4d55fb4-626a-5ad6-a8d3-85494993267c
 spec:
   forProvider:
     manifest:
@@ -219,6 +251,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-vm
     crossplane.io/composite: harvester-vm-min
+  name: harvester-vm-min-8074708239d3
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -226,7 +259,7 @@ metadata:
     controller: true
     kind: HarvesterVM
     name: harvester-vm-min
-    uid: ""
+    uid: c4d55fb4-626a-5ad6-a8d3-85494993267c
 spec:
   forProvider:
     manifest:
@@ -256,7 +289,7 @@ metadata:
     controller: true
     kind: HarvesterVM
     name: harvester-vm-min
-    uid: ""
+    uid: c4d55fb4-626a-5ad6-a8d3-85494993267c
 spec:
   annotations:
     harvesterhci.io/imageId: default/image-ubuntu

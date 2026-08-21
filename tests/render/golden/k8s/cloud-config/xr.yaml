@@ -4,8 +4,25 @@ kind: CloudInit
 metadata:
   name: dev2-vm
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: dev2-vm-7fee089d3d8f
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: dev2-vm-8a91e775dd9b
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: dev2-cloud-init, dev2-namespace'
     reason: Creating
@@ -24,6 +41,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-cloud-init
     crossplane.io/composite: dev2-vm
+  name: dev2-vm-8a91e775dd9b
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -31,7 +49,7 @@ metadata:
     controller: true
     kind: CloudInit
     name: dev2-vm
-    uid: ""
+    uid: 674556a9-dea1-519a-9234-6cd139e3ab6b
 spec:
   forProvider:
     manifest:
@@ -91,6 +109,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-cloud-init
     crossplane.io/composite: dev2-vm
+  name: dev2-vm-7fee089d3d8f
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -98,7 +117,7 @@ metadata:
     controller: true
     kind: CloudInit
     name: dev2-vm
-    uid: ""
+    uid: 674556a9-dea1-519a-9234-6cd139e3ab6b
 spec:
   forProvider:
     manifest:

@@ -4,8 +4,22 @@ kind: TofuRun
 metadata:
   name: tofu-vault-k8sauth
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      name: tofu-vault-k8sauth
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: tofu-vault-k8sauth'
     reason: Creating
@@ -31,7 +45,7 @@ metadata:
     controller: true
     kind: TofuRun
     name: tofu-vault-k8sauth
-    uid: ""
+    uid: e557f12a-a8ba-58b6-a644-a63d5dcb08fd
 spec:
   params:
   - name: gitRepoUrl

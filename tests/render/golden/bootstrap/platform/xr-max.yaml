@@ -4,6 +4,33 @@ kind: Platform
 metadata:
   name: production
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: config.stuttgart-things.com/v1alpha1
+      kind: FluxApps
+      name: production-flux-apps
+    - apiVersion: config.stuttgart-things.com/v1alpha1
+      kind: FluxInit
+      name: production-flux-init
+    - apiVersion: config.stuttgart-things.com/v1alpha1
+      kind: VaultK8sAuth
+      name: production-vault-auth
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: production-cert-manager-observe
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: production-reviewer-crb
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: production-reviewer-observe
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: production-reviewer-sa
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: production-reviewer-token
 status:
   componentCount: 3
   components:
@@ -52,16 +79,24 @@ status:
       waitingForCertManager: true
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: production-cert-manager-observe, production-flux-apps,
-      production-flux-init, and 5 more'
-    reason: Creating
-    status: "False"
-    type: Ready
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: no components are waiting on a discovered value
     reason: AllSupplied
     status: "False"
     type: PendingSubstitutions
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: production-cert-manager-observe, production-flux-apps,
+      production-flux-init, and 5 more'
+    reason: Creating
+    status: "False"
+    type: Ready
   ready: false
   readyComponents: 0
   shared:
@@ -86,7 +121,7 @@ metadata:
     controller: true
     kind: Platform
     name: production
-    uid: ""
+    uid: f2f8c67d-a306-5252-869c-f4b2df96b7cd
 spec:
   forProvider:
     manifest:
@@ -116,7 +151,7 @@ metadata:
     controller: true
     kind: Platform
     name: production
-    uid: ""
+    uid: f2f8c67d-a306-5252-869c-f4b2df96b7cd
 spec:
   apps:
   - name: dapr-control-plane
@@ -164,7 +199,7 @@ metadata:
     controller: true
     kind: Platform
     name: production
-    uid: ""
+    uid: f2f8c67d-a306-5252-869c-f4b2df96b7cd
 spec:
   clusterName: production
   helmProviderConfigRef: production-helm
@@ -229,7 +264,7 @@ metadata:
     controller: true
     kind: Platform
     name: production
-    uid: ""
+    uid: f2f8c67d-a306-5252-869c-f4b2df96b7cd
 spec:
   forProvider:
     manifest:
@@ -264,7 +299,7 @@ metadata:
     controller: true
     kind: Platform
     name: production
-    uid: ""
+    uid: f2f8c67d-a306-5252-869c-f4b2df96b7cd
 spec:
   forProvider:
     manifest:
@@ -294,7 +329,7 @@ metadata:
     controller: true
     kind: Platform
     name: production
-    uid: ""
+    uid: f2f8c67d-a306-5252-869c-f4b2df96b7cd
 spec:
   forProvider:
     manifest:
@@ -322,7 +357,7 @@ metadata:
     controller: true
     kind: Platform
     name: production
-    uid: ""
+    uid: f2f8c67d-a306-5252-869c-f4b2df96b7cd
 spec:
   forProvider:
     manifest:
@@ -353,7 +388,7 @@ metadata:
     controller: true
     kind: Platform
     name: production
-    uid: ""
+    uid: f2f8c67d-a306-5252-869c-f4b2df96b7cd
 spec:
   clusterName: production
   k8sAuths:

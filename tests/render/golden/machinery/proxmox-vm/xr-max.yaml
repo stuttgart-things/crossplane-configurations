@@ -4,8 +4,22 @@ kind: ProxmoxVM
 metadata:
   name: opentofu-test-max
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: opentofu.m.upbound.io/v1beta1
+      kind: Workspace
+      name: opentofu-test-max-5e8317035584
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: proxmox-vm'
     reason: Creating
@@ -21,6 +35,7 @@ metadata:
   generateName: opentofu-test-max-
   labels:
     crossplane.io/composite: opentofu-test-max
+  name: opentofu-test-max-5e8317035584
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -28,7 +43,7 @@ metadata:
     controller: true
     kind: ProxmoxVM
     name: opentofu-test-max
-    uid: ""
+    uid: 525c6855-1e58-58f9-a7ba-b4043c76dbe9
 spec:
   forProvider:
     module: git::https://github.com/stuttgart-things/proxmox-vm.git?ref=3.0.2-rc08-20260407

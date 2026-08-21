@@ -4,6 +4,30 @@ kind: Capability
 metadata:
   name: u26-rke2-1-capability
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-u26-rke2-1-namespace-crossplane-system
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-u26-rke2-1-namespace-default
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-u26-rke2-1-proxmoxvm-ci-password-secret
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-u26-rke2-1-proxmoxvm-credentials
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-u26-rke2-1-proxmoxvm-environment-config
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-u26-rke2-1-proxmoxvm-provider-config
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-u26-rke2-1-proxmoxvm-secret-store
 status:
   capabilities:
     proxmoxvm:
@@ -14,6 +38,14 @@ status:
       secretStore: proxmoxvm-u26-rke2-1
   capabilityCount: 1
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: u26-rke2-1-u26-rke2-1-namespace-crossplane-system,
       u26-rke2-1-u26-rke2-1-namespace-default, u26-rke2-1-u26-rke2-1-proxmoxvm-ci-password-secret,
@@ -39,7 +71,7 @@ metadata:
     controller: true
     kind: Capability
     name: u26-rke2-1-capability
-    uid: ""
+    uid: 97d91ae6-d6b7-5bb3-8258-ab65ecde7895
 spec:
   forProvider:
     manifest:
@@ -72,7 +104,7 @@ metadata:
     controller: true
     kind: Capability
     name: u26-rke2-1-capability
-    uid: ""
+    uid: 97d91ae6-d6b7-5bb3-8258-ab65ecde7895
 spec:
   forProvider:
     manifest:
@@ -105,7 +137,7 @@ metadata:
     controller: true
     kind: Capability
     name: u26-rke2-1-capability
-    uid: ""
+    uid: 97d91ae6-d6b7-5bb3-8258-ab65ecde7895
 spec:
   forProvider:
     manifest:
@@ -155,7 +187,7 @@ metadata:
     controller: true
     kind: Capability
     name: u26-rke2-1-capability
-    uid: ""
+    uid: 97d91ae6-d6b7-5bb3-8258-ab65ecde7895
 spec:
   forProvider:
     manifest:
@@ -207,7 +239,7 @@ metadata:
     controller: true
     kind: Capability
     name: u26-rke2-1-capability
-    uid: ""
+    uid: 97d91ae6-d6b7-5bb3-8258-ab65ecde7895
 spec:
   forProvider:
     manifest:
@@ -257,7 +289,7 @@ metadata:
     controller: true
     kind: Capability
     name: u26-rke2-1-capability
-    uid: ""
+    uid: 97d91ae6-d6b7-5bb3-8258-ab65ecde7895
 spec:
   forProvider:
     manifest:
@@ -294,7 +326,7 @@ metadata:
     controller: true
     kind: Capability
     name: u26-rke2-1-capability
-    uid: ""
+    uid: 97d91ae6-d6b7-5bb3-8258-ab65ecde7895
 spec:
   forProvider:
     manifest:

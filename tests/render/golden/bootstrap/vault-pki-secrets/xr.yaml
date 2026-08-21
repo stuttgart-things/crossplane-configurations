@@ -4,8 +4,19 @@ kind: VaultPkiSecret
 metadata:
   name: vault-pki
   namespace: default
+spec:
+  crossplane:
+    resourceRefs: []
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     reason: Available
     status: "True"

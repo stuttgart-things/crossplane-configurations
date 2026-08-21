@@ -4,8 +4,22 @@ kind: AnsibleRun
 metadata:
   name: ansible-run-max
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: run-ansible-max-1
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: run-ansible-max-1'
     reason: Creating
@@ -32,7 +46,7 @@ metadata:
     controller: true
     kind: AnsibleRun
     name: ansible-run-max
-    uid: ""
+    uid: 22d9efa3-6cdb-504e-ae50-080d740eb006
 spec:
   forProvider:
     manifest:

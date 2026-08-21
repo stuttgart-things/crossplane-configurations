@@ -4,9 +4,29 @@ kind: FluxInit
 metadata:
   name: lab-flux
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: lab-flux-flux-operator
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: lab-flux-flux-instance
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: lab-flux-flux-instance-uses-operator
 status:
   clusterType: ""
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: lab-flux-flux-instance, lab-flux-flux-instance-uses-operator,
       and lab-flux-flux-operator'
@@ -35,7 +55,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: lab-flux
-    uid: ""
+    uid: ac758ba7-047c-58df-80e9-1bc3c7f88fa0
 spec:
   forProvider:
     manifest:
@@ -77,7 +97,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: lab-flux
-    uid: ""
+    uid: ac758ba7-047c-58df-80e9-1bc3c7f88fa0
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -107,7 +127,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: lab-flux
-    uid: ""
+    uid: ac758ba7-047c-58df-80e9-1bc3c7f88fa0
 spec:
   forProvider:
     chart:

@@ -4,9 +4,26 @@ kind: VMBatch
 metadata:
   name: vm-batch-min
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeProxmoxVM
+      name: vm-batch-min-one-0
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeProxmoxVM
+      name: vm-batch-min-two-0
 status:
   ansibleReady: true
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vm-batch-min-one-0, vm-batch-min-two-0'
     reason: Creating
@@ -37,7 +54,7 @@ metadata:
     controller: true
     kind: VMBatch
     name: vm-batch-min
-    uid: ""
+    uid: 99f10031-abc8-5135-a23a-3544d48e2832
 spec:
   environmentConfig: default
   vm:
@@ -58,7 +75,7 @@ metadata:
     controller: true
     kind: VMBatch
     name: vm-batch-min
-    uid: ""
+    uid: 99f10031-abc8-5135-a23a-3544d48e2832
 spec:
   environmentConfig: default
   vm:

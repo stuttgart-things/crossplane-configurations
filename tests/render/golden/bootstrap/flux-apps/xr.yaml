@@ -4,10 +4,27 @@ kind: FluxApps
 metadata:
   name: staging-apps
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: staging-apps-app-crossplane
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: staging-apps-app-tekton
 status:
   appCount: 2
   appsReady: false
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: staging-apps-app-crossplane, staging-apps-app-tekton'
     reason: Creating
@@ -31,7 +48,7 @@ metadata:
     controller: true
     kind: FluxApps
     name: staging-apps
-    uid: ""
+    uid: eadfc2cd-1b76-5a30-953f-a3024f416b86
 spec:
   forProvider:
     manifest:
@@ -80,7 +97,7 @@ metadata:
     controller: true
     kind: FluxApps
     name: staging-apps
-    uid: ""
+    uid: eadfc2cd-1b76-5a30-953f-a3024f416b86
 spec:
   forProvider:
     manifest:

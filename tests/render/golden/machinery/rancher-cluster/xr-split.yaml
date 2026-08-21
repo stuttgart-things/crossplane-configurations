@@ -4,9 +4,32 @@ kind: RancherCluster
 metadata:
   name: k3s-split
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-split-1004d7b20498
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-split-135bd8122a0c
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-split-7f354bc1ed97
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-split-8f1e13b4f94b
 status:
   clusterProviderConfig: k3s-split
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: k3s-split-bootstrap-namespace, k3s-split-cluster,
       k3s-split-kubeconfig-bridge, and 1 more'
@@ -26,6 +49,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-split
+  name: k3s-split-8f1e13b4f94b
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -33,7 +57,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-split
-    uid: ""
+    uid: a29ffe7f-9a41-5392-a720-d144c9faed27
 spec:
   forProvider:
     manifest:
@@ -59,6 +83,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-split
+  name: k3s-split-1004d7b20498
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -66,7 +91,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-split
-    uid: ""
+    uid: a29ffe7f-9a41-5392-a720-d144c9faed27
 spec:
   forProvider:
     manifest:
@@ -96,6 +121,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-split
+  name: k3s-split-7f354bc1ed97
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -103,7 +129,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-split
-    uid: ""
+    uid: a29ffe7f-9a41-5392-a720-d144c9faed27
 spec:
   connectionDetails:
   - apiVersion: v1
@@ -138,6 +164,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-split
+  name: k3s-split-135bd8122a0c
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -145,7 +172,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-split
-    uid: ""
+    uid: a29ffe7f-9a41-5392-a720-d144c9faed27
 spec:
   forProvider:
     manifest:

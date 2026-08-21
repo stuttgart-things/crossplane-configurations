@@ -4,6 +4,12 @@ kind: Platform
 metadata:
   name: kind-test1
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: config.stuttgart-things.com/v1alpha1
+      kind: Cni
+      name: kind-test1-cni
 status:
   componentCount: 3
   components:
@@ -52,15 +58,23 @@ status:
       waitingForCertManager: false
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: kind-test1-cni'
-    reason: Creating
-    status: "False"
-    type: Ready
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: no components are waiting on a discovered value
     reason: AllSupplied
     status: "False"
     type: PendingSubstitutions
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: kind-test1-cni'
+    reason: Creating
+    status: "False"
+    type: Ready
   ready: false
   readyComponents: 0
   shared:
@@ -85,7 +99,7 @@ metadata:
     controller: true
     kind: Platform
     name: kind-test1
-    uid: ""
+    uid: e8731875-d11d-56be-8d49-07d3e6e25f0d
 spec:
   chart:
     version: 1.19.6

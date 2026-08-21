@@ -4,10 +4,30 @@ kind: FluxApps
 metadata:
   name: prod-apps
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: prod-apps-app-crossplane
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: prod-apps-app-infrastructure
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: prod-apps-app-secrets
 status:
   appCount: 3
   appsReady: false
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: prod-apps-app-crossplane, prod-apps-app-infrastructure,
       and prod-apps-app-secrets'
@@ -32,7 +52,7 @@ metadata:
     controller: true
     kind: FluxApps
     name: prod-apps
-    uid: ""
+    uid: 81268de1-21eb-55c3-9882-fcc8ff380f79
 spec:
   forProvider:
     manifest:
@@ -101,7 +121,7 @@ metadata:
     controller: true
     kind: FluxApps
     name: prod-apps
-    uid: ""
+    uid: 81268de1-21eb-55c3-9882-fcc8ff380f79
 spec:
   forProvider:
     manifest:
@@ -160,7 +180,7 @@ metadata:
     controller: true
     kind: FluxApps
     name: prod-apps
-    uid: ""
+    uid: 81268de1-21eb-55c3-9882-fcc8ff380f79
 spec:
   forProvider:
     manifest:

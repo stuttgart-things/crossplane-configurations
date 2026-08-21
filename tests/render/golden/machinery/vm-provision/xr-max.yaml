@@ -4,9 +4,23 @@ kind: VMProvision
 metadata:
   name: vm-provision-max
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: ProxmoxVM
+      name: vm-provision-max-proxmox-vm
 status:
   ansibleReady: false
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vm-provision-max-proxmox-vm'
     reason: Creating
@@ -32,7 +46,7 @@ metadata:
     controller: true
     kind: VMProvision
     name: vm-provision-max
-    uid: ""
+    uid: de7c777f-d40a-53e7-939a-ed16839499d9
 spec:
   connectionSecret:
     name: vm-provision-max

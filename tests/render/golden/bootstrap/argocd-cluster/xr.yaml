@@ -4,10 +4,30 @@ kind: ArgocdCluster
 metadata:
   name: homerun2-dev
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: homerun2-dev-argocd-externalsecret
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: homerun2-dev-clusterbook
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: homerun2-dev-argocd-uses-stack
 status:
   allocationIp: ""
   clusterSecretName: cluster-homerun2-dev
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: argocd-uses-stack, clusterbook-cluster, and external-secret'
     reason: Creating
@@ -31,7 +51,7 @@ metadata:
     controller: true
     kind: ArgocdCluster
     name: homerun2-dev
-    uid: ""
+    uid: 3460bec6-8db6-5004-b369-e56aa751dd90
 spec:
   by:
     apiVersion: config.stuttgart-things.com/v1alpha1
@@ -62,7 +82,7 @@ metadata:
     controller: true
     kind: ArgocdCluster
     name: homerun2-dev
-    uid: ""
+    uid: 3460bec6-8db6-5004-b369-e56aa751dd90
 spec:
   forProvider:
     manifest:
@@ -142,7 +162,7 @@ metadata:
     controller: true
     kind: ArgocdCluster
     name: homerun2-dev
-    uid: ""
+    uid: 3460bec6-8db6-5004-b369-e56aa751dd90
 spec:
   forProvider:
     manifest:

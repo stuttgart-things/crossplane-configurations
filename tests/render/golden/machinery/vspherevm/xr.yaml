@@ -4,8 +4,22 @@ kind: NativeVsphereVM
 metadata:
   name: vspherevm-test1
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: virtualmachine.vspherevm.m.stuttgart-things.com/v1alpha1
+      kind: VirtualMachine
+      name: vspherevm-test1
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vspherevm-test1'
     reason: Creating
@@ -34,7 +48,7 @@ metadata:
     controller: true
     kind: NativeVsphereVM
     name: vspherevm-test1
-    uid: ""
+    uid: 2a1ee9f5-bf0d-5d4e-98aa-0885b095c14d
 spec:
   forProvider:
     annotation: VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS

@@ -4,9 +4,35 @@ kind: Cilium
 metadata:
   name: demo
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: demo-cilium
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: demo-gateway-api
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: demo-gateway-class
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: demo-gateway-class-uses-cilium
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: demo-gateway-class-uses-gw-api
 status:
   ciliumVersion: 1.19.2
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: demo-cilium, demo-gateway-api, demo-gateway-class,
       and 2 more'
@@ -35,7 +61,7 @@ metadata:
     controller: true
     kind: Cilium
     name: demo
-    uid: ""
+    uid: 6f8488e3-7be0-52ed-a19f-a96a0d3e8c84
 spec:
   forProvider:
     chart:
@@ -79,7 +105,7 @@ metadata:
     controller: true
     kind: Cilium
     name: demo
-    uid: ""
+    uid: 6f8488e3-7be0-52ed-a19f-a96a0d3e8c84
 spec:
   forProvider:
     chart:
@@ -108,7 +134,7 @@ metadata:
     controller: true
     kind: Cilium
     name: demo
-    uid: ""
+    uid: 6f8488e3-7be0-52ed-a19f-a96a0d3e8c84
 spec:
   forProvider:
     manifest:
@@ -137,7 +163,7 @@ metadata:
     controller: true
     kind: Cilium
     name: demo
-    uid: ""
+    uid: 6f8488e3-7be0-52ed-a19f-a96a0d3e8c84
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -166,7 +192,7 @@ metadata:
     controller: true
     kind: Cilium
     name: demo
-    uid: ""
+    uid: 6f8488e3-7be0-52ed-a19f-a96a0d3e8c84
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1

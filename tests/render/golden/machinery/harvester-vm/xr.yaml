@@ -4,9 +4,38 @@ kind: HarvesterVM
 metadata:
   name: dev9
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: dev9-4e63b1b0f5af
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: dev9-94355403adfa
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: dev9-458ab48246f2
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: dev9-f1cf0e88e828
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: CloudInit
+      name: dev9
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: VolumeClaim
+      name: dev9
 status:
   ansibleReady: true
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: cloud-init, dev9-vm, dev9-vmi, and 1 more'
     reason: Creating
@@ -33,7 +62,7 @@ metadata:
     controller: true
     kind: HarvesterVM
     name: dev9
-    uid: ""
+    uid: 877e41fb-0b70-5672-a5ec-72648c06b2da
 spec:
   disableRoot: false
   domain: local
@@ -66,6 +95,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-vm
     crossplane.io/composite: dev9
+  name: dev9-458ab48246f2
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -73,7 +103,7 @@ metadata:
     controller: true
     kind: HarvesterVM
     name: dev9
-    uid: ""
+    uid: 877e41fb-0b70-5672-a5ec-72648c06b2da
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -101,6 +131,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-vm
     crossplane.io/composite: dev9
+  name: dev9-f1cf0e88e828
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -108,7 +139,7 @@ metadata:
     controller: true
     kind: HarvesterVM
     name: dev9
-    uid: ""
+    uid: 877e41fb-0b70-5672-a5ec-72648c06b2da
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -137,6 +168,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-vm
     crossplane.io/composite: dev9
+  name: dev9-94355403adfa
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -144,7 +176,7 @@ metadata:
     controller: true
     kind: HarvesterVM
     name: dev9
-    uid: ""
+    uid: 877e41fb-0b70-5672-a5ec-72648c06b2da
 spec:
   forProvider:
     manifest:
@@ -233,6 +265,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-vm
     crossplane.io/composite: dev9
+  name: dev9-4e63b1b0f5af
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -240,7 +273,7 @@ metadata:
     controller: true
     kind: HarvesterVM
     name: dev9
-    uid: ""
+    uid: 877e41fb-0b70-5672-a5ec-72648c06b2da
 spec:
   forProvider:
     manifest:
@@ -270,7 +303,7 @@ metadata:
     controller: true
     kind: HarvesterVM
     name: dev9
-    uid: ""
+    uid: 877e41fb-0b70-5672-a5ec-72648c06b2da
 spec:
   accessModes:
   - ReadWriteOnce

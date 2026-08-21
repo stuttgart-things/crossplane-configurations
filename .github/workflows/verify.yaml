@@ -187,7 +187,15 @@ jobs:
       # v0.118.1 runs render Functions as Dagger services instead of nested
       # Docker containers, fixing the function-kcl render-sandbox failure
       # (DeadlineExceeded / connection refused) — stuttgart-things/dagger#300.
-      CROSSPLANE_MODULE_VERSION: v0.118.1
+      # v0.124.0 hebt die CLI auf v2.4.1 und installiert zusaetzlich das
+      # Crossplane-CORE-Binary. Ab CLI v2.3.0 ruft `render` naemlich
+      # `crossplane internal render` auf — was die CLI selbst nicht kann — und
+      # startet dafuer per Default einen Container aus dem FLOATING Tag
+      # crossplane:stable. Das Modul zeigt render jetzt per
+      # --crossplane-binary auf den gepinnten Core: kein Container, kein
+      # floating Tag. Gemessen: die Development-Runtime allein haette das
+      # NICHT verhindert (stuttgart-things/dagger#331).
+      CROSSPLANE_MODULE_VERSION: v0.124.0
     steps:
       - uses: actions/checkout@v7.0.1
 

@@ -4,8 +4,34 @@ kind: ScheduledRun
 metadata:
   name: scheduled-run-max
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: scheduled-run-max-configmap
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: scheduled-run-max-cronjob
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: scheduled-run-max-role
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: scheduled-run-max-rolebinding
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: scheduled-run-max-serviceaccount
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: scheduled-run-max-configmap, scheduled-run-max-cronjob,
       scheduled-run-max-role, and 2 more'
@@ -29,7 +55,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: scheduled-run-max
-    uid: ""
+    uid: 7ec96264-1889-5274-a0e7-c89e4b0718e8
 spec:
   forProvider:
     manifest:
@@ -75,7 +101,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: scheduled-run-max
-    uid: ""
+    uid: 7ec96264-1889-5274-a0e7-c89e4b0718e8
 spec:
   forProvider:
     manifest:
@@ -205,7 +231,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: scheduled-run-max
-    uid: ""
+    uid: 7ec96264-1889-5274-a0e7-c89e4b0718e8
 spec:
   forProvider:
     manifest:
@@ -243,7 +269,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: scheduled-run-max
-    uid: ""
+    uid: 7ec96264-1889-5274-a0e7-c89e4b0718e8
 spec:
   forProvider:
     manifest:
@@ -279,7 +305,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: scheduled-run-max
-    uid: ""
+    uid: 7ec96264-1889-5274-a0e7-c89e4b0718e8
 spec:
   forProvider:
     manifest:

@@ -4,9 +4,32 @@ kind: VMBatch
 metadata:
   name: vm-batch-max
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeVsphereVM
+      name: vm-batch-max-app-0
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeVsphereVM
+      name: vm-batch-max-app-1
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeVsphereVM
+      name: vm-batch-max-app-2
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeVsphereVM
+      name: vm-batch-max-bastion-0
 status:
   ansibleReady: false
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vm-batch-max-app-0, vm-batch-max-app-1, vm-batch-max-app-2,
       and 1 more'
@@ -38,7 +61,7 @@ metadata:
     controller: true
     kind: VMBatch
     name: vm-batch-max
-    uid: ""
+    uid: 2b6291b3-dcb9-5e4e-9850-2f153254daa5
 spec:
   environmentConfig: labul
   providerConfigRef:
@@ -73,7 +96,7 @@ metadata:
     controller: true
     kind: VMBatch
     name: vm-batch-max
-    uid: ""
+    uid: 2b6291b3-dcb9-5e4e-9850-2f153254daa5
 spec:
   environmentConfig: labul
   providerConfigRef:
@@ -108,7 +131,7 @@ metadata:
     controller: true
     kind: VMBatch
     name: vm-batch-max
-    uid: ""
+    uid: 2b6291b3-dcb9-5e4e-9850-2f153254daa5
 spec:
   environmentConfig: labul
   providerConfigRef:
@@ -143,7 +166,7 @@ metadata:
     controller: true
     kind: VMBatch
     name: vm-batch-max
-    uid: ""
+    uid: 2b6291b3-dcb9-5e4e-9850-2f153254daa5
 spec:
   environmentConfig: labul
   providerConfigRef:

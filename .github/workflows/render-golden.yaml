@@ -28,21 +28,27 @@ jobs:
     permissions:
       contents: read
     env:
-      # Match the crank version the crossplane dagger module pins (see the
+      # Match the CLI the crossplane dagger module pins (see the
       # CROSSPLANE_MODULE_VERSION note in verify.yaml) so local `task verify`,
       # CI verify and these goldens all render through the same CLI.
-      CROSSPLANE_VERSION: v2.2.2
-      # Beim Anheben dieses Pins auf >= v2.3.0 gibt es ZWEI Fallstricke:
-      #  1. Der Bucket wechselt. Ab v2.3.0 kommt die CLI aus
-      #     cli.crossplane.io als Binary `crossplane`, nicht mehr aus
-      #     releases.crossplane.io als `crank` — die URL unten ergibt sonst
-      #     einen 404.
-      #  2. Das Core-Image muss mit. render-golden.sh nagelt es ueber
-      #     --crossplane-image fest, sobald die CLI das Flag kennt; ohne
-      #     das laeuft der Render in den Floating Tag crossplane:stable.
-      #     Ueberschreibbar mit CROSSPLANE_RENDER_IMAGE.
-      # Und: der Bump erzeugt neue Goldens (reichere Ausgabe, aber
-      # deterministisch) — der gehoert in einen eigenen PR.
+      #
+      # Der Bucket haengt an der Version, und das ist keine Kosmetik: ab v2.3.0
+      # kommt die CLI aus cli.crossplane.io als Binary `crossplane`, davor aus
+      # releases.crossplane.io als `crank`. Die CLI ist bei v2.3.0 in ein
+      # eigenes Repo umgezogen (crossplane/cli); crossplane/crossplane taggt
+      # seitdem den CORE, was etwas anderes ist.
+      CROSSPLANE_VERSION: v2.4.1
+      # Welchen Renderer render-golden.sh benutzt. Ab CLI v2.3.0 laeuft der
+      # Render in `crossplane internal render` — nicht in der CLI, sondern im
+      # CORE. Ohne Pin waehlt die CLI dafuer das FLOATING Tag
+      # crossplane:stable, das hinterherhinkt und Render ohne Vorwarnung bricht
+      # (stuttgart-things/dagger#295). render-golden.sh setzt den Wert per
+      # --crossplane-image, sobald die CLI das Flag kennt.
+      #
+      # Muss zur Core-Version im dagger-Modul passen, sonst rendern verify und
+      # diese Goldens mit verschiedenen Renderern und die Snapshots driften
+      # gegen einen Check, der sie erzeugt hat.
+      CROSSPLANE_RENDER_IMAGE: xpkg.crossplane.io/crossplane/crossplane:v2.4.0
     steps:
       - uses: actions/checkout@v7.0.1
 
@@ -50,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSL \
-            "https://releases.crossplane.io/stable/${CROSSPLANE_VERSION}/bin/linux_amd64/crank" \
+            "https://cli.crossplane.io/stable/${CROSSPLANE_VERSION}/bin/linux_amd64/crossplane" \
             -o /usr/local/bin/crossplane
           chmod +x /usr/local/bin/crossplane
           # --client, because plain `crossplane version` also reaches for the

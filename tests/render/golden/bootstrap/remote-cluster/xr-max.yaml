@@ -4,8 +4,25 @@ kind: ClusterAccess
 metadata:
   name: cluster-access-max
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: cluster-access-max-observe-kubernetes
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: cluster-access-max-remote-cluster
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: observe-kubernetes, remote-cluster'
     reason: Creating
@@ -31,7 +48,7 @@ metadata:
     controller: true
     kind: ClusterAccess
     name: cluster-access-max
-    uid: ""
+    uid: 8c6ffb46-0078-5c6f-b3ef-3c12d4af0e08
 spec:
   forProvider:
     manifest:
@@ -60,7 +77,7 @@ metadata:
     controller: true
     kind: ClusterAccess
     name: cluster-access-max
-    uid: ""
+    uid: 8c6ffb46-0078-5c6f-b3ef-3c12d4af0e08
 spec:
   forProvider:
     manifest:

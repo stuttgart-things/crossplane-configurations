@@ -4,8 +4,28 @@ kind: ClusterAccess
 metadata:
   name: u26-kind1
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-kind1-observe-helm
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-kind1-observe-kubernetes
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-kind1-remote-cluster
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: observe-helm, observe-kubernetes, and remote-cluster'
     reason: Creating
@@ -32,7 +52,7 @@ metadata:
     controller: true
     kind: ClusterAccess
     name: u26-kind1
-    uid: ""
+    uid: ef0603bb-b8fc-51d9-ad26-f8b1a86e6523
 spec:
   forProvider:
     manifest:
@@ -61,7 +81,7 @@ metadata:
     controller: true
     kind: ClusterAccess
     name: u26-kind1
-    uid: ""
+    uid: ef0603bb-b8fc-51d9-ad26-f8b1a86e6523
 spec:
   forProvider:
     manifest:
@@ -90,7 +110,7 @@ metadata:
     controller: true
     kind: ClusterAccess
     name: u26-kind1
-    uid: ""
+    uid: ef0603bb-b8fc-51d9-ad26-f8b1a86e6523
 spec:
   forProvider:
     manifest:

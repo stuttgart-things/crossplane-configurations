@@ -4,9 +4,23 @@ kind: XVirtualMachine
 metadata:
   name: vm-harvester
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: HarvesterVM
+      name: vm-harvester
 status:
   ansibleReady: false
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vm-harvester'
     reason: Creating
@@ -34,7 +48,7 @@ metadata:
     controller: true
     kind: XVirtualMachine
     name: vm-harvester
-    uid: ""
+    uid: 165c6714-81f1-58ef-8111-8ef03bafc8ac
 spec:
   ansible:
     ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test

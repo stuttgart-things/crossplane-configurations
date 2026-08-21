@@ -4,9 +4,38 @@ kind: ClusterBackup
 metadata:
   name: cluster-backup
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind1-backup-clusterrole
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind1-backup-clusterrolebinding
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind1-backup-cronjob
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind1-backup-serviceaccount
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind1-backup-tfstate-role
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind1-backup-tfstate-rolebinding
 status:
   artifactRepository: ghcr.io/stuttgart-things/backups/kind1
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: kind1-backup-clusterrole, kind1-backup-clusterrolebinding,
       kind1-backup-cronjob, and 3 more'
@@ -29,7 +58,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup
-    uid: ""
+    uid: 5a07ea48-e8b9-527f-951b-b575076890bb
 spec:
   forProvider:
     manifest:
@@ -69,7 +98,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup
-    uid: ""
+    uid: 5a07ea48-e8b9-527f-951b-b575076890bb
 spec:
   forProvider:
     manifest:
@@ -104,7 +133,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup
-    uid: ""
+    uid: 5a07ea48-e8b9-527f-951b-b575076890bb
 spec:
   forProvider:
     manifest:
@@ -363,7 +392,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup
-    uid: ""
+    uid: 5a07ea48-e8b9-527f-951b-b575076890bb
 spec:
   forProvider:
     manifest:
@@ -391,7 +420,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup
-    uid: ""
+    uid: 5a07ea48-e8b9-527f-951b-b575076890bb
 spec:
   forProvider:
     manifest:
@@ -427,7 +456,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup
-    uid: ""
+    uid: 5a07ea48-e8b9-527f-951b-b575076890bb
 spec:
   forProvider:
     manifest:

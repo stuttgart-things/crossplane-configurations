@@ -4,8 +4,22 @@ kind: PackerBuild
 metadata:
   name: packer-build-min
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: build-ubuntu24-min-run
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: build-ubuntu24-min-run'
     reason: Creating
@@ -32,7 +46,7 @@ metadata:
     controller: true
     kind: PackerBuild
     name: packer-build-min
-    uid: ""
+    uid: 0335715d-15a8-5354-b01f-a84d5c05fa95
 spec:
   forProvider:
     manifest:

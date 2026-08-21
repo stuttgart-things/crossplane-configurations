@@ -4,6 +4,15 @@ kind: Platform
 metadata:
   name: staging
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: config.stuttgart-things.com/v1alpha1
+      kind: FluxApps
+      name: staging-flux-apps
+    - apiVersion: config.stuttgart-things.com/v1alpha1
+      kind: FluxInit
+      name: staging-flux-init
 status:
   componentCount: 2
   components:
@@ -52,15 +61,23 @@ status:
       waitingForCertManager: false
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: staging-flux-apps, staging-flux-init'
-    reason: Creating
-    status: "False"
-    type: Ready
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: no components are waiting on a discovered value
     reason: AllSupplied
     status: "False"
     type: PendingSubstitutions
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: staging-flux-apps, staging-flux-init'
+    reason: Creating
+    status: "False"
+    type: Ready
   ready: false
   readyComponents: 0
   shared:
@@ -85,7 +102,7 @@ metadata:
     controller: true
     kind: Platform
     name: staging
-    uid: ""
+    uid: 4fc735bb-941e-515a-a7f2-4e22d766c9a0
 spec:
   apps:
   - name: dapr-control-plane
@@ -115,7 +132,7 @@ metadata:
     controller: true
     kind: Platform
     name: staging
-    uid: ""
+    uid: 4fc735bb-941e-515a-a7f2-4e22d766c9a0
 spec:
   clusterName: staging
   helmProviderConfigRef: staging-helm
