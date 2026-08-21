@@ -343,12 +343,39 @@ spec:
       resource "vault_kubernetes_auth_backend_config" "kubernetes" {
         backend                = vault_auth_backend.kubernetes.path
         kubernetes_host        = var.kubernetes_host
-        kubernetes_ca_cert     = data.kubernetes_secret.sa.data[var.sa_ca_cert_key]
-        token_reviewer_jwt     = data.kubernetes_secret.sa.data[var.sa_token_key]
+        # try(): the DESTROY re-evaluates this expression, and by then the reviewer
+        # Secret is usually gone -- it is a composed child of the same Platform XR, so
+        # it is deleted in parallel with this Workspace. data.kubernetes_secret.sa.data
+        # is then null, indexing it raises "Attempt to index null value", and the
+        # destroy fails before it removes anything. The Workspace then hangs in
+        # Deleting forever and blocks the whole teardown, because its NAME is derived
+        # from clusterName+authName and a replacement XR needs that same name.
+        # Measured on argoplatform-test1, 2026-08-19 -- see
+        # crossplane-configurations#333.
+        #
+        # Destroy does not use these values, so falling back to null is correct there.
+        # On CREATE/UPDATE a null is NOT silently accepted: the precondition below
+        # fails loudly instead, which is the behaviour the bare index used to give.
+        kubernetes_ca_cert     = try(data.kubernetes_secret.sa.data[var.sa_ca_cert_key], null)
+        token_reviewer_jwt     = try(data.kubernetes_secret.sa.data[var.sa_token_key], null)
         disable_iss_validation = var.disable_iss_validation
         disable_local_ca_jwt   = var.disable_local_ca_jwt
 
         depends_on = [vault_auth_backend.kubernetes]
+
+        # Keeps the loud failure that the bare index provided, but only where it
+        # belongs. Preconditions are not evaluated when the resource is destroyed,
+        # so this cannot re-introduce the hang above.
+        lifecycle {
+          precondition {
+            condition     = try(data.kubernetes_secret.sa.data[var.sa_ca_cert_key], null) != null
+            error_message = "Secret ${var.sa_secret_namespace}/${var.sa_secret_name} has no key ${var.sa_ca_cert_key}. The reviewer ServiceAccount secret must exist before the Vault kubernetes auth backend can be configured."
+          }
+          precondition {
+            condition     = try(data.kubernetes_secret.sa.data[var.sa_token_key], null) != null
+            error_message = "Secret ${var.sa_secret_namespace}/${var.sa_secret_name} has no key ${var.sa_token_key}."
+          }
+        }
       }
 
       variable "kubernetes_host" {
