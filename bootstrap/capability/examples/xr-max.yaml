@@ -44,6 +44,19 @@ spec:
         # destroy + recreate. Requires proxmoxvm >= v0.11.0, whose `none`
         # sentinel is how an individual XR declines it.
         cloneDatastore: V5010-01-1
+        # Steuert das 4-MB-cidata-Image von der Datenplatte weg. Es ist die eine
+        # Platte, die PVE bei jedem Stop/Start freigibt und neu anlegt, und auf
+        # LabULs V5010-01-1 ist genau dieser Umlauf kaputt: der Stop laesst das
+        # LV ohne Device-Node zurueck, der naechste Start stirbt an
+        # `lvcreate ... already exists`, die VM ist ab da nicht mehr bootbar.
+        # Auf dem NFS-Store DD-sthings laeuft derselbe Umlauf sauber
+        # (hostseitig bestaetigt 2026-08-20).
+        #
+        # Ohne diesen Schluessel loest die proxmoxvm-Composition auf den
+        # Datastore der Rootplatte auf — also auf genau den kaputten. Und zwar
+        # lautlos: die VM entsteht, meldet Ready, und der Schaden zeigt sich
+        # erst beim ersten Neustart.
+        cloudInitDatastore: DD-sthings
         snippetsDatastore: local
         smbiosManufacturer: stuttgart-things
         smbiosProduct: sthings-u26
