@@ -102,6 +102,41 @@ the Packer build baked in. Key logins keep working, so the cluster looks
 healthy — what breaks is every password-based `AnsibleRun`, each host simply
 `UNREACHABLE`.
 
+## The namespaces are created, not assumed
+
+Every namespace this Configuration writes into — each capability's credentials
+namespace and `spec.workloadNamespace` — is emitted as a `Namespace` Object with
+`managementPolicies: [Observe, Create]`: adopt it if it exists, create it if it
+does not, never modify or delete it.
+
+It has to happen here, because *which* namespace it is comes out of a
+capability's own placement. `ansible-run` puts its credentials in `tekton-ci`
+because a Tekton pipeline reads them there. On `u26-rke2-1` that namespace
+existed, because that cluster's [platform](../platform/) installs the `tekton`
+app; on `seed-labda-1`, which runs only cert-manager, external-secrets and
+openebs, the Object sat at
+
+```
+create failed: cannot create object: namespaces "tekton-ci" not found
+```
+
+with the `vspherevm` half of the same XR green — a capability held up by a
+precondition nothing declared. Hence it is not in "Cluster preconditions" below.
+
+Two consequences of the policy set:
+
+* **no `Delete`** — the namespace and everything in it survives the capability
+  being torn down. With `Delete`, switching off `ansible-run` would take the
+  cluster's Tekton pipelines with it.
+* **no `Update`** — a namespace that already has an owner (the `tekton` app,
+  another `Capability` XR, a human) keeps it. Two `Capability` XRs may name the
+  same namespace and neither writes to it.
+
+No exception list, so `default` and `crossplane-system` get one too. They are
+adopted on the first observe and never touched again; a list of "these always
+exist" would be Kubernetes trivia with exactly one hole in it — the day someone
+points `spec.namespace` at something of their own.
+
 ## Failing the render
 
 A capability with a missing or unknown placement field aborts the whole render

@@ -15,13 +15,79 @@ status:
   capabilityCount: 1
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: u26-rke2-1-labul-proxmoxvm-ci-password-secret, u26-rke2-1-labul-proxmoxvm-credentials,
-      u26-rke2-1-labul-proxmoxvm-environment-config, and 2 more'
+    message: 'Unready resources: u26-rke2-1-labul-namespace-crossplane-system, u26-rke2-1-labul-namespace-default,
+      u26-rke2-1-labul-proxmoxvm-ci-password-secret, and 4 more'
     reason: Creating
     status: "False"
     type: Ready
   ready: false
   readyCount: 0
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: u26-rke2-1-labul-namespace-crossplane-system
+  labels:
+    crossplane.io/composite: u26-rke2-1-capability
+  name: u26-rke2-1-labul-namespace-crossplane-system
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: u26-rke2-1-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: crossplane-system
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    celQuery: "true"
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: u26-rke2-1-labul-namespace-default
+  labels:
+    crossplane.io/composite: u26-rke2-1-capability
+  name: u26-rke2-1-labul-namespace-default
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Capability
+    name: u26-rke2-1-capability
+    uid: ""
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: default
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: u26-rke2-1-kubernetes
+  readiness:
+    celQuery: "true"
+    policy: DeriveFromCelQuery
 ---
 apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
