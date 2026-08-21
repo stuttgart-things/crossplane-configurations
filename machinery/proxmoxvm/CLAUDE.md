@@ -26,7 +26,13 @@ Configuration, mirroring `vspherevm`'s relationship to `vsphere-vm`.
   behavioural difference from the Telmate `proxmox-vm` module. Supplied via
   EnvironmentConfig `templateVmId` (or per-XR `spec.vm.templateVmId`). The clone
   list is guarded (`[] if templateVmId == ""`) so offline render does not
-  `int("")`. LabUL `sthings-u26` = **VMID 110** on `ul-pve01`.
+  `int("")`. LabUL `sthings-u26` = **VMID 211** on **`ul-pve11`** — not 110 on
+  `ul-pve01`, which is what this line said until 2026-08-21. Both numbers name a
+  template called `sthings-u26`, and since bpg clones by VMID the number *is* the
+  reference; 110 ships `/etc/cloud/cloud-init.disabled`, so cloud-init never runs
+  and every clone keeps the hostname `ubuntu` no matter what is injected
+  (stuttgart-things#2432). 211 removes the file in its provisioner. The node moved
+  in the LabUL rebuild, and a stale one fails the clone outright.
 - **Template gotchas (baked into the examples):** the `sthings-u26` root disk is
   on **`virtio0`** (not `scsi0`) — `diskInterface` defaults to `virtio0`. The
   Packer templates carry **no cloud-init drive**, so bpg adds one on clone and

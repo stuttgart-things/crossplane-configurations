@@ -19,7 +19,12 @@ metadata:
   labels:
     proxmoxvm.resources.stuttgart-things.com/environment: default
 data:
-  node: ul-pve01
+  # ul-pve11, NOT ul-pve01. The LabUL rebuild moved the ubuntu26 templates, and
+  # bpg derives the clone SOURCE node from this key unless `templateNode` is set
+  # — so a stale value fails every build with an error that names neither the
+  # key nor this file: `unable to find configuration file for VM 211 on node
+  # 'ul-pve01'`.
+  node: ul-pve11
   datastore: V5010-01-1
   # Datastore the CLONE allocates into. Without it Proxmox allocates on the
   # TEMPLATE's datastore and bpg moves the disk afterwards — the full image
@@ -44,7 +49,13 @@ data:
   bridge: vmbrvlan          # VLAN-trunk bridge; template ships on vmbr0/untagged
   vlanTag: "102"            # 10.31.102.0/24
   pool: stuttgart-things
-  templateVmId: "110"       # VMID of the sthings-u26 template (ul-pve01)
+  # 211, NOT 110. Both are called sthings-u26 and bpg clones by VMID, so the
+  # number IS the reference — but 110 ships /etc/cloud/cloud-init.disabled, so
+  # cloud-init never runs and every clone keeps the hostname `ubuntu`
+  # regardless of what is injected (#2432). 211 removes the file in its
+  # provisioner. Nothing about the failure points at the template: the VM comes
+  # up healthy, just not as the host you asked for.
+  templateVmId: "211"
   cpuType: host
   osType: l26
   bios: seabios
@@ -81,7 +92,7 @@ metadata:
   labels:
     proxmoxvm.resources.stuttgart-things.com/environment: labul
 data:
-  node: ul-pve01
+  node: ul-pve11            # see the note on the first EnvironmentConfig above
   datastore: V5010-01-1
   # Cloud-init drive on NFS rather than on `datastore` — see the note on the
   # first EnvironmentConfig above (`V5010-01-1` orphans the cidata LV on stop).
@@ -89,7 +100,7 @@ data:
   bridge: vmbrvlan
   vlanTag: "102"
   pool: stuttgart-things
-  templateVmId: "110"
+  templateVmId: "211"       # not 110 — see above
   cpuType: host
   osType: l26
   bios: seabios

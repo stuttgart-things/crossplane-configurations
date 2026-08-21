@@ -34,10 +34,12 @@ spec:
         # vm_ssh_password, ...) is a catalog fact.
         secret: default  # pragma: allowlist secret
       placement:
-        # The ACTIVE LabUL nodes are ul-pve10 and ul-pve11. The capability
-        # Helm chart still says ul-pve01, which is why this is spelled out:
-        # copying that value builds nothing, and the error names the node
-        # rather than the source of the value.
+        # The ACTIVE LabUL nodes are ul-pve10 and ul-pve11. Spelled out because
+        # ul-pve01 outlived its move by a long way: bpg derives the clone SOURCE
+        # node from this key, so a stale value builds nothing and the error names
+        # the node rather than where the value came from. The capability Helm
+        # chart carried ul-pve01 until stuttgart-things#2541 — it agrees with
+        # this file now.
         node: ul-pve11
         # VLAN-trunk bridge; the template ships on vmbr0/untagged.
         bridge: vmbrvlan
