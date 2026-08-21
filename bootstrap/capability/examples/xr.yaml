@@ -54,3 +54,20 @@ spec:
         # VMs it rewrites their ForceNew clone block (destroy + recreate), so
         # pin those with the `none` sentinel first.
         cloneDatastore: V5010-01-1
+        # Und die Gegenrichtung fuer die EINE Platte, die anders liegen muss:
+        # das cidata-Image. PVE gibt es bei jedem Stop/Start frei und legt es neu
+        # an, und auf V5010-01-1 ist genau dieser Umlauf kaputt — der Stop laesst
+        # das LV ohne Device-Node zurueck, der naechste Start stirbt an
+        # `lvcreate ... already exists`, die VM ist ab da nicht mehr bootbar.
+        # Ohne diesen Schluessel loest die Composition auf `datastore` auf, also
+        # auf genau den kaputten Storage, und zwar lautlos: die VM entsteht,
+        # meldet Ready, und der Schaden zeigt sich erst beim ersten Neustart.
+        #
+        # DIE BEIDEN ZEILEN ZIEHEN BEWUSST IN VERSCHIEDENE RICHTUNGEN: die
+        # Datenplatte weg von DD-sthings (ACL, siehe oben), das 4 MB grosse
+        # cidata-Image hin zu DD-sthings. Das setzt voraus, dass die ACL
+        # inzwischen Allocate fuer cidata zulaesst — der LabUL-Admin hat den
+        # Stop/Start-Umlauf dort am 2026-08-20 durchgespielt, was ohne Allocate
+        # nicht gegangen waere. Kommt beim ersten Clone ein 403 auf die
+        # cidata-Platte, ist es die ACL und nicht dieser Schluessel.
+        cloudInitDatastore: DD-sthings

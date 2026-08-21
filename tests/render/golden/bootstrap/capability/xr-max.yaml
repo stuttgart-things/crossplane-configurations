@@ -415,6 +415,7 @@ spec:
         ciPasswordSecretName: proxmoxvm-ci-password
         ciUsername: sthings
         cloneDatastore: V5010-01-1
+        cloudInitDatastore: DD-sthings
         cpuType: host
         datastore: V5010-01-1
         diskInterface: virtio0
