@@ -4,8 +4,22 @@ kind: VolumeClaim
 metadata:
   name: min
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: min-fc871a85238d
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: demo-min-pvc'
     reason: Creating
@@ -24,6 +38,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: volume-claim
     crossplane.io/composite: min
+  name: min-fc871a85238d
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -31,7 +46,7 @@ metadata:
     controller: true
     kind: VolumeClaim
     name: min
-    uid: ""
+    uid: a053b0cd-6932-5142-b461-dd189da111d0
 spec:
   forProvider:
     manifest:

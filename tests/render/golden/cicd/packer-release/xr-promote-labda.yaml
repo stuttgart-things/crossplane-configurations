@@ -4,9 +4,23 @@ kind: PackerRelease
 metadata:
   name: u26-labda
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: PackerBuild
+      name: u26-labda-build
 status:
   buildSucceeded: Unknown
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: u26-labda-build'
     reason: Creating
@@ -33,7 +47,7 @@ metadata:
     controller: true
     kind: PackerRelease
     name: u26-labda
-    uid: ""
+    uid: d8d960f8-e152-52cf-9780-30a590852e0f
 spec:
   crossplaneObjectName: u26-labda-build-run
   deriveReadiness: true

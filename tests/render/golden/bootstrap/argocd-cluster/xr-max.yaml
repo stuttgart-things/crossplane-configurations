@@ -4,10 +4,27 @@ kind: ArgocdCluster
 metadata:
   name: argocd-cluster-max
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: argocd-cluster-max-argocd-externalsecret
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: argocd-cluster-max-clusterbook
 status:
   allocationIp: ""
   clusterSecretName: cluster-everything
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: clusterbook-cluster, external-secret'
     reason: Creating
@@ -31,7 +48,7 @@ metadata:
     controller: true
     kind: ArgocdCluster
     name: argocd-cluster-max
-    uid: ""
+    uid: 4a48447a-b641-52bf-bc78-378e9cace487
 spec:
   forProvider:
     manifest:
@@ -120,7 +137,7 @@ metadata:
     controller: true
     kind: ArgocdCluster
     name: argocd-cluster-max
-    uid: ""
+    uid: 4a48447a-b641-52bf-bc78-378e9cace487
 spec:
   forProvider:
     manifest:

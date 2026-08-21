@@ -4,9 +4,23 @@ kind: Cni
 metadata:
   name: kind-test1-cni
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind-test1-cni-observe-rc
 status:
   clusterType: ""
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: kind-test1-cni-observe-rc'
     reason: Creating
@@ -32,7 +46,7 @@ metadata:
     controller: true
     kind: Cni
     name: kind-test1-cni
-    uid: ""
+    uid: 896144b8-120b-5d05-9273-115dea9a2dc4
 spec:
   forProvider:
     manifest:

@@ -4,8 +4,22 @@ kind: VaultK8sAuth
 metadata:
   name: vault-auth-min
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: opentofu.m.upbound.io/v1beta1
+      kind: Workspace
+      name: vcluster-tink2-dev-vault-auth
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vcluster-tink2-dev-vault-auth'
     reason: Creating
@@ -35,7 +49,7 @@ metadata:
     controller: true
     kind: VaultK8sAuth
     name: vault-auth-min
-    uid: ""
+    uid: 5eca6d41-4b2c-5ed5-8891-eb8f13cdeeb7
 spec:
   forProvider:
     entrypoint: ""

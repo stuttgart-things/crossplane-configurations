@@ -4,8 +4,22 @@ kind: NativeProxmoxVM
 metadata:
   name: proxmoxvm-test1
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: virtualenvironmentvm.proxmoxbpg.m.crossplane.io/v1alpha1
+      kind: EnvironmentVM
+      name: proxmoxvm-test1
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: proxmoxvm-test1'
     reason: Creating
@@ -34,7 +48,7 @@ metadata:
     controller: true
     kind: NativeProxmoxVM
     name: proxmoxvm-test1
-    uid: ""
+    uid: a4cb364c-6026-5238-9c47-58ab8dc4b39d
 spec:
   forProvider:
     agent:

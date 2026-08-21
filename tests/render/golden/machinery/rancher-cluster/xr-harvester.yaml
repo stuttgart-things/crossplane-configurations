@@ -4,10 +4,48 @@ kind: RancherCluster
 metadata:
   name: k3s-xp
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-xp-0f30682b2d0b
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-xp-102643040bc0
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-xp-109f1e17040b
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-xp-2ff10870218c
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-xp-98e0d150f1db
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-xp-9da0681333ad
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-xp-cedd51c5276b
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-xp-d098a3bf8ce8
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-xp-d3dee795daec
 status:
   argocdClusterSecret: cluster-k3s-xp
   clusterProviderConfig: k3s-xp
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: k3s-xp-argocd-crb, k3s-xp-argocd-sa, k3s-xp-argocd-saextract,
       and 6 more'
@@ -27,6 +65,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-xp
+  name: k3s-xp-0f30682b2d0b
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -34,7 +73,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-xp
-    uid: ""
+    uid: 5eecf833-557b-58c4-815c-96ae08a5b6c3
 spec:
   forProvider:
     manifest:
@@ -71,6 +110,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-xp
+  name: k3s-xp-102643040bc0
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -78,7 +118,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-xp
-    uid: ""
+    uid: 5eecf833-557b-58c4-815c-96ae08a5b6c3
 spec:
   forProvider:
     manifest:
@@ -108,6 +148,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-xp
+  name: k3s-xp-cedd51c5276b
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -115,7 +156,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-xp
-    uid: ""
+    uid: 5eecf833-557b-58c4-815c-96ae08a5b6c3
 spec:
   connectionDetails:
   - apiVersion: v1
@@ -165,6 +206,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-xp
+  name: k3s-xp-2ff10870218c
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -172,7 +214,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-xp
-    uid: ""
+    uid: 5eecf833-557b-58c4-815c-96ae08a5b6c3
 spec:
   forProvider:
     manifest:
@@ -205,6 +247,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-xp
+  name: k3s-xp-98e0d150f1db
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -212,7 +255,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-xp
-    uid: ""
+    uid: 5eecf833-557b-58c4-815c-96ae08a5b6c3
 spec:
   forProvider:
     manifest:
@@ -238,6 +281,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-xp
+  name: k3s-xp-109f1e17040b
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -245,7 +289,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-xp
-    uid: ""
+    uid: 5eecf833-557b-58c4-815c-96ae08a5b6c3
 spec:
   forProvider:
     manifest:
@@ -285,6 +329,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-xp
+  name: k3s-xp-d098a3bf8ce8
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -292,7 +337,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-xp
-    uid: ""
+    uid: 5eecf833-557b-58c4-815c-96ae08a5b6c3
 spec:
   forProvider:
     manifest:
@@ -330,6 +375,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-xp
+  name: k3s-xp-9da0681333ad
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -337,7 +383,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-xp
-    uid: ""
+    uid: 5eecf833-557b-58c4-815c-96ae08a5b6c3
 spec:
   connectionDetails:
   - apiVersion: v1
@@ -372,6 +418,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-xp
+  name: k3s-xp-d3dee795daec
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -379,7 +426,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-xp
-    uid: ""
+    uid: 5eecf833-557b-58c4-815c-96ae08a5b6c3
 spec:
   forProvider:
     manifest:

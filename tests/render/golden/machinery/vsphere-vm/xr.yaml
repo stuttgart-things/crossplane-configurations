@@ -4,8 +4,22 @@ kind: VsphereVM
 metadata:
   name: opentofu-test1
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: opentofu.m.upbound.io/v1beta1
+      kind: Workspace
+      name: opentofu-test1-d74d8be51362
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vsphere-vm'
     reason: Creating
@@ -21,6 +35,7 @@ metadata:
   generateName: opentofu-test1-
   labels:
     crossplane.io/composite: opentofu-test1
+  name: opentofu-test1-d74d8be51362
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -28,7 +43,7 @@ metadata:
     controller: true
     kind: VsphereVM
     name: opentofu-test1
-    uid: ""
+    uid: 0cfdacdb-8264-58a4-98f6-b77083ee0acf
 spec:
   forProvider:
     module: git::https://github.com/stuttgart-things/vsphere-vm.git?ref=v2.12.0-1.0.0

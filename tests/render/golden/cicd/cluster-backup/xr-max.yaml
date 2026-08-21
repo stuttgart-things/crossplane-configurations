@@ -4,9 +4,38 @@ kind: ClusterBackup
 metadata:
   name: cluster-backup-max
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: machinery-e2e-backup-clusterrole
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: machinery-e2e-backup-clusterrolebinding
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: machinery-e2e-backup-cronjob
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: machinery-e2e-backup-serviceaccount
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: machinery-e2e-backup-tfstate-role
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: machinery-e2e-backup-tfstate-rolebinding
 status:
   artifactRepository: ghcr.io/stuttgart-things/backups/machinery-e2e
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: machinery-e2e-backup-clusterrole, machinery-e2e-backup-clusterrolebinding,
       machinery-e2e-backup-cronjob, and 3 more'
@@ -29,7 +58,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup-max
-    uid: ""
+    uid: 1888e624-beb8-5f92-89e2-7e74f509655e
 spec:
   forProvider:
     manifest:
@@ -69,7 +98,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup-max
-    uid: ""
+    uid: 1888e624-beb8-5f92-89e2-7e74f509655e
 spec:
   forProvider:
     manifest:
@@ -104,7 +133,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup-max
-    uid: ""
+    uid: 1888e624-beb8-5f92-89e2-7e74f509655e
 spec:
   forProvider:
     manifest:
@@ -363,7 +392,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup-max
-    uid: ""
+    uid: 1888e624-beb8-5f92-89e2-7e74f509655e
 spec:
   forProvider:
     manifest:
@@ -391,7 +420,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup-max
-    uid: ""
+    uid: 1888e624-beb8-5f92-89e2-7e74f509655e
 spec:
   forProvider:
     manifest:
@@ -427,7 +456,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup-max
-    uid: ""
+    uid: 1888e624-beb8-5f92-89e2-7e74f509655e
 spec:
   forProvider:
     manifest:

@@ -4,9 +4,41 @@ kind: FluxInit
 metadata:
   name: prod-flux
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: prod-flux-flux-operator
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: prod-flux-flux-instance
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: prod-flux-source-flux-apps
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: prod-flux-source-flux-infra
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: prod-flux-flux-instance-uses-operator
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: prod-flux-source-flux-apps-uses-flux-instance
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: prod-flux-source-flux-infra-uses-flux-instance
 status:
   clusterType: ""
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: prod-flux-flux-instance, prod-flux-flux-instance-uses-operator,
       prod-flux-flux-operator, and 4 more'
@@ -35,7 +67,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: prod-flux
-    uid: ""
+    uid: 99e82f17-d93f-5e89-ac42-7a56440acd30
 spec:
   forProvider:
     manifest:
@@ -79,7 +111,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: prod-flux
-    uid: ""
+    uid: 99e82f17-d93f-5e89-ac42-7a56440acd30
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -109,7 +141,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: prod-flux
-    uid: ""
+    uid: 99e82f17-d93f-5e89-ac42-7a56440acd30
 spec:
   forProvider:
     chart:
@@ -140,7 +172,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: prod-flux
-    uid: ""
+    uid: 99e82f17-d93f-5e89-ac42-7a56440acd30
 spec:
   forProvider:
     manifest:
@@ -175,7 +207,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: prod-flux
-    uid: ""
+    uid: 99e82f17-d93f-5e89-ac42-7a56440acd30
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -205,7 +237,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: prod-flux
-    uid: ""
+    uid: 99e82f17-d93f-5e89-ac42-7a56440acd30
 spec:
   forProvider:
     manifest:
@@ -242,7 +274,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: prod-flux
-    uid: ""
+    uid: 99e82f17-d93f-5e89-ac42-7a56440acd30
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1

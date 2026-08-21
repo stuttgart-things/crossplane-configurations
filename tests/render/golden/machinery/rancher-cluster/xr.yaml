@@ -4,9 +4,32 @@ kind: RancherCluster
 metadata:
   name: k3s-test
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-test-18096291bb96
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-test-b70fb8392979
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-test-d561cb63879d
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-test-d571012cf405
 status:
   clusterProviderConfig: k3s-test
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: k3s-test-bootstrap-namespace, k3s-test-cluster, k3s-test-kubeconfig-bridge,
       and 1 more'
@@ -26,6 +49,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-test
+  name: k3s-test-18096291bb96
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -33,7 +57,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-test
-    uid: ""
+    uid: 21f87fdd-8ab5-5a2c-b329-8e53b04b8295
 spec:
   forProvider:
     manifest:
@@ -59,6 +83,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-test
+  name: k3s-test-d561cb63879d
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -66,7 +91,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-test
-    uid: ""
+    uid: 21f87fdd-8ab5-5a2c-b329-8e53b04b8295
 spec:
   forProvider:
     manifest:
@@ -96,6 +121,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-test
+  name: k3s-test-d571012cf405
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -103,7 +129,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-test
-    uid: ""
+    uid: 21f87fdd-8ab5-5a2c-b329-8e53b04b8295
 spec:
   connectionDetails:
   - apiVersion: v1
@@ -138,6 +164,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-test
+  name: k3s-test-b70fb8392979
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -145,7 +172,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-test
-    uid: ""
+    uid: 21f87fdd-8ab5-5a2c-b329-8e53b04b8295
 spec:
   forProvider:
     manifest:

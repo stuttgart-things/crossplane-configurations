@@ -4,8 +4,22 @@ kind: ClusterStack
 metadata:
   name: u26-kind1
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeProxmoxVM
+      name: u26-kind1-vm
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vm'
     reason: Creating
@@ -53,7 +67,7 @@ metadata:
     controller: true
     kind: ClusterStack
     name: u26-kind1
-    uid: ""
+    uid: bb3cf66e-9bae-5706-937b-6ea6604b240a
 spec:
   ansible:
     crossplaneProviderConfig: in-cluster

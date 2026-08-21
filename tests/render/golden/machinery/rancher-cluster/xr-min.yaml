@@ -4,9 +4,32 @@ kind: RancherCluster
 metadata:
   name: k3s-min
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-min-3a540b5b6ddc
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-min-53d95d3a833e
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-min-cde43dff8f6a
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-min-fc326ca24275
 status:
   clusterProviderConfig: k3s-min
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: k3s-min-bootstrap-namespace, k3s-min-cluster, k3s-min-kubeconfig-bridge,
       and 1 more'
@@ -26,6 +49,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-min
+  name: k3s-min-cde43dff8f6a
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -33,7 +57,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-min
-    uid: ""
+    uid: e148b569-52ea-539c-8d59-c6717abf0c7b
 spec:
   forProvider:
     manifest:
@@ -59,6 +83,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-min
+  name: k3s-min-3a540b5b6ddc
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -66,7 +91,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-min
-    uid: ""
+    uid: e148b569-52ea-539c-8d59-c6717abf0c7b
 spec:
   forProvider:
     manifest:
@@ -96,6 +121,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-min
+  name: k3s-min-53d95d3a833e
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -103,7 +129,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-min
-    uid: ""
+    uid: e148b569-52ea-539c-8d59-c6717abf0c7b
 spec:
   connectionDetails:
   - apiVersion: v1
@@ -138,6 +164,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-min
+  name: k3s-min-fc326ca24275
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -145,7 +172,7 @@ metadata:
     controller: true
     kind: RancherCluster
     name: k3s-min
-    uid: ""
+    uid: e148b569-52ea-539c-8d59-c6717abf0c7b
 spec:
   forProvider:
     manifest:

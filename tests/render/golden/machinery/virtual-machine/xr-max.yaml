@@ -4,9 +4,23 @@ kind: XVirtualMachine
 metadata:
   name: vm-max
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: VMProvision
+      name: vm-max
 status:
   ansibleReady: false
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vm-max'
     reason: Creating
@@ -34,7 +48,7 @@ metadata:
     controller: true
     kind: XVirtualMachine
     name: vm-max
-    uid: ""
+    uid: 77d73285-c402-5274-924a-790ed275e272
 spec:
   ansible:
     enabled: false

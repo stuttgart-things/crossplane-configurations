@@ -4,9 +4,29 @@ kind: VMBatch
 metadata:
   name: vm-batch
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeProxmoxVM
+      name: vm-batch-db-0
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeProxmoxVM
+      name: vm-batch-web-0
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeProxmoxVM
+      name: vm-batch-web-1
 status:
   ansibleReady: false
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vm-batch-db-0, vm-batch-web-0, and vm-batch-web-1'
     reason: Creating
@@ -37,7 +57,7 @@ metadata:
     controller: true
     kind: VMBatch
     name: vm-batch
-    uid: ""
+    uid: 13661fdc-2967-5c86-9acd-17b09c32352f
 spec:
   cloudInit:
     ipv4Address: dhcp
@@ -66,7 +86,7 @@ metadata:
     controller: true
     kind: VMBatch
     name: vm-batch
-    uid: ""
+    uid: 13661fdc-2967-5c86-9acd-17b09c32352f
 spec:
   cloudInit:
     ipv4Address: dhcp
@@ -95,7 +115,7 @@ metadata:
     controller: true
     kind: VMBatch
     name: vm-batch
-    uid: ""
+    uid: 13661fdc-2967-5c86-9acd-17b09c32352f
 spec:
   cloudInit:
     ipv4Address: dhcp

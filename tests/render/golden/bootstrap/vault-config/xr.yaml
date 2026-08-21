@@ -4,8 +4,61 @@ kind: VaultConfig
 metadata:
   name: vault-config
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: eso-vcluster-tink2
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: vault-csi-vcluster-tink2
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: vso-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: clusterrolebinding-cicd-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: clusterrolebinding-dev-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: namespace-external-secrets-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: namespace-secrets-store-csi-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: namespace-vault-secrets-operator-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: secret-cicd-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: secret-dev-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: serviceaccount-cicd-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: serviceaccount-dev-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: token-reader-cicd-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: token-reader-dev-vcluster-tink2
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vault-clusterrolebinding-cicd-vcluster-tink2, vault-clusterrolebinding-dev-vcluster-tink2,
       vault-csi-vault-config-vcluster-tink2, and 11 more'
@@ -28,7 +81,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   forProvider:
     manifest:
@@ -66,7 +119,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   forProvider:
     manifest:
@@ -104,7 +157,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   forProvider:
     chart:
@@ -140,7 +193,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   forProvider:
     chart:
@@ -207,7 +260,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   forProvider:
     manifest:
@@ -241,7 +294,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   forProvider:
     manifest:
@@ -275,7 +328,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   forProvider:
     manifest:
@@ -309,7 +362,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   forProvider:
     manifest:
@@ -344,7 +397,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   forProvider:
     manifest:
@@ -379,7 +432,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   forProvider:
     manifest:
@@ -411,7 +464,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   forProvider:
     manifest:
@@ -443,7 +496,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   connectionDetails:
   - apiVersion: v1
@@ -483,7 +536,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   connectionDetails:
   - apiVersion: v1
@@ -523,7 +576,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config
-    uid: ""
+    uid: 40fa8edb-c5c8-5e56-901e-24ab338f34f5
 spec:
   forProvider:
     chart:

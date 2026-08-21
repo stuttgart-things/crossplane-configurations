@@ -4,9 +4,35 @@ kind: FluxInit
 metadata:
   name: staging-flux
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: staging-flux-flux-operator
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: staging-flux-flux-instance
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: staging-flux-source-fleet-infra
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: staging-flux-flux-instance-uses-operator
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: staging-flux-source-fleet-infra-uses-flux-instance
 status:
   clusterType: ""
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: staging-flux-flux-instance, staging-flux-flux-instance-uses-operator,
       staging-flux-flux-operator, and 2 more'
@@ -35,7 +61,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: staging-flux
-    uid: ""
+    uid: e898edfe-dbe7-5684-9c43-685cae557111
 spec:
   forProvider:
     manifest:
@@ -77,7 +103,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: staging-flux
-    uid: ""
+    uid: e898edfe-dbe7-5684-9c43-685cae557111
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -107,7 +133,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: staging-flux
-    uid: ""
+    uid: e898edfe-dbe7-5684-9c43-685cae557111
 spec:
   forProvider:
     chart:
@@ -138,7 +164,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: staging-flux
-    uid: ""
+    uid: e898edfe-dbe7-5684-9c43-685cae557111
 spec:
   forProvider:
     manifest:
@@ -173,7 +199,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: staging-flux
-    uid: ""
+    uid: e898edfe-dbe7-5684-9c43-685cae557111
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1

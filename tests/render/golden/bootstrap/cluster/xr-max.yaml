@@ -4,8 +4,22 @@ kind: ClusterStack
 metadata:
   name: cluster-max
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeVsphereVM
+      name: cluster-max-vm
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vm'
     reason: Creating
@@ -53,7 +67,7 @@ metadata:
     controller: true
     kind: ClusterStack
     name: cluster-max
-    uid: ""
+    uid: d3d07b77-5411-5170-9916-16ba0cd6b355
 spec:
   ansible:
     ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test

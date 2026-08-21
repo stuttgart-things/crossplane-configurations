@@ -4,9 +4,23 @@ kind: PackerRelease
 metadata:
   name: ubuntu24-labul-release
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: PackerBuild
+      name: ubuntu24-labul-release-build
 status:
   buildSucceeded: Unknown
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: ubuntu24-labul-release-build'
     reason: Creating
@@ -33,7 +47,7 @@ metadata:
     controller: true
     kind: PackerRelease
     name: ubuntu24-labul-release
-    uid: ""
+    uid: d9ab11e0-68e1-5a79-b19c-0b67d96d0371
 spec:
   crossplaneObjectName: ubuntu24-labul-release-build-run
   deriveReadiness: true

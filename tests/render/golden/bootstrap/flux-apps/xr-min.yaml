@@ -4,10 +4,24 @@ kind: FluxApps
 metadata:
   name: lab-apps
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: lab-apps-app-podinfo
 status:
   appCount: 1
   appsReady: false
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: lab-apps-app-podinfo'
     reason: Creating
@@ -31,7 +45,7 @@ metadata:
     controller: true
     kind: FluxApps
     name: lab-apps
-    uid: ""
+    uid: 53440db4-2571-5c69-b213-ecb4cef5b78e
 spec:
   forProvider:
     manifest:

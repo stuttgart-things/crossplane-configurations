@@ -4,8 +4,49 @@ kind: VaultConfig
 metadata:
   name: vault-config-min
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: eso-vcluster-tink2
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: vault-csi-vcluster-tink2
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: vso-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: clusterrolebinding-vault-auth-vault-config-min-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: namespace-external-secrets-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: namespace-secrets-store-csi-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: namespace-vault-secrets-operator-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: secret-vault-auth-vault-config-min-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: serviceaccount-vault-auth-vault-config-min-vcluster-tink2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: token-reader-vault-auth-vault-config-min-vcluster-tink2
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vault-clusterrolebinding-vault-auth-vault-config-min-vcluster-tink2,
       vault-csi-vault-config-min-vcluster-tink2, vault-eso-vault-config-min-vcluster-tink2,
@@ -29,7 +70,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config-min
-    uid: ""
+    uid: d7f7c18f-2974-5a1a-8b25-86c7a609b6b8
 spec:
   forProvider:
     manifest:
@@ -67,7 +108,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config-min
-    uid: ""
+    uid: d7f7c18f-2974-5a1a-8b25-86c7a609b6b8
 spec:
   forProvider:
     chart:
@@ -103,7 +144,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config-min
-    uid: ""
+    uid: d7f7c18f-2974-5a1a-8b25-86c7a609b6b8
 spec:
   forProvider:
     chart:
@@ -170,7 +211,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config-min
-    uid: ""
+    uid: d7f7c18f-2974-5a1a-8b25-86c7a609b6b8
 spec:
   forProvider:
     manifest:
@@ -204,7 +245,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config-min
-    uid: ""
+    uid: d7f7c18f-2974-5a1a-8b25-86c7a609b6b8
 spec:
   forProvider:
     manifest:
@@ -238,7 +279,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config-min
-    uid: ""
+    uid: d7f7c18f-2974-5a1a-8b25-86c7a609b6b8
 spec:
   forProvider:
     manifest:
@@ -272,7 +313,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config-min
-    uid: ""
+    uid: d7f7c18f-2974-5a1a-8b25-86c7a609b6b8
 spec:
   forProvider:
     manifest:
@@ -307,7 +348,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config-min
-    uid: ""
+    uid: d7f7c18f-2974-5a1a-8b25-86c7a609b6b8
 spec:
   forProvider:
     manifest:
@@ -339,7 +380,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config-min
-    uid: ""
+    uid: d7f7c18f-2974-5a1a-8b25-86c7a609b6b8
 spec:
   connectionDetails:
   - apiVersion: v1
@@ -379,7 +420,7 @@ metadata:
     controller: true
     kind: VaultConfig
     name: vault-config-min
-    uid: ""
+    uid: d7f7c18f-2974-5a1a-8b25-86c7a609b6b8
 spec:
   forProvider:
     chart:

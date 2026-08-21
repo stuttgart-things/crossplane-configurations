@@ -4,10 +4,27 @@ kind: ArgocdCluster
 metadata:
   name: argocd-cluster-min
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: argocd-cluster-min-argocd-externalsecret
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: argocd-cluster-min-clusterbook
 status:
   allocationIp: ""
   clusterSecretName: cluster-my-cluster
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: clusterbook-cluster, external-secret'
     reason: Creating
@@ -31,7 +48,7 @@ metadata:
     controller: true
     kind: ArgocdCluster
     name: argocd-cluster-min
-    uid: ""
+    uid: 0daf7572-aba9-54e9-b1ab-9c7d29cf3abe
 spec:
   forProvider:
     manifest:
@@ -103,7 +120,7 @@ metadata:
     controller: true
     kind: ArgocdCluster
     name: argocd-cluster-min
-    uid: ""
+    uid: 0daf7572-aba9-54e9-b1ab-9c7d29cf3abe
 spec:
   forProvider:
     manifest:

@@ -4,9 +4,23 @@ kind: XVirtualMachine
 metadata:
   name: vm-standard
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: VMProvision
+      name: vm-standard
 status:
   ansibleReady: false
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vm-standard'
     reason: Creating
@@ -34,7 +48,7 @@ metadata:
     controller: true
     kind: XVirtualMachine
     name: vm-standard
-    uid: ""
+    uid: 9f64dd79-1287-52dd-a281-eefa95f7b7b5
 spec:
   ansible:
     ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test

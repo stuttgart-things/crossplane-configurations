@@ -4,8 +4,34 @@ kind: ScheduledRun
 metadata:
   name: nightly-baseos
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: nightly-baseos-configmap
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: nightly-baseos-cronjob
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: nightly-baseos-role
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: nightly-baseos-rolebinding
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: nightly-baseos-serviceaccount
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: nightly-baseos-configmap, nightly-baseos-cronjob,
       nightly-baseos-role, and 2 more'
@@ -29,7 +55,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: nightly-baseos
-    uid: ""
+    uid: dd8524e1-04bf-5a41-a0cc-83b974b21eda
 spec:
   forProvider:
     manifest:
@@ -73,7 +99,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: nightly-baseos
-    uid: ""
+    uid: dd8524e1-04bf-5a41-a0cc-83b974b21eda
 spec:
   forProvider:
     manifest:
@@ -203,7 +229,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: nightly-baseos
-    uid: ""
+    uid: dd8524e1-04bf-5a41-a0cc-83b974b21eda
 spec:
   forProvider:
     manifest:
@@ -241,7 +267,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: nightly-baseos
-    uid: ""
+    uid: dd8524e1-04bf-5a41-a0cc-83b974b21eda
 spec:
   forProvider:
     manifest:
@@ -277,7 +303,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: nightly-baseos
-    uid: ""
+    uid: dd8524e1-04bf-5a41-a0cc-83b974b21eda
 spec:
   forProvider:
     manifest:

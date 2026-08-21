@@ -4,8 +4,22 @@ kind: ClusterStack
 metadata:
   name: cluster-min
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeProxmoxVM
+      name: cluster-min-vm
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vm'
     reason: Creating
@@ -53,7 +67,7 @@ metadata:
     controller: true
     kind: ClusterStack
     name: cluster-min
-    uid: ""
+    uid: 816fd420-d9a9-5a57-b0bd-eb4bf3eebc13
 spec:
   ansible:
     crossplaneProviderConfig: in-cluster

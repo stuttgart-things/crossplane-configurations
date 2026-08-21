@@ -4,8 +4,25 @@ kind: VaultK8sAuth
 metadata:
   name: vault-auth
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: opentofu.m.upbound.io/v1beta1
+      kind: Workspace
+      name: vcluster-tink2-cicd-vault-auth
+    - apiVersion: opentofu.m.upbound.io/v1beta1
+      kind: Workspace
+      name: vcluster-tink2-dev-vault-auth
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vcluster-tink2-cicd-vault-auth, vcluster-tink2-dev-vault-auth'
     reason: Creating
@@ -38,7 +55,7 @@ metadata:
     controller: true
     kind: VaultK8sAuth
     name: vault-auth
-    uid: ""
+    uid: 7b2deb21-e887-592b-b44d-d308ea64b2a8
 spec:
   forProvider:
     entrypoint: ""
@@ -204,7 +221,7 @@ metadata:
     controller: true
     kind: VaultK8sAuth
     name: vault-auth
-    uid: ""
+    uid: 7b2deb21-e887-592b-b44d-d308ea64b2a8
 spec:
   forProvider:
     entrypoint: ""

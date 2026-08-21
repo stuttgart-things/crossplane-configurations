@@ -4,9 +4,38 @@ kind: FluxInit
 metadata:
   name: sops-flux
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: sops-flux-flux-operator
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: sops-flux-flux-instance
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: sops-flux-sops-age
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: sops-flux-source-fleet-infra
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: sops-flux-flux-instance-uses-operator
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: sops-flux-source-fleet-infra-uses-flux-instance
 status:
   clusterType: ""
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: sops-flux-flux-instance, sops-flux-flux-instance-uses-operator,
       sops-flux-flux-operator, and 3 more'
@@ -35,7 +64,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: sops-flux
-    uid: ""
+    uid: 107a25f1-f2ae-56ac-901c-f5efa1c45747
 spec:
   forProvider:
     manifest:
@@ -94,7 +123,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: sops-flux
-    uid: ""
+    uid: 107a25f1-f2ae-56ac-901c-f5efa1c45747
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -124,7 +153,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: sops-flux
-    uid: ""
+    uid: 107a25f1-f2ae-56ac-901c-f5efa1c45747
 spec:
   forProvider:
     chart:
@@ -154,7 +183,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: sops-flux
-    uid: ""
+    uid: 107a25f1-f2ae-56ac-901c-f5efa1c45747
 spec:
   forProvider:
     manifest:
@@ -192,7 +221,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: sops-flux
-    uid: ""
+    uid: 107a25f1-f2ae-56ac-901c-f5efa1c45747
 spec:
   forProvider:
     manifest:
@@ -227,7 +256,7 @@ metadata:
     controller: true
     kind: FluxInit
     name: sops-flux
-    uid: ""
+    uid: 107a25f1-f2ae-56ac-901c-f5efa1c45747
 spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1

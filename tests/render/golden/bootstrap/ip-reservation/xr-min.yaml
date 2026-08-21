@@ -4,8 +4,22 @@ kind: XIPReservation
 metadata:
   name: test-ip-reservation
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: test-ip-reservation-observe-rc
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: test-ip-reservation-observe-rc'
     reason: Creating
@@ -33,7 +47,7 @@ metadata:
     controller: true
     kind: XIPReservation
     name: test-ip-reservation
-    uid: ""
+    uid: 0c856288-c502-5f7c-829e-08c79b21f5cd
 spec:
   forProvider:
     manifest:

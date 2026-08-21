@@ -4,6 +4,12 @@ kind: Platform
 metadata:
   name: minimal
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: config.stuttgart-things.com/v1alpha1
+      kind: FluxInit
+      name: minimal-flux-init
 status:
   componentCount: 1
   components:
@@ -52,15 +58,23 @@ status:
       waitingForCertManager: false
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: minimal-flux-init'
-    reason: Creating
-    status: "False"
-    type: Ready
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: no components are waiting on a discovered value
     reason: AllSupplied
     status: "False"
     type: PendingSubstitutions
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: minimal-flux-init'
+    reason: Creating
+    status: "False"
+    type: Ready
   ready: false
   readyComponents: 0
   shared:
@@ -85,7 +99,7 @@ metadata:
     controller: true
     kind: Platform
     name: minimal
-    uid: ""
+    uid: fa99270a-cea2-5e7d-886d-8d17664e2b17
 spec:
   clusterName: dev
   helmProviderConfigRef: dev-helm

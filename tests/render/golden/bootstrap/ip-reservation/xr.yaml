@@ -4,8 +4,22 @@ kind: XIPReservation
 metadata:
   name: k3s-2-ip
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-2-ip-observe-rc
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: k3s-2-ip-observe-rc'
     reason: Creating
@@ -33,7 +47,7 @@ metadata:
     controller: true
     kind: XIPReservation
     name: k3s-2-ip
-    uid: ""
+    uid: 2cc0dc10-800f-50f7-aecd-d05d8e8e1ce0
 spec:
   forProvider:
     manifest:

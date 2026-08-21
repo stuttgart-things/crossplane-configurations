@@ -4,9 +4,23 @@ kind: VMProvision
 metadata:
   name: test-vsphere-vm
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: VsphereVM
+      name: test-vsphere-vm-vsphere-vm
 status:
   ansibleReady: false
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: test-vsphere-vm-vsphere-vm'
     reason: Creating
@@ -32,7 +46,7 @@ metadata:
     controller: true
     kind: VMProvision
     name: test-vsphere-vm
-    uid: ""
+    uid: ba3ea045-a6f5-5e8d-ac23-5d24edead8f3
 spec:
   connectionSecret:
     name: test-vsphere-vm

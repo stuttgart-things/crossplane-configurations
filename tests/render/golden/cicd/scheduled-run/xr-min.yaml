@@ -4,8 +4,34 @@ kind: ScheduledRun
 metadata:
   name: scheduled-run-min
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: scheduled-run-min-configmap
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: scheduled-run-min-cronjob
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: scheduled-run-min-role
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: scheduled-run-min-rolebinding
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: scheduled-run-min-serviceaccount
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: scheduled-run-min-configmap, scheduled-run-min-cronjob,
       scheduled-run-min-role, and 2 more'
@@ -29,7 +55,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: scheduled-run-min
-    uid: ""
+    uid: ec21dc46-5ded-5b56-85e2-22fc1960d2fb
 spec:
   forProvider:
     manifest:
@@ -69,7 +95,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: scheduled-run-min
-    uid: ""
+    uid: ec21dc46-5ded-5b56-85e2-22fc1960d2fb
 spec:
   forProvider:
     manifest:
@@ -199,7 +225,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: scheduled-run-min
-    uid: ""
+    uid: ec21dc46-5ded-5b56-85e2-22fc1960d2fb
 spec:
   forProvider:
     manifest:
@@ -237,7 +263,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: scheduled-run-min
-    uid: ""
+    uid: ec21dc46-5ded-5b56-85e2-22fc1960d2fb
 spec:
   forProvider:
     manifest:
@@ -273,7 +299,7 @@ metadata:
     controller: true
     kind: ScheduledRun
     name: scheduled-run-min
-    uid: ""
+    uid: ec21dc46-5ded-5b56-85e2-22fc1960d2fb
 spec:
   forProvider:
     manifest:

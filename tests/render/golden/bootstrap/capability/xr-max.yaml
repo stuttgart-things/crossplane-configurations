@@ -4,6 +4,54 @@ kind: Capability
 metadata:
   name: labul-capability
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-ansible-run-credentials
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-ansible-run-environment-config
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-ansible-run-secret-store
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-namespace-crossplane-system
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-namespace-default
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-namespace-tekton-ci
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-proxmoxvm-ci-password-secret
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-proxmoxvm-credentials
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-proxmoxvm-environment-config
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-proxmoxvm-provider-config
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-proxmoxvm-secret-store
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-vspherevm-credentials
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-vspherevm-environment-config
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-vspherevm-provider-config
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-rke2-1-labul-vspherevm-secret-store
 status:
   capabilities:
     ansible-run:
@@ -25,6 +73,14 @@ status:
       secretStore: vspherevm-labul
   capabilityCount: 3
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: u26-rke2-1-labul-ansible-run-credentials, u26-rke2-1-labul-ansible-run-environment-config,
       u26-rke2-1-labul-ansible-run-secret-store, and 12 more'
@@ -49,7 +105,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -100,7 +156,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -154,7 +210,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -201,7 +257,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -234,7 +290,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -267,7 +323,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -300,7 +356,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -350,7 +406,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -402,7 +458,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -457,7 +513,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -494,7 +550,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -541,7 +597,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -592,7 +648,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -639,7 +695,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:
@@ -676,7 +732,7 @@ metadata:
     controller: true
     kind: Capability
     name: labul-capability
-    uid: ""
+    uid: ac311b5c-438e-53b4-9ef0-4a021a1a26c5
 spec:
   forProvider:
     manifest:

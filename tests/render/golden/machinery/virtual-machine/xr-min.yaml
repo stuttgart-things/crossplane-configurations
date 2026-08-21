@@ -4,9 +4,23 @@ kind: XVirtualMachine
 metadata:
   name: vm-min
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: VMProvision
+      name: vm-min
 status:
   ansibleReady: false
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: vm-min'
     reason: Creating
@@ -34,7 +48,7 @@ metadata:
     controller: true
     kind: XVirtualMachine
     name: vm-min
-    uid: ""
+    uid: 89645f6d-21a5-5122-9bf8-551372af220c
 spec:
   ansible:
     ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test

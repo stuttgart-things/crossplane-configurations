@@ -4,8 +4,25 @@ kind: CloudInit
 metadata:
   name: max-vm
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: max-vm-715e4c3f26a1
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: max-vm-9a294c49b61d
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: max-cloud-init, max-namespace'
     reason: Creating
@@ -24,6 +41,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-cloud-init
     crossplane.io/composite: max-vm
+  name: max-vm-715e4c3f26a1
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -31,7 +49,7 @@ metadata:
     controller: true
     kind: CloudInit
     name: max-vm
-    uid: ""
+    uid: d802a3ae-1825-56b8-bbf0-08e792959fc1
 spec:
   forProvider:
     manifest:
@@ -91,6 +109,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-cloud-init
     crossplane.io/composite: max-vm
+  name: max-vm-9a294c49b61d
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -98,7 +117,7 @@ metadata:
     controller: true
     kind: CloudInit
     name: max-vm
-    uid: ""
+    uid: d802a3ae-1825-56b8-bbf0-08e792959fc1
 spec:
   forProvider:
     manifest:

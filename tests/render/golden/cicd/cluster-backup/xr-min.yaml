@@ -4,8 +4,37 @@ kind: ClusterBackup
 metadata:
   name: cluster-backup-min
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind1-backup-clusterrole
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind1-backup-clusterrolebinding
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind1-backup-cronjob
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind1-backup-serviceaccount
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind1-backup-tfstate-role
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: kind1-backup-tfstate-rolebinding
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: kind1-backup-clusterrole, kind1-backup-clusterrolebinding,
       kind1-backup-cronjob, and 3 more'
@@ -28,7 +57,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup-min
-    uid: ""
+    uid: 2b7806e8-8893-5840-b9d6-741b888f9d8f
 spec:
   forProvider:
     manifest:
@@ -68,7 +97,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup-min
-    uid: ""
+    uid: 2b7806e8-8893-5840-b9d6-741b888f9d8f
 spec:
   forProvider:
     manifest:
@@ -103,7 +132,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup-min
-    uid: ""
+    uid: 2b7806e8-8893-5840-b9d6-741b888f9d8f
 spec:
   forProvider:
     manifest:
@@ -362,7 +391,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup-min
-    uid: ""
+    uid: 2b7806e8-8893-5840-b9d6-741b888f9d8f
 spec:
   forProvider:
     manifest:
@@ -390,7 +419,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup-min
-    uid: ""
+    uid: 2b7806e8-8893-5840-b9d6-741b888f9d8f
 spec:
   forProvider:
     manifest:
@@ -426,7 +455,7 @@ metadata:
     controller: true
     kind: ClusterBackup
     name: cluster-backup-min
-    uid: ""
+    uid: 2b7806e8-8893-5840-b9d6-741b888f9d8f
 spec:
   forProvider:
     manifest:

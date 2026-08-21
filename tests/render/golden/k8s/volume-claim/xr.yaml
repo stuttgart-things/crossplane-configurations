@@ -4,8 +4,22 @@ kind: VolumeClaim
 metadata:
   name: app-data
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: app-data-3b0b031beeb3
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: app-data-pvc'
     reason: Creating
@@ -24,6 +38,7 @@ metadata:
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: volume-claim
     crossplane.io/composite: app-data
+  name: app-data-3b0b031beeb3
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -31,7 +46,7 @@ metadata:
     controller: true
     kind: VolumeClaim
     name: app-data
-    uid: ""
+    uid: 33ea31fa-c4b4-54b4-a535-082be829464d
 spec:
   forProvider:
     manifest:

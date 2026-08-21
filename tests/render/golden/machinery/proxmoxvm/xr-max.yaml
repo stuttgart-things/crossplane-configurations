@@ -4,8 +4,22 @@ kind: NativeProxmoxVM
 metadata:
   name: proxmoxvm-max
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: virtualenvironmentvm.proxmoxbpg.m.crossplane.io/v1alpha1
+      kind: EnvironmentVM
+      name: proxmoxvm-max
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: proxmoxvm-max'
     reason: Creating
@@ -34,7 +48,7 @@ metadata:
     controller: true
     kind: NativeProxmoxVM
     name: proxmoxvm-max
-    uid: ""
+    uid: 6332c2e7-5443-5cf2-8664-29c476521ec4
 spec:
   forProvider:
     agent:

@@ -4,9 +4,26 @@ kind: Cilium
 metadata:
   name: u26-kind1
   namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-kind1-gateway
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: u26-kind1-observe-ip
 status:
   ciliumVersion: 1.19.2
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: u26-kind1-gateway, u26-kind1-observe-ip'
     reason: Creating
@@ -33,7 +50,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1
-    uid: ""
+    uid: 5621fdf8-6198-5f26-9cc9-1f014776d9ba
 spec:
   forProvider:
     manifest:
@@ -84,7 +101,7 @@ metadata:
     controller: true
     kind: Cilium
     name: u26-kind1
-    uid: ""
+    uid: 5621fdf8-6198-5f26-9cc9-1f014776d9ba
 spec:
   forProvider:
     manifest:

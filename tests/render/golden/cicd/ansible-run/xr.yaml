@@ -4,8 +4,22 @@ kind: AnsibleRun
 metadata:
   name: ansible-run-baseos
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: run-ansible-baseos
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: run-ansible-baseos'
     reason: Creating
@@ -32,7 +46,7 @@ metadata:
     controller: true
     kind: AnsibleRun
     name: ansible-run-baseos
-    uid: ""
+    uid: 3299f6e4-163d-5455-ac6a-9006650fba12
 spec:
   forProvider:
     manifest:

@@ -4,6 +4,15 @@ kind: ManagementPlane
 metadata:
   name: mgmt-1
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: mgmt-1-crossplane
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: mgmt-1-rbac
 status:
   components:
     crossplane:
@@ -18,6 +27,14 @@ status:
     rbac:
       clusterAdmin: true
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: mgmt-1-crossplane, mgmt-1-rbac'
     reason: Creating
@@ -57,7 +74,7 @@ metadata:
     controller: true
     kind: ManagementPlane
     name: mgmt-1
-    uid: ""
+    uid: 95c7ec31-0b89-5f0a-b31d-9f045e05ef26
 spec:
   forProvider:
     chart:
@@ -86,7 +103,7 @@ metadata:
     controller: true
     kind: ManagementPlane
     name: mgmt-1
-    uid: ""
+    uid: 95c7ec31-0b89-5f0a-b31d-9f045e05ef26
 spec:
   forProvider:
     manifest:

@@ -4,8 +4,22 @@ kind: TofuRun
 metadata:
   name: tofu-example
   namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: tofu-example
 status:
   conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: tofu-example'
     reason: Creating
@@ -32,7 +46,7 @@ metadata:
     controller: true
     kind: TofuRun
     name: tofu-example
-    uid: ""
+    uid: edfce0d0-00e2-51b0-9877-383dbe1a5570
 spec:
   forProvider:
     manifest:
