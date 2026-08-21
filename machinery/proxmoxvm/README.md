@@ -56,8 +56,17 @@ The bpg provider clones a template by its **numeric VMID**, not its name. Resolv
 your prepared template to its VMID and set it on the EnvironmentConfig
 (`templateVmId`) — or per XR via `spec.vm.templateVmId`. This is the one
 behavioural difference from the Telmate-based `proxmox-vm` module, which clones by
-name. In the LabUL fleet, `sthings-u26` is **VMID 110** on `ul-pve01` (the example
-EnvironmentConfig is set accordingly).
+name. In the LabUL fleet, `sthings-u26` is **VMID 211** on **`ul-pve11`** (the
+example EnvironmentConfig is set accordingly).
+
+Two things that number carries. **Not 110**, which is also called `sthings-u26`:
+it ships `/etc/cloud/cloud-init.disabled`, so cloud-init never runs and every
+clone keeps the hostname `ubuntu` regardless of what is injected
+(stuttgart-things#2432) — the VM comes up healthy, just not as the host you asked
+for. And **not `ul-pve01`**: the LabUL rebuild moved the ubuntu26 templates, and
+bpg derives the clone *source* node from `node` unless `templateNode` is set, so
+a stale value fails the build with `unable to find configuration file for VM 211
+on node 'ul-pve01'`.
 
 Three template-specific gotchas the example values already account for:
 

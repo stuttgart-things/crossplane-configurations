@@ -56,7 +56,7 @@ spec:
     bios: seabios
     clone:
     - full: true
-      vmId: 110
+      vmId: 211
     cpu:
     - cores: 2
       type: host
@@ -82,7 +82,7 @@ spec:
     - bridge: vmbrvlan
       model: virtio
       vlanId: 102
-    nodeName: ul-pve01
+    nodeName: ul-pve11
     operatingSystem:
     - type: l26
     poolId: stuttgart-things
