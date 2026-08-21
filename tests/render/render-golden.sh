@@ -40,6 +40,24 @@ if ! command -v crossplane >/dev/null 2>&1; then
   exit 127
 fi
 
+# Pin the Crossplane core image the renderer runs `internal render` in.
+#
+# CLI >= v2.3.0 no longer executes the pipeline itself; it starts
+# `crossplane internal render` inside a core image, defaulting to the FLOATING
+# tag xpkg.crossplane.io/crossplane/crossplane:stable. When that tag points at
+# an image without `internal`, every render dies with
+# "unexpected argument internal" — which is exactly how this broke in June
+# without a single code change (stuttgart-things/dagger#295). A floating tag in
+# the execution path is the same hazard as one in a package pin.
+#
+# Probed by FLAG, not by version: v2.2.2 (what render-golden.yaml and the dagger
+# module pin) has no such flag and needs none — it renders in-process. The same
+# script therefore runs on both generations.
+IMAGE_ARG=""
+if crossplane render --help 2>&1 | grep -q -- '--crossplane-image'; then
+  IMAGE_ARG="--crossplane-image=${CROSSPLANE_RENDER_IMAGE:-xpkg.crossplane.io/crossplane/crossplane:v2.4.0}"
+fi
+
 # Restrict to one Configuration with CONFIG=<path> (e.g. CONFIG=k8s/namespace);
 # default is every Configuration in the repo.
 if [ -n "${CONFIG:-}" ]; then
@@ -87,9 +105,11 @@ for c in $CONFIGS; do
 
     set +e
     if [ -n "$extra_dir" ]; then
-      crossplane render "$xr" "$comp" "$funcs" --extra-resources "$extra_dir" > "$out.tmp" 2>"$out.err"
+      # shellcheck disable=SC2086
+      crossplane render "$xr" "$comp" "$funcs" --extra-resources "$extra_dir" $IMAGE_ARG > "$out.tmp" 2>"$out.err"
     else
-      crossplane render "$xr" "$comp" "$funcs" > "$out.tmp" 2>"$out.err"
+      # shellcheck disable=SC2086
+      crossplane render "$xr" "$comp" "$funcs" $IMAGE_ARG > "$out.tmp" 2>"$out.err"
     fi
     rc=$?
     set -e
