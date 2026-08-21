@@ -70,7 +70,7 @@ Blue is an XR (Crossplane composes it further), grey a managed resource, dashed-
 So a minimal `Platform` (no sources, no SOPS, no `clusterName`) composes **four** objects — the `FluxInit` child, and a `Release`, an `Object` and a `Usage` beneath it:
 
 ```console
-$ crossplane beta trace platform kind1 -n crossplane-system
+$ crossplane resource trace platform kind1 -n crossplane-system
 NAME                                                       SYNCED   READY   STATUS
 Platform/kind1 (crossplane-system)                         True     True    Available
 └─ FluxInit/kind1-flux-init (crossplane-system)            True     True    Available
@@ -83,7 +83,7 @@ With one app enabled (`apps: {dapr: {}}`), verified on kind1 2026-07-18 — note
 source Object and the app Object both come from that single toggle:
 
 ```console
-$ crossplane beta trace platform kind1 -n crossplane-system
+$ crossplane resource trace platform kind1 -n crossplane-system
 NAME                                                                          SYNCED   READY   STATUS
 Platform/kind1 (crossplane-system)                                            True     True    Available
 ├─ FluxApps/kind1-flux-apps (crossplane-system)                               True     True    Available

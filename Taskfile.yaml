@@ -351,7 +351,13 @@ tasks:
           gum spin --title "waiting ${TRACE_WAIT}s for reconciliation..." --spinner dot -- sleep "$TRACE_WAIT"
           echo
           echo "Trace:"
-          crossplane beta trace "$XR_KIND" "$XR_NAME" -n "$XR_NS" || true
+          # `resource trace`, nicht `beta trace`: die beta-Subcommands sind mit
+          # CLI v2.3.0 promotet und dabei umbenannt worden, die alte Schreibweise
+          # existiert nicht mehr. Ausgabe ist identisch — auf u26-kind3 gegen
+          # dieselbe ManagedNamespace byteweise verglichen (v2.2.1 beta trace vs.
+          # v2.4.1 resource trace). Das `|| true` bleibt: der Trace ist Beiwerk,
+          # kein Grund den Task scheitern zu lassen.
+          crossplane resource trace "$XR_KIND" "$XR_NAME" -n "$XR_NS" || true
         fi
 
   clean-stranded:

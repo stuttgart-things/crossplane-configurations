@@ -83,7 +83,7 @@ kubectl get externalsecret -A | grep -E 'vsphere-tfvars|ansible-credentials'   #
 Then watch the composed chain. Best single view (needs the crossplane CLI):
 
 ```bash
-crossplane beta trace xvirtualmachine.resources.stuttgart-things.com/vm-standard -n vsphere-vms
+crossplane resource trace xvirtualmachine.resources.stuttgart-things.com/vm-standard -n vsphere-vms
 ```
 
 Or piece by piece:

@@ -109,7 +109,7 @@ kubectl get externalsecret -A | grep ansible-credentials   # want SecretSynced /
 Then watch the composed chain. Best single view (needs the crossplane CLI):
 
 ```bash
-crossplane beta trace xvirtualmachine.resources.stuttgart-things.com/vm-harvester -n harvester-vms
+crossplane resource trace xvirtualmachine.resources.stuttgart-things.com/vm-harvester -n harvester-vms
 ```
 
 Or piece by piece:

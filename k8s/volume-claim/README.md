@@ -78,8 +78,12 @@ CONFIG=k8s/volume-claim XR=xr.yaml task render
 
 ### Trace resource status
 
+> Needs the Crossplane CLI **v2.3.0 or newer**. Before the beta subcommands were
+> promoted this was `crossplane beta trace`; that spelling no longer exists.
+> The `sthings.baseos` binaries role ships v2.4.1.
+
 ```bash
-crossplane beta trace volumeclaim.resources.stuttgart-things.com app-data -n default
+crossplane resource trace volumeclaim.resources.stuttgart-things.com app-data -n default
 ```
 
 ## Files

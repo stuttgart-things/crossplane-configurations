@@ -141,8 +141,12 @@ The emitted `VMProvision` is inert under render (no live VM status), so
 
 ### Trace resource status
 
+> Needs the Crossplane CLI **v2.3.0 or newer**. Before the beta subcommands were
+> promoted this was `crossplane beta trace`; that spelling no longer exists.
+> The `sthings.baseos` binaries role ships v2.4.1.
+
 ```bash
-crossplane beta trace xvirtualmachine.resources.stuttgart-things.com vm-standard -n default
+crossplane resource trace xvirtualmachine.resources.stuttgart-things.com vm-standard -n default
 ```
 
 ## Files

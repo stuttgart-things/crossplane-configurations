@@ -170,8 +170,12 @@ kcl run oci://ghcr.io/stuttgart-things/kcl-tekton-pr --tag 0.6.0 -D params='{
 
 ### Trace resource status
 
+> Needs the Crossplane CLI **v2.3.0 or newer**. Before the beta subcommands were
+> promoted this was `crossplane beta trace`; that spelling no longer exists.
+> The `sthings.baseos` binaries role ships v2.4.1.
+
 ```bash
-crossplane beta trace ansiblerun.resources.stuttgart-things.com ansible-run-baseos -n default
+crossplane resource trace ansiblerun.resources.stuttgart-things.com ansible-run-baseos -n default
 ```
 
 ## Files

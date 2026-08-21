@@ -136,7 +136,7 @@ kubectl apply -f 5-xr.yaml
 # Management cluster: XR status (share.ip, vm.ready)
 kubectl -n default get harvestervm dev1
 kubectl -n default get harvestervm dev1 -o jsonpath='{.status}{"\n"}'
-crossplane beta trace harvestervm.resources.stuttgart-things.com/dev1 -n default
+crossplane resource trace harvestervm.resources.stuttgart-things.com/dev1 -n default
 
 # Harvester cluster: the real objects
 kubectl --kubeconfig ~/.kube/harvester -n default get virtualmachine,virtualmachineinstance,pvc

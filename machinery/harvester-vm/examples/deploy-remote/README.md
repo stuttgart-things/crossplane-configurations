@@ -89,7 +89,7 @@ kubectl apply -f machinery/harvester-vm/examples/deploy-remote/
 kubectl get clusterproviderconfig harvester
 kubectl -n default get harvestervm dev1
 kubectl -n default get harvestervm dev1 -o jsonpath='{.status}{"\n"}'   # share.ip, vm.ready
-crossplane beta trace harvestervm.resources.stuttgart-things.com/dev1 -n default
+crossplane resource trace harvestervm.resources.stuttgart-things.com/dev1 -n default
 
 # Harvester cluster — the actual VM
 kubectl --kubeconfig ~/.kube/harvester -n default get virtualmachine,virtualmachineinstance,pvc

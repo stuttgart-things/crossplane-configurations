@@ -72,10 +72,14 @@ crossplane render examples/xr.yaml apis/composition.yaml examples/functions.yaml
 
 ### Trace Resource Status
 
+> Needs the Crossplane CLI **v2.3.0 or newer**. Before the beta subcommands were
+> promoted this was `crossplane beta trace`; that spelling no longer exists.
+> The `sthings.baseos` binaries role ships v2.4.1.
+
 Monitor the composition status and track created resources:
 
 ```bash
-crossplane beta trace cloudinit.resources.stuttgart-things.com dev2-vm -n default
+crossplane resource trace cloudinit.resources.stuttgart-things.com dev2-vm -n default
 ```
 
 ### View Resource Tree
