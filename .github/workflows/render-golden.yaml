@@ -32,6 +32,17 @@ jobs:
       # CROSSPLANE_MODULE_VERSION note in verify.yaml) so local `task verify`,
       # CI verify and these goldens all render through the same CLI.
       CROSSPLANE_VERSION: v2.2.2
+      # Beim Anheben dieses Pins auf >= v2.3.0 gibt es ZWEI Fallstricke:
+      #  1. Der Bucket wechselt. Ab v2.3.0 kommt die CLI aus
+      #     cli.crossplane.io als Binary `crossplane`, nicht mehr aus
+      #     releases.crossplane.io als `crank` — die URL unten ergibt sonst
+      #     einen 404.
+      #  2. Das Core-Image muss mit. render-golden.sh nagelt es ueber
+      #     --crossplane-image fest, sobald die CLI das Flag kennt; ohne
+      #     das laeuft der Render in den Floating Tag crossplane:stable.
+      #     Ueberschreibbar mit CROSSPLANE_RENDER_IMAGE.
+      # Und: der Bump erzeugt neue Goldens (reichere Ausgabe, aber
+      # deterministisch) — der gehoert in einen eigenen PR.
     steps:
       - uses: actions/checkout@v7.0.1
 

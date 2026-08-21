@@ -62,8 +62,33 @@ tasks:
           gum style --foreground 1 "EXTRA=$EXTRA not found"; exit 1
         fi
 
+        # --- das Core-Image festnageln (CLI >= v2.3.0) ---
+        # Ab CLI v2.3.0 fuehrt `render` die Pipeline nicht mehr selbst aus,
+        # sondern startet `crossplane internal render` in einem Crossplane-
+        # Core-Image. Default dafuer ist der FLOATING Tag
+        # xpkg.crossplane.io/crossplane/crossplane:stable — und der hinkt der
+        # CLI hinterher. Zeigt er auf ein Image ohne `internal`, scheitert
+        # JEDER Render mit:
+        #
+        #   crossplane internal render in Docker returned error with output:
+        #   crossplane: error: unexpected argument internal
+        #
+        # Genau so ist uns das im Juni ohne eine einzige Code-Aenderung um die
+        # Ohren geflogen (stuttgart-things/dagger#295). Ein Floating Tag im
+        # Ausfuehrungspfad ist dasselbe Problem wie ein Floating Tag in einem
+        # Paket-Pin, nur schlechter sichtbar.
+        #
+        # Die Abfrage auf das Flag statt auf die Version ist Absicht: v2.2.2
+        # (was das dagger-Modul und render-golden.yaml pinnen) KENNT das Flag
+        # nicht und braucht es auch nicht — dort rendert die CLI selbst. So
+        # laeuft derselbe Task auf beiden Generationen.
+        IMAGE_ARG=""
+        if crossplane render --help 2>&1 | grep -q -- '--crossplane-image'; then
+          IMAGE_ARG="--crossplane-image=${CROSSPLANE_RENDER_IMAGE:-xpkg.crossplane.io/crossplane/crossplane:v2.4.0}"
+        fi
+
         gum style --foreground 4 "→ rendering $CONFIG"
-        CMD="crossplane render $XR $COMPOSITION $FUNCTIONS --include-function-results $EXTRA_ARG"
+        CMD="crossplane render $XR $COMPOSITION $FUNCTIONS --include-function-results $EXTRA_ARG $IMAGE_ARG"
         gum style --foreground 8 "\$ $CMD"
         eval "$CMD"
 
