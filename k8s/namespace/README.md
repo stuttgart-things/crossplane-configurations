@@ -88,8 +88,12 @@ task render
 
 ### Trace resource status
 
+> Needs the Crossplane CLI **v2.3.0 or newer**. Before the beta subcommands were
+> promoted this was `crossplane beta trace`; that spelling no longer exists.
+> The `sthings.baseos` binaries role ships v2.4.1.
+
 ```bash
-crossplane beta trace managednamespace.resources.stuttgart-things.com team-alpha -n default
+crossplane resource trace managednamespace.resources.stuttgart-things.com team-alpha -n default
 ```
 
 ### View resource tree

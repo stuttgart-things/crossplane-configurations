@@ -120,7 +120,7 @@ The marker key must not start with an underscore. The first attempt called it `_
 Live-tested on kind1 (2026-07-18) with `in-cluster` as the target, OCI-only: [`flux-init`](../flux-init/) installed Flux and an `OCIRepository` source (`oci://ghcr.io/stefanprodan/manifests/podinfo`), then a `FluxApps` XR referencing that source reconciled its Kustomization and rolled out the workload — `FluxApps` reached `ready=true`, `readyCount=1`, with the app's Deployment 2/2 in its `targetNamespace`.
 
 ```console
-$ crossplane beta trace fluxapps kind1-apps -n crossplane-system
+$ crossplane resource trace fluxapps kind1-apps -n crossplane-system
 NAME                                                   SYNCED   READY   STATUS
 FluxApps/kind1-apps (crossplane-system)                True     True    Available
 └─ Object/kind1-apps-app-podinfo (crossplane-system)   True     True    Available

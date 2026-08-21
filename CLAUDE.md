@@ -127,6 +127,8 @@ spec:
 - Tasks: `render` (local), `check` (cluster fit), `apply-dev` (kubectl apply, no OCI), `push` (Dagger → OCI).
 - The OCI push goes through `github.com/stuttgart-things/dagger/crossplane` (the Dagger module in the `dagger` repo, *not* a "crossplane-configurations" module). It runs `crossplane xpkg build` then `xpkg push` inside a wolfi container.
 
+- **Crossplane CLI: the `beta` subcommands were promoted and renamed.** `beta trace` → `resource trace`, `beta validate` → `resource validate`, and `render` is now `composition render` (the bare `render` still resolves, `beta trace` does **not**). This repo's docs and `Taskfile.yaml` use the new spelling and therefore need CLI **>= v2.3.0**; `sthings.baseos` ships v2.4.1. Two things that bite: the CLI moved to its own repo at v2.3.0, so it is served from `cli.crossplane.io` as `crossplane` (not `releases.crossplane.io` as `crank`); and `composition render` runs `crossplane internal render` inside `xpkg.crossplane.io/crossplane/crossplane:stable`, a floating tag that lags and breaks render without warning — pin it with `--crossplane-image`. See [#349](https://github.com/stuttgart-things/crossplane-configurations/issues/349).
+
 ## Gotchas we learned (don't repeat)
 
 1. **`nindent` columns** in Composition templates must be the **final-output** column, not the template-file column. When the value is embedded inside an outer block scalar (e.g. `userdata: |`), don't pile extra indentation on top. For `write_files.content` inside the `userdata: |` block, the correct value was `nindent 16` (not 28, not 12).
