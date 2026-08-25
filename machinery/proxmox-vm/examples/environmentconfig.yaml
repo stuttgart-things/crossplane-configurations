@@ -19,14 +19,36 @@ metadata:
   labels:
     proxmox-vm.resources.stuttgart-things.com/environment: default
 data:
-  # Proxmox placement (LabUL — matches the working homerun2-dev Terraform:
-  # github.com/stuttgart-things/terraform/proxmox/labul/homerun2-dev).
+  # Proxmox placement (LabUL).
   node: ul-pve01
-  datastore: DD-sthings
+  # V5010-01-1, NOT DD-sthings. `DD-sthings` is a TEMPLATES-ONLY store for this
+  # identity and a root disk there fails the build:
+  #
+  #   403 Permission check failed (/storage/DD-sthings, Datastore.AllocateSpace)
+  #
+  # `/storage/DD-sthings` carries a more specific ACL granting the role
+  # `SVATemplates` — Datastore.AllocateTemplate + Datastore.Audit, no
+  # AllocateSpace — and under Proxmox' deepest-path rule that REPLACES the
+  # broader `/storage` grant instead of adding to it. Measured 2026-08-25 with
+  # the identity in the `proxmox-tfvars` secret (`phermann@LabUL`): allocating
+  # on DD-sthings returns 403, the same call against V5010-01-1 returns 200.
+  #
+  # The homerun2-dev Terraform this file used to cite still says DD-sthings. It
+  # predates the ACL; do not copy it back.
+  datastore: V5010-01-1
   folderPath: stuttgart-things
   network: vmbr0
 
   # VM template / metadata
+  #
+  # `sthings-u26` is unambiguous again: it names exactly ONE template, VMID 110,
+  # and that template lives on **ul-pve10** while `node` above is ul-pve01. The
+  # cross-node clone is fine — 110's disk is on V5010-01-1, which is shared LVM
+  # active on both nodes — and was verified end-to-end on 2026-08-25.
+  #
+  # Note 110 ships `/etc/cloud/cloud-init.disabled`, so the guest ignores
+  # cloud-init. Hostname and user must come from configuration management, not
+  # from injected user-data.
   template: sthings-u26
   annotation: PROXMOX-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
 

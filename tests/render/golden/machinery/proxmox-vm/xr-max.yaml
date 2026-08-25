@@ -46,7 +46,7 @@ metadata:
     uid: 525c6855-1e58-58f9-a7ba-b4043c76dbe9
 spec:
   forProvider:
-    module: git::https://github.com/stuttgart-things/proxmox-vm.git?ref=3.0.2-rc08-20260407
+    module: git::https://github.com/stuttgart-things/proxmox-vm.git?ref=v3.1.0
     source: Remote
     varFiles:
     - secretKeyRef:

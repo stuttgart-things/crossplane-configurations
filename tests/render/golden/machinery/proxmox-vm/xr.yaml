@@ -46,7 +46,7 @@ metadata:
     uid: 9bdd05b7-d90b-51ad-ae0a-eace6f729d8a
 spec:
   forProvider:
-    module: git::https://github.com/stuttgart-things/proxmox-vm.git?ref=3.0.2-rc08-20260407
+    module: git::https://github.com/stuttgart-things/proxmox-vm.git?ref=v3.1.0
     source: Remote
     varFiles:
     - secretKeyRef:
@@ -73,7 +73,7 @@ spec:
     - key: pve_cluster_node
       value: ul-pve01
     - key: pve_datastore
-      value: DD-sthings
+      value: V5010-01-1
     - key: pve_folder_path
       value: stuttgart-things
     - key: pve_network

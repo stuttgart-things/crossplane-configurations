@@ -3,8 +3,24 @@
 # proxmoxvm.resources.stuttgart-things.com/environment (here: labul). The XR's
 # spec.environmentConfig must match this value. Unlike the OpenTofu proxmox-vm
 # Configuration (clone by NAME), the native bpg provider clones by numeric
-# VMID — set `templateVmId` to the VMID of your prepared template. Values below
-# are LabUL placement (sthings-u26 = VMID 110 on ul-pve01).
+# VMID — set `templateVmId` to the VMID of your prepared template.
+#
+# ---------------------------------------------------------------------------
+# NAME COLLISION — READ BEFORE APPLYING
+#
+# This object has the SAME metadata.name AND the same environment label as the
+# `proxmoxvm-labul` EnvironmentConfig in ../environmentconfig.yaml, which
+# carries DIFFERENT values (node ul-pve11 / templateVmId 211). Apply both to one
+# cluster and the second silently overwrites the first — whichever ran last
+# wins, and nothing reports it.
+#
+# Apply EXACTLY ONE of the two. This file is the bootstrap path (clone 110 onto
+# ul-pve01); ../environmentconfig.yaml is the cloud-init-capable path (211).
+# ---------------------------------------------------------------------------
+#
+# Values below are LabUL placement. `sthings-u26` = VMID 110 and it lives on
+# **ul-pve10**, while the VMs are built on ul-pve01 — hence `templateNode`
+# below. Checked against the cluster on 2026-08-25.
 apiVersion: apiextensions.crossplane.io/v1beta1
 kind: EnvironmentConfig
 metadata:
@@ -13,11 +29,28 @@ metadata:
     proxmoxvm.resources.stuttgart-things.com/environment: labul
 data:
   node: ul-pve01
+  # REQUIRED, and it was missing until 2026-08-25 — without it this file could
+  # not build anything. bpg derives the clone SOURCE node from `node` unless
+  # `templateNode` is set, and template 110 does NOT live on ul-pve01; it lives
+  # on ul-pve10. The failure names neither the key nor this file:
+  #
+  #   unable to find configuration file for VM 110 on node 'ul-pve01'
+  #
+  # NOTE clone.nodeName is ForceNew: adding this to an EnvironmentConfig that
+  # already has VMs built under it rewrites their clone block and triggers
+  # destroy + recreate under compositionUpdatePolicy: Automatic. Set
+  # `templateNode: none` on those XRs first. Nothing has been built under this
+  # file — it could not be — so there is nothing to protect here.
+  templateNode: ul-pve10
   datastore: V5010-01-1
+  # No `cloneDatastore` on purpose: template 110's disk already sits on
+  # V5010-01-1, so the clone allocates there anyway and the key would only add
+  # a ForceNew field for no gain. It IS required when cloning 211, whose disk is
+  # on DD-sthings — see ../environmentconfig.yaml.
   bridge: vmbrvlan          # VLAN-trunk bridge; template ships on vmbr0/untagged
   vlanTag: "102"            # 10.31.102.0/24
   pool: stuttgart-things
-  templateVmId: "110"       # VMID of the sthings-u26 template (ul-pve01)
+  templateVmId: "110"       # VMID of the sthings-u26 template (lives on ul-pve10)
   cpuType: host
   osType: l26
   bios: seabios
