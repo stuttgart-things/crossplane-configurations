@@ -26,13 +26,26 @@ Configuration, mirroring `vspherevm`'s relationship to `vsphere-vm`.
   behavioural difference from the Telmate `proxmox-vm` module. Supplied via
   EnvironmentConfig `templateVmId` (or per-XR `spec.vm.templateVmId`). The clone
   list is guarded (`[] if templateVmId == ""`) so offline render does not
-  `int("")`. LabUL `sthings-u26` = **VMID 211** on **`ul-pve11`** — not 110 on
-  `ul-pve01`, which is what this line said until 2026-08-21. Both numbers name a
-  template called `sthings-u26`, and since bpg clones by VMID the number *is* the
-  reference; 110 ships `/etc/cloud/cloud-init.disabled`, so cloud-init never runs
-  and every clone keeps the hostname `ubuntu` no matter what is injected
-  (stuttgart-things#2432). 211 removes the file in its provisioner. The node moved
-  in the LabUL rebuild, and a stale one fails the clone outright.
+  `int("")`. Use **VMID 211** on **`ul-pve11`**. Since bpg clones by VMID the
+  number *is* the reference; 110 ships `/etc/cloud/cloud-init.disabled`, so
+  cloud-init never runs and every clone keeps the hostname `ubuntu` no matter
+  what is injected (stuttgart-things#2432). 211 removes the file in its
+  provisioner. The node moved in the LabUL rebuild, and a stale one fails the
+  clone outright.
+- **The template names have diverged** (checked 2026-08-25). This file used to
+  say both 110 and 211 were called `sthings-u26`; that is no longer true. The
+  cluster holds exactly one `sthings-u26` — VMID **110**, on **`ul-pve10`** (not
+  `ul-pve01`) — and 211 is now `ubuntu26-base-20260731-0909`. Nothing here breaks,
+  because bpg resolves by VMID, but do not resolve either by name expecting the
+  old ambiguity.
+- **211 needs `cloneDatastore`.** It lives on `DD-sthings`, where a more specific
+  ACL grants only `SVATemplates` (AllocateTemplate + Audit, no AllocateSpace) and
+  REPLACES the broader `/storage` grant under Proxmox' deepest-path rule. Without
+  `cloneDatastore` Proxmox allocates the clone on the template's own datastore and
+  the call is refused with `403 … (/storage/DD-sthings, Datastore.AllocateSpace)`
+  before anything is built. Verified against the raw API: the same clone with
+  `storage=V5010-01-1` starts, without it 403s. Never place a ROOT disk on
+  `DD-sthings`; the cidata drive there is fine.
 - **Template gotchas (baked into the examples):** the `sthings-u26` root disk is
   on **`virtio0`** (not `scsi0`) — `diskInterface` defaults to `virtio0`. The
   Packer templates carry **no cloud-init drive**, so bpg adds one on clone and

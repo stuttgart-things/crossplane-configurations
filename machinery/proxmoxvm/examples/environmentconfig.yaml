@@ -49,12 +49,17 @@ data:
   bridge: vmbrvlan          # VLAN-trunk bridge; template ships on vmbr0/untagged
   vlanTag: "102"            # 10.31.102.0/24
   pool: stuttgart-things
-  # 211, NOT 110. Both are called sthings-u26 and bpg clones by VMID, so the
-  # number IS the reference — but 110 ships /etc/cloud/cloud-init.disabled, so
-  # cloud-init never runs and every clone keeps the hostname `ubuntu`
-  # regardless of what is injected (#2432). 211 removes the file in its
-  # provisioner. Nothing about the failure points at the template: the VM comes
-  # up healthy, just not as the host you asked for.
+  # 211, NOT 110 — because 110 ships /etc/cloud/cloud-init.disabled, so
+  # cloud-init never runs and every clone keeps the hostname `ubuntu` regardless
+  # of what is injected (#2432). 211 removes the file in its provisioner.
+  # Nothing about the failure points at the template: the VM comes up healthy,
+  # just not as the host you asked for.
+  #
+  # The names have since diverged and this comment used to claim they had not:
+  # as of 2026-08-25 the cluster holds exactly ONE template called `sthings-u26`
+  # and that is 110. 211 is now `ubuntu26-base-20260731-0909`. bpg clones by
+  # VMID, so the number is still the only thing that matters here — but do not
+  # resolve either template by name and expect the old ambiguity.
   templateVmId: "211"
   cpuType: host
   osType: l26
@@ -94,13 +99,39 @@ metadata:
 data:
   node: ul-pve11            # see the note on the first EnvironmentConfig above
   datastore: V5010-01-1
+  # REQUIRED here, and it was missing until 2026-08-25 — the omission made this
+  # EnvironmentConfig fail every build while the `default` one above worked.
+  #
+  # Template 211 lives on DD-sthings. Without `cloneDatastore` Proxmox allocates
+  # the clone on the TEMPLATE's datastore, and that needs
+  # Datastore.AllocateSpace on `/storage/DD-sthings` — which this identity does
+  # not have, because a more specific ACL there grants only `SVATemplates`
+  # (AllocateTemplate + Audit) and REPLACES the broader `/storage` grant under
+  # Proxmox' deepest-path rule. The clone is refused before anything is built:
+  #
+  #   403 Permission check failed (/storage/DD-sthings, Datastore.AllocateSpace)
+  #
+  # Verified against the raw API on 2026-08-25, same user, same template:
+  # `POST .../qemu/211/clone storage=V5010-01-1` starts the task,
+  # the identical call without `storage=` returns the 403 above.
+  #
+  # SAME FORCENEW CAVEAT as on the `default` EnvironmentConfig: bpg's clone
+  # block is ForceNew, so adding this rewrites the clone block of any VM already
+  # built under this label and triggers destroy + recreate. Nothing has ever
+  # been built under it — it could not be — so there is nothing to break.
+  cloneDatastore: V5010-01-1
   # Cloud-init drive on NFS rather than on `datastore` — see the note on the
   # first EnvironmentConfig above (`V5010-01-1` orphans the cidata LV on stop).
+  # DD-sthings is safe for THIS: only root-disk allocation is refused there,
+  # cidata creation goes through a different privilege path and was observed
+  # working on 2026-08-25.
   cloudInitDatastore: DD-sthings
   bridge: vmbrvlan
   vlanTag: "102"
   pool: stuttgart-things
-  templateVmId: "211"       # not 110 — see above
+  # not 110 — see above. Note 211 is NOT called `sthings-u26` any more; it is
+  # `ubuntu26-base-20260731-0909`. bpg clones by VMID, so this still resolves.
+  templateVmId: "211"
   cpuType: host
   osType: l26
   bios: seabios

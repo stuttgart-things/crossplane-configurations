@@ -69,7 +69,16 @@ spec:
                   name: proxmox-vm
                 forProvider:
                   source: Remote
-                  module: git::https://github.com/stuttgart-things/proxmox-vm.git?ref=3.0.2-rc08-20260407
+                  # v3.1.0, not the April `3.0.2-rc08-20260407` ref. That ref
+                  # predates the module's `disk` -> `disks` migration (cloud-init
+                  # was silently ignored before it) and carries an SSH bootstrap
+                  # that rebooted the guest and then reconnected to the pre-reboot
+                  # address — which failed EVERY apply and, worse, left the `ip`
+                  # output pointing at an address nobody answers on. Both are
+                  # fixed in v3.1.0, where the bootstrap is also opt-in and off.
+                  #
+                  # The vars below are unchanged: every one of them still exists.
+                  module: git::https://github.com/stuttgart-things/proxmox-vm.git?ref=v3.1.0
                   vars:
                     - key: vm_count
                       value: "1"
