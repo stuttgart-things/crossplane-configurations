@@ -99,8 +99,11 @@ metadata:
 data:
   node: ul-pve11            # see the note on the first EnvironmentConfig above
   datastore: V5010-01-1
-  # REQUIRED here, and it was missing until 2026-08-25 — the omission made this
-  # EnvironmentConfig fail every build while the `default` one above worked.
+  # REQUIRED here. Missing from THIS EXAMPLE until 2026-08-25 — note that is a
+  # drift in the example, not an outage: the EnvironmentConfig actually deployed
+  # in LabUL (Helm release `proxmoxvm-labul`, chart proxmoxvm-0.11.0) already
+  # carried it, and three VMs are built and Ready under it. What was broken was
+  # anyone copying this file.
   #
   # Template 211 lives on DD-sthings. Without `cloneDatastore` Proxmox allocates
   # the clone on the TEMPLATE's datastore, and that needs
@@ -115,10 +118,12 @@ data:
   # `POST .../qemu/211/clone storage=V5010-01-1` starts the task,
   # the identical call without `storage=` returns the 403 above.
   #
-  # SAME FORCENEW CAVEAT as on the `default` EnvironmentConfig: bpg's clone
-  # block is ForceNew, so adding this rewrites the clone block of any VM already
-  # built under this label and triggers destroy + recreate. Nothing has ever
-  # been built under it — it could not be — so there is nothing to break.
+  # SAME FORCENEW CAVEAT as on the `default` EnvironmentConfig, and it is NOT
+  # theoretical here: bpg's clone block is ForceNew, and VMs already exist under
+  # this label. Because the deployed config already sets this to V5010-01-1,
+  # aligning the example changes nothing for them — but do not "fix" a live
+  # EnvironmentConfig by changing this value, that destroys and recreates every
+  # VM under it when compositionUpdatePolicy is Automatic.
   cloneDatastore: V5010-01-1
   # Cloud-init drive on NFS rather than on `datastore` — see the note on the
   # first EnvironmentConfig above (`V5010-01-1` orphans the cidata LV on stop).
@@ -149,5 +154,9 @@ data:
   ciPasswordSecretKey: password  # pragma: allowlist secret
   # Opt-in — see the note on the first EnvironmentConfig above.
   # snippetsDatastore: DD-sthings
-  providerConfigName: default
+  # `proxmoxvm-labul`, not `default`. Checked against the LabUL cluster on
+  # 2026-08-25: that is the ClusterProviderConfig actually serving this
+  # environment. A wrong name fails the VM with
+  # `cannot get provider config: ClusterProviderConfig ... not found`.
+  providerConfigName: proxmoxvm-labul
   providerConfigKind: ClusterProviderConfig
