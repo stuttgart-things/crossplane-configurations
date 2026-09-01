@@ -332,14 +332,23 @@ spec:
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
             metadata:
+              # DETERMINISTIC name (not the generated `<xr>-<hash>`) so the
+              # Usages below can reference this Object by name instead of by
+              # label selector. A selector is unrecoverable on teardown: the
+              # Usage controller resolves `spec.by` BEFORE its deletion branch
+              # and hard-errors when nothing matches, so once the VM Object is
+              # gone the Usage can never drop its finalizer and blocks the
+              # VolumeClaim / CloudInit forever. Keyed on the XR name (unique
+              # per namespace), not on vmName.
+              name: {{ $xr.metadata.name }}-vm
               annotations:
                 {{ setResourceNameAnnotation (print $vmName "-vm") }}
               labels:
                 app.kubernetes.io/name: harvester-vm
                 app.kubernetes.io/instance: {{ $vmName }}
                 app.kubernetes.io/managed-by: crossplane
-                # Distinguishes this Object from the VMI Object (same instance
-                # label) so a Usage `by` selector can target the VM specifically.
+                # Distinguishes this Object from the VMI Object, which carries
+                # the same instance label.
                 app.kubernetes.io/component: virtualmachine
             spec:
               providerConfigRef:
@@ -593,11 +602,23 @@ spec:
                    boot-disk VolumeClaim and the cloud-init CloudInit while the
                    VirtualMachine Object still exists, so a teardown removes the
                    VM BEFORE the resources it depends on (never yanks the disk /
-                   cloud-init out from under a running VM). `by` selects the VM
-                   Object via its component label (not the VMI). replayDeletion
-                   lets the protected resource's own delete proceed once the
-                   Usage is removed, so this never wedges teardown. The ready
-                   annotation keeps these Usages from gating XR readiness. */}}
+                   cloud-init out from under a running VM). replayDeletion lets
+                   the protected resource's own delete proceed once the Usage is
+                   removed. The ready annotation keeps these Usages from gating
+                   XR readiness.
+
+                   `by` MUST be a resourceRef, never a resourceSelector. The
+                   Usage controller calls ResolveSelectors at the TOP of every
+                   reconcile — before the deletion branch — and a selector that
+                   matches nothing is a hard error, so the reconcile returns
+                   before RemoveFinalizer. Teardown is exactly when the VM
+                   Object disappears, so a selector-based `by` that has not yet
+                   persisted its resolved resourceRef strands the Usage
+                   forever, and the admission webhook then blocks the
+                   VolumeClaim / CloudInit for good: the remote VM is gone but
+                   the XR never finishes deleting. A resourceRef Get simply
+                   returns NotFound and the Usage proceeds. This is why the VM
+                   Object above carries an explicit metadata.name. */}}
             ---
             apiVersion: protection.crossplane.io/v1beta1
             kind: Usage
@@ -621,10 +642,8 @@ spec:
               by:
                 apiVersion: kubernetes.m.crossplane.io/v1alpha1
                 kind: Object
-                resourceSelector:
-                  matchLabels:
-                    app.kubernetes.io/instance: {{ $vmName }}
-                    app.kubernetes.io/component: virtualmachine
+                resourceRef:
+                  name: {{ $xr.metadata.name }}-vm
             ---
             apiVersion: protection.crossplane.io/v1beta1
             kind: Usage
@@ -648,10 +667,8 @@ spec:
               by:
                 apiVersion: kubernetes.m.crossplane.io/v1alpha1
                 kind: Object
-                resourceSelector:
-                  matchLabels:
-                    app.kubernetes.io/instance: {{ $vmName }}
-                    app.kubernetes.io/component: virtualmachine
+                resourceRef:
+                  name: {{ $xr.metadata.name }}-vm
             ---
             apiVersion: resources.stuttgart-things.com/v1alpha1
             kind: HarvesterVM

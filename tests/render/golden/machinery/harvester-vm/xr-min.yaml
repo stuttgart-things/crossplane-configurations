@@ -12,7 +12,7 @@ spec:
       name: harvester-vm-min-8074708239d3
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
-      name: harvester-vm-min-a795888b888e
+      name: harvester-vm-min-vm
     - apiVersion: protection.crossplane.io/v1beta1
       kind: Usage
       name: harvester-vm-min-1d6b5f07338f
@@ -94,10 +94,8 @@ spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
     kind: Object
-    resourceSelector:
-      matchLabels:
-        app.kubernetes.io/component: virtualmachine
-        app.kubernetes.io/instance: harvester-vm-min
+    resourceRef:
+      name: harvester-vm-min-vm
   of:
     apiVersion: resources.stuttgart-things.com/v1alpha1
     kind: CloudInit
@@ -130,10 +128,8 @@ spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
     kind: Object
-    resourceSelector:
-      matchLabels:
-        app.kubernetes.io/component: virtualmachine
-        app.kubernetes.io/instance: harvester-vm-min
+    resourceRef:
+      name: harvester-vm-min-vm
   of:
     apiVersion: resources.stuttgart-things.com/v1alpha1
     kind: VolumeClaim
@@ -147,14 +143,13 @@ kind: Object
 metadata:
   annotations:
     crossplane.io/composition-resource-name: harvester-vm-min-vm
-  generateName: harvester-vm-min-
   labels:
     app.kubernetes.io/component: virtualmachine
     app.kubernetes.io/instance: harvester-vm-min
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-vm
     crossplane.io/composite: harvester-vm-min
-  name: harvester-vm-min-a795888b888e
+  name: harvester-vm-min-vm
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
