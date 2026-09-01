@@ -50,20 +50,62 @@ it creates a `VolumeClaim` and a `CloudInit` composite (from this repo's
    `readiness.policy: DeriveFromObject` (so its Object-level Ready tracks the
    KubeVirt VM, not the stuck `SuccessfulCreate` heuristic). Both are required.
 
-### Usage deletion-ordering safeguard (v0.1.4)
+### Usage deletion-ordering safeguard (v0.1.4, fixed in v0.1.10)
 The `create-vm` step also emits two namespaced `protection.crossplane.io/v1beta1`
 `Usage` resources: `of: VolumeClaim` (boot disk) and `of: CloudInit` (cloud-init
-Secret), each `by:` the VM `Object` (selected via the `app.kubernetes.io/component:
-virtualmachine` label — the VM and VMI Objects otherwise share labels, so the VMI
-carries `component: virtualmachineinstance` to disambiguate). This blocks deleting
-the disk/secret out from under a running VM; teardown removes the VM first.
-`replayDeletion: true` lets the protected resource's own delete proceed once the
-Usage is gone, so it never wedges teardown; the `gotemplating.fn.crossplane.io/ready:
-"True"` annotation keeps the Usages from gating XR readiness. `Usage` is core
-Crossplane (no `dependsOn` entry needed). NOTE: this protects intra-composition
-deletion ordering — it does **not** protect against deleting the whole `harvester-vm`
-package/XRD (that cascade is avoided by NOT explicitly installing harvester-vm
-alongside virtual-machine's `dependsOn`; see virtual-machine's CLAUDE.md).
+Secret), each `by:` the VM `Object`. This blocks deleting the disk/secret out
+from under a running VM; teardown removes the VM first. `replayDeletion: true`
+lets the protected resource's own delete proceed once the Usage is gone; the
+`gotemplating.fn.crossplane.io/ready: "True"` annotation keeps the Usages from
+gating XR readiness. `Usage` is core Crossplane (no `dependsOn` entry needed).
+
+**`by` MUST be a `resourceRef`, never a `resourceSelector` — a selector wedges
+teardown permanently.** v0.1.4–v0.1.9 selected the VM Object by its
+`app.kubernetes.io/component: virtualmachine` label, because the Object had no
+`metadata.name` and therefore a generated `<xr>-<hash>` name. That is
+unrecoverable: Crossplane's Usage reconciler calls `ResolveSelectors` at the
+**top** of every reconcile, *before* the `WasDeleted` branch, and a selector
+matching zero resources is a hard error
+(`internal/controller/protection/usage/selector.go`: `if len(l.Items) == 0 {
+return errors.Errorf(errFmtResourcesNotFound, …) }`) — so the reconcile returns
+before `RemoveFinalizer`. Resolution is skipped only once
+`spec.by.resourceRef.name` has been persisted. Teardown is precisely when the VM
+Object disappears, so a Usage that had not yet persisted its resolved ref is
+stranded forever, and the admission webhook then blocks the `VolumeClaim` /
+`CloudInit` for good. Observed symptom: **the VM is gone on Harvester, the
+KubeVirt Objects finalized cleanly, and the XR never finishes deleting.**
+
+v0.1.10 gives the VM Object an explicit `metadata.name: <xr-name>-vm` (XR names
+are unique per namespace; `vmName` is not) and both Usages a
+`by.resourceRef.name` pointing at it — matching the cluster-proven `flux-init`
+pattern (#166/#185). A `resourceRef` that no longer resolves just returns
+NotFound and the Usage proceeds.
+
+**Rollout note.** The rename is *not* destructive for running VMs:
+`composition_functions.go:552-559` keeps the observed name for an existing
+composed resource and overrides whatever the template set, so existing Objects
+keep their generated names. The cost is that their Usages then point at a name
+that does not exist — the ordering guarantee is silently lost for those VMs (no
+wedge; the Usage just deletes immediately). Only VMs created on v0.1.10+ get the
+guarantee back. To recover it on an existing VM, recreate it.
+
+**Unwedging a stuck v0.1.4–v0.1.9 teardown** (note the group — `kubectl get
+usages.apiextensions.crossplane.io` is the deprecated one and reports "No
+resources found"):
+
+```bash
+kubectl -n <ns> get usages.protection.crossplane.io
+kubectl -n <ns> get usage <name> -o jsonpath='{.spec.by}'   # resourceRef set?
+# point it at any Object that still exists; the normal delete path (incl.
+# replayDeletion of the VolumeClaim/CloudInit) then runs to completion:
+kubectl -n <ns> patch usage <name> --type=merge \
+  -p '{"spec":{"by":{"resourceRef":{"name":"<an-existing-object>"}}}}'
+```
+
+NOTE: all of this protects intra-composition deletion ordering — it does **not**
+protect against deleting the whole `harvester-vm` package/XRD (that cascade is
+avoided by NOT explicitly installing harvester-vm alongside virtual-machine's
+`dependsOn`; see virtual-machine's CLAUDE.md).
 
 ## VM IP surfacing (`status.share.ip`)
 The IP lives on the **VMI**, not the VM, at `status.interfaces[].ipAddress`,

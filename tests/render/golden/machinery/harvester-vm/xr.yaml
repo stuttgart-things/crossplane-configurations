@@ -12,7 +12,7 @@ spec:
       name: dev9-4e63b1b0f5af
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
-      name: dev9-94355403adfa
+      name: dev9-vm
     - apiVersion: protection.crossplane.io/v1beta1
       kind: Usage
       name: dev9-458ab48246f2
@@ -108,10 +108,8 @@ spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
     kind: Object
-    resourceSelector:
-      matchLabels:
-        app.kubernetes.io/component: virtualmachine
-        app.kubernetes.io/instance: dev9
+    resourceRef:
+      name: dev9-vm
   of:
     apiVersion: resources.stuttgart-things.com/v1alpha1
     kind: CloudInit
@@ -144,10 +142,8 @@ spec:
   by:
     apiVersion: kubernetes.m.crossplane.io/v1alpha1
     kind: Object
-    resourceSelector:
-      matchLabels:
-        app.kubernetes.io/component: virtualmachine
-        app.kubernetes.io/instance: dev9
+    resourceRef:
+      name: dev9-vm
   of:
     apiVersion: resources.stuttgart-things.com/v1alpha1
     kind: VolumeClaim
@@ -161,14 +157,13 @@ kind: Object
 metadata:
   annotations:
     crossplane.io/composition-resource-name: dev9-vm
-  generateName: dev9-
   labels:
     app.kubernetes.io/component: virtualmachine
     app.kubernetes.io/instance: dev9
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: harvester-vm
     crossplane.io/composite: dev9
-  name: dev9-94355403adfa
+  name: dev9-vm
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1

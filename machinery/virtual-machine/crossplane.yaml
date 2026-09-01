@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.1.11
+    meta.crossplane.io/version: v0.1.12
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -73,5 +73,12 @@ spec:
     # AnsibleRun out of the desired state, Crossplane deletes it, and the
     # recreated one runs the play again. A `>=v0.1.8` floor would let a cluster
     # keep satisfying the dependency with exactly that build.
+    #
+    # v0.1.10 fixes a teardown deadlock: the two deletion-ordering Usages
+    # selected the VM Object by label, and the Usage controller resolves
+    # `spec.by` before its deletion branch and hard-errors on zero matches — so
+    # once the VM Object was gone the Usage could never drop its finalizer and
+    # the webhook blocked the VolumeClaim/CloudInit for good (VM gone on
+    # Harvester, XR stuck Deleting). The floor is what rolls it.
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/harvester-vm
-      version: ">=v0.1.9,<v0.2.0"
+      version: ">=v0.1.10,<v0.2.0"
