@@ -43,6 +43,11 @@ spec:
             {{- $env := index .context "apiextensions.crossplane.io/environment" | default dict }}
             {{- $name := $spec.name }}
             {{- $xrNs := .observed.composite.resource.metadata.namespace }}
+            {{- /* XR metadata.name — unique per namespace, unlike $spec.name.
+                   Used for the explicit metadata.name on the Objects a Usage
+                   references: `by`/`of` take a resourceRef by NAME, so those
+                   Objects must not carry a generated <xr>-<hash> name. */}}
+            {{- $xrName := .observed.composite.resource.metadata.name }}
             {{- $cpc := $spec.providerConfigRef | default $env.providerConfigRef }}
             {{- $rancherCpc := $spec.rancherProviderConfigRef | default $env.rancherProviderConfigRef | default $cpc }}
             {{- $split := ne $rancherCpc $cpc }}
@@ -276,6 +281,9 @@ spec:
             metadata:
               annotations:
                 {{ setResourceNameAnnotation (print $name "-kubeconfig-bridge") }}
+              # Explicit name: the teardown Usage below references this Object
+              # by resourceRef.name (see the Usage block at the end).
+              name: {{ $xrName }}-kubeconfig-bridge
               labels:
                 app.kubernetes.io/name: rancher-cluster
                 app.kubernetes.io/instance: {{ $name }}-kubeconfig-bridge
@@ -314,6 +322,9 @@ spec:
             metadata:
               annotations:
                 {{ setResourceNameAnnotation (print $name "-providerconfig") }}
+              # Explicit name: referenced by resourceRef from the teardown
+              # Usages below.
+              name: {{ $xrName }}-providerconfig
               labels:
                 app.kubernetes.io/name: rancher-cluster
                 app.kubernetes.io/instance: {{ $name }}-providerconfig
@@ -761,6 +772,8 @@ spec:
             metadata:
               annotations:
                 {{ setResourceNameAnnotation (print $name "-vpki-ca") }}
+              # Explicit name: this Object is the `by` of a teardown Usage.
+              name: {{ $xrName }}-vpki-ca
               labels:
                 app.kubernetes.io/name: rancher-cluster
                 app.kubernetes.io/instance: {{ $name }}-vpki-ca
@@ -789,6 +802,8 @@ spec:
             metadata:
               annotations:
                 {{ setResourceNameAnnotation (print $name "-vpki-token") }}
+              # Explicit name: this Object is the `by` of a teardown Usage.
+              name: {{ $xrName }}-vpki-token
               labels:
                 app.kubernetes.io/name: rancher-cluster
                 app.kubernetes.io/instance: {{ $name }}-vpki-token
@@ -809,6 +824,116 @@ spec:
                   type: Opaque
                   data:
                     {{ $vpkiTokenKey }}: {{ $vtVal | quote }}
+            {{- /* TEARDOWN ORDERING (Usage). Steps (5b)/(5c) carry
+                   managementPolicies ['*'], so on delete they must actually
+                   REACH the downstream cluster to remove the Secrets. They get
+                   there through the ClusterProviderConfig from step (2), which
+                   in turn reads its kubeconfig from the bridged connection
+                   Secret published by step (1b).
+
+                   Crossplane deletes composed resources in PARALLEL. Without
+                   ordering, step (1b) goes first, its connection Secret
+                   (<name>-kubeconfig-bridged) disappears with it, and (5b)/(5c)
+                   can then never connect to finalize their own deletion:
+
+                     connect failed: cannot build kube client for provider
+                     config: ... cannot get credentials secret:
+                     Secret "<name>-kubeconfig-bridged" not found
+
+                   The XR carries foregroundDeletion, so it waits on those
+                   Objects forever. Observed on martinwolf (2026-08-31), stuck
+                   6+ days. The chain below keeps the bridge alive until the
+                   providerconfig is gone, and the providerconfig alive until
+                   both vpki Objects are gone.
+
+                   `by` MUST be a resourceRef, never a resourceSelector — the
+                   Usage controller resolves selectors at the top of every
+                   reconcile, before the deletion branch, so a selector that
+                   matches nothing strands the Usage permanently. Same reason
+                   the referenced Objects above carry an explicit
+                   metadata.name. See machinery/harvester-vm (v0.1.10).
+
+                   replayDeletion lets the protected resource's own delete
+                   proceed once the Usage is removed; the ready annotation
+                   keeps these Usages from gating XR readiness. Usage is core
+                   Crossplane — no dependsOn entry needed. */}}
+            {{- if $split }}
+            ---
+            apiVersion: protection.crossplane.io/v1beta1
+            kind: Usage
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-usage-bridge") }}
+                gotemplating.fn.crossplane.io/ready: "True"
+              namespace: {{ $xrNs }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-usage-bridge
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              reason: "Bridged kubeconfig Secret is in use by the ClusterProviderConfig"
+              replayDeletion: true
+              of:
+                apiVersion: kubernetes.m.crossplane.io/v1alpha1
+                kind: Object
+                resourceRef:
+                  name: {{ $xrName }}-kubeconfig-bridge
+              by:
+                apiVersion: kubernetes.m.crossplane.io/v1alpha1
+                kind: Object
+                resourceRef:
+                  name: {{ $xrName }}-providerconfig
+            {{- end }}
+            ---
+            apiVersion: protection.crossplane.io/v1beta1
+            kind: Usage
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-usage-vpki-ca") }}
+                gotemplating.fn.crossplane.io/ready: "True"
+              namespace: {{ $xrNs }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-usage-vpki-ca
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              reason: "Downstream ClusterProviderConfig is in use by the vault-pki CA Secret"
+              replayDeletion: true
+              of:
+                apiVersion: kubernetes.m.crossplane.io/v1alpha1
+                kind: Object
+                resourceRef:
+                  name: {{ $xrName }}-providerconfig
+              by:
+                apiVersion: kubernetes.m.crossplane.io/v1alpha1
+                kind: Object
+                resourceRef:
+                  name: {{ $xrName }}-vpki-ca
+            ---
+            apiVersion: protection.crossplane.io/v1beta1
+            kind: Usage
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-usage-vpki-token") }}
+                gotemplating.fn.crossplane.io/ready: "True"
+              namespace: {{ $xrNs }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-usage-vpki-token
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              reason: "Downstream ClusterProviderConfig is in use by the vault-pki token Secret"
+              replayDeletion: true
+              of:
+                apiVersion: kubernetes.m.crossplane.io/v1alpha1
+                kind: Object
+                resourceRef:
+                  name: {{ $xrName }}-providerconfig
+              by:
+                apiVersion: kubernetes.m.crossplane.io/v1alpha1
+                kind: Object
+                resourceRef:
+                  name: {{ $xrName }}-vpki-token
             {{- end }}
             {{- end }}
             {{- end }}

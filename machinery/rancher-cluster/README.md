@@ -227,6 +227,12 @@ On the Rancher **management** cluster (where Crossplane runs):
 - `provider-kubernetes`'s ServiceAccount must be able to **read Secrets** in
   `spec.rancherNamespace` (default `fleet-default`) — that is where Rancher
   writes `<name>-kubeconfig`.
+- `provider-kubernetes`'s ServiceAccount must be able to **delete
+  `clusterproviderconfigs.kubernetes.m.crossplane.io`** — see
+  [`examples/rbac.yaml`](examples/rbac.yaml). Step (2) creates one, and the
+  ClusterRole Crossplane generates for the provider grants every verb except
+  `delete`, so without this the XR never finishes deleting. Skip it only where
+  the provider's SA is already cluster-admin.
 
 For a **split control plane** (`rancherProviderConfigRef` set), additionally:
 

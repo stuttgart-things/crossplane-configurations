@@ -1,0 +1,67 @@
+---
+# CLUSTER PRECONDITION, not part of the package.
+#
+# Step (2) of the Composition emits an Object that MANAGES a
+# ClusterProviderConfig (managementPolicies: ['*']) — provider-kubernetes
+# creating a CR of its own API group. Creating it works; DELETING it does not,
+# because Crossplane's rbac-manager generates the provider's ClusterRole with
+#
+#   verbs: [get, list, watch, update, patch, create]
+#
+# for kubernetes.m.crossplane.io — no `delete`. So on teardown the composed
+# Object wedges with:
+#
+#   delete failed: cannot delete object: clusterproviderconfigs.kubernetes.m.crossplane.io
+#   "<name>" is forbidden: User "system:serviceaccount:crossplane-system:crossplane-contrib-provider-kubernetes-<hash>"
+#   cannot delete resource "clusterproviderconfigs" in API group
+#   "kubernetes.m.crossplane.io" at the cluster scope
+#
+# and the XR (foregroundDeletion) never finishes. Observed on martinwolf /
+# crossplane-mgmt, 2026-08-31, stuck 6+ days.
+#
+# PATCHING THE GENERATED ROLE DOES NOT WORK. crossplane:provider:<revision>:system
+# is owned by the ProviderRevision and reconciled by crossplane-rbac-manager;
+# an added verb is reverted. It has no aggregationRule either, so a labelled
+# role is not picked up. A separate ClusterRole + binding is the only durable
+# way.
+#
+# It does NOT apply where the provider's SA is already cluster-admin. Check
+# before applying:
+#
+#   SA=$(kubectl get sa -n crossplane-system -o name | grep provider-kubernetes | head -1 | cut -d/ -f2)
+#   kubectl auth can-i delete clusterproviderconfigs.kubernetes.m.crossplane.io \
+#     --as=system:serviceaccount:crossplane-system:$SA
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provider-kubernetes-clusterproviderconfig-delete
+rules:
+  # Only `delete` is missing — the generated :system role already covers the
+  # read/write verbs. Listing the full set anyway would be harmless but makes
+  # it look like this role replaces the generated one; it does not, RBAC is
+  # purely additive.
+  - apiGroups: ["kubernetes.m.crossplane.io"]
+    resources: ["clusterproviderconfigs"]
+    verbs: ["delete"]
+---
+# BIND THE GROUP, NOT THE ServiceAccount.
+#
+# The SA name is crossplane-contrib-provider-kubernetes-<revision-hash> and the
+# suffix changes on every provider upgrade (it changed on crossplane-mgmt when
+# the revision rolled on 2026-09-07), so a name-bound ClusterRoleBinding
+# silently stops granting anything and the next teardown wedges again — long
+# after anyone connects it to a provider bump.
+#
+# Same rationale and same pattern as bootstrap/remote-cluster/examples/rbac.yaml.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: provider-kubernetes-clusterproviderconfig-delete
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: provider-kubernetes-clusterproviderconfig-delete
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: system:serviceaccounts:crossplane-system
