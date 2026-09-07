@@ -60,7 +60,17 @@ data:
   # Secret name defaults to vault-pki-ca.
   vaultPkiSourceTokenName: cert-manager-vault-token  # pragma: allowlist secret
   vaultPkiSourceTokenNamespace: cert-manager
-  vaultPkiSourceCaName: vault-pki-ca
+  # The OpenBao root, from secret-openbao-pki-ca.yaml beside this file — NOT the
+  # `vault-pki-ca` Secret that create-vault-issuer left here, which still holds
+  # the March root from the infra Vault being switched off. Distinct names on
+  # purpose: that one is not GitOps-managed and keeping it unreferenced avoids
+  # two owners for one identity. Reverting this migration is this line.
+  #
+  # Only the SOURCE moves. The downstream Secret is still written as
+  # `vault-pki-ca` (vaultPkiCaSecretName unset), which is what the
+  # cert-manager-vault-pki-clusterbook ApplicationSet passes as
+  # caBundleSecretRef — so nothing on the target clusters has to change name.
+  vaultPkiSourceCaName: openbao-pki-ca  # pragma: allowlist secret
   vaultPkiSourceCaNamespace: cert-manager
 
   # --- Default platform labels for the ClusterbookCluster / Argo CD cluster
