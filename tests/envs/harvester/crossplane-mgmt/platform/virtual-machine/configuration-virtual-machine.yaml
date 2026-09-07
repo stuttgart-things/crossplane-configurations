@@ -39,4 +39,20 @@ kind: Configuration
 metadata:
   name: virtual-machine
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.10
+# v0.1.12 raises the harvester-vm floor to >=v0.1.10, which is the point of this
+# bump: harvester-vm v0.1.4-v0.1.9 shipped a Usage whose `by` was a
+# resourceSelector, and a selector that resolves to nothing strands the Usage
+# permanently — the VM is gone on Harvester, the KubeVirt Objects finalize, and
+# the XR never finishes deleting. v0.1.10 switched to a resourceRef.
+#
+# crossplane-mgmt was still running harvester-vm v0.1.8 on 2026-09-07, because
+# it is only ever installed as this Configuration's dependency and the floor
+# pinned at v0.1.10 of virtual-machine predates the fix. Bumping here is the
+# documented way to roll it.
+#
+# EXPECT ONE LOCK DUPLICATE. Short-named CR with a dependent — the resolver
+# briefly sees an unsatisfied dependency and auto-installs a long-named copy of
+# the same ghcr path, which collides. Per the root CLAUDE.md: wait ~30s, find it
+# with `jq -r '.packages[].source' | sort | uniq -d`, check the XRDs belong to
+# the short chain, then delete the long-named Configuration. One round.
+  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.12
