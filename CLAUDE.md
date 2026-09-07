@@ -139,6 +139,52 @@ spec:
 
 6. **`task push` used to leak the registry PAT into its own output.** `dagger --progress plain` echoes every DAG op's *arguments*, and the crossplane module writes the credential into `/root/.docker/config.json` via `withNewFile` — so `base64("<user>:<token>")` appeared verbatim in the progress log, and from there into two session transcripts. Fixed by piping the push through a `sed` redactor rather than dropping `--progress plain` (that output is what makes a failing push debuggable). The redactor is **value-based first** — it redacts the actual secret and its base64 forms, read at runtime — so it does not depend on guessing dagger's formatting; pattern rules for `"auth"` fields and `ghp_*` shapes are only a fallback. `2>&1` scrubs stderr too, and `set -o pipefail` is what keeps a failed push from reporting success through the pipe. **If you add another `dagger call` that takes a real credential, pipe it through the same redactor.** (The root cause is really module-side: `github.com/stuttgart-things/dagger/crossplane` should mount the credential as a Secret rather than inlining it into a file's contents.)
 
+### The package manager never upgrades an existing dependency
+
+Bumping the top pin is **not** enough. Crossplane resolves dependencies once; from
+then on it will refuse a version it cannot satisfy rather than raise what is
+already installed:
+
+```
+cannot resolve package dependencies: incompatible dependencies:
+existing package .../vm-provision@v0.1.1 is incompatible with constraint >=v0.1.2
+```
+
+It reports this one level at a time, so a chain has to be walked top-down, each
+link patched by hand. Found on crossplane-mgmt 2026-09-07, where four packages
+had drifted months behind the repo without anything saying so:
+
+| | installed | repo |
+|---|---|---|
+| `virtual-machine` (the only pinned one) | v0.1.10 | v0.1.12 |
+| `vm-provision` | v0.1.1 | v0.1.2 |
+| `harvester-vm` | v0.1.8 | v0.1.10 |
+| `ansible-run` | v0.1.3 | v0.3.2 |
+
+`ansible-run` sat **below `harvester-vm`'s own `>=v0.1.4` floor** — the resolver
+had never recomputed since the first install, and nothing surfaces that until
+someone bumps the top pin and the errors start.
+
+Patch the long-named (package-manager-derived) CR in place rather than deleting
+it. Deleting drops the XRDs it owns, which cascade-deletes any XR of those kinds;
+patching `spec.package` upgrades without that risk and without producing a Lock
+duplicate:
+
+```bash
+kubectl patch configuration.pkg stuttgart-things-crossplane-configurations-<name> \
+  --type=merge -p '{"spec":{"package":"ghcr.io/stuttgart-things/crossplane-configurations/<name>:<version>"}}'
+```
+
+Repeat until every Configuration reports `HEALTHY=True`, then check the Lock for
+duplicates as usual. Check for existing XRs of the owned kinds first if you do
+choose to delete.
+
+**Why this matters beyond tidiness.** The drift was hiding two teardown bugs:
+harvester-vm v0.1.4–v0.1.9 ships a Usage whose `by` is a `resourceSelector`,
+which strands on delete, and the older `ansible-run` wrapped Tekton PipelineRuns
+with `managementPolicies: ["*"]`. A cluster can look entirely healthy on a stale
+dependency graph until something needs deleting.
+
 ## Memory & future work
 
 - Verification pipeline (render + kubeconform + xpkg build) is tracked as a Dagger-side issue: [stuttgart-things/dagger#277](https://github.com/stuttgart-things/dagger/issues/277). Lands as `crossplane.Verify(...)` plus a `call-crossplane-verify.yaml` reusable workflow.
