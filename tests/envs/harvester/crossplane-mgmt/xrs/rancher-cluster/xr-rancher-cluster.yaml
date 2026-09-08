@@ -61,9 +61,30 @@ spec:
     # Secret (cert-manager-vault-token) is provisioned into cert-manager by the
     # vault-pki-secrets Configuration. Mirrors the crossplane-mgmt cluster.
     annotations:
-      clusterbook.stuttgart-things.com/vault-server: https://vault.infra.sthings.lab
+      # OpenBao on `platform`, not the Vault on `infra` — that instance is being
+      # switched off and its certificate expired on 2026-09-01, which is why the
+      # issuer here read `certificate has expired` rather than anything about a
+      # migration. See stuttgart-things/harvester#152 and
+      # clusters/OPENBAO-CLUSTERBOOK.md there.
+      clusterbook.stuttgart-things.com/vault-server: https://openbao.platform.sthings.lab
       clusterbook.stuttgart-things.com/vault-pki-path: pki/sign/sthings-lab
+      # Tokenless: cert-manager mints a ServiceAccount token per signing request
+      # through the TokenRequest API instead of holding a Vault token that
+      # nothing renews. The 720h token on the old path was the actual defect.
+      clusterbook.stuttgart-things.com/vault-auth-method: kubernetes
+      # Created by `terraform apply` in stuttgart-things/harvester
+      # clusters/k3s-xp/openbao — vault-base-setup derives the mount from
+      # <cluster_name>-<name>, so cluster_name "k3s-xp-sthings" plus the k8s_auth
+      # named "certmanager" gives exactly this path. All three move together.
+      clusterbook.stuttgart-things.com/vault-k8s-auth-mount: /v1/auth/k3s-xp-sthings-certmanager
+      clusterbook.stuttgart-things.com/vault-k8s-auth-role: certmanager
+      clusterbook.stuttgart-things.com/vault-k8s-auth-sa: certmanager
+      # Inert under kubernetes auth — the chart renders only the block matching
+      # `method`. Kept so the Composition keeps writing the Secret name the rest
+      # of the fleet uses; it goes when the token path is removed everywhere.
       clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token # pragma: allowlist secret
+      # Unchanged: the issuer keeps the name every Certificate here references.
+      # The name says Vault; the endpoint above is OpenBao.
       clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki
       # NFS StorageClass (storage-platform/nfs-csi-storageclasses; also add the gate label)
       # storage-platform.stuttgart-things.com/nfs-server: '10.31.101.26'
