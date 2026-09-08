@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.1.12
+    meta.crossplane.io/version: v0.1.13
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -80,5 +80,15 @@ spec:
     # once the VM Object was gone the Usage could never drop its finalizer and
     # the webhook blocked the VolumeClaim/CloudInit for good (VM gone on
     # Harvester, XR stuck Deleting). The floor is what rolls it.
+    #
+    # v0.1.11 carries cloud-config v0.5.5, where the adopted-namespace Object
+    # finally reports Ready. Before it, every VM after the first one in a given
+    # namespace left this XR at Ready=False forever while the VM was Running --
+    # the Namespace Object is Observe+Create, so on an existing namespace the
+    # default SuccessfulCreate readiness never fired and function-auto-ready
+    # propagated the missing condition all the way up. Rolling it needs BOTH
+    # floors moved (this one and harvester-vm's cloud-config floor): the package
+    # manager resolves a dependency once and then refuses to raise what is
+    # already installed, so a satisfied `>=` pin keeps the old build forever.
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/harvester-vm
-      version: ">=v0.1.10,<v0.2.0"
+      version: ">=v0.1.11,<v0.2.0"

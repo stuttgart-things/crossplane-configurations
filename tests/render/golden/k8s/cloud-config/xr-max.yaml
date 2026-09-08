@@ -131,3 +131,6 @@ spec:
   providerConfigRef:
     kind: ClusterProviderConfig
     name: in-cluster
+  readiness:
+    celQuery: object.status.phase == "Active"
+    policy: DeriveFromCelQuery

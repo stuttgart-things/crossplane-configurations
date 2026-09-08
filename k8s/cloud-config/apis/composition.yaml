@@ -41,6 +41,17 @@ spec:
               managementPolicies:
                 - Observe
                 - Create
+              # Without this the default SuccessfulCreate policy never fires on
+              # an ADOPTED namespace: Observe+Create only creates when missing,
+              # so for a pre-existing namespace the Object stays Synced with no
+              # Ready condition at all, and function-auto-ready then holds the
+              # CloudInit -- and every XR composing it -- at Ready=False forever
+              # while the VM itself is happily Running. A Namespace carries no
+              # conditions (AllTrue/DeriveFromObject have nothing to read), so
+              # readiness has to come from status.phase.
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.status.phase == "Active"
               forProvider:
                 manifest:
                   apiVersion: v1
