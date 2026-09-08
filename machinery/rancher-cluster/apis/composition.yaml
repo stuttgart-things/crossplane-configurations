@@ -93,6 +93,15 @@ spec:
             {{- $networkKey := $reservation.networkKey | default $env.clusterbookNetworkKey }}
             {{- $clusterbookCpc := $reservation.providerConfigRef | default $env.clusterbookProviderConfigRef | default "default" }}
             {{- $createDNS := ternary ($reservation.createDNS) true (hasKey $reservation "createDNS") }}
+            {{- /* releaseOnDelete defaults TRUE. It was hardcoded false with no
+                   reasoning until 2026-09-08, and the effect was a pool that leaked
+                   silently: ferdinand (.173), martinwolf (.178) and test1 (.179) each
+                   kept their address AND their DNS record after the cluster was gone --
+                   three of eight in the lab range, none of it noticed until a teardown
+                   was watched on purpose. Releasing is also only safe now: before
+                   clusterbook v1.26.0 the DNS half of a release failed and reported
+                   success anyway (stuttgart-things/clusterbook#187). See #388. */}}
+            {{- $releaseOnDelete := ternary ($reservation.releaseOnDelete) true (hasKey $reservation "releaseOnDelete") }}
             {{- /* Inlined vault-pki-secrets: when network-platform/cert-manager-vault-pki
                    is enabled, read the source token + CA Secrets on the control plane
                    and push them onto the downstream cluster's cert-manager namespace so
@@ -694,7 +703,7 @@ spec:
                       {{ $k }}: {{ $v | quote }}
                       {{- end }}
                     {{- end }}
-                    releaseOnDelete: false
+                    releaseOnDelete: {{ $releaseOnDelete }}
             {{- end }}
             {{- end }}
             {{- end }}

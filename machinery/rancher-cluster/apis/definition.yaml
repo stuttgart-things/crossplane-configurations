@@ -239,6 +239,14 @@ spec:
                         createDNS:
                           type: boolean
                           description: "Create the DNS record for the reserved IP. Defaults true when a reservation is enabled."
+                        releaseOnDelete:
+                          type: boolean
+                          description: >-
+                            Give the reserved IP and its DNS record back to clusterbook when
+                            the cluster is deleted. Defaults true. Set false only to park an
+                            address across a rebuild -- and note that a parked address is
+                            invisible: clusterbook reports it ASSIGNED to a cluster that no
+                            longer exists, and nothing ever reclaims it.
                     namespace:
                       type: string
                       description: >-
