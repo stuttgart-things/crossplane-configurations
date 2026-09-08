@@ -1,0 +1,75 @@
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: test1
+  namespace: default
+spec:
+  name: test1
+  environmentConfig: default
+  infrastructure: harvester
+  harvester:
+    cpuCount: 6
+    memorySize: 6
+    diskSize: 40
+    quantity: 1
+  argocd:
+    register: true
+    reservation:
+      enabled: true
+      createDNS: true
+    labels:
+      storage-platform: 'true'
+      storage-platform/openebs: 'true'
+      security-platform: 'true'
+      security-platform/external-secrets: 'true'
+      security-platform/kyverno: 'true'
+      network-platform: 'true'
+      network-platform/cert-manager-install: 'true'
+      network-platform/cert-manager-selfsigned: 'true'
+      network-platform/cert-manager-cluster-ca: 'true'
+      network-platform/cert-manager-vault-pki: 'true'
+      network-platform/trust-manager-install: 'true'
+      network-platform/trust-manager-bundle: 'true'
+    # PKI against the OpenBao on `platform` from the start — this cluster never
+    # touches the Vault on `infra` that is being switched off
+    # (stuttgart-things/harvester#152).
+    annotations:
+      clusterbook.stuttgart-things.com/vault-server: https://openbao.platform.sthings.lab
+      clusterbook.stuttgart-things.com/vault-pki-path: pki/sign/sthings-lab
+      # Tokenless: cert-manager mints a ServiceAccount token per signing request
+      # through the TokenRequest API rather than holding a Vault token that
+      # nothing renews.
+      clusterbook.stuttgart-things.com/vault-auth-method: kubernetes
+      # THIS CLUSTER EXISTS TO TEST THAT THIS MOUNT CAN BE CREATED WITHOUT
+      # TERRAFORM. Every other cluster in this environment got its auth mount
+      # from a human running `terraform apply` in
+      # stuttgart-things/harvester clusters/<name>/openbao. Here it comes from a
+      # VaultK8sAuth XR (bootstrap/vault-auth) against the OpenBao AppRole added
+      # in harvester#190, so the step is declarative and in git.
+      #
+      # It is still not applied at the same moment as this XR. VaultK8sAuth
+      # needs this cluster's API address and a reviewer ServiceAccount token,
+      # neither of which exists before the cluster does — so the vault-pki
+      # ClusterIssuer sits not-Ready in between, exactly as it did on apps1.
+      # Closing that gap means teaching the rancher-cluster Composition to
+      # supply both, which is the point of running this test before changing it.
+      #
+      # test1 is DISPOSABLE. Deleting it is the second half of the test: it
+      # exercises `delete` on sys/auth/* in the AppRole policy, the case the
+      # vault-auth README documents as stranding a Workspace in its finalizer
+      # when that capability is missing.
+      #
+      # vault-base-setup derives the mount from <cluster_name>-<name> and binds
+      # a role of that same <name> to a ServiceAccount of that <name>. All three
+      # move together.
+      clusterbook.stuttgart-things.com/vault-k8s-auth-mount: /v1/auth/test1-sthings-certmanager
+      clusterbook.stuttgart-things.com/vault-k8s-auth-role: certmanager
+      clusterbook.stuttgart-things.com/vault-k8s-auth-sa: certmanager
+      # Inert under kubernetes auth — the chart renders only the block matching
+      # the method. Kept so step (5c) of the Composition writes the Secret name
+      # every other cluster uses rather than a second, differently-named unused
+      # one. It goes when the token path is removed everywhere.
+      clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token
+      # The issuer keeps the name every Certificate in the fleet references. The
+      # name says Vault; the endpoint above is OpenBao.
+      clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki
