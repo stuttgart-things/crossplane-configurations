@@ -27,7 +27,7 @@ spec:
         metadata:
           name: cni
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-cni:0.1.0
+          source: oci://ghcr.io/stuttgart-things/xplane-cni?tag=0.1.0
     - step: automatically-detect-ready-composed-resources
       functionRef:
         name: function-auto-ready
