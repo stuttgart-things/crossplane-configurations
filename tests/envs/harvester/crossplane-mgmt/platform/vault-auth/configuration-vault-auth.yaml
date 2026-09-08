@@ -1,0 +1,36 @@
+---
+# vault-auth Configuration — creates OpenBao/Vault Kubernetes auth mounts from a
+# VaultK8sAuth XR through provider-opentofu, so a cluster no longer needs a human
+# running `terraform apply` in stuttgart-things/harvester clusters/<name>/openbao
+# before its vault-pki ClusterIssuer can work.
+#
+# INSTALLED UNDER THE LONG, PACKAGE-MANAGER-DERIVED NAME, on purpose.
+#
+# ../vault-pki/configuration-vault-pki-secrets.yaml uses the short name and says
+# a short name is fine for a standalone package. That reasoning does not carry
+# over: `bootstrap/platform` declares a dependsOn on vault-auth. Per CLAUDE.md the
+# Lock collision needs BOTH a short name AND something depending on the package —
+# the resolver briefly sees an unsatisfied dependency, installs a long-named
+# duplicate, and both point at the identical ghcr path, which takes every
+# Configuration on the cluster to Healthy=False.
+#
+# `platform` is not installed on crossplane-mgmt today (checked 2026-09-08: 11
+# Configurations, none of them platform), so a short name would work right now.
+# It would stop working the moment someone installs platform here, and the
+# failure is a cluster-wide package outage rather than anything local. Using the
+# name the package manager would derive itself costs nothing and cannot collide.
+#
+# PREREQUISITE, not shipped here: a Secret named `vault` in the namespace of the
+# VaultK8sAuth XR, holding `terraform.tfvars` with vault_role_id and
+# vault_secret_id. AppRole, NOT a token, despite the XR field being called
+# vaultTokenSecret. The AppRole is created by clusters/platform/openbao in
+# stuttgart-things/harvester (#190) and needs `sudo` AND `delete` on sys/auth/*;
+# without sudo it authenticates and then 403s on the mount, without delete a
+# teardown strands the Workspace in its finalizer. Not committed because it
+# carries a live credential.
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: stuttgart-things-crossplane-configurations-vault-auth
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/vault-auth:v0.3.2
