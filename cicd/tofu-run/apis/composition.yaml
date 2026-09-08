@@ -40,7 +40,7 @@ spec:
         metadata:
           name: tofurun
         spec:
-          source: oci://ghcr.io/stuttgart-things/kcl-tofu-pr:0.1.0
+          source: oci://ghcr.io/stuttgart-things/kcl-tofu-pr?tag=0.1.0
     # Surface the live Tekton PipelineRun status onto the TofuRun XR. Identical to
     # ansible-run's derive-status — it reads the observed wrapped Object's mirrored
     # PipelineRun and is pipeline-agnostic.

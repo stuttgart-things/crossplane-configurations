@@ -185,6 +185,45 @@ which strands on delete, and the older `ansible-run` wrapped Tekton PipelineRuns
 with `managementPolicies: ["*"]`. A cluster can look entirely healthy on a stale
 dependency graph until something needs deleting.
 
+### An inline `:version` in a KCL `source:` is not a pin
+
+`source: oci://ghcr.io/stuttgart-things/xplane-vault-auth:0.8.1` **floats to
+whatever tag was published last.** kpm takes the version only from a `tag` query
+parameter; the `:0.8.1` stays part of the repository path, oras normalises it
+away, and the newest tag is fetched. The give-away is the doubled tag in the log:
+
+```
+$ kcl run oci://ghcr.io/stuttgart-things/xplane-vault-auth:0.7.0
+the latest version '0.8.1' will be downloaded
+downloading 'stuttgart-things/xplane-vault-auth:0.7.0:0.8.1' from ...
+                                            ^^^^^^^^^^^^^^^ asked for 0.7.0, got 0.8.1
+```
+
+The pinned form is `?tag=`:
+
+```
+$ kcl run 'oci://ghcr.io/stuttgart-things/xplane-vault-auth?tag=0.7.0'
+downloading 'stuttgart-things/xplane-vault-auth:0.7.0' from ...
+```
+
+**Do not "disprove" this with `kcl mod pull` or `kcl mod add`.** Those
+subcommands discard the query parameter and fetch the latest for *both* forms,
+which makes the fix look useless — checked on kcl 0.12.3, and it cost half an
+hour. `kcl mod add --tag 0.7.0` does pin, but that is a third path again. Only
+the runtime source resolution (`kcl run`, and therefore function-kcl, which
+passes `spec.source` straight through) honours `?tag=`. Test the path you
+actually ship.
+
+All 13 references in this repo were floating until 2026-09-08. They happened to
+name the newest tag of every module at that moment, so pinning them changed
+nothing — the exposure was that the next `kcl mod push` anywhere would have
+altered production behaviour with no commit in this repo.
+
+When comparing rendered output across a change like this, note that
+`kcl-tekton-pr` puts a **random suffix** on the generated PipelineRun name, so
+two runs of the *identical* reference differ. Diff with that line filtered, or
+you will chase a difference that is not there.
+
 ## Memory & future work
 
 - Verification pipeline (render + kubeconform + xpkg build) is tracked as a Dagger-side issue: [stuttgart-things/dagger#277](https://github.com/stuttgart-things/dagger/issues/277). Lands as `crossplane.Verify(...)` plus a `call-crossplane-verify.yaml` reusable workflow.
