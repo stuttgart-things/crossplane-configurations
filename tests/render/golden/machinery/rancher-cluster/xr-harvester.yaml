@@ -24,16 +24,16 @@ spec:
       name: k3s-xp-98e0d150f1db
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
-      name: k3s-xp-9da0681333ad
-    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
-      kind: Object
       name: k3s-xp-cedd51c5276b
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
       name: k3s-xp-d098a3bf8ce8
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
-      name: k3s-xp-d3dee795daec
+      name: k3s-xp-kubeconfig-bridge
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-xp-providerconfig
 status:
   argocdClusterSecret: cluster-k3s-xp
   clusterProviderConfig: k3s-xp
@@ -369,13 +369,12 @@ kind: Object
 metadata:
   annotations:
     crossplane.io/composition-resource-name: k3s-xp-kubeconfig-bridge
-  generateName: k3s-xp-
   labels:
     app.kubernetes.io/instance: k3s-xp-kubeconfig-bridge
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-xp
-  name: k3s-xp-9da0681333ad
+  name: k3s-xp-kubeconfig-bridge
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
@@ -412,13 +411,12 @@ kind: Object
 metadata:
   annotations:
     crossplane.io/composition-resource-name: k3s-xp-providerconfig
-  generateName: k3s-xp-
   labels:
     app.kubernetes.io/instance: k3s-xp-providerconfig
     app.kubernetes.io/managed-by: crossplane
     app.kubernetes.io/name: rancher-cluster
     crossplane.io/composite: k3s-xp
-  name: k3s-xp-d3dee795daec
+  name: k3s-xp-providerconfig
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
