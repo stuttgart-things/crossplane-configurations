@@ -1,58 +1,24 @@
 ---
-# virtual-machine Configuration package — the high-level VM entrypoint
-# (XVirtualMachine: size/provider/environment/os). For provider: harvester it
-# emits a HarvesterVM into the harvester-vm Configuration above. v0.1.1 emits
-# volume.volumeMode: Block on that HarvesterVM, matching the proven Harvester
-# image-backed boot disk (a Filesystem PVC yields a non-booting disk). v0.1.2
-# adds `harvester` to the spec.environment enum. v0.1.3 drops ubuntu22, exposes
-# all available Harvester images as os values, and selects the per-image
-# storage class from the env `images` {imageId, storageClassName} map. v0.1.4
-# pins dependsOn harvester-vm >=v0.1.4 (single place harvester-vm's version is
-# managed, since there's no explicit harvester-vm install); harvester-vm v0.1.4
-# adds Usage deletion-ordering protection for the boot disk + cloud-init.
-# v0.1.6 makes the Ansible playbooks + varsFile env-overridable: they are read
-# from the EnvironmentConfig `ansible` block instead of being hardcoded, so a
-# host without an LVM data disk (manage_filesystem=false) or a different Vault
-# (vault_instances) is configured per environment. The target inventory stays
-# auto-set to the VM's resolved IP by harvester-vm.
-# v0.1.9 bumps the harvester-vm floor to >=v0.1.7, which additionally pins
-# cpu.model + memory.maxGuest in the VM template so KubeVirt's LiveUpdate
-# hotplug-headroom injection no longer leaves the template mismatched against
-# the launched VMI (the real cause of the lingering "Restart action required").
-# v0.1.7 sets cloud-init sshPasswordAuth: true when ansible is enabled, so the
-# ansible-run pipeline (which authenticates with the ANSIBLE_USER/ANSIBLE_PASSWORD
-# from the ansible-credentials Secret, no SSH key) can log into the freshly
-# created VM. Without it cloud-init defaults ssh_pwauth: false and the run fails
-# with "Permission denied (publickey)".
-# v0.1.8 bumps the harvester-vm floor to >=v0.1.6, which pre-sets the VM
-# template's cpu.maxSockets + memory.guest so KubeVirt's LiveUpdate webhook
-# can't inject them post-launch (that injection latched a spurious "Restart
-# action required" / RestartRequired on the running VM).
+# The high-level VM entrypoint (XVirtualMachine: size/provider/environment/os).
+# For provider: harvester it emits a HarvesterVM. Needs an EnvironmentConfig
+# labelled virtual-machine.resources.stuttgart-things.com/environment=<env>
+# — see env-config-virtualmachine.yaml next to this file.
 #
-# Driving an XVirtualMachine also needs an EnvironmentConfig labelled
-# `virtual-machine.resources.stuttgart-things.com/environment=<env>` carrying a
-# nested `harvester` sub-block (+ cross-provider `ansible` block) — not added
-# here yet (the existing env-config-harvestervm.yaml is for the harvester-vm
-# label, a different selector).
+# This is also the ONLY place harvester-vm's version is managed: it has no
+# explicit install, so raising the dependsOn floor here is what rolls it.
+# Per-version history lives in git log and the PRs, not here.
 apiVersion: pkg.crossplane.io/v1
 kind: Configuration
 metadata:
   name: virtual-machine
 spec:
-# v0.1.12 raises the harvester-vm floor to >=v0.1.10, which is the point of this
-# bump: harvester-vm v0.1.4-v0.1.9 shipped a Usage whose `by` was a
-# resourceSelector, and a selector that resolves to nothing strands the Usage
-# permanently — the VM is gone on Harvester, the KubeVirt Objects finalize, and
-# the XR never finishes deleting. v0.1.10 switched to a resourceRef.
+# EXPECT ONE LOCK DUPLICATE on a bump. Short-named CR with a dependent: the
+# resolver briefly sees an unsatisfied dependency and auto-installs a long-named
+# copy of the same ghcr path, which collides. Wait ~30s, find it with
+# `jq -r '.packages[].source' | sort | uniq -d`, check the XRDs belong to the
+# short chain, then delete the long-named Configuration. One round.
 #
-# crossplane-mgmt was still running harvester-vm v0.1.8 on 2026-09-07, because
-# it is only ever installed as this Configuration's dependency and the floor
-# pinned at v0.1.10 of virtual-machine predates the fix. Bumping here is the
-# documented way to roll it.
-#
-# EXPECT ONE LOCK DUPLICATE. Short-named CR with a dependent — the resolver
-# briefly sees an unsatisfied dependency and auto-installs a long-named copy of
-# the same ghcr path, which collides. Per the root CLAUDE.md: wait ~30s, find it
-# with `jq -r '.packages[].source' | sort | uniq -d`, check the XRDs belong to
-# the short chain, then delete the long-named Configuration. One round.
+# The resolver also never RAISES an already-satisfied dependency — it refuses
+# one level at a time. Patch each dependency Configuration's spec.package by
+# hand, top-down, until `kubectl get configurations` is clean.
   package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.14
