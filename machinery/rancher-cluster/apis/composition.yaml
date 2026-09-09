@@ -122,6 +122,18 @@ spec:
             {{- $vpkiTokenName := index $argocdAnnotations "clusterbook.stuttgart-things.com/vault-token-secret" | default "vault-pki-token" }}
             {{- $vpkiTokenKey := $env.vaultPkiTokenSecretKey | default "token" }}
             {{- $argocdSaSecret := print $name "-argocd-sa" }}
+            {{- /* Vault/OpenBao kubernetes-auth preparation (spec.vaultAuth).
+                   Creates the token-reviewer identity on the downstream cluster
+                   and mirrors its credentials BACK to a Secret next to this XR —
+                   the direction opposite to block (5), using the same machinery.
+                   That Secret is what VaultK8sAuth.backendConfig reads. See
+                   docs/392-handover.md. */}}
+            {{- $vaultAuth := $spec.vaultAuth | default dict }}
+            {{- $vaEnabled := $vaultAuth.enabled | default false }}
+            {{- $vaSa := $vaultAuth.reviewerServiceAccount | default "vault-auth-reviewer" }}
+            {{- $vaNs := $vaultAuth.reviewerNamespace | default "kube-system" }}
+            {{- $vaCertManagerSa := $vaultAuth.certManagerServiceAccount | default "certmanager" }}
+            {{- $vaSecret := print $name "-vault-reviewer" }}
             {{- if eq $infra "harvester" }}
             {{- /* Harvester VM nodes: a HarvesterConfig (the VM template) plus a
                    provisioning Cluster whose single machine pool references it. */}}
@@ -710,6 +722,211 @@ spec:
             {{- end }}
             {{- end }}
             {{- end }}
+            {{- if $vaEnabled }}
+            ---
+            # (6) VAULT KUBERNETES-AUTH PREREQUISITES (spec.vaultAuth.enabled).
+            #
+            # A cluster built from this XR comes up with its vault-pki
+            # ClusterIssuer NOT ready, because the auth mount it names does not
+            # exist yet. Creating that mount is bootstrap/vault-auth's job
+            # (VaultK8sAuth -> provider-opentofu). What VaultK8sAuth cannot do is
+            # the half that lives on the NEW cluster and on the control plane
+            # next to this XR — that is what this block supplies:
+            #
+            #   the token-reviewer identity, so OpenBao can verify logins
+            #   its credentials mirrored back here, for backendConfig.secretName
+            #   the API endpoint, for kubernetesHost
+            #
+            # This is deliberately still two phases (#392): the reviewer token
+            # cannot exist before the cluster does. What it removes is the human
+            # and the OpenBao ROOT token — until 2026-09-08 somebody ran
+            # `terraform apply` in stuttgart-things/harvester by hand for this.
+            #
+            # (6a) Token-reviewer ServiceAccount on the downstream cluster.
+            # automountServiceAccountToken: false — nothing runs as this identity,
+            # its token is only ever read out of the Secret below.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-vault-reviewer-sa") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-vault-reviewer-sa
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+                - Create
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: ServiceAccount
+                  metadata:
+                    name: {{ $vaSa }}
+                    namespace: {{ $vaNs }}
+                  automountServiceAccountToken: false
+            ---
+            # (6b) system:auth-delegator for the reviewer — the TokenReview
+            # permission and nothing else. Not cluster-admin: unlike the Argo CD
+            # manager in (4b), this identity only has to answer "is this token
+            # valid", and its token leaves the cluster.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-vault-reviewer-crb") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-vault-reviewer-crb
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+                - Create
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              forProvider:
+                manifest:
+                  apiVersion: rbac.authorization.k8s.io/v1
+                  kind: ClusterRoleBinding
+                  metadata:
+                    name: {{ $name }}-{{ $vaSa }}
+                  roleRef:
+                    apiGroup: rbac.authorization.k8s.io
+                    kind: ClusterRole
+                    name: system:auth-delegator
+                  subjects:
+                    - kind: ServiceAccount
+                      name: {{ $vaSa }}
+                      namespace: {{ $vaNs }}
+            ---
+            # (6c) Long-lived reviewer token Secret. [Observe, Create] only, so
+            # the token controller's fields are never stripped — same reason as
+            # (4c), and the same split: create here, extract in (6d). An Object
+            # that manages the target does not surface connectionDetails.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-vault-reviewer-token") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-vault-reviewer-token
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+                - Create
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: {{ $vaSa }}
+                    namespace: {{ $vaNs }}
+                    annotations:
+                      kubernetes.io/service-account.name: {{ $vaSa }}
+                  type: kubernetes.io/service-account-token
+            ---
+            # (6d) Mirror the reviewer credentials BACK to a Secret next to this
+            # XR. The connection Secret IS the mirror — no second Object needed.
+            # Key names are the ones VaultK8sAuth.backendConfig defaults to
+            # (tokenKey: token, caCertKey: ca.crt), so it can be referenced as-is.
+            # apiserverIp rides along for status.vaultKubernetesHost.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-vault-reviewer-extract") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-vault-reviewer-extract
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              writeConnectionSecretToRef:
+                name: {{ $vaSecret }}
+              connectionDetails:
+                - apiVersion: v1
+                  kind: Secret
+                  name: {{ $vaSa }}
+                  namespace: {{ $vaNs }}
+                  fieldPath: data.token
+                  toConnectionSecretKey: token
+                - apiVersion: v1
+                  kind: Secret
+                  name: {{ $vaSa }}
+                  namespace: {{ $vaNs }}
+                  fieldPath: data[ca.crt]
+                  toConnectionSecretKey: ca.crt
+                - apiVersion: v1
+                  kind: Endpoints
+                  name: kubernetes
+                  namespace: default
+                  fieldPath: subsets[0].addresses[0].ip
+                  toConnectionSecretKey: apiserverIp
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: {{ $vaSa }}
+                    namespace: {{ $vaNs }}
+            ---
+            # (6e) Publish the endpoint once the mirror exists. VaultK8sAuth
+            # defaults kubernetesHost to https://kubernetes.default.svc:443,
+            # which is the in-cluster address and wrong whenever Vault runs
+            # somewhere else — which is always, here.
+            apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
+            kind: ExtraResources
+            requirements:
+              vault-reviewer:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $vaSecret }}
+                namespace: {{ $xrNs }}
+            {{- with .extraResources }}
+            {{- $vrObj := index . "vault-reviewer" }}
+            {{- if $vrObj }}
+            {{- $vr := $vrObj.items }}
+            {{- if $vr }}
+            {{- $vrData := (index $vr 0).resource.data }}
+            {{- if and $vrData (hasKey $vrData "apiserverIp") }}
+            ---
+            apiVersion: resources.stuttgart-things.com/v1alpha1
+            kind: RancherCluster
+            status:
+              vaultReviewerSecret: {{ $vaSecret }}
+              vaultKubernetesHost: {{ printf "https://%s:6443" (index $vrData "apiserverIp" | b64dec) }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- if $vpkiEnabled }}
             ---
             # (5) VAULT-PKI PREREQUISITE SECRETS (inlined bootstrap/vault-pki-secrets).
@@ -774,6 +991,55 @@ spec:
                   kind: Namespace
                   metadata:
                     name: {{ $vpkiTargetNs | quote }}
+            {{- if $vaEnabled }}
+            ---
+            # (5a2) The ServiceAccount cert-manager logs in to Vault AS.
+            #
+            # The part of #392 nobody predicted. With the auth mount created and
+            # correct, the issuer still failed:
+            #
+            #   Failed to initialize Vault client: while requesting a Vault token
+            #   using the Kubernetes auth: while requesting a token for the
+            #   service account /certmanager: serviceaccounts "certmanager" not found
+            #
+            # It reads like a Vault fault. It is a missing ServiceAccount.
+            # VaultK8sAuth configures Vault and nothing on the target — correctly,
+            # that is what it says it does — and vault-base-setup creates this SA
+            # as part of an apply that no longer runs. So it had no owner at all.
+            # The matching cert-manager-tokenrequest Role does arrive on its own,
+            # from the cert-manager-vault-pki AppSet gated on method=kubernetes.
+            #
+            # Lives inside block (5) on purpose: it needs the cert-manager
+            # namespace that (5a) adopts-or-creates, and it is only needed when
+            # there is a vault-pki issuer to make work. A second Object managing
+            # that namespace would mean two owners for one Namespace.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-vpki-certmanager-sa") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-vpki-certmanager-sa
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $name }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+                - Create
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: ServiceAccount
+                  metadata:
+                    name: {{ $vaCertManagerSa }}
+                    namespace: {{ $vpkiTargetNs | quote }}
+            {{- end }}
             ---
             # (5b) CA-bundle Secret (ClusterIssuer caBundleSecretRef).
             apiVersion: kubernetes.m.crossplane.io/v1alpha1

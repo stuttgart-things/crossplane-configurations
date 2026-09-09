@@ -56,3 +56,20 @@ data:
   token: RkFLRS5yZXZpZXdlci50b2tlbi1ub3QtYS1jcmVkZW50aWFs  # pragma: allowlist secret
   ca: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCkZBS0UtRE9XTlNUUkVBTS1DQS1GT1ItUkVOREVSLVRFU1RTLU9OTFkKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=  # pragma: allowlist secret
   apiserverIp: MTkyLjE2OC4xMC4xMTg=
+
+---
+# The mirrored token-reviewer credentials for xr-max (spec.vaultAuth.enabled).
+# Written by step (6d) via writeConnectionSecretToRef, so the name is
+# <spec.name>-vault-reviewer in the XR's namespace and the keys are the ones
+# VaultK8sAuth.backendConfig defaults to. Without it, step (6e) cannot publish
+# status.vaultKubernetesHost and the golden would not cover it.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rke2-prod-vault-reviewer
+  namespace: default
+type: Opaque
+data:
+  token: RkFLRS5yZXZpZXdlci50b2tlbi1ub3QtYS1jcmVkZW50aWFs  # pragma: allowlist secret
+  ca.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCkZBS0UtRE9XTlNUUkVBTS1DQS1GT1ItUkVOREVSLVRFU1RTLU9OTFkKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=  # pragma: allowlist secret
+  apiserverIp: MTkyLjE2OC4xMC4xMzU=

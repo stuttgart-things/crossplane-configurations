@@ -296,6 +296,57 @@ spec:
                         type: string
                   default:
                     register: false
+              vaultAuth:
+                type: object
+                description: >-
+                  Prepares the cluster for Vault/OpenBao KUBERNETES auth, so a
+                  VaultK8sAuth XR can create the auth mount without a human
+                  running terraform with the root token first.
+
+                  It does NOT create the mount. What it creates is the part only
+                  this Composition can: the token-reviewer identity on the new
+                  cluster, its credentials mirrored back to a Secret next to this
+                  XR (which is where VaultK8sAuth.spec.k8sAuths[].backendConfig
+                  reads them), the cert-manager ServiceAccount that the issuer
+                  logs in as, and the API endpoint as status.vaultKubernetesHost.
+
+                  See docs/392-handover.md.
+                properties:
+                  enabled:
+                    type: boolean
+                    default: false
+                    description: >-
+                      Off by default. On, this cluster grows a
+                      system:auth-delegator-bound ServiceAccount whose token any
+                      holder can use to review logins — a real grant, so it is
+                      opt-in per cluster.
+                  reviewerServiceAccount:
+                    type: string
+                    default: vault-auth-reviewer
+                    description: >-
+                      Name of the token-reviewer ServiceAccount created on the
+                      DOWNSTREAM cluster. vault-base-setup creates the same
+                      identity itself (k8s_auth_reviewer_create) and blueprints
+                      CreateVaultKubernetesAuth creates it on pipeline-built
+                      clusters — keep the name aligned with whichever owns it,
+                      or two owners fight over one identity.
+                  reviewerNamespace:
+                    type: string
+                    default: kube-system
+                    description: "Namespace of the reviewer ServiceAccount and its token Secret."
+                  certManagerServiceAccount:
+                    type: string
+                    default: certmanager
+                    description: >-
+                      ServiceAccount cert-manager authenticates to Vault as. Only
+                      created when the vault-pki block is also on, because that is
+                      the only thing that needs it. Its absence surfaces as a Vault
+                      error ("while requesting a token for the service account
+                      /certmanager"), which is what makes it worth owning here.
+                      The matching cert-manager-tokenrequest Role arrives on its
+                      own from the cert-manager-vault-pki ApplicationSet.
+                default:
+                  enabled: false
               # providerConfigRef, kubernetesVersion and the Harvester infra
               # fields are resolved from the EnvironmentConfig when unset, so they
               # are not `required` here (CEL cannot see EnvironmentConfig values).
@@ -314,5 +365,18 @@ spec:
                 argocdClusterSecret:
                   type: string
                   description: "Name of the Argo CD cluster Secret clusterbook-operator generates (cluster-<name>)."
+                vaultReviewerSecret:
+                  type: string
+                  description: >-
+                    Secret next to this XR holding the token reviewer's `token`
+                    and `ca.crt`. Feed it to
+                    VaultK8sAuth.spec.k8sAuths[].backendConfig.secretName.
+                vaultKubernetesHost:
+                  type: string
+                  description: >-
+                    The downstream API endpoint, discovered from that cluster's
+                    own `kubernetes` Endpoints. This is VaultK8sAuth's
+                    kubernetesHost — it defaults to the in-cluster address, which
+                    is wrong when Vault runs elsewhere.
                 ready:
                   type: boolean
