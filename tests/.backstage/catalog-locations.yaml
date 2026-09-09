@@ -11,4 +11,6 @@ spec:
     - ../envs/harvester/crossplane-mgmt/xrs/infra/k3s-test/catalog-info.yaml
     - ../envs/harvester/crossplane-mgmt/xrs/infra/martin-demo-ns/catalog-info.yaml
     - ../envs/harvester/crossplane-mgmt/xrs/infra/silvio/catalog-info.yaml
+    - ../envs/harvester/crossplane-mgmt/xrs/virtual-machine/vm-ansible-test/catalog-info.yaml
     - ../envs/harvester/crossplane-mgmt/xrs/virtual-machine/vm-demo-morgen/catalog-info.yaml
+    - ../envs/harvester/crossplane-mgmt/xrs/virtual-machine/workshop/catalog-info.yaml
