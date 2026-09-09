@@ -337,6 +337,47 @@ spec:
                     certManagerServiceAccount:
                       type: string
                       default: certmanager
+                    composeMount:
+                      type: boolean
+                      default: false
+                      description: >-
+                        Compose the VaultK8sAuth child XR that CREATES the auth mount, instead of
+                        leaving it to a separately applied XR. Requires the vault-auth Configuration
+                        on this control plane -- declared as a dependsOn, so a version below the
+                        floor is a refused install rather than a child XR carrying fields its XRD
+                        does not declare. Implies enabled.
+                    mountClusterName:
+                      type: string
+                      description: >-
+                        First half of the Vault auth mount path -- vault-base-setup derives the mount
+                        as <mountClusterName>-<roleName>. Defaults to '<cluster name>-sthings'.
+                        Changing it changes the mount path, so it must stay in step with the
+                        vault-k8s-auth-mount annotation; with composeMount that annotation is
+                        derived from this value rather than written twice.
+                    roleName:
+                      type: string
+                      default: certmanager
+                      description: "Second half of the mount path, and the name of the Vault role bound to the cert-manager ServiceAccount."
+                    tokenPolicies:
+                      type: array
+                      items:
+                        type: string
+                      default: ["pki-issue"]
+                      description: >-
+                        Vault policies the login token receives. REFERENCED, not created -- a role
+                        bound to a policy that does not exist logs in successfully and is granted
+                        nothing, which surfaces as a denied signing request much later.
+                    approleSecret:
+                      type: string
+                      default: vault
+                      description: >-
+                        Secret in this XR's namespace holding terraform.tfvars with vault_role_id and
+                        vault_secret_id. AppRole, not a token, despite VaultK8sAuth calling the field
+                        vaultTokenSecret. The AppRole needs sudo AND delete on sys/auth/*.
+                    opentofuProviderConfigName:
+                      type: string
+                      default: in-cluster
+                      description: "OpenTofu ClusterProviderConfig the composed VaultK8sAuth drives Vault through."
                       description: >-
                         ServiceAccount cert-manager authenticates to Vault as. Only
                         created when the vault-pki block is also on, because that is

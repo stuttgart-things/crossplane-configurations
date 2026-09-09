@@ -134,6 +134,40 @@ spec:
             {{- $vaNs := $vaultAuth.reviewerNamespace | default "kube-system" }}
             {{- $vaCertManagerSa := $vaultAuth.certManagerServiceAccount | default "certmanager" }}
             {{- $vaSecret := print $name "-vault-reviewer" }}
+            {{- /* Phase 2: compose the VaultK8sAuth that CREATES the mount, rather
+                   than leaving it to a separately applied XR. composeMount implies
+                   enabled -- the child needs the reviewer Secret (6d) publishes. */}}
+            {{- $vaComposeMount := $vaultAuth.composeMount | default false }}
+            {{- if $vaComposeMount }}{{ $vaEnabled = true }}{{- end }}
+            {{- $vaMountCluster := $vaultAuth.mountClusterName | default (printf "%s-sthings" $name) }}
+            {{- $vaRole := $vaultAuth.roleName | default "certmanager" }}
+            {{- $vaPolicies := $vaultAuth.tokenPolicies | default (list "pki-issue") }}
+            {{- $vaApproleSecret := $vaultAuth.approleSecret | default "vault" }}
+            {{- $vaTofuPc := $vaultAuth.opentofuProviderConfigName | default "in-cluster" }}
+            {{- /* The mount path exists in two places that MUST agree: the path the
+                   auth backend is mounted at, and the vault-k8s-auth-mount annotation
+                   the cert-manager-vault-pki AppSet reads. Writing it twice is how they
+                   drift, and a mismatch does not fail loudly -- the issuer reports Ready
+                   on a successful LOGIN and only the signing request is denied. With
+                   composeMount both come from $vaMountPath. An annotation the caller set
+                   explicitly still wins: merge keeps existing keys. */}}
+            {{- $vaMountPath := printf "/v1/auth/%s-%s" $vaMountCluster $vaRole }}
+            {{- if $vaComposeMount }}
+            {{- $argocdAnnotations = merge (dict) $argocdAnnotations (dict
+                  "clusterbook.stuttgart-things.com/vault-auth-method" "kubernetes"
+                  "clusterbook.stuttgart-things.com/vault-k8s-auth-mount" $vaMountPath
+                  "clusterbook.stuttgart-things.com/vault-k8s-auth-role" $vaRole
+                  "clusterbook.stuttgart-things.com/vault-k8s-auth-sa" $vaCertManagerSa) }}
+            {{- end }}
+            {{- $vaultAddr := index $argocdAnnotations "clusterbook.stuttgart-things.com/vault-server" | default "" }}
+            {{- /* composeMount without a vault-server annotation would render the
+                   child XR block to nothing, silently -- the exact failure shape this
+                   feature exists to remove. Fail the render instead: a Composition
+                   that produces no error and no resource is the one thing nobody
+                   goes looking for. */}}
+            {{- if and $vaComposeMount (not $vaultAddr) }}
+            {{- fail (printf "vaultAuth.composeMount is set on %s but annotation clusterbook.stuttgart-things.com/vault-server is missing: the composed VaultK8sAuth has no Vault address to talk to" $name) }}
+            {{- end }}
             {{- if eq $infra "harvester" }}
             {{- /* Harvester VM nodes: a HarvesterConfig (the VM template) plus a
                    provisioning Cluster whose single machine pool references it. */}}
@@ -922,6 +956,64 @@ spec:
             status:
               vaultReviewerSecret: {{ $vaSecret }}
               vaultKubernetesHost: {{ printf "https://%s:6443" (index $vrData "apiserverIp" | b64dec) }}
+            {{- if $vaComposeMount }}
+            ---
+            # (6f) The VaultK8sAuth that actually CREATES the mount. Deliberately inside
+            # the same guard as (6e): it needs the reviewer Secret (6d) publishes and the
+            # API address discovered with it, neither of which exists before the cluster
+            # does. Composing it does not remove that ordering -- what it removes is a
+            # human running terraform with the OpenBao ROOT token. This authenticates with
+            # a scoped AppRole that may create, configure and delete auth mounts and
+            # nothing else.
+            #
+            # A CHILD XR, not a provider-kubernetes Object wrapping one. The dependsOn on
+            # vault-auth in crossplane.yaml is what turns an incompatible child XRD into a
+            # refused install, instead of a Composition that renders and silently drops the
+            # fields an older schema does not declare -- the same reasoning
+            # bootstrap/platform gives for its own floor.
+            #
+            # backendConfig reads the mirror from (6d). provider-kubernetes base64-decodes
+            # Secret `data` fieldPaths when building connectionDetails, so that Secret
+            # holds the raw JWT and PEM -- the shape backendConfig wants.
+            apiVersion: config.stuttgart-things.com/v1alpha1
+            kind: VaultK8sAuth
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-vault-k8s-auth") }}
+              name: {{ $name }}-vault-auth
+              namespace: {{ $xrNs }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-vault-k8s-auth
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              clusterName: {{ $vaMountCluster }}
+              vaultAddr: {{ $vaultAddr }}
+              skipTlsVerify: true
+              providerConfigName: {{ $vaTofuPc }}
+              providerConfigKind: ClusterProviderConfig
+              vaultTokenSecret: {{ $vaApproleSecret }}
+              vaultTokenSecretKey: terraform.tfvars
+              kubernetesHost: {{ printf "https://%s:6443" (index $vrData "apiserverIp" | b64dec) }}
+              k8sAuths:
+                - name: {{ $vaRole }}
+                  tokenPolicies:
+                    {{- range $vaPolicies }}
+                    - {{ . | quote }}
+                    {{- end }}
+                  tokenTtl: 3600
+                  boundServiceAccountNames:
+                    - {{ $vaCertManagerSa | quote }}
+                  boundServiceAccountNamespaces:
+                    - "cert-manager"
+                  backendConfig:
+                    secretName: {{ $vaSecret }}
+                    secretNamespace: {{ $xrNs }}
+                    caCertKey: ca.crt
+                    tokenKey: token
+                    disableIssValidation: true
+                    disableLocalCaJwt: true
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- end }}
