@@ -1,16 +1,7 @@
 ---
-# EnvironmentConfig for the high-level `virtual-machine` Configuration
-# (XVirtualMachine). Selected by the config-scoped label
-# `virtual-machine.resources.stuttgart-things.com/environment` matched against
-# the XR's spec.environment (here: harvester). function-environment-configs requires
-# EXACTLY ONE match per environment, so this label is distinct from the
-# harvester-vm one in env-config-harvestervm.yaml (different Configuration,
-# different selector) — both can live in this synced dir without colliding.
-#
-# Unlike the leaf harvester-vm env config (flat data), virtual-machine's data is
-# nested per provider; spec.provider: harvester reads the `harvester` sub-block
-# plus the cross-provider `ansible` block. Values are the proven LabUL placement
-# (same storage class / image / Multus net as env-config-harvestervm.yaml).
+# EnvironmentConfig for the virtual-machine Configuration (XVirtualMachine).
+# Selected by the label below matched against the XR's spec.environment.
+# function-environment-configs needs EXACTLY ONE match per environment.
 apiVersion: apiextensions.crossplane.io/v1beta1
 kind: EnvironmentConfig
 metadata:
@@ -18,38 +9,27 @@ metadata:
   labels:
     virtual-machine.resources.stuttgart-things.com/environment: harvester
 data:
-  # Cross-provider Ansible defaults (inert unless an XR sets ansible: true).
-  # When enabled, virtual-machine reads playbooks + varsFile from HERE and passes
-  # them down the XVirtualMachine -> HarvesterVM -> AnsibleRun chain; the target
-  # inventory is NOT set here — harvester-vm auto-populates it with the VM's
-  # resolved IP once it boots. Requires virtual-machine >=v0.1.6 (earlier
-  # versions hardcoded playbooks/varsFile and ignored these keys).
+  # Ansible defaults, inert unless an XR sets ansible: true. Needs virtual-machine >=v0.1.6.
+  # The inventory is NOT set here — harvester-vm fills in the VM's IP once it boots.
   ansible:
     crossplaneProviderConfig: in-cluster
     ansibleWorkingImage: ghcr.io/stuttgart-things/sthings-ansible:14.0.0-test
     playbooks:
       - sthings.baseos.setup
-    # Extra vars for the baseos playbook (key+-value form, parsed by ansible-run).
-    # manage_filesystem=false: Harvester VMs here have no LVM data disk, and the
-    # baseos manage_filesystem role auto-locates one -> "'lvm_disk' is undefined".
-    # vault_instances overrides the baseos default (vault.tiab.labda.sva.de,
-    # unreachable from this env) with the sthings.lab Vault. Mirrors the proven
-    # atomic AnsibleRun test (xrs/ansiblerun/xr-ansiblerun.yaml).
+    # key+-value form. manage_filesystem=false: no LVM data disk here, the role
+    # would fail with "'lvm_disk' is undefined". vault_instances overrides the
+    # baseos default (tiab, unreachable) — it is only used to fetch the PKI CA.
     varsFile:
       - manage_filesystem+-false
       - update_packages+-true
       - ansible_become+-true
       - ansible_become_method+-sudo
       - vault_instances+-["https://openbao.platform.sthings.lab"]
-  # Harvester / KubeVirt placement. `images` maps spec.os -> a
-  # {imageId, storageClassName} pair. Each Harvester image carries its OWN
-  # per-image Longhorn storage class (the backing-image class) — using the
-  # wrong class yields a blank disk. These are the images actually present on
-  # this Harvester (kubectl -n default get virtualmachineimage).
+  # Harvester placement. images maps spec.os -> {imageId, storageClassName}.
+  # Each image has its OWN Longhorn backing-image class — a wrong class yields a blank disk.
   harvester:
     images:
-      # ubuntu24 is the default alias for the u26-dev image.
-      ubuntu24:
+      ubuntu24:                                                  # alias for u26-dev
         imageId: default/u26-dev
         storageClassName: lh-7f7c570a-a326-4232-b291-3f2a946aeadf
       sthings-u26:
@@ -68,9 +48,7 @@ data:
         imageId: default/sthings-leap
         storageClassName: lh-3a6f72f1-c87e-44c3-b136-4020dbefea6c
     providerConfigRef: harvester
-    # Target namespace for PVC / cloud-init Secret / VM ON THE HARVESTER cluster.
-    namespace: vms
+    namespace: vms                                               # on the HARVESTER cluster
     networkName: default/vms
     user: sthings
-    # Reused from deploy-remote/5-xr.yaml (public key — safe to commit).
     sshKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOoe/pqEulMLsJRxBqgbDtdOftsCHq9K2hU1Xr99FQZA sthings@sthings-air12"
