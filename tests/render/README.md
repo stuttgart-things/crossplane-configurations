@@ -157,9 +157,31 @@ vanished from the snapshot without a word.
 
 So the "every field set" example was quietly rendering the *no-environment* path.
 
+**Whether that bites depends on the selector mode**, which is why it stayed
+hidden. Measured across the repo:
+
+| `load-environment` mode | field absent under render |
+|---|---|
+| `Single` (the default, no `mode:` key) | selector matches nothing, `$env` is **empty**, no error |
+| `Multiple` | tolerated, the EnvironmentConfig is still merged, output identical |
+
+`machinery/rancher-cluster` is `Single`, which is why 7 of its 16 composed
+resources were missing. `cicd/scheduled-run` is `Multiple`, and setting the
+field there changes nothing at all.
+
+Note the comment in `cicd/scheduled-run/apis/composition.yaml` reasons that
+"the XRD defaults spec.environmentConfig to `default` so the field is always
+set". True on a cluster. Not true under `crossplane render`.
+
 The rule that follows: **an example XR must set every field it relies on, even
 one the XRD defaults.** A default that only the API server applies is not
-exercised by a golden, and a block gated on it disappears rather than failing.
+exercised by a golden, and under `Single` a block gated on it disappears rather
+than failing. Seven further examples were fixed for this — none of them changed
+a golden today, because their Compositions are `Multiple` or their env values
+coincide with the in-template fallbacks. They are latent: the trap springs the
+moment any of those Compositions grows a branch gated on an env key, which is
+exactly what #392 does to `rancher-cluster`.
+
 If you want the defaulting path covered as well, that is what `xr-min.yaml` is
 for — it just has to be read as "renders without an environment", not as
 "renders the way the cluster would".

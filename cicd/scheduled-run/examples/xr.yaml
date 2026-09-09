@@ -12,6 +12,9 @@ metadata:
   name: nightly-baseos
   namespace: default
 spec:
+  # Explicit: crossplane render applies no XRD defaults, so omitting this
+  # renders the no-EnvironmentConfig path (tests/render/README.md).
+  environmentConfig: default
   schedule: "0 2 * * *"
   targetNamespace: tekton-ci
   namespace: crossplane-system

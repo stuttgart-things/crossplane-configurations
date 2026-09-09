@@ -6,6 +6,9 @@ metadata:
   name: cluster-backup
   namespace: default
 spec:
+  # Explicit: crossplane render applies no XRD defaults, so omitting this
+  # renders the no-EnvironmentConfig path (tests/render/README.md).
+  environmentConfig: default
   clusterName: kind1
   registry: ghcr.io/stuttgart-things/backups
   registryCredentialsSecretName: backup-registry # pragma: allowlist secret

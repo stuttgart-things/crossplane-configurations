@@ -9,6 +9,9 @@ metadata:
   name: vault-pki-prod
   namespace: default
 spec:
+  # Explicit: crossplane render applies no XRD defaults, so omitting this
+  # renders the no-EnvironmentConfig path (tests/render/README.md).
+  environmentConfig: default
   # environmentConfig: prod   # selects a non-default EnvironmentConfig; every
   #                           # field below is set explicitly anyway, so this XR
   #                           # doesn't depend on one.
@@ -31,7 +34,7 @@ spec:
 
   namespace: cert-manager
 
-  caSecretName: vault-pki-ca
-  caSecretKey: ca.crt
+  caSecretName: vault-pki-ca  # pragma: allowlist secret
+  caSecretKey: ca.crt  # pragma: allowlist secret
   tokenSecretName: vault-pki-prod-token # pragma: allowlist secret
   tokenSecretKey: token # pragma: allowlist secret

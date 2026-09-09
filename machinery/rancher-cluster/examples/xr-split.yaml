@@ -12,6 +12,9 @@ metadata:
   name: k3s-split
   namespace: default
 spec:
+  # Explicit: crossplane render applies no XRD defaults, so omitting this
+  # renders the no-EnvironmentConfig path (tests/render/README.md).
+  environmentConfig: default
   providerConfigRef: in-cluster          # control-plane cluster (Crossplane / provider-kubernetes)
   rancherProviderConfigRef: rancher-mgmt # Rancher management cluster (provisioning.cattle.io)
   name: k3s-split
