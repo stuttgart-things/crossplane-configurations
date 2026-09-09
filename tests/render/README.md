@@ -100,3 +100,49 @@ EnvironmentConfigs, CLI version) tuple, which is why the CLI version is pinned.
 If a snapshot ever diffs only in field ordering or a generated suffix, normalise
 it in `render-golden.sh` (e.g. pipe through `yq -P`) rather than accepting the
 churn.
+
+## The CLI version is a guard, not a convention
+
+The CLI version being part of that tuple is enforced, because getting it wrong
+is silent. A CLI older than v2.3.0 does not fail — it renders XRs **without**
+`spec.crossplane.resourceRefs`, so one `task render-golden` on a stale
+workstation rewrites the whole corpus:
+
+```
+106 files changed, 341 insertions(+), 2513 deletions(-)
+```
+
+Every removal is the same boilerplate block, which is exactly what a reviewer
+skims past. It reads like a tidy-up. It is data loss (#393).
+
+So both scripts source `crossplane-version.sh` and refuse below the floor:
+
+```
+render-golden: crossplane v2.1.3 is older than the required v2.3.0
+       CI pins v2.4.1 (crossplane-versions.env).
+       Regenerating with this CLI drops spec.crossplane.resourceRefs
+       from every snapshot. Refusing.
+```
+
+`check-golden.sh` runs the same guard **before** it renders. A check on an old
+CLI would otherwise report drift that is not there, against goldens that are
+fine — and the obvious next move is to "fix" them by regenerating with the very
+CLI that caused it.
+
+On the happy path each run now names the tool that produced the output:
+
+```
+render-golden: crossplane v2.4.1 (CI pins v2.4.1, floor v2.3.0)
+render-golden: core image xpkg.crossplane.io/crossplane/crossplane:v2.4.0
+```
+
+### One source for the numbers
+
+The floor, the CI pin and the core image live in **`crossplane-versions.env`**
+at the repo root — sourced by the scripts, by `render-golden.yaml` (into
+`$GITHUB_ENV`) and by the `render` task. They used to be spread over four
+places, and a floor that can drift from the version CI installs checks nothing.
+
+Bumping the CLI is therefore one file, plus the golden regeneration the bump
+implies. `CROSSPLANE_SKIP_VERSION_CHECK=1` disables the guard if you genuinely
+need to render with something else; expect the diff to say so.

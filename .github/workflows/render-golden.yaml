@@ -27,30 +27,30 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      # Match the CLI the crossplane dagger module pins (see the
-      # CROSSPLANE_MODULE_VERSION note in verify.yaml) so local `task verify`,
-      # CI verify and these goldens all render through the same CLI.
-      #
-      # Der Bucket haengt an der Version, und das ist keine Kosmetik: ab v2.3.0
-      # kommt die CLI aus cli.crossplane.io als Binary `crossplane`, davor aus
-      # releases.crossplane.io als `crank`. Die CLI ist bei v2.3.0 in ein
-      # eigenes Repo umgezogen (crossplane/cli); crossplane/crossplane taggt
-      # seitdem den CORE, was etwas anderes ist.
-      CROSSPLANE_VERSION: v2.4.1
-      # Welchen Renderer render-golden.sh benutzt. Ab CLI v2.3.0 laeuft der
-      # Render in `crossplane internal render` — nicht in der CLI, sondern im
-      # CORE. Ohne Pin waehlt die CLI dafuer das FLOATING Tag
-      # crossplane:stable, das hinterherhinkt und Render ohne Vorwarnung bricht
-      # (stuttgart-things/dagger#295). render-golden.sh setzt den Wert per
-      # --crossplane-image, sobald die CLI das Flag kennt.
-      #
-      # Muss zur Core-Version im dagger-Modul passen, sonst rendern verify und
-      # diese Goldens mit verschiedenen Renderern und die Snapshots driften
-      # gegen einen Check, der sie erzeugt hat.
-      CROSSPLANE_RENDER_IMAGE: xpkg.crossplane.io/crossplane/crossplane:v2.4.0
     steps:
       - uses: actions/checkout@v7.0.1
+
+      # CROSSPLANE_VERSION (CLI) und CROSSPLANE_RENDER_IMAGE (Core) standen frueher
+      # hier im env-Block und noch einmal als Default in render-golden.sh und im
+      # Taskfile. Jetzt gibt es genau eine Quelle: crossplane-versions.env. Der
+      # Grund ist nicht Kosmetik — die Skripte pruefen die CLI gegen dieselbe
+      # Datei (CROSSPLANE_MIN_VERSION), und eine Untergrenze, die von der
+      # CI-Version abweichen kann, prueft nichts (#393).
+      #
+      # Wissenswertes zu den Werten steht in crossplane-versions.env; kurz:
+      # ab v2.3.0 kommt die CLI aus cli.crossplane.io als Binary `crossplane`
+      # (davor releases.crossplane.io als `crank`), und der Render laeuft seitdem
+      # im CORE per `crossplane internal render` — ohne Pin im FLOATING Tag
+      # crossplane:stable (stuttgart-things/dagger#295).
+      - name: Load pinned Crossplane versions
+        run: |
+          set -euo pipefail
+          . ./crossplane-versions.env
+          {
+            echo "CROSSPLANE_VERSION=${CROSSPLANE_VERSION}"
+            echo "CROSSPLANE_RENDER_IMAGE=${CROSSPLANE_RENDER_IMAGE}"
+          } >> "$GITHUB_ENV"
+          echo "CLI ${CROSSPLANE_VERSION}, core ${CROSSPLANE_RENDER_IMAGE}"
 
       - name: Install pinned crossplane CLI
         run: |

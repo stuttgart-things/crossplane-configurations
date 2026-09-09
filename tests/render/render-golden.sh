@@ -35,10 +35,14 @@ cd "$ROOT"
 
 GOLDEN_ROOT="${GOLDEN_ROOT:-tests/render/golden}"
 
-if ! command -v crossplane >/dev/null 2>&1; then
-  echo "render-golden: 'crossplane' CLI not found on PATH" >&2
-  exit 127
-fi
+# Presence AND version. The version half is the point: an older CLI does not
+# fail, it renders without spec.crossplane.resourceRefs and quietly strips that
+# block from every snapshot it rewrites (#393). The guard also prints the CLI it
+# is about to render with, so the run says which tool produced the output.
+# shellcheck source=tests/render/crossplane-version.sh
+. "$(cd "$(dirname "$0")" && pwd)/crossplane-version.sh"
+crossplane_versions_load
+crossplane_version_guard render-golden
 
 # Pin the Crossplane core image the renderer runs `internal render` in.
 #
@@ -50,12 +54,19 @@ fi
 # without a single code change (stuttgart-things/dagger#295). A floating tag in
 # the execution path is the same hazard as one in a package pin.
 #
-# Probed by FLAG, not by version: v2.2.2 (what render-golden.yaml and the dagger
-# module pin) has no such flag and needs none — it renders in-process. The same
-# script therefore runs on both generations.
+# Still probed by FLAG rather than assumed from the version guard above. The
+# floor (v2.3.0) is the release that introduced both the out-of-process render
+# and this flag, so in practice the probe always succeeds now — but it is what
+# keeps the fallback honest if a CLI ever renders in-process again, and it costs
+# one --help call.
+#
+# The image itself comes from crossplane-versions.env (CROSSPLANE_RENDER_IMAGE),
+# already loaded above — one place for it instead of a default repeated here, in
+# the Taskfile and in the workflow.
 IMAGE_ARG=""
 if crossplane render --help 2>&1 | grep -q -- '--crossplane-image'; then
-  IMAGE_ARG="--crossplane-image=${CROSSPLANE_RENDER_IMAGE:-xpkg.crossplane.io/crossplane/crossplane:v2.4.0}"
+  IMAGE_ARG="--crossplane-image=${CROSSPLANE_RENDER_IMAGE}"
+  echo "render-golden: core image ${CROSSPLANE_RENDER_IMAGE}"
 fi
 
 # Restrict to one Configuration with CONFIG=<path> (e.g. CONFIG=k8s/namespace);

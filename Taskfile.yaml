@@ -78,13 +78,23 @@ tasks:
         # Ausfuehrungspfad ist dasselbe Problem wie ein Floating Tag in einem
         # Paket-Pin, nur schlechter sichtbar.
         #
-        # Die Abfrage auf das Flag statt auf die Version ist Absicht: v2.2.2
-        # (was das dagger-Modul und render-golden.yaml pinnen) KENNT das Flag
-        # nicht und braucht es auch nicht — dort rendert die CLI selbst. So
-        # laeuft derselbe Task auf beiden Generationen.
+        # Die Abfrage auf das Flag statt auf die Version ist Absicht: eine CLI
+        # vor v2.3.0 KENNT das Flag nicht und braucht es auch nicht — dort
+        # rendert die CLI selbst. So laeuft derselbe Task auf beiden
+        # Generationen.
+        #
+        # Das Image selbst kommt aus crossplane-versions.env, der einzigen
+        # Quelle fuer CLI-Untergrenze, CI-Pin und Core-Image. Frueher stand der
+        # Default hier UND in tests/render/render-golden.sh UND im Workflow —
+        # drei Stellen, die auseinanderlaufen konnten (#393).
+        # if/then/fi statt `[ ... ] || .`: eine gesetzte Env-Variable soll
+        # weiterhin gewinnen (so war der :- Default vorher gemeint).
+        if [ -z "${CROSSPLANE_RENDER_IMAGE:-}" ]; then
+          . ./crossplane-versions.env
+        fi
         IMAGE_ARG=""
         if crossplane render --help 2>&1 | grep -q -- '--crossplane-image'; then
-          IMAGE_ARG="--crossplane-image=${CROSSPLANE_RENDER_IMAGE:-xpkg.crossplane.io/crossplane/crossplane:v2.4.0}"
+          IMAGE_ARG="--crossplane-image=${CROSSPLANE_RENDER_IMAGE}"
         fi
 
         gum style --foreground 4 "→ rendering $CONFIG"
