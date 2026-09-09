@@ -14,7 +14,7 @@
 #            provider-kubernetes ClusterProviderConfig.
 #
 # Requires virtual-machine >=v0.1.6: playbooks + varsFile (manage_filesystem=false,
-# vault_instances -> vault.infra.sthings.lab) come from the EnvironmentConfig
+# vault_instances -> openbao.platform.sthings.lab) come from the EnvironmentConfig
 # `ansible` block, NOT from this XR — the high-level XR stays pure intent.
 #
 # os: sthings-u26 (NOT the vanilla ubuntu24/u26-dev image): the golden
