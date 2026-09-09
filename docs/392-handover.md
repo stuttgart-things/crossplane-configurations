@@ -29,7 +29,50 @@ Two mechanisms were needed, both now in the repo:
    (`fromFieldPathPolicy: Optional`) dropped its matchLabel, `$env` rendered
    empty, and every block gated on an env key silently vanished. *Verified.*
 
-## What is left, and what each part needs
+## Phase 1 is now implemented (still unvalidated against a cluster)
+
+`spec.vaultAuth.enabled` on `machinery/rancher-cluster` supplies all three
+things below. Verified **by rendering only**:
+
+| step | resource |
+|---|---|
+| (6a) | `ServiceAccount` `<reviewerNamespace>/<reviewerServiceAccount>`, `automountServiceAccountToken: false` |
+| (6b) | `ClusterRoleBinding` to **`system:auth-delegator`** |
+| (6c) | SA-token `Secret`, `[Observe, Create]` |
+| (6d) | Observe-only Object → connection Secret `<name>-vault-reviewer` (`token`, `ca.crt`, `apiserverIp`) |
+| (6e) | `status.vaultReviewerSecret` + `status.vaultKubernetesHost` |
+| (5a2) | `ServiceAccount` `cert-manager/certmanager` (only when the vault-pki block is on too) |
+
+`xr-max` renders 21 composed resources and this status:
+
+```yaml
+vaultKubernetesHost: https://192.168.10.135:6443
+vaultReviewerSecret: rke2-prod-vault-reviewer
+```
+
+**What the golden does NOT prove**, and what the cluster agent has to check
+first:
+
+1. **The token encoding.** (6d) mirrors `data.token` through
+   `connectionDetails`, copying what step (4d) does for the Argo CD SA — which
+   demonstrably works, since clusters do get registered. But whether the value
+   that lands in the connection Secret is the JWT or a base64 of it was never
+   verified here; `VaultK8sAuth.backendConfig` needs the JWT. If auth fails with
+   a malformed-token error, this is the first place to look.
+2. **`system:auth-delegator` is enough.** Reasoned from what a TokenReview
+   needs, not measured.
+3. That the reviewer SA does not collide with the one `vault-base-setup` or
+   `blueprints CreateVaultKubernetesAuth` create — see the ownership question
+   below. `spec.vaultAuth.reviewerServiceAccount` exists so the name can be
+   aligned rather than duplicated.
+
+## What is left after that
+
+Composing the `VaultK8sAuth` itself — deliberately NOT done, because it needs the
+packaging decision below. Today the XR is still applied separately; it just no
+longer needs a human with the root token in front of it.
+
+## What each remaining part needs
 
 ### 1. Reviewer ServiceAccount + mirrored Secret — the only real work
 

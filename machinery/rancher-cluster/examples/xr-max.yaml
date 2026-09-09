@@ -41,6 +41,14 @@ spec:
   # Rancher auth-proxy dependency. The kubeconfig Secret + ClusterbookCluster are
   # created on the cluster that runs Argo CD + clusterbook (providerConfigRef;
   # here the Rancher cluster).
+  # Prepares this cluster for Vault/OpenBao kubernetes auth: the token-reviewer
+  # identity downstream, its credentials mirrored back to
+  # `rke2-prod-vault-reviewer` next to this XR, and the API endpoint published as
+  # status.vaultKubernetesHost. Hand that Secret and that host to a VaultK8sAuth
+  # XR and the auth mount needs no root token and no manual step. See
+  # docs/392-handover.md.
+  vaultAuth:
+    enabled: true
   argocd:
     register: true
     namespace: argocd

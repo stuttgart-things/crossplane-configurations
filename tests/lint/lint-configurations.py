@@ -188,6 +188,55 @@ def check_definition(config: str, cdir: Path, f: Findings) -> None:
         f.error(config, "definition.yaml: spec.names.claimNames set — v2 has no Claim")
 
 
+def check_examples_against_xrd(config: str, cdir: Path, f: Findings) -> None:
+    """Every spec field an example XR uses must be declared in the XRD.
+
+    The CI verify harness already checks this (Layer 1: kubeconform against a
+    JSON schema generated from the XRD, where an undeclared field surfaces as
+    `additionalProperties '<name>' not allowed`). But it only runs after a push,
+    on a runner, per Configuration — and the failure mode it catches is one you
+    produce locally: add a field to the Composition and the examples, forget the
+    XRD, or add it to the XRD at the wrong indentation so it lands beside
+    `properties` instead of inside it. The YAML still parses, the render still
+    works, the goldens still regenerate. Nothing local says a word.
+
+    Checking it here costs a dict lookup and moves that finding from a CI round
+    trip to the commit that causes it. ERROR, because on a cluster the API
+    server rejects such an XR outright.
+    """
+    xrd_path = cdir / "apis/definition.yaml"
+    if not xrd_path.is_file():
+        return
+    try:
+        xrd = load_single(xrd_path)
+    except Exception:  # noqa: BLE001
+        return  # already reported by check_definition
+    spec = xrd.get("spec") or {}
+    kind = (spec.get("names") or {}).get("kind")
+    versions = spec.get("versions") or []
+    if not kind or not versions:
+        return
+    schema = ((versions[0].get("schema") or {}).get("openAPIV3Schema") or {})
+    declared = set((((schema.get("properties") or {}).get("spec") or {})
+                    .get("properties") or {}))
+    if not declared:
+        return
+
+    for ex in sorted((cdir / "examples").glob("xr*.yaml")):
+        try:
+            doc = load_single(ex)
+        except Exception:  # noqa: BLE001
+            continue
+        if not isinstance(doc, dict) or doc.get("kind") != kind:
+            continue
+        used = set((doc.get("spec") or {}))
+        undeclared = sorted(used - declared)
+        if undeclared:
+            f.error(config, f"examples/{ex.name}: spec field(s) not declared in the XRD: "
+                            f"{', '.join(undeclared)} — the API server rejects this XR, "
+                            f"and CI verify fails with \"additionalProperties not allowed\"")
+
+
 def check_composition(config: str, cdir: Path, f: Findings) -> None:
     path = cdir / "apis/composition.yaml"
     if not path.is_file():
@@ -602,6 +651,7 @@ def main() -> int:
         check_files(config, cdir, f)
         check_crossplane_meta(config, cdir, f)
         check_definition(config, cdir, f)
+        check_examples_against_xrd(config, cdir, f)
         check_composition(config, cdir, f)
         check_functions(config, cdir, f)
 

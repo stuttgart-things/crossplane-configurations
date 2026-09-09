@@ -100,8 +100,62 @@ real XR is usually just `name` + per-cluster sizing + `argocd.register`.
 | `argocd.providerConfigRef` | | **env** → `rancherProviderConfigRef` | ClusterProviderConfig for the cluster running Argo CD + clusterbook-operator |
 | `argocd.server` | | **auto-discovered** | Direct API endpoint of the downstream cluster. Normally omitted — discovered from the downstream `kubernetes` Endpoints. Set only to force a VIP/LB for HA. |
 | `argocd.labels` | | — | Labels on the `ClusterbookCluster` / Argo cluster Secret (for ApplicationSet selectors) |
+| `vaultAuth.enabled` | | `false` | Prepare the cluster for Vault/OpenBao **kubernetes** auth (see below) |
+| `vaultAuth.reviewerServiceAccount` | | `vault-auth-reviewer` | Token-reviewer SA created downstream |
+| `vaultAuth.reviewerNamespace` | | `kube-system` | Namespace of that SA and its token Secret |
+| `vaultAuth.certManagerServiceAccount` | | `certmanager` | SA cert-manager logs in to Vault as |
 
-Status: `kubeconfigSecret`, `clusterProviderConfig`, `argocdClusterSecret`.
+Status: `kubeconfigSecret`, `clusterProviderConfig`, `argocdClusterSecret`,
+`vaultReviewerSecret`, `vaultKubernetesHost`.
+
+## Optional: Vault kubernetes-auth prerequisites (`spec.vaultAuth.enabled: true`)
+
+A cluster built from this XR comes up with its `vault-pki` ClusterIssuer
+**not-Ready**, because the OpenBao auth mount its annotations name does not exist
+yet. Creating that mount is `bootstrap/vault-auth`'s job (a `VaultK8sAuth` XR
+through provider-opentofu). What `VaultK8sAuth` *cannot* do is the half that
+lives on the new cluster and on the control plane — correctly so, it configures
+Vault and nothing else. That half is what this block supplies:
+
+1. A token-reviewer `ServiceAccount` bound to **`system:auth-delegator`** —
+   TokenReview and nothing more. Not `cluster-admin` like the Argo CD manager:
+   this token leaves the cluster.
+2. Its credentials mirrored **back** to a Secret next to this XR
+   (`<name>-vault-reviewer`, keys `token` + `ca.crt`). This is the same
+   create-then-observe split as the Argo CD SA — provider-kubernetes does not
+   surface `connectionDetails` on an Object that also manages the target.
+3. The downstream API endpoint as `status.vaultKubernetesHost`. `VaultK8sAuth`
+   defaults `kubernetesHost` to `https://kubernetes.default.svc:443`, the
+   in-cluster address, which is wrong whenever Vault runs elsewhere.
+4. With the vault-pki block also on: the `certmanager` ServiceAccount in
+   `cert-manager`. Its absence surfaces as a *Vault* error —
+   `while requesting a token for the service account /certmanager:
+   serviceaccounts "certmanager" not found` — and nothing else owns it. The
+   matching `cert-manager-tokenrequest` Role arrives from the
+   `cert-manager-vault-pki` ApplicationSet.
+
+Then point a `VaultK8sAuth` at the two published values:
+
+```yaml
+spec:
+  kubernetesHost: <status.vaultKubernetesHost>
+  k8sAuths:
+    - name: certmanager
+      backendConfig:
+        secretName: <status.vaultReviewerSecret>
+        secretNamespace: <namespace of this XR>
+```
+
+**This is still two phases** — the reviewer token cannot exist before the cluster
+does. What it removes is the human and the OpenBao **root token**: until
+2026-09-08 somebody ran `terraform apply` in `stuttgart-things/harvester` by hand
+for every new cluster. Composing the `VaultK8sAuth` itself is the open half of
+[#392](https://github.com/stuttgart-things/crossplane-configurations/issues/392);
+see [`docs/392-handover.md`](../../docs/392-handover.md) for the decision it
+still needs.
+
+`enabled` is off by default because it is a real grant: anyone holding that
+token can review logins for the cluster.
 
 ## Per-environment defaults (EnvironmentConfig)
 
