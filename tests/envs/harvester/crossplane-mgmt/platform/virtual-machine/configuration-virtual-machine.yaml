@@ -55,4 +55,4 @@ spec:
 # the same ghcr path, which collides. Per the root CLAUDE.md: wait ~30s, find it
 # with `jq -r '.packages[].source' | sort | uniq -d`, check the XRDs belong to
 # the short chain, then delete the long-named Configuration. One round.
-  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.13
+  package: ghcr.io/stuttgart-things/crossplane-configurations/virtual-machine:v0.1.14
