@@ -40,7 +40,7 @@ data:
       - update_packages+-true
       - ansible_become+-true
       - ansible_become_method+-sudo
-      - vault_instances+-["https://vault.infra.sthings.lab"]
+      - vault_instances+-["https://openbao.platform.sthings.lab"]
   # Harvester / KubeVirt placement. `images` maps spec.os -> a
   # {imageId, storageClassName} pair. Each Harvester image carries its OWN
   # per-image Longhorn storage class (the backing-image class) — using the

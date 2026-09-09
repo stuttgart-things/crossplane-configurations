@@ -37,7 +37,7 @@ spec:
     # Override the baseos setup.yaml default vault_instances list (which points
     # at vault.tiab.labda.sva.de:8200 — not resolvable from this env) with the
     # correct Vault for the sthings.lab environment.
-    - vault_instances+-["https://vault.infra.sthings.lab"]
+    - vault_instances+-["https://openbao.platform.sthings.lab"]
   ansibleVarsInventory:
     - 'all+["192.168.10.149"]'
   crossplaneObjectName: run-ansible-test-3
