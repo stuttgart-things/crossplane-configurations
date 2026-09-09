@@ -1063,8 +1063,24 @@ tasks:
 
         # --- bump annotation in crossplane.yaml ---
         yq -i ".metadata.annotations.\"meta.crossplane.io/version\" = \"$NEW\"" "$META"
+
+        # --- and the README table row, which the lint requires to match ---
+        # Done here rather than left to whoever remembers. The row and the
+        # annotation are compared by tests/lint/lint-configurations.py at ERROR
+        # level, so a bump without the row turns main red and every open PR
+        # inherits a failing Lint job that has nothing to do with its own change.
+        # That happened three times in two days before this existed -- and the
+        # lint is already a pre-commit hook AND a required check. It was not
+        # enough, because nothing was updating the row in the first place.
+        if grep -qF "]($CONFIG/) |" README.md 2>/dev/null; then
+          sed -i -E "s#(\]\($CONFIG/\) \| )v[0-9]+\.[0-9]+\.[0-9]+( \|)#\1$NEW\2#" README.md
+          gum style --foreground 8 "  updated the README row for $CONFIG → $NEW"
+        else
+          gum style --foreground 3 "  no README row for $CONFIG — add one, the lint requires it"
+        fi
+
         gum style --foreground 2 --bold "✓ pushed $DESTINATION"
-        gum style --foreground 8 "  updated $META → meta.crossplane.io/version: $NEW  (don't forget to commit)"
+        gum style --foreground 8 "  updated $META → meta.crossplane.io/version: $NEW  (commit both files)"
 
         # --- ghcr visibility check ---
         # New ghcr.io packages default to private. Crossplane pulls anonymously
