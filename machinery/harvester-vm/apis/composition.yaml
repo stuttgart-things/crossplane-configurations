@@ -310,7 +310,34 @@ spec:
             {{-   $vmiStatus := dig "status" dict $manifest }}
             {{-   $phase = dig "phase" "" $vmiStatus }}
             {{-   $ifaces := dig "interfaces" list $vmiStatus }}
-            {{-   if gt (len $ifaces) 0 }}
+            {{- /*
+              Prefer IPv4. The guest agent reports both families and the order
+              is NOT stable: the same image came up v4-first on one VM and
+              v6-first on the next. status.share.ip feeds the Ansible inventory
+              verbatim, and the Tekton pod has no IPv6 route -- so taking
+              interfaces[0].ipAddress blindly failed provisioning with
+                ssh: connect to host 2a01:... port 22: Network unreachable
+              on exactly the runs where the agent happened to list v6 first.
+              interfaces[].ipAddresses carries every address; scan those and
+              take the first non-colon one, falling back to the old single
+              ipAddress field when the list is absent (older agents) or when
+              the guest genuinely reports no IPv4 at all.
+            */}}
+            {{-   range $iface := $ifaces }}
+            {{-     $addrs := dig "ipAddresses" list $iface }}
+            {{-     if eq (len $addrs) 0 }}
+            {{-       $single := dig "ipAddress" "" $iface }}
+            {{-       if $single }}
+            {{-         $addrs = list $single }}
+            {{-       end }}
+            {{-     end }}
+            {{-     range $addr := $addrs }}
+            {{-       if and (eq $ip "") (not (contains ":" $addr)) }}
+            {{-         $ip = $addr }}
+            {{-       end }}
+            {{-     end }}
+            {{-   end }}
+            {{-   if and (eq $ip "") (gt (len $ifaces) 0) }}
             {{-     $ip = dig "ipAddress" "" (index $ifaces 0) }}
             {{-   end }}
             {{- end }}
