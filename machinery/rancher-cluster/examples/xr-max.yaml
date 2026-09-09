@@ -49,6 +49,10 @@ spec:
   # docs/392-handover.md.
   vaultAuth:
     enabled: true
+    # Phase 2: also compose the VaultK8sAuth that creates the mount. Requires
+    # the vault-auth Configuration (declared as a dependsOn) and an AppRole
+    # Secret named `vault` next to this XR.
+    composeMount: true
   argocd:
     register: true
     namespace: argocd
@@ -67,4 +71,9 @@ spec:
     annotations:
       # Name of the token Secret block (5c) writes downstream, and the name the
       # ClusterIssuer's auth.tokenSecretRef expects.
+      # Required by vaultAuth.composeMount -- the composed VaultK8sAuth reads the
+      # Vault address from here rather than taking a second field that could
+      # disagree with it.
+      clusterbook.stuttgart-things.com/vault-server: https://openbao.platform.sthings.lab
+      clusterbook.stuttgart-things.com/vault-pki-path: pki/sign/sthings-lab
       clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token  # pragma: allowlist secret

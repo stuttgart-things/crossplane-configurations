@@ -137,7 +137,31 @@ ServiceAccount has no owner at all. One more `Object` next to step (5a), same
 
 The error reads like a Vault fault. It is a missing ServiceAccount.
 
-## The open decision I could not make
+## The open decision — DECIDED 2026-09-09, Phase 2
+
+**Composed as a nested child XR, with a `dependsOn` on `vault-auth`.**
+
+What settled it was the reasoning already written into `bootstrap/platform`'s own
+floor: a `dependsOn` there is not ceremony, it is what turns an incompatible
+child XRD into a *refused install* rather than "a Composition that renders and
+then does nothing". Without it the child carries fields an older XRD does not
+declare and the structural schema drops them, silently.
+
+The Lock risk is real but not new. Per `CLAUDE.md` the collision needs a
+SHORT-named CR of a package something depends on — and `bootstrap/platform`
+already declares this exact edge. Adding a second one does not create a new
+failure class; it widens an existing one, and the mitigation is unchanged:
+`vault-auth` stays installed under the package-manager-derived LONG name, as it
+is on crossplane-mgmt since #385, where the manifest says so and why.
+
+The alternative considered and rejected: wrapping the child in a
+provider-kubernetes `Object` targeting the local cluster. That needs no
+`dependsOn` at all — but it also loses the version floor, and adds a layer to
+debug through for nothing.
+
+## What the original text said
+
+
 
 **How does `VaultK8sAuth` get composed?**
 

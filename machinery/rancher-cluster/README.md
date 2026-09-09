@@ -104,9 +104,50 @@ real XR is usually just `name` + per-cluster sizing + `argocd.register`.
 | `vaultAuth.reviewerServiceAccount` | | `vault-auth-reviewer` | Token-reviewer SA created downstream |
 | `vaultAuth.reviewerNamespace` | | `kube-system` | Namespace of that SA and its token Secret |
 | `vaultAuth.certManagerServiceAccount` | | `certmanager` | SA cert-manager logs in to Vault as |
+| `vaultAuth.composeMount` | | `false` | Also compose the `VaultK8sAuth` that **creates** the mount. Implies `enabled`. |
+| `vaultAuth.mountClusterName` | | `<name>-sthings` | First half of the mount path (`<this>-<roleName>`) |
+| `vaultAuth.roleName` | | `certmanager` | Second half of the mount path, and the Vault role name |
+| `vaultAuth.tokenPolicies` | | `["pki-issue"]` | Policies the login token gets — referenced, never created |
+| `vaultAuth.approleSecret` | | `vault` | Secret with `terraform.tfvars` (`vault_role_id`, `vault_secret_id`) |
+| `vaultAuth.opentofuProviderConfigName` | | `in-cluster` | OpenTofu `ClusterProviderConfig` the child XR drives Vault through |
 
 Status: `kubeconfigSecret`, `clusterProviderConfig`, `argocdClusterSecret`,
 `vaultReviewerSecret`, `vaultKubernetesHost`.
+
+## Optional: create the mount too (`spec.vaultAuth.composeMount: true`)
+
+`enabled` prepares the cluster; `composeMount` also composes the `VaultK8sAuth`
+child XR that creates the Vault auth mount, so the cluster reaches a working
+`vault-pki` ClusterIssuer without anyone applying a second XR by hand.
+
+It does **not** remove the ordering: the child needs the reviewer Secret and the
+API address that only exist once the cluster does, so it becomes ready later than
+the rest — the same shape as the Argo CD registration block. What it removes is a
+human running `terraform apply` with the OpenBao **root token**; the child
+authenticates with a scoped AppRole instead.
+
+**The mount path is derived once.** It exists in two places that must agree — the
+path the backend is mounted at, and the `vault-k8s-auth-mount` annotation the
+`cert-manager-vault-pki` ApplicationSet reads. With `composeMount` both come from
+`mountClusterName` + `roleName`, and the annotations are filled in for you
+(`vault-auth-method`, `-mount`, `-role`, `-sa`). An annotation you set explicitly
+still wins. Writing the path twice is how it drifts, and a mismatch does not fail
+loudly: the issuer reports `Ready` on a successful *login* and only the signing
+request is denied.
+
+Requires, on the control plane:
+
+- the **`vault-auth` Configuration**, declared as a `dependsOn` so a version below
+  the floor is a refused install rather than a child XR whose fields the older
+  schema silently drops. It must stay installed under the package-manager-derived
+  **long** name — a short name plus a dependent is the documented Lock collision.
+- a Secret named by `approleSecret` (default `vault`) holding `terraform.tfvars`
+  with `vault_role_id` and `vault_secret_id`. AppRole, not a token. It needs
+  `sudo` **and** `delete` on `sys/auth/*`: without `sudo` it authenticates and
+  then 403s on the mount, without `delete` a teardown strands the Workspace in
+  its finalizer and orphans the mount.
+- the `clusterbook.stuttgart-things.com/vault-server` annotation. Missing it with
+  `composeMount` set **fails the render** rather than quietly composing nothing.
 
 ## Optional: Vault kubernetes-auth prerequisites (`spec.vaultAuth.enabled: true`)
 

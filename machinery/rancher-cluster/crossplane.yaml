@@ -74,6 +74,20 @@ spec:
   crossplane:
     version: ">=v2.1.3"
   dependsOn:
+    # vault-auth supplies the VaultK8sAuth XRD that spec.vaultAuth.composeMount
+    # emits as a child XR. Declared rather than left as a cluster precondition,
+    # for the reason bootstrap/platform gives for its own floor: against an older
+    # vault-auth the child carries fields its XRD does not declare, and the
+    # structural schema drops them -- a Composition that renders and then does
+    # nothing. The floor turns that into a refused install.
+    #
+    # THE CAP IS NOT DECORATION. Per CLAUDE.md the fatal Lock collision needs a
+    # SHORT-named CR of a package something depends on. This adds a second such
+    # edge (bootstrap/platform already has one), so vault-auth must stay installed
+    # under the package-manager-derived LONG name -- as it is on crossplane-mgmt
+    # since #385, where the manifest says so.
+    - configuration: ghcr.io/stuttgart-things/crossplane-configurations/vault-auth
+      version: ">=v0.3.2,<v0.4.0"
     # Creates the provisioning Cluster, the downstream ClusterProviderConfig
     # and the downstream bootstrap Namespace as Objects.
     - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
