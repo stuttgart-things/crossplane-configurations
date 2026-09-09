@@ -101,6 +101,69 @@ If a snapshot ever diffs only in field ordering or a generated suffix, normalise
 it in `render-golden.sh` (e.g. pipe through `yq -P`) rather than accepting the
 churn.
 
+## Observed state: `tests/render/extra-resources/`
+
+Large parts of a Composition can hang off resources that only exist once a
+provider has **observed** the target cluster. `machinery/rancher-cluster` is the
+extreme case: its Argo CD registration sits behind
+
+```gotemplate
+{{- if and $saData (hasKey $saData "token") (hasKey $saData "ca") }}
+```
+
+`crossplane render` observes nothing, so those branches used to render to
+nothing and no snapshot covered them. The rancher-cluster goldens stopped at the
+Observe-only extraction Object and never contained the kubeconfig, the
+`ClusterbookCluster`, or the entire vault-pki block. That is how
+`releaseOnDelete: false` (#388) shipped unnoticed, and it is the gap
+[#392](https://github.com/stuttgart-things/crossplane-configurations/issues/392)
+asks to close before anything else is added to that region.
+
+Fixtures fill it. `tests/render/extra-resources/<config>/*.yaml` is copied into
+the same scratch directory as the EnvironmentConfig examples and handed to
+`crossplane render --extra-resources`, so a Composition's `ExtraResources`
+requirements resolve exactly as they would against a live cluster.
+
+A fixture must match the requirement the template asks for — same
+apiVersion/kind, same `matchName`, same namespace — and carry the keys the
+template reads. For a connection Secret written by an Observe-only Object, that
+means the `toConnectionSecretKey` names, not the source field paths. One file
+may hold one Secret per example XR; the render only picks up the one whose name
+its requirement matches.
+
+Keep fixture values obviously fake and **low entropy**. They end up in committed
+goldens, and a test fixture is not the place to demonstrate that a real token can
+live in git.
+
+Coverage this bought for `machinery/rancher-cluster`:
+
+| example | composed resources before | after |
+|---|---|---|
+| `xr-max` | 7 | 16 |
+| `xr-harvester` | 9 | 11 |
+
+## `crossplane render` does not apply XRD defaults
+
+Worth its own heading, because it is silent and it cost an afternoon.
+
+`xr-max.yaml` was the only example that omitted `spec.environmentConfig`. The
+XRD defaults it to `"default"`, so on a cluster the API server fills it in and
+everything works. `crossplane render` has no API server and no defaulting
+admission, so the field stayed **empty**, the `load-environment` selector
+(`fromFieldPathPolicy: Optional`) dropped its matchLabel, and `$env` came out
+empty. Every value sourced from the EnvironmentConfig fell back to its in-template
+default, and the whole vault-pki block — gated on an env key with no default —
+vanished from the snapshot without a word.
+
+So the "every field set" example was quietly rendering the *no-environment* path.
+
+The rule that follows: **an example XR must set every field it relies on, even
+one the XRD defaults.** A default that only the API server applies is not
+exercised by a golden, and a block gated on it disappears rather than failing.
+If you want the defaulting path covered as well, that is what `xr-min.yaml` is
+for — it just has to be read as "renders without an environment", not as
+"renders the way the cluster would".
+
 ## The CLI version is a guard, not a convention
 
 The CLI version being part of that tuple is enforced, because getting it wrong

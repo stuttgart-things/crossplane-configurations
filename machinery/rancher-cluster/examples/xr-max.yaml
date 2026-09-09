@@ -8,6 +8,13 @@ metadata:
   name: rke2-prod
   namespace: default
 spec:
+  # Explicit, even though the XRD defaults it to "default". `crossplane render`
+  # does NOT apply XRD schema defaults — there is no API server and no defaulting
+  # admission — so an example that omits this renders with an EMPTY $env: no
+  # EnvironmentConfig is selected, every value that comes from one falls back to
+  # its in-template default, and any block gated on an env key silently vanishes.
+  # That is what kept the whole vault-pki block (5) out of this golden.
+  environmentConfig: default
   providerConfigRef: in-cluster
   name: rke2-prod
   distro: rke2
@@ -42,3 +49,14 @@ spec:
     labels:
       env: prod
       region: eu-central-1
+      # Turns on block (5): the Composition reads the vault-pki token + CA from
+      # the control plane and pushes both onto this cluster's cert-manager
+      # namespace, so the ClusterIssuer the cert-manager-vault-pki AppSet ships
+      # has its prerequisites. Set here because xr-max is the "every field"
+      # example — it is what keeps that block rendered, and therefore covered by
+      # a golden snapshot.
+      network-platform/cert-manager-vault-pki: 'true'
+    annotations:
+      # Name of the token Secret block (5c) writes downstream, and the name the
+      # ClusterIssuer's auth.tokenSecretRef expects.
+      clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token  # pragma: allowlist secret

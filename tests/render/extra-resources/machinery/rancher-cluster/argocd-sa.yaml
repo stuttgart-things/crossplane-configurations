@@ -1,0 +1,58 @@
+---
+# Observed-state fixtures for the Argo CD registration block of
+# machinery/rancher-cluster.
+#
+# WHY THIS FILE EXISTS. Steps (4f) and (4g) of the Composition — the direct-
+# endpoint kubeconfig and the ClusterbookCluster — sit behind
+#
+#     {{- if and $saData (hasKey $saData "token") (hasKey $saData "ca") }}
+#
+# i.e. behind data that only exists once provider-kubernetes has OBSERVED the
+# downstream cluster. `crossplane render` observes nothing, so without these
+# Secrets the whole block renders to nothing and no golden snapshot covers it.
+# That is not hypothetical: `releaseOnDelete: false` (#388) shipped through this
+# blind spot, and #392 names it as the thing to fix before anything else is
+# added to this region.
+#
+# The connection Secret is what step (4d) writes via writeConnectionSecretToRef,
+# so its NAME must be <spec.name>-argocd-sa in the XR's namespace, and its keys
+# must be the three toConnectionSecretKey values (4d) declares: token, ca,
+# apiserverIp.
+#
+# One Secret per example XR that sets argocd.register — the render only picks up
+# the one whose name its requirement matches, so listing all of them here keeps
+# a single fixture file valid for the whole examples/ set.
+#
+# Values are deliberately fake and deliberately LOW entropy: they end up in the
+# committed goldens, and a fixture is not the place to teach anyone that a real
+# token can live in git.
+
+# xr-max.yaml (rke2-prod) — sets argocd.server explicitly, so this exercises the
+# OVERRIDE path: apiserverIp is present but the spec value wins.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rke2-prod-argocd-sa
+  namespace: default
+type: Opaque
+data:
+  token: RkFLRS5yZXZpZXdlci50b2tlbi1ub3QtYS1jcmVkZW50aWFs  # pragma: allowlist secret
+  ca: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCkZBS0UtRE9XTlNUUkVBTS1DQS1GT1ItUkVOREVSLVRFU1RTLU9OTFkKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=  # pragma: allowlist secret
+  apiserverIp: MTkyLjE2OC4xMC4xMzU=
+
+---
+# xr-harvester.yaml (k3s-xp) — no argocd.server, so this exercises the
+# DISCOVERY path: step (4e) builds https://<apiserverIp>:6443 out of the
+# downstream `kubernetes` Endpoints. That discovered value is also what #392
+# wants passed on as the VaultK8sAuth kubernetesHost, so it is worth having a
+# golden that pins it.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: k3s-xp-argocd-sa
+  namespace: default
+type: Opaque
+data:
+  token: RkFLRS5yZXZpZXdlci50b2tlbi1ub3QtYS1jcmVkZW50aWFs  # pragma: allowlist secret
+  ca: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCkZBS0UtRE9XTlNUUkVBTS1DQS1GT1ItUkVOREVSLVRFU1RTLU9OTFkKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=  # pragma: allowlist secret
+  apiserverIp: MTkyLjE2OC4xMC4xMTg=

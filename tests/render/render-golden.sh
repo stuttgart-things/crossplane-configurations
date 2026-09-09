@@ -94,14 +94,31 @@ for c in $CONFIGS; do
   # Configurations ship more than one — collect them into a scratch dir and hand
   # crossplane render the directory, which is version-agnostic (older CLIs take a
   # single --extra-resources path, newer ones a repeatable flag).
+  #
+  # Observed-state fixtures: tests/render/extra-resources/<config>/*.yaml is
+  # copied into the same scratch dir. Large parts of a Composition can hang off
+  # resources that only exist once a provider has OBSERVED the target cluster —
+  # rancher-cluster's Argo CD registration and its whole vault-pki block do — and
+  # `crossplane render` observes nothing, so those branches render to nothing and
+  # no snapshot covers them. That is how `releaseOnDelete: false` (#388) shipped
+  # unnoticed. Fixtures live under tests/ for the same reason the goldens do: an
+  # examples/ glob must not reach them.
   extra_dir=""
   env_files=$(find "$c/examples" -maxdepth 1 -type f \
                 \( -name '*environmentconfig*.yaml' -o -name '*environment-config*.yaml' \) \
                 2>/dev/null | sort || true)
-  if [ -n "$env_files" ]; then
+  fixture_files=$(find "tests/render/extra-resources/$c" -maxdepth 1 -type f \
+                    -name '*.yaml' 2>/dev/null | sort || true)
+  if [ -n "$env_files" ] || [ -n "$fixture_files" ]; then
     extra_dir=$(mktemp -d)
-    # shellcheck disable=SC2086
-    cp $env_files "$extra_dir"/
+    if [ -n "$env_files" ]; then
+      # shellcheck disable=SC2086
+      cp $env_files "$extra_dir"/
+    fi
+    if [ -n "$fixture_files" ]; then
+      # shellcheck disable=SC2086
+      cp $fixture_files "$extra_dir"/
+    fi
   fi
 
   for xr in "$c"/examples/xr*.yaml; do

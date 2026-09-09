@@ -46,6 +46,20 @@ data:
   argocdNamespace: argocd
   argocdProviderConfigRef: rancher-mgmt
 
+  # --- vault-pki prerequisite Secrets (network-platform/cert-manager-vault-pki) ---
+  # Where block (5) of the Composition READS the token + CA bundle it pushes onto
+  # the downstream cluster's cert-manager namespace. Both are control-plane
+  # Secrets. Neither key has a default in the Composition, so with them unset the
+  # whole block is inert — which is why they belong in the example rather than
+  # only in the fleet's EnvironmentConfig.
+  vaultPkiSourceTokenName: cert-manager-vault-token  # pragma: allowlist secret
+  vaultPkiSourceTokenNamespace: cert-manager
+  # The Secret carrying the PKI root. The name says openbao because that is what
+  # issues the certificates now; the target Secret keeps the vault-pki name every
+  # Certificate in the fleet references (vaultPkiCaSecretName, unset = vault-pki-ca).
+  vaultPkiSourceCaName: openbao-pki-ca  # pragma: allowlist secret
+  vaultPkiSourceCaNamespace: cert-manager
+
   # --- Default platform labels for the ClusterbookCluster / Argo CD cluster
   # Secret. BASE values; spec.argocd.labels on the XR overrides per key.
   # auto-project on by default (creates the per-cluster AppProject the platform
@@ -86,5 +100,5 @@ data:
     storage-platform/nfs-csi-storageclasses: 'false'
     # security-platform
     security-platform: 'false'
-    security-platform/external-secrets: 'false'
+    security-platform/external-secrets: 'false'  # pragma: allowlist secret
     security-platform/kyverno: 'false'
