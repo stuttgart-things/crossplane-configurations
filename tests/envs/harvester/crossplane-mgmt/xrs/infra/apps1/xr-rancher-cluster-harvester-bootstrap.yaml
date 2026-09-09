@@ -21,7 +21,7 @@ spec:
       storage-platform: 'true'
       storage-platform/openebs: 'true'
       security-platform: 'true'
-      security-platform/external-secrets: 'true'
+      security-platform/external-secrets: 'true'  # pragma: allowlist secret
       security-platform/kyverno: 'true'
       network-platform: 'true'
       network-platform/cert-manager-install: 'true'
@@ -57,7 +57,7 @@ spec:
       # the method. Kept so step (5c) of the Composition writes the Secret name
       # every other cluster uses rather than a second, differently-named unused
       # one. It goes when the token path is removed everywhere.
-      clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token
+      clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token  # pragma: allowlist secret
       # The issuer keeps the name every Certificate in the fleet references. The
       # name says Vault; the endpoint above is OpenBao.
       clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki

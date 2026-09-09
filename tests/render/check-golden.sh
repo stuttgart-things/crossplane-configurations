@@ -20,6 +20,17 @@ cd "$ROOT"
 GOLDEN_ROOT="${GOLDEN_ROOT:-tests/render/golden}"
 
 here="$(cd "$(dirname "$0")" && pwd)"
+
+# Guard the CLI version before rendering anything. render-golden.sh runs the
+# same guard, so this is belt and braces — but a CHECK failing on an old CLI is
+# its own trap: it reports drift that is not there, against goldens that are
+# fine, and the obvious next move is to "fix" them by regenerating with the very
+# CLI that caused it (#393). Refuse with the version named, not with a diff.
+# shellcheck source=tests/render/crossplane-version.sh
+. "$here/crossplane-version.sh"
+crossplane_versions_load
+crossplane_version_guard check-golden
+
 "$here/render-golden.sh"
 
 # Drift in already-committed goldens.
