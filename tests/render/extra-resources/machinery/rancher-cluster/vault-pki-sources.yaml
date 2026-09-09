@@ -1,0 +1,33 @@
+---
+# Source Secrets for block (5) of machinery/rancher-cluster — the inlined
+# vault-pki prerequisites.
+#
+# Block (5) reads a token and a CA bundle from the CONTROL PLANE and pushes both
+# onto the downstream cluster's cert-manager namespace, so the vault-pki
+# ClusterIssuer shipped by the cert-manager-vault-pki ApplicationSet has what it
+# needs. Names and namespaces come from the EnvironmentConfig
+# (vaultPkiSourceTokenName / vaultPkiSourceCaName and their *Namespace keys);
+# these fixtures match examples/environment-config.yaml.
+#
+# Without them the block renders to nothing — it is guarded on the source
+# Secrets actually being found — so (5a) namespace, (5b) CA Secret, (5c) token
+# Secret and the two teardown Usages had no golden coverage at all.
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cert-manager-vault-token  # pragma: allowlist secret
+  namespace: cert-manager
+type: Opaque
+data:
+  token: RkFLRS52YXVsdC5wa2ktdG9rZW4tbm90LWEtY3JlZGVudGlhbA==  # pragma: allowlist secret
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openbao-pki-ca  # pragma: allowlist secret
+  namespace: cert-manager
+type: Opaque
+data:
+  ca.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCkZBS0UtT1BFTkJBTy1QS0ktQ0EtRk9SLVJFTkRFUi1URVNUUy1PTkxZCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K  # pragma: allowlist secret

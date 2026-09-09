@@ -7,6 +7,9 @@ metadata:
   name: ansible-run-baseos
   namespace: default
 spec:
+  # Explicit: crossplane render applies no XRD defaults, so omitting this
+  # renders the no-EnvironmentConfig path (tests/render/README.md).
+  environmentConfig: default
   pipelineRunName: run-ansible-baseos
   namespace: tekton-ci
 

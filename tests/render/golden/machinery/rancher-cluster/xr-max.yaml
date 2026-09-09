@@ -9,6 +9,9 @@ spec:
     resourceRefs:
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
+      name: rke2-prod-3c7762490a4e
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
       name: rke2-prod-47707dc76a77
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
@@ -27,7 +30,31 @@ spec:
       name: rke2-prod-dce13b7206d8
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
+      name: rke2-prod-e4f2af996bcf
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-prod-facd4c1b1100
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-prod-kubeconfig-bridge
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
       name: rke2-prod-providerconfig
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-prod-vpki-ca
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-prod-vpki-token
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rke2-prod-5ae6dc055826
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rke2-prod-5ffeaf4dbbc5
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rke2-prod-9a8a20520272
 status:
   argocdClusterSecret: cluster-rke2-prod
   clusterProviderConfig: rke2-prod
@@ -41,8 +68,8 @@ status:
     status: "True"
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: rke2-prod-argocd-crb, rke2-prod-argocd-sa, rke2-prod-argocd-saextract,
-      and 4 more'
+    message: 'Unready resources: rke2-prod-argocd-crb, rke2-prod-argocd-kubeconfig,
+      rke2-prod-argocd-sa, and 10 more'
     reason: Creating
     status: "False"
     type: Ready
@@ -89,6 +116,63 @@ spec:
   providerConfigRef:
     kind: ClusterProviderConfig
     name: rke2-prod
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-argocd-kubeconfig
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-argocd-kubeconfig
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-e4f2af996bcf
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: rke2-prod-argocd-kubeconfig
+        namespace: argocd
+      stringData:
+        kubeconfig: |
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: rke2-prod
+            cluster:
+              server: https://192.168.10.135:6443
+              certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCkZBS0UtRE9XTlNUUkVBTS1DQS1GT1ItUkVOREVSLVRFU1RTLU9OTFkKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+          contexts:
+          - name: rke2-prod
+            context:
+              cluster: rke2-prod
+              user: argocd-manager
+          current-context: rke2-prod
+          users:
+          - name: argocd-manager
+            user:
+              token: "FAKE.reviewer.token-not-a-credential"
+      type: Opaque
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
   readiness:
     celQuery: object.metadata.uid != ""
     policy: DeriveFromCelQuery
@@ -312,7 +396,126 @@ spec:
   - '*'
   providerConfigRef:
     kind: ClusterProviderConfig
-    name: in-cluster
+    name: rancher-mgmt
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-clusterbookcluster
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-clusterbookcluster
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-facd4c1b1100
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  forProvider:
+    manifest:
+      apiVersion: clusterbook.stuttgart-things.com/v1alpha1
+      kind: ClusterbookCluster
+      metadata:
+        name: rke2-prod
+      spec:
+        annotations:
+          clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token
+        argocdNamespace: argocd
+        clusterName: rke2-prod
+        kubeconfigSecretRef:
+          key: kubeconfig
+          name: rke2-prod-argocd-kubeconfig
+          namespace: argocd
+        labels:
+          allow-all: "false"
+          auto-project: "true"
+          cicd-platform: "false"
+          cicd-platform/argo-rollouts: "false"
+          cicd-platform/crossplane: "false"
+          cicd-platform/dapr: "false"
+          cicd-platform/kargo: "false"
+          cicd-platform/kro: "false"
+          cicd-platform/machinery: "false"
+          cicd-platform/openebs: "false"
+          cicd-platform/tekton: "false"
+          env: prod
+          network-platform: "false"
+          network-platform/cert-manager-cluster-ca: "false"
+          network-platform/cert-manager-install: "false"
+          network-platform/cert-manager-selfsigned: "false"
+          network-platform/cert-manager-vault-pki: "true"
+          network-platform/cilium-gateway: "false"
+          network-platform/cilium-gateway-secondary: "false"
+          network-platform/cilium-lb: "false"
+          network-platform/trust-manager-bundle: "false"
+          network-platform/trust-manager-install: "false"
+          region: eu-central-1
+          security-platform: "false"
+          security-platform/external-secrets: "false"
+          security-platform/kyverno: "false"
+          storage-platform: "false"
+          storage-platform/longhorn: "false"
+          storage-platform/nfs-csi-install: "false"
+          storage-platform/nfs-csi-storageclasses: "false"
+          storage-platform/openebs: "false"
+        preserveKubeconfigServer: true
+        releaseOnDelete: true
+        skipReservation: true
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-kubeconfig-bridge
+  labels:
+    app.kubernetes.io/instance: rke2-prod-kubeconfig-bridge
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-kubeconfig-bridge
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.value
+    kind: Secret
+    name: rke2-prod-kubeconfig
+    namespace: fleet-default
+    toConnectionSecretKey: value
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: rke2-prod-kubeconfig
+        namespace: fleet-default
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+  writeConnectionSecretToRef:
+    name: rke2-prod-kubeconfig-bridged
 ---
 apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
@@ -344,8 +547,8 @@ spec:
         credentials:
           secretRef:
             key: value
-            name: rke2-prod-kubeconfig
-            namespace: fleet-default
+            name: rke2-prod-kubeconfig-bridged
+            namespace: default
           source: Secret
   managementPolicies:
   - '*'
@@ -355,3 +558,214 @@ spec:
   readiness:
     celQuery: object.metadata.uid != ""
     policy: DeriveFromCelQuery
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-usage-bridge
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-usage-bridge
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-5ae6dc055826
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: rke2-prod-providerconfig
+  of:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: rke2-prod-kubeconfig-bridge
+  reason: Bridged kubeconfig Secret is in use by the ClusterProviderConfig
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-usage-vpki-ca
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-usage-vpki-ca
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-9a8a20520272
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: rke2-prod-vpki-ca
+  of:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: rke2-prod-providerconfig
+  reason: Downstream ClusterProviderConfig is in use by the vault-pki CA Secret
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-usage-vpki-token
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-usage-vpki-token
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-5ffeaf4dbbc5
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: rke2-prod-vpki-token
+  of:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: rke2-prod-providerconfig
+  reason: Downstream ClusterProviderConfig is in use by the vault-pki token Secret
+  replayDeletion: true
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-vpki-ca
+  labels:
+    app.kubernetes.io/instance: rke2-prod-vpki-ca
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-vpki-ca
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      data:
+        ca.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCkZBS0UtT1BFTkJBTy1QS0ktQ0EtRk9SLVJFTkRFUi1URVNUUy1PTkxZCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+      kind: Secret
+      metadata:
+        name: vault-pki-ca
+        namespace: cert-manager
+      type: Opaque
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-prod
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-vpki-namespace
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-vpki-namespace
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-3c7762490a4e
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: cert-manager
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-prod
+  readiness:
+    celQuery: object.status.phase == "Active"
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-vpki-token
+  labels:
+    app.kubernetes.io/instance: rke2-prod-vpki-token
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-vpki-token
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      data:
+        token: RkFLRS52YXVsdC5wa2ktdG9rZW4tbm90LWEtY3JlZGVudGlhbA==
+      kind: Secret
+      metadata:
+        name: cert-manager-vault-token
+        namespace: cert-manager
+      type: Opaque
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-prod

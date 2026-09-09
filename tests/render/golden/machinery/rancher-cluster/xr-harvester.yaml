@@ -24,10 +24,16 @@ spec:
       name: k3s-xp-98e0d150f1db
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
+      name: k3s-xp-a17901d261bb
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
       name: k3s-xp-cedd51c5276b
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
       name: k3s-xp-d098a3bf8ce8
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-xp-ec954be0a1c6
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
       name: k3s-xp-kubeconfig-bridge
@@ -47,8 +53,8 @@ status:
     status: "True"
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: k3s-xp-argocd-crb, k3s-xp-argocd-sa, k3s-xp-argocd-saextract,
-      and 6 more'
+    message: 'Unready resources: k3s-xp-argocd-crb, k3s-xp-argocd-kubeconfig, k3s-xp-argocd-sa,
+      and 8 more'
     reason: Creating
     status: "False"
     type: Ready
@@ -95,6 +101,63 @@ spec:
   providerConfigRef:
     kind: ClusterProviderConfig
     name: k3s-xp
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-xp-argocd-kubeconfig
+  generateName: k3s-xp-
+  labels:
+    app.kubernetes.io/instance: k3s-xp-argocd-kubeconfig
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-xp
+  name: k3s-xp-a17901d261bb
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-xp
+    uid: 5eecf833-557b-58c4-815c-96ae08a5b6c3
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: k3s-xp-argocd-kubeconfig
+        namespace: argocd
+      stringData:
+        kubeconfig: |
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: k3s-xp
+            cluster:
+              server: https://192.168.10.118:6443
+              certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCkZBS0UtRE9XTlNUUkVBTS1DQS1GT1ItUkVOREVSLVRFU1RTLU9OTFkKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+          contexts:
+          - name: k3s-xp
+            context:
+              cluster: k3s-xp
+              user: argocd-manager
+          current-context: k3s-xp
+          users:
+          - name: argocd-manager
+            user:
+              token: "FAKE.reviewer.token-not-a-credential"
+      type: Opaque
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
   readiness:
     celQuery: object.metadata.uid != ""
     policy: DeriveFromCelQuery
@@ -312,6 +375,79 @@ spec:
             name: pool1
             quantity: 1
             workerRole: true
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-xp-clusterbookcluster
+  generateName: k3s-xp-
+  labels:
+    app.kubernetes.io/instance: k3s-xp-clusterbookcluster
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-xp
+  name: k3s-xp-ec954be0a1c6
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-xp
+    uid: 5eecf833-557b-58c4-815c-96ae08a5b6c3
+spec:
+  forProvider:
+    manifest:
+      apiVersion: clusterbook.stuttgart-things.com/v1alpha1
+      kind: ClusterbookCluster
+      metadata:
+        name: k3s-xp
+      spec:
+        argocdNamespace: argocd
+        clusterName: k3s-xp
+        kubeconfigSecretRef:
+          key: kubeconfig
+          name: k3s-xp-argocd-kubeconfig
+          namespace: argocd
+        labels:
+          allow-all: "false"
+          auto-project: "true"
+          cicd-platform: "false"
+          cicd-platform/argo-rollouts: "false"
+          cicd-platform/crossplane: "false"
+          cicd-platform/dapr: "false"
+          cicd-platform/kargo: "false"
+          cicd-platform/kro: "false"
+          cicd-platform/machinery: "false"
+          cicd-platform/openebs: "false"
+          cicd-platform/tekton: "false"
+          network-platform: "false"
+          network-platform/cert-manager-cluster-ca: "false"
+          network-platform/cert-manager-install: "false"
+          network-platform/cert-manager-selfsigned: "false"
+          network-platform/cert-manager-vault-pki: "false"
+          network-platform/cilium-gateway: "false"
+          network-platform/cilium-gateway-secondary: "false"
+          network-platform/cilium-lb: "false"
+          network-platform/trust-manager-bundle: "false"
+          network-platform/trust-manager-install: "false"
+          security-platform: "false"
+          security-platform/external-secrets: "false"
+          security-platform/kyverno: "false"
+          storage-platform: "false"
+          storage-platform/longhorn: "false"
+          storage-platform/nfs-csi-install: "false"
+          storage-platform/nfs-csi-storageclasses: "false"
+          storage-platform/openebs: "false"
+        preserveKubeconfigServer: true
+        releaseOnDelete: true
+        skipReservation: true
   managementPolicies:
   - '*'
   providerConfigRef:
