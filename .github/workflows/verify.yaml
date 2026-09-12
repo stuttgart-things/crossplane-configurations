@@ -1,11 +1,15 @@
 ---
 name: Verify Crossplane Configurations
 # The Configuration package pipeline (discover + pre-commit + verify + preview)
-# does not apply to the XR claims under tests/envs — those are test-env
-# manifests, not packages — nor to the Kyverno policies that lint them. A change
-# touching ONLY those skips this whole workflow; a mixed PR that also edits a
-# package still runs it in full. Claims are linted instead by the lighter
-# Kyverno gate (validate-claims.yaml).
+# does not apply to the Kyverno policies under tests/kyverno — they are a lint
+# gate, not a package. A change touching ONLY those skips this whole workflow; a
+# mixed PR that also edits a package still runs it in full.
+#
+# tests/envs/** is gone from this list because the tree is gone: the harvester
+# target env's Crossplane state moved to stuttgart-things/harvester
+# (clusters/crossplane-mgmt/) on 2026-09-12, and the Kyverno gate that validated
+# its claims moved with it. The policies stayed here — that repo's
+# validate-claims.yml checks them out.
 #
 # NARROWED FROM `tests/**` ON 2026-08-20, and the reason is worth keeping.
 # tests/ does not only hold fixtures: tests/lint/ holds the invariant linter
@@ -20,13 +24,11 @@ name: Verify Crossplane Configurations
 on:
   pull_request:
     paths-ignore:
-      - 'tests/envs/**'
       - 'tests/kyverno/**'
   push:
     branches:
       - main
     paths-ignore:
-      - 'tests/envs/**'
       - 'tests/kyverno/**'
 
 # One run per branch. Without this a second push leaves the first run alive and

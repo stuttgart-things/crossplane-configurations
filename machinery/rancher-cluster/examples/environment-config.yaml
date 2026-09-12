@@ -46,6 +46,23 @@ data:
   argocdNamespace: argocd
   argocdProviderConfigRef: rancher-mgmt
 
+  # --- clusterbook reservation defaults (argocd.reservation.enabled: true) ---
+  # The reservation is what stamps the
+  # `clusterbook.stuttgart-things.com/allocation-ip` label and the ip/fqdn
+  # annotations onto the cluster Secret. Without it NOT ONE network-platform
+  # AppSet generates (all nine gate on that label with `Exists`), and neither
+  # do machinery, kargo-httproute or tekton-dashboard-httproute. Both keys were
+  # missing from this example, which made the reservation path look like it
+  # needed no configuration: a reservation without a networkKey is rejected by
+  # the ClusterbookCluster CRD itself (CEL rule: "networkKey is required unless
+  # clusterType is 'kind' or skipReservation is true"), so the Object would sit
+  # NotReady with a validation error rather than reserving anything. The
+  # Composition now fails the render instead.
+  clusterbookNetworkKey: '10.31.103'
+  # ClusterbookProviderConfig (clusterbook endpoint + credentials) on the
+  # cluster that runs clusterbook-operator.
+  clusterbookProviderConfigRef: default
+
   # --- vault-pki prerequisite Secrets (network-platform/cert-manager-vault-pki) ---
   # Where block (5) of the Composition READS the token + CA bundle it pushes onto
   # the downstream cluster's cert-manager namespace. Both are control-plane
@@ -62,43 +79,108 @@ data:
 
   # --- Default platform labels for the ClusterbookCluster / Argo CD cluster
   # Secret. BASE values; spec.argocd.labels on the XR overrides per key.
-  # auto-project on by default (creates the per-cluster AppProject the platform
-  # AppSets reference). Every profile toggle defaults to 'false' so a bare XR
-  # deploys nothing — enable a component by setting only its umbrella + that
-  # toggle to 'true' on the XR; the 'false' siblings the AppSet NotIn-selectors
-  # need come from here (no manual pinning). A matching defaultAnnotations map
-  # is supported too (merged the same way with spec.argocd.annotations).
+  #
+  # DELIBERATELY SHORT, and it used to be the opposite. The platform AppSets are
+  # opt-OUT: each per-component selector is `NotIn ["false"]`, and a label
+  # selector's NotIn matches when the key is ABSENT as well -- so an umbrella on
+  # 'true' enrols the cluster in the WHOLE profile and only an explicit 'false'
+  # takes one component back out (platforms/README.md: "default = included";
+  # platforms/security carries the comment about a cluster that silently fell
+  # through when that was got wrong). Pinning all ~27 toggles to 'false' here
+  # does NOT make a bare XR safer -- the umbrella already does, because
+  # `matchLabels: <profile>: "true"` never matches 'false'. What it does is turn
+  # every profile you enable into an EMPTY profile that has to be re-enumerated
+  # component by component, and put this file in lockstep with every AppSet ever
+  # added to stuttgart-things/argocd (it was already 23 of 27 -- the four
+  # kind-platform ones were missing).
+  #
+  # So: umbrellas off, and below them only the exclusions we actually mean.
+  # Enable a profile by setting its umbrella 'true' on the XR; take a single
+  # component back out with an explicit 'false' there.
   defaultLabels:
     auto-project: 'true'
     allow-all: 'false'
-    # cicd-platform
+    # --- cluster identity ---
+    # `env` is NOT informational. Four cicd AppSets build a git path from it:
+    # appset-crossplane-platform-baseline reads
+    # crossplane/platform/baseline/*/vars/<env>.yaml, and the three
+    # appset-cxp-* read crossplane/xrs/<kind>/<env>/<cluster>/. Unset, it
+    # renders as an EMPTY path segment -- no file matches, no Application is
+    # generated, and nothing anywhere reports an error. The AppSets lowercase
+    # it, so the casing here only has to match the cluster Secret.
+    env: LabUL
+    # AppProject strictness for config/cluster-project: 'dev' implies
+    # allow-all (permissive sourceRepos + wildcard destination), 'prod' keeps
+    # the strict list. Anything else is treated as strict.
+    tier: prod
+    # `role` is free-form and no selector reads it -- set it per XR if you want
+    # it on the Secret.
+    # --- profile umbrellas: the actual master switches ---
     cicd-platform: 'false'
-    cicd-platform/crossplane: 'false'
-    cicd-platform/kro: 'false'
-    cicd-platform/tekton: 'false'
-    cicd-platform/machinery: 'false'
-    cicd-platform/dapr: 'false'
-    cicd-platform/kargo: 'false'
-    cicd-platform/argo-rollouts: 'false'
-    cicd-platform/openebs: 'false'
-    # network-platform
     network-platform: 'false'
+    storage-platform: 'false'
+    security-platform: 'false'
+    # --- the exclusions we mean, the only ones opt-out needs spelled out ---
+    # OpenEBS ships from BOTH platforms/cicd and platforms/storage. Keep the
+    # storage one (it owns the default StorageClass + the snapshot CRDs) and
+    # switch the cicd copy off, so a cluster never installs it twice.
+    cicd-platform/openebs: 'false'
+    # openebs-hostpath is the cluster default SC; Longhorn alongside it is a
+    # per-cluster decision, not a fleet default.
+    storage-platform/longhorn: 'false'
+    # Cilium: a cluster from this Configuration is k3s with its default flannel,
+    # and both AppSets assume Cilium (CiliumLoadBalancerIPPool / Cilium Gateway).
+    # A cluster rebuilt with cilium via spec.machineGlobalConfig flips these to
+    # 'true' on its own XR.
     network-platform/cilium-lb: 'false'
     network-platform/cilium-gateway: 'false'
+    # A second Gateway needs the fqdn-secondary annotation, which the operator
+    # only stamps where a second FQDN was reserved.
     network-platform/cilium-gateway-secondary: 'false'
-    network-platform/cert-manager-install: 'false'
-    network-platform/cert-manager-selfsigned: 'false'
-    network-platform/cert-manager-cluster-ca: 'false'
-    network-platform/cert-manager-vault-pki: 'false'
-    network-platform/trust-manager-install: 'false'
-    network-platform/trust-manager-bundle: 'false'
-    # storage-platform
-    storage-platform: 'false'
-    storage-platform/openebs: 'false'
-    storage-platform/longhorn: 'false'
+    # The NFS driver alone does nothing without the storageclasses AppSet, which
+    # needs the nfs-config gate + the nfs-* annotations.
     storage-platform/nfs-csi-install: 'false'
+    # Gated on the nfs-config `Exists` label as well; spelled out so "no NFS
+    # unless a cluster asks" is readable in one place.
     storage-platform/nfs-csi-storageclasses: 'false'
-    # security-platform
-    security-platform: 'false'
-    security-platform/external-secrets: 'false'  # pragma: allowlist secret
-    security-platform/kyverno: 'false'
+    # NOT listed here, on purpose:
+    #   kind-platform + kind-platform/* -- a Rancher-provisioned cluster is
+    #     never a kind cluster.
+    #   storage-platform.stuttgart-things.com/nfs-config -- an `Exists` GATE,
+    #     not a toggle: 'false' satisfies it exactly as well as 'true', so the
+    #     "every toggle explicitly false" convention would invert it into
+    #     always-on and appset-nfs-csi-storageclasses would render a
+    #     StorageClass with an empty server/share. Set it on the XR, together
+    #     with the storage-platform.stuttgart-things.com/nfs-server and
+    #     /nfs-share annotations it promises are present.
+    #   cicd-platform/crossplane-{ansible,proxmoxvm,vspherevm} -- those three
+    #     AppSets select opt-IN with `matchLabels: 'true'`, so an absent label
+    #     is already off.
+    #   the preview platforms (homerun2-pr-preview, machinery-pr-preview,
+    #     machinery-catalog-locator-pr-preview,
+    #     machinery-catalog-publisher-pr-preview, schmetterpause-pr-preview) --
+    #     single-label opt-ins with no umbrella, same reason.
+
+  # --- Default platform annotations for the ClusterbookCluster / Argo CD
+  # cluster Secret. Same merge as defaultLabels: spec.argocd.annotations on the
+  # XR overrides per key. The platform AppSets read their component parameters
+  # from these, so a lab-constant belongs here rather than on every XR.
+  # `[auto]` annotations (cluster-name, ip, fqdn, lb-range-*) are stamped by
+  # clusterbook-operator from the reservation — never set those here.
+  defaultAnnotations:
+    # network-platform/cert-manager-vault-pki — appset-cert-manager-vault-pki
+    # templates the ClusterIssuer straight out of these three. A missing one
+    # renders as an empty string rather than an error.
+    clusterbook.stuttgart-things.com/vault-server: https://openbao.platform.sthings.lab
+    clusterbook.stuttgart-things.com/vault-pki-path: pki/sign/sthings-lab
+    clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token  # pragma: allowlist secret
+    # Per-cluster, not lab-constant — set on the XR when the component is on:
+    #   clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki
+    #     (network-platform/cert-manager-cluster-ca)
+    #   storage-platform.stuttgart-things.com/nfs-server: '10.31.101.26'
+    #   storage-platform.stuttgart-things.com/nfs-share: /data/col1/sthings
+    #   storage-platform.stuttgart-things.com/nfs-version: '3'
+    #     (storage-platform/nfs-csi-storageclasses + its nfs-config gate label)
+    # With spec.vaultAuth.composeMount the Composition fills in
+    # vault-auth-method / vault-k8s-auth-mount / -role / -sa itself; an
+    # annotation set explicitly still wins.

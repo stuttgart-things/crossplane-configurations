@@ -409,6 +409,10 @@ spec:
       metadata:
         name: k3s-xp
       spec:
+        annotations:
+          clusterbook.stuttgart-things.com/vault-pki-path: pki/sign/sthings-lab
+          clusterbook.stuttgart-things.com/vault-server: https://openbao.platform.sthings.lab
+          clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token
         argocdNamespace: argocd
         clusterName: k3s-xp
         kubeconfigSecretRef:
@@ -419,32 +423,18 @@ spec:
           allow-all: "false"
           auto-project: "true"
           cicd-platform: "false"
-          cicd-platform/argo-rollouts: "false"
-          cicd-platform/crossplane: "false"
-          cicd-platform/dapr: "false"
-          cicd-platform/kargo: "false"
-          cicd-platform/kro: "false"
-          cicd-platform/machinery: "false"
           cicd-platform/openebs: "false"
-          cicd-platform/tekton: "false"
+          env: LabUL
           network-platform: "false"
-          network-platform/cert-manager-cluster-ca: "false"
-          network-platform/cert-manager-install: "false"
-          network-platform/cert-manager-selfsigned: "false"
-          network-platform/cert-manager-vault-pki: "false"
           network-platform/cilium-gateway: "false"
           network-platform/cilium-gateway-secondary: "false"
           network-platform/cilium-lb: "false"
-          network-platform/trust-manager-bundle: "false"
-          network-platform/trust-manager-install: "false"
           security-platform: "false"
-          security-platform/external-secrets: "false"
-          security-platform/kyverno: "false"
           storage-platform: "false"
           storage-platform/longhorn: "false"
           storage-platform/nfs-csi-install: "false"
           storage-platform/nfs-csi-storageclasses: "false"
-          storage-platform/openebs: "false"
+          tier: prod
         preserveKubeconfigServer: true
         releaseOnDelete: true
         skipReservation: true

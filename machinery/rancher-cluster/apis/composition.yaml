@@ -93,6 +93,18 @@ spec:
             {{- $networkKey := $reservation.networkKey | default $env.clusterbookNetworkKey }}
             {{- $clusterbookCpc := $reservation.providerConfigRef | default $env.clusterbookProviderConfigRef | default "default" }}
             {{- $createDNS := ternary ($reservation.createDNS) true (hasKey $reservation "createDNS") }}
+            {{- /* A reservation without a networkKey is refused by the CRD, not
+                   by us: ClusterbookCluster carries the CEL rule "networkKey is
+                   required unless clusterType is 'kind' or skipReservation is
+                   true". Emitting it anyway yields an Object that never goes
+                   Ready, with the reason buried in the provider's status --
+                   and the EnvironmentConfig key that supplies the fallback
+                   (clusterbookNetworkKey) went undocumented long enough for
+                   that to be the likely way in. Fail the render instead, the
+                   same shape as the composeMount/vault-server guard below. */}}
+            {{- if and $reserveIP (not $networkKey) }}
+            {{- fail (printf "argocd.reservation.enabled is set on %s but no networkKey resolved: set spec.argocd.reservation.networkKey or the EnvironmentConfig key clusterbookNetworkKey -- the ClusterbookCluster CRD rejects a reservation without one" $name) }}
+            {{- end }}
             {{- /* releaseOnDelete defaults TRUE. It was hardcoded false with no
                    reasoning until 2026-09-08, and the effect was a pool that leaked
                    silently: ferdinand (.173), martinwolf (.178) and test1 (.179) each
@@ -109,7 +121,16 @@ spec:
                    AppSet) has its prerequisites. Source refs + target names default from
                    the EnvironmentConfig; the target token Secret name comes from the
                    clusterbook vault-token-secret annotation. Mirrors bootstrap/vault-pki-secrets. */}}
-            {{- $vpkiEnabled := eq (index $argocdLabels "network-platform/cert-manager-vault-pki" | default "false") "true" }}
+            {{- /* The gate MIRRORS appset-cert-manager-vault-pki rather than
+                   inventing its own: umbrella `network-platform: 'true'` plus
+                   the component NOT explicitly 'false'. A label-selector NotIn
+                   matches an ABSENT key too, so the AppSet ships the
+                   ClusterIssuer to a cluster that only carries the umbrella --
+                   reading the component label as "off unless 'true'" here would
+                   hand that cluster an issuer with no token and no CA. */}}
+            {{- $nwPlatform := eq (index $argocdLabels "network-platform" | default "false") "true" }}
+            {{- $vpkiOptOut := eq (index $argocdLabels "network-platform/cert-manager-vault-pki" | default "true") "false" }}
+            {{- $vpkiEnabled := and $nwPlatform (not $vpkiOptOut) }}
             {{- $vpkiSrcTokenName := $env.vaultPkiSourceTokenName }}
             {{- $vpkiSrcTokenNs := $env.vaultPkiSourceTokenNamespace | default "cert-manager" }}
             {{- $vpkiSrcTokenKey := $env.vaultPkiSourceTokenKey | default "token" }}
