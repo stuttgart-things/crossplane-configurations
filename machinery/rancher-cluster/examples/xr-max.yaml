@@ -61,6 +61,11 @@ spec:
     labels:
       env: prod
       region: eu-central-1
+      # The umbrella. Required for the component below to do anything: every
+      # network-platform AppSet gates on `network-platform: 'true'` first, and
+      # the Composition's inlined vault-pki block mirrors that same gate -- a
+      # component label without the umbrella switches on nothing, anywhere.
+      network-platform: 'true'
       # Turns on block (5): the Composition reads the vault-pki token + CA from
       # the control plane and pushes both onto this cluster's cert-manager
       # namespace, so the ClusterIssuer the cert-manager-vault-pki AppSet ships

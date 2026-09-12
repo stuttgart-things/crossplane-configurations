@@ -121,7 +121,16 @@ spec:
                    AppSet) has its prerequisites. Source refs + target names default from
                    the EnvironmentConfig; the target token Secret name comes from the
                    clusterbook vault-token-secret annotation. Mirrors bootstrap/vault-pki-secrets. */}}
-            {{- $vpkiEnabled := eq (index $argocdLabels "network-platform/cert-manager-vault-pki" | default "false") "true" }}
+            {{- /* The gate MIRRORS appset-cert-manager-vault-pki rather than
+                   inventing its own: umbrella `network-platform: 'true'` plus
+                   the component NOT explicitly 'false'. A label-selector NotIn
+                   matches an ABSENT key too, so the AppSet ships the
+                   ClusterIssuer to a cluster that only carries the umbrella --
+                   reading the component label as "off unless 'true'" here would
+                   hand that cluster an issuer with no token and no CA. */}}
+            {{- $nwPlatform := eq (index $argocdLabels "network-platform" | default "false") "true" }}
+            {{- $vpkiOptOut := eq (index $argocdLabels "network-platform/cert-manager-vault-pki" | default "true") "false" }}
+            {{- $vpkiEnabled := and $nwPlatform (not $vpkiOptOut) }}
             {{- $vpkiSrcTokenName := $env.vaultPkiSourceTokenName }}
             {{- $vpkiSrcTokenNs := $env.vaultPkiSourceTokenNamespace | default "cert-manager" }}
             {{- $vpkiSrcTokenKey := $env.vaultPkiSourceTokenKey | default "token" }}

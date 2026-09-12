@@ -327,12 +327,27 @@ what is worth knowing here:
   segment: nothing matches, no Application is generated, and no error is raised
   anywhere. `tier` (`dev` | `prod`) drives how permissive the per-cluster
   AppProject from `config/cluster-project` is; `role` is free-form and unread.
-- **Umbrella + toggle.** `<profile>: 'true'` enrols the cluster, `<profile>/<component>`
-  opts a single component out with an explicit `'false'`. The defaults ship every
-  toggle at `'false'`, so an XR only ever sets the ones it flips to `'true'`.
+- **Umbrella enrols, component opts out.** `<profile>: 'true'` enrols the cluster
+  in the **whole** profile; `<profile>/<component>: 'false'` takes one component
+  back out. The component selectors are `NotIn ["false"]`, and a label-selector
+  `NotIn` matches an **absent** key too — so leaving a component label off means
+  *included*, not excluded. The EnvironmentConfig defaults therefore carry only
+  the four umbrellas (at `'false'`, the actual master switch — `matchLabels`
+  never matches `'false'`) plus the exclusions we mean fleet-wide
+  (`cicd-platform/openebs`, `storage-platform/longhorn`,
+  `network-platform/cilium-gateway-secondary`). Pinning every toggle to `'false'`
+  would not make a bare XR safer, it would turn each enabled profile into an
+  empty one and put the EnvironmentConfig in lockstep with every AppSet added to
+  the catalog.
   The three `appset-cxp-*` sets (`cicd-platform/crossplane-ansible`,
   `…/crossplane-proxmoxvm`, `…/crossplane-vspherevm`) are opt-**in** instead —
-  they select with `matchLabels: 'true'` and have no `NotIn` sibling.
+  they select with `matchLabels: 'true'`, so an absent label is already off.
+- **A component label without its umbrella does nothing.** Not in the AppSets, and
+  not here either: the Composition's inlined vault-pki block (below) mirrors
+  `appset-cert-manager-vault-pki`'s gate exactly — `network-platform: 'true'` and
+  `network-platform/cert-manager-vault-pki` not `'false'` — so a cluster that only
+  carries the umbrella gets both the ClusterIssuer *and* the token + CA Secrets it
+  needs, instead of an issuer with no prerequisites.
 - **`storage-platform.stuttgart-things.com/nfs-config` is a gate, not a toggle.**
   `appset-nfs-csi-storageclasses` matches it with `Exists`, which `'false'`
   satisfies just as well as `'true'`. Set it on the XR only, together with the
@@ -361,14 +376,10 @@ spec:
       enabled: true                       # → allocation-ip + ip/fqdn annotations
       networkKey: '10.31.103'             # or EnvironmentConfig clusterbookNetworkKey
     labels:
-      env: LabUL
-      network-platform: 'true'
-      network-platform/cilium-lb: 'true'
-      network-platform/cilium-gateway: 'true'
-      network-platform/cert-manager-install: 'true'
-      network-platform/cert-manager-vault-pki: 'true'
-      security-platform: 'true'
-      security-platform/external-secrets: 'true'
+      env: LabUL                            # git-path segment for the cicd AppSets
+      network-platform: 'true'              # → all nine network components
+      security-platform: 'true'             # → external-secrets + kyverno
+      network-platform/trust-manager-bundle: 'false'   # …minus the ones you don't want
 ```
 
 > The Composition registers through `kubeconfigSecretRef`, and that matters: on the
