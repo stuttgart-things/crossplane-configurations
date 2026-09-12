@@ -75,42 +75,84 @@ data:
 
   # --- Default platform labels for the ClusterbookCluster / Argo CD cluster
   # Secret. These are the BASE; spec.argocd.labels on the XR overrides per key.
-  # auto-project is on by default (creates the per-cluster AppProject the
-  # platform AppSets reference). Every profile toggle defaults to 'false' so a
-  # bare XR deploys nothing — to enable a component, set only its umbrella +
-  # that toggle to 'true' on the XR; the 'false' siblings the AppSet
-  # NotIn-selectors require come from here, so no manual pinning is needed.
+  #
+  # SHORT ON PURPOSE, and it used to be the opposite. The platform AppSets are
+  # opt-OUT: every per-component selector is `NotIn ["false"]`, and a label
+  # selector's NotIn matches when the key is ABSENT as well — so an umbrella on
+  # 'true' enrols the cluster in the WHOLE profile and only an explicit 'false'
+  # takes one component back out (stuttgart-things/argocd platforms/README.md:
+  # "default = included"). The previous version of this file pinned all ~27
+  # toggles to 'false' on the theory that the NotIn-selectors needed the
+  # siblings. They do not. What the pins actually did was turn every profile an
+  # XR enables into an EMPTY profile that has to be re-enumerated component by
+  # component, and tie this file to every AppSet added to the catalog — it was
+  # already 23 of 27, the four kind-platform ones were missing.
+  #
+  # "A bare XR deploys nothing" still holds: it comes from the UMBRELLAS, which
+  # `matchLabels: <profile>: "true"` never matches at 'false'.
+  #
+  # Below the umbrellas, only the exclusions this lab actually means. With them
+  # the two registering XRs (k3s-xp, apps1) resolve to exactly the component set
+  # they resolve to today — the pins that vanished were all components those XRs
+  # set to 'true' themselves, or ones no cluster here wants.
   defaultLabels:
     auto-project: 'true'
     allow-all: 'false'
-    # cicd-platform
+    # Cluster identity. `env` is not decoration: appset-crossplane-platform-
+    # baseline and the three appset-cxp-* build a git path out of it
+    # (crossplane/platform/baseline/*/vars/<env>.yaml,
+    # crossplane/xrs/<kind>/<env>/<cluster>/), and unset it renders as an empty
+    # path segment — nothing matches, nothing is generated, nothing complains.
+    # Left out because no cluster here enables cicd-platform; SET IT before the
+    # first one does. `tier` ('dev' | 'prod') drives how permissive
+    # config/cluster-project's AppProject is; absent behaves like 'prod'.
+    # env: <this-lab>
+    # tier: prod
+    # --- profile umbrellas: the actual master switches ---
     cicd-platform: 'false'
-    cicd-platform/crossplane: 'false'
-    cicd-platform/kro: 'false'
-    cicd-platform/tekton: 'false'
-    cicd-platform/machinery: 'false'
-    cicd-platform/dapr: 'false'
-    cicd-platform/kargo: 'false'
-    cicd-platform/argo-rollouts: 'false'
-    cicd-platform/openebs: 'false'
-    # network-platform
     network-platform: 'false'
+    storage-platform: 'false'
+    security-platform: 'false'
+    # --- the exclusions we mean, fleet-wide for clusters built from this XR ---
+    # Cilium: clusters from this Configuration are k3s with its default flannel,
+    # and both AppSets assume Cilium (CiliumLoadBalancerIPPool / Cilium Gateway).
+    # A cluster rebuilt with cilium via spec.machineGlobalConfig flips these to
+    # 'true' on its own XR.
     network-platform/cilium-lb: 'false'
     network-platform/cilium-gateway: 'false'
+    # A second Gateway needs the fqdn-secondary annotation, which the operator
+    # only stamps where a second FQDN was reserved.
     network-platform/cilium-gateway-secondary: 'false'
-    network-platform/cert-manager-install: 'false'
-    network-platform/cert-manager-selfsigned: 'false'
-    network-platform/cert-manager-cluster-ca: 'false'
-    network-platform/cert-manager-vault-pki: 'false'
-    network-platform/trust-manager-install: 'false'
-    network-platform/trust-manager-bundle: 'false'
-    # storage-platform
-    storage-platform: 'false'
-    storage-platform/openebs: 'false'
+    # OpenEBS ships from BOTH platforms/cicd and platforms/storage. Keep the
+    # storage one (default StorageClass + snapshot CRDs), switch the cicd copy
+    # off, so a cluster never installs it twice.
+    cicd-platform/openebs: 'false'
+    # openebs-hostpath is the default SC here; Longhorn alongside it is a
+    # per-cluster decision.
     storage-platform/longhorn: 'false'
+    # No NFS in this lab. The driver alone does nothing without the
+    # storageclasses AppSet, which needs the nfs-config gate + nfs-* annotations.
     storage-platform/nfs-csi-install: 'false'
+    # Its StorageClass AppSet is gated on the nfs-config `Exists` label anyway,
+    # but spelling it out keeps the label set identical to what these clusters
+    # carry today and makes "no NFS here" readable in one place.
     storage-platform/nfs-csi-storageclasses: 'false'
-    # security-platform
-    security-platform: 'false'
-    security-platform/external-secrets: 'false'
-    security-platform/kyverno: 'false'
+    # NOT listed, on purpose:
+    #   kind-platform + kind-platform/* — a Rancher-provisioned cluster is never
+    #     a kind cluster.
+    #   storage-platform.stuttgart-things.com/nfs-config — an `Exists` GATE, not
+    #     a toggle: 'false' satisfies it exactly as well as 'true', so pinning it
+    #     would invert it into always-on and appset-nfs-csi-storageclasses would
+    #     render a StorageClass with an empty server/share.
+    #   cicd-platform/crossplane-{ansible,proxmoxvm,vspherevm} and the
+    #     *-pr-preview labels — those AppSets select opt-IN with
+    #     `matchLabels: 'true'`, so an absent label is already off.
+
+  # --- Default platform annotations for the ClusterbookCluster / Argo CD
+  # cluster Secret. Same merge as defaultLabels (XR wins per key). Only the
+  # lab constants live here — the vault-k8s-auth-* mount path contains the
+  # cluster name and stays on each XR.
+  defaultAnnotations:
+    clusterbook.stuttgart-things.com/vault-server: https://openbao.platform.sthings.lab
+    clusterbook.stuttgart-things.com/vault-pki-path: pki/sign/sthings-lab
+    clusterbook.stuttgart-things.com/vault-token-secret: cert-manager-vault-token  # pragma: allowlist secret

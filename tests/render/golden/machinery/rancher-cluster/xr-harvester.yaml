@@ -426,10 +426,14 @@ spec:
           cicd-platform/openebs: "false"
           env: LabUL
           network-platform: "false"
+          network-platform/cilium-gateway: "false"
           network-platform/cilium-gateway-secondary: "false"
+          network-platform/cilium-lb: "false"
           security-platform: "false"
           storage-platform: "false"
           storage-platform/longhorn: "false"
+          storage-platform/nfs-csi-install: "false"
+          storage-platform/nfs-csi-storageclasses: "false"
           tier: prod
         preserveKubeconfigServer: true
         releaseOnDelete: true

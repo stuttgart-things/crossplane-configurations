@@ -128,9 +128,21 @@ data:
     # openebs-hostpath is the cluster default SC; Longhorn alongside it is a
     # per-cluster decision, not a fleet default.
     storage-platform/longhorn: 'false'
+    # Cilium: a cluster from this Configuration is k3s with its default flannel,
+    # and both AppSets assume Cilium (CiliumLoadBalancerIPPool / Cilium Gateway).
+    # A cluster rebuilt with cilium via spec.machineGlobalConfig flips these to
+    # 'true' on its own XR.
+    network-platform/cilium-lb: 'false'
+    network-platform/cilium-gateway: 'false'
     # A second Gateway needs the fqdn-secondary annotation, which the operator
     # only stamps where a second FQDN was reserved.
     network-platform/cilium-gateway-secondary: 'false'
+    # The NFS driver alone does nothing without the storageclasses AppSet, which
+    # needs the nfs-config gate + the nfs-* annotations.
+    storage-platform/nfs-csi-install: 'false'
+    # Gated on the nfs-config `Exists` label as well; spelled out so "no NFS
+    # unless a cluster asks" is readable in one place.
+    storage-platform/nfs-csi-storageclasses: 'false'
     # NOT listed here, on purpose:
     #   kind-platform + kind-platform/* -- a Rancher-provisioned cluster is
     #     never a kind cluster.

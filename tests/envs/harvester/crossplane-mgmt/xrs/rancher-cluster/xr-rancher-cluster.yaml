@@ -31,18 +31,22 @@ spec:
     # Platform profile toggles → copied onto the ClusterbookCluster / Argo CD
     # cluster Secret; the platforms/<profile> AppSets select on them.
     #
-    # Defaults come from the EnvironmentConfig `defaultLabels` (auto-project on,
-    # every profile toggle 'false'). Set ONLY the toggles you flip to 'true'
-    # here — they override the defaults; the 'false' siblings (which the AppSet
-    # NotIn-selectors need) come from the env, so no manual pinning.
+    # The AppSets are opt-OUT: an umbrella on 'true' enrols the cluster in the
+    # WHOLE profile, and a component is skipped only by an explicit 'false'
+    # (their selectors are `NotIn ["false"]`, and NotIn matches an absent key
+    # too). The EnvironmentConfig `defaultLabels` carries the umbrellas at
+    # 'false' plus the exclusions this lab means; everything listed here is
+    # either an umbrella this cluster switches on, or a component spelled out
+    # because it is what this cluster is for.
     #
     # Enabled profiles: storage-platform (openebs) + security-platform
     # (external-secrets + kyverno) + network-platform (cert-manager chain +
     # trust-manager + vault-pki ClusterIssuer). The cilium components
-    # (cilium-lb / cilium-gateway) are left OFF — they need the Cilium CNI, but
-    # this cluster runs k3s' default flannel. To enable them, rebuild with
-    # cilium via spec.machineGlobalConfig (e.g. cni: cilium / flannel-backend:
-    # none) and flip network-platform/cilium-lb + /cilium-gateway to 'true'.
+    # (cilium-lb / cilium-gateway) stay OFF through the EnvironmentConfig — they
+    # need the Cilium CNI and this cluster runs k3s' default flannel. To enable
+    # them, rebuild with cilium via spec.machineGlobalConfig (e.g. cni: cilium /
+    # flannel-backend: none) and set network-platform/cilium-lb +
+    # /cilium-gateway to 'true' here, which overrides the env default.
     labels:
       storage-platform: 'true'
       storage-platform/openebs: 'true'                  # openebs-hostpath = default SC + snapshot CRDs
