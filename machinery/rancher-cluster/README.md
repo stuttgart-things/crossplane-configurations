@@ -99,7 +99,13 @@ real XR is usually just `name` + per-cluster sizing + `argocd.register`.
 | `argocd.namespace` | | **env** → `argocd` | Argo CD namespace (kubeconfig + cluster Secret) |
 | `argocd.providerConfigRef` | | **env** → `rancherProviderConfigRef` | ClusterProviderConfig for the cluster running Argo CD + clusterbook-operator |
 | `argocd.server` | | **auto-discovered** | Direct API endpoint of the downstream cluster. Normally omitted — discovered from the downstream `kubernetes` Endpoints. Set only to force a VIP/LB for HA. |
-| `argocd.labels` | | — | Labels on the `ClusterbookCluster` / Argo cluster Secret (for ApplicationSet selectors) |
+| `argocd.labels` | | **env** `defaultLabels` | Labels on the `ClusterbookCluster` / Argo cluster Secret — the platform profile toggles the ApplicationSets select on. Merged over `defaultLabels`, per key |
+| `argocd.annotations` | | **env** `defaultAnnotations` | Annotations on the same Secret — where the platform ApplicationSets read their component parameters (`vault-server`, `nfs-server`, …). Merged over `defaultAnnotations`, per key |
+| `argocd.reservation.enabled` | | `false` | Reserve a clusterbook IP (`skipReservation: false`). This is what stamps the `allocation-ip` label every `network-platform` AppSet gates on |
+| `argocd.reservation.networkKey` | | **env** `clusterbookNetworkKey` | Network pool the IP comes from (e.g. `10.31.103`). Required for a reservation — the render fails without it |
+| `argocd.reservation.providerConfigRef` | | **env** → `default` | `ClusterbookProviderConfig` backing the reservation |
+| `argocd.reservation.createDNS` | | `true` | Create the wildcard DNS record for the reserved IP |
+| `argocd.reservation.releaseOnDelete` | | `true` | Give IP + DNS record back on delete. Needs clusterbook >= v1.26.0 |
 | `vaultAuth.enabled` | | `false` | Prepare the cluster for Vault/OpenBao **kubernetes** auth (see below) |
 | `vaultAuth.reviewerServiceAccount` | | `vault-auth-reviewer` | Token-reviewer SA created downstream |
 | `vaultAuth.reviewerNamespace` | | `kube-system` | Namespace of that SA and its token Secret |
@@ -211,7 +217,25 @@ built-in default**.
 `data` keys: `providerConfigRef`, `rancherProviderConfigRef`, `rancherNamespace`,
 `distro`, `kubernetesVersion`, `cloudCredentialSecretName`, `imageName`,
 `networkName`, `vmNamespace`, `sshUser`, `argocdNamespace`,
-`argocdProviderConfigRef`. See [`examples/environment-config.yaml`](examples/environment-config.yaml).
+`argocdProviderConfigRef`, `clusterbookNetworkKey`,
+`clusterbookProviderConfigRef`, `vaultPkiSourceTokenName`,
+`vaultPkiSourceTokenNamespace`, `vaultPkiSourceTokenKey`, `vaultPkiSourceCaName`,
+`vaultPkiSourceCaNamespace`, `vaultPkiSourceCaKey`, `vaultPkiTargetNamespace`,
+`vaultPkiCaSecretName`, `vaultPkiCaSecretKey`, `vaultPkiTokenSecretKey`, plus the
+two maps `defaultLabels` / `defaultAnnotations` (see
+[Platform profile labels + annotations](#platform-profile-labels--annotations-the-argo-cd-contract)).
+See [`examples/environment-config.yaml`](examples/environment-config.yaml).
+
+> `clusterbookNetworkKey` is the fallback for `spec.argocd.reservation.networkKey`.
+> A reservation without one is refused by the `ClusterbookCluster` CRD itself
+> (CEL: *networkKey is required unless clusterType is 'kind' or skipReservation
+> is true*), so the Composition fails the render rather than emitting an `Object`
+> that never goes Ready.
+> `vaultPkiCaSecretName` / `vaultPkiCaSecretKey` exist but should stay at their
+> defaults: `appset-cert-manager-vault-pki` hardcodes
+> `caBundleSecretRef: {name: vault-pki-ca, key: ca.crt}`, so a different name here
+> only decouples the Secret this Composition pushes from the one the ClusterIssuer
+> reads.
 
 With it in place, a full Harvester + Argo CD XR is just:
 
@@ -252,9 +276,13 @@ Rancher cluster):
 3. Assembles a `Secret` (`<name>-argocd-kubeconfig`, key `kubeconfig`) in the Argo
    CD namespace: the **auto-discovered** direct endpoint (`https://<apiserver-ip>:6443`,
    or `spec.argocd.server` if set) + downstream CA + SA token.
-4. Emits a `ClusterbookCluster` with `skipReservation: true` and
-   `preserveKubeconfigServer: true`, so clusterbook keeps the direct `server`
-   verbatim (no IP/DNS rewrite) and just builds the Argo cluster Secret.
+4. Emits a `ClusterbookCluster` with `preserveKubeconfigServer: true`, so
+   clusterbook keeps the direct `server` verbatim (no IP/DNS rewrite). Without
+   `spec.argocd.reservation.enabled` it also carries `skipReservation: true` and
+   the operator only builds the Argo cluster Secret; with it, the operator
+   additionally reserves an IP from `networkKey` (+ optional DNS) and stamps the
+   `allocation-ip` label and the `ip`/`fqdn` annotations the platform
+   ApplicationSets need.
 
 ### Why the direct endpoint + a self-minted SA token
 
@@ -268,10 +296,85 @@ server IP is something the user provides.
 ### Additional preconditions (only when `register: true`)
 
 - [`clusterbook-operator`](https://github.com/stuttgart-things/clusterbook-operator)
-  installed on the Argo CD cluster (provides the `ClusterbookCluster` CRD).
+  **>= v0.18.0** installed on the Argo CD cluster (provides the
+  `ClusterbookCluster` CRD). The floor is `spec.skipReservation`, which this
+  Composition always emits and which landed in v0.18.0 — an older CRD prunes the
+  unknown field, and the operator then tries a real reservation for a cluster that
+  never asked for one.
+- [`clusterbook`](https://github.com/stuttgart-things/clusterbook) **>= v1.26.0**
+  wherever the operator points, because `releaseOnDelete` defaults to `true` here
+  and before v1.26.0 the DNS half of a release failed while reporting success
+  ([clusterbook#187](https://github.com/stuttgart-things/clusterbook/issues/187)).
 - The Argo CD namespace (`spec.argocd.namespace`, default `argocd`) exists there.
 - The discovered endpoint (the downstream apiserver IP, or `spec.argocd.server` if
   set) is reachable from the Argo CD cluster's pods.
+
+### Platform profile labels + annotations (the Argo CD contract)
+
+`spec.argocd.labels` / `.annotations` (base values from the EnvironmentConfig's
+`defaultLabels` / `defaultAnnotations`, per-key overridable on the XR) land on the
+`ClusterbookCluster`, and the operator copies them onto the Argo CD cluster Secret
+— which is what the platform ApplicationSets in
+[`stuttgart-things/argocd`](https://github.com/stuttgart-things/argocd) select and
+template on. The authoritative, annotated list of every label and annotation is
+[`platforms/cluster.reference.yaml`](https://github.com/stuttgart-things/argocd/blob/main/platforms/cluster.reference.yaml);
+what is worth knowing here:
+
+- **`env` is not decoration.** Four cicd AppSets build a git path out of it
+  (`appset-crossplane-platform-baseline` →
+  `crossplane/platform/baseline/*/vars/<env>.yaml`, and the three `appset-cxp-*` →
+  `crossplane/xrs/<kind>/<env>/<cluster>/`). Unset it renders as an empty path
+  segment: nothing matches, no Application is generated, and no error is raised
+  anywhere. `tier` (`dev` | `prod`) drives how permissive the per-cluster
+  AppProject from `config/cluster-project` is; `role` is free-form and unread.
+- **Umbrella + toggle.** `<profile>: 'true'` enrols the cluster, `<profile>/<component>`
+  opts a single component out with an explicit `'false'`. The defaults ship every
+  toggle at `'false'`, so an XR only ever sets the ones it flips to `'true'`.
+  The three `appset-cxp-*` sets (`cicd-platform/crossplane-ansible`,
+  `…/crossplane-proxmoxvm`, `…/crossplane-vspherevm`) are opt-**in** instead —
+  they select with `matchLabels: 'true'` and have no `NotIn` sibling.
+- **`storage-platform.stuttgart-things.com/nfs-config` is a gate, not a toggle.**
+  `appset-nfs-csi-storageclasses` matches it with `Exists`, which `'false'`
+  satisfies just as well as `'true'`. Set it on the XR only, together with the
+  `storage-platform.stuttgart-things.com/nfs-server` / `/nfs-share` annotations it
+  claims are present — never as a `'false'` default.
+- **No reservation, no network platform.** All nine `network-platform` AppSets, plus
+  `machinery`, `kargo-httproute` and `tekton-dashboard-httproute`, additionally
+  gate on the operator-stamped `clusterbook.stuttgart-things.com/allocation-ip`.
+  That label only exists when `spec.argocd.reservation.enabled` is `true`; with the
+  default (`skipReservation: true`) a cluster is registered in Argo CD and
+  otherwise bare.
+- **Never set the `[auto]` annotations** (`cluster-name`, `ip`, `fqdn`,
+  `fqdn-secondary`, `lb-range-*`) — the operator stamps those from the reservation.
+- Preview platforms (`homerun2-pr-preview`, `machinery-pr-preview`,
+  `machinery-catalog-locator-pr-preview`,
+  `machinery-catalog-publisher-pr-preview`, `schmetterpause-pr-preview`) are
+  single-label opt-ins with no umbrella — set one to `'true'` per XR.
+
+A platform cluster (rather than a bare registration) therefore looks like:
+
+```yaml
+spec:
+  argocd:
+    register: true
+    reservation:
+      enabled: true                       # → allocation-ip + ip/fqdn annotations
+      networkKey: '10.31.103'             # or EnvironmentConfig clusterbookNetworkKey
+    labels:
+      env: LabUL
+      network-platform: 'true'
+      network-platform/cilium-lb: 'true'
+      network-platform/cilium-gateway: 'true'
+      network-platform/cert-manager-install: 'true'
+      network-platform/cert-manager-vault-pki: 'true'
+      security-platform: 'true'
+      security-platform/external-secrets: 'true'
+```
+
+> The Composition registers through `kubeconfigSecretRef`, and that matters: on the
+> operator's `existingSecretRef` ("enrich") path the same `spec.labels` are written
+> **prefixed** with `clusterbook.stuttgart-things.com/`, which no platform selector
+> matches.
 
 ## Split control plane (`rancherProviderConfigRef`)
 

@@ -93,6 +93,18 @@ spec:
             {{- $networkKey := $reservation.networkKey | default $env.clusterbookNetworkKey }}
             {{- $clusterbookCpc := $reservation.providerConfigRef | default $env.clusterbookProviderConfigRef | default "default" }}
             {{- $createDNS := ternary ($reservation.createDNS) true (hasKey $reservation "createDNS") }}
+            {{- /* A reservation without a networkKey is refused by the CRD, not
+                   by us: ClusterbookCluster carries the CEL rule "networkKey is
+                   required unless clusterType is 'kind' or skipReservation is
+                   true". Emitting it anyway yields an Object that never goes
+                   Ready, with the reason buried in the provider's status --
+                   and the EnvironmentConfig key that supplies the fallback
+                   (clusterbookNetworkKey) went undocumented long enough for
+                   that to be the likely way in. Fail the render instead, the
+                   same shape as the composeMount/vault-server guard below. */}}
+            {{- if and $reserveIP (not $networkKey) }}
+            {{- fail (printf "argocd.reservation.enabled is set on %s but no networkKey resolved: set spec.argocd.reservation.networkKey or the EnvironmentConfig key clusterbookNetworkKey -- the ClusterbookCluster CRD rejects a reservation without one" $name) }}
+            {{- end }}
             {{- /* releaseOnDelete defaults TRUE. It was hardcoded false with no
                    reasoning until 2026-09-08, and the effect was a pool that leaked
                    silently: ferdinand (.173), martinwolf (.178) and test1 (.179) each

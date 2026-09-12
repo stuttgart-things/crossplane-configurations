@@ -466,6 +466,9 @@ spec:
           cicd-platform: "false"
           cicd-platform/argo-rollouts: "false"
           cicd-platform/crossplane: "false"
+          cicd-platform/crossplane-ansible: "false"
+          cicd-platform/crossplane-proxmoxvm: "false"
+          cicd-platform/crossplane-vspherevm: "false"
           cicd-platform/dapr: "false"
           cicd-platform/kargo: "false"
           cicd-platform/kro: "false"
@@ -492,6 +495,7 @@ spec:
           storage-platform/nfs-csi-install: "false"
           storage-platform/nfs-csi-storageclasses: "false"
           storage-platform/openebs: "false"
+          tier: prod
         preserveKubeconfigServer: true
         releaseOnDelete: true
         skipReservation: true
