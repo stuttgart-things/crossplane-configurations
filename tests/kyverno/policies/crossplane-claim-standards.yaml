@@ -9,11 +9,18 @@ metadata:
     policies.kyverno.io/severity: medium
     policies.kyverno.io/subject: XR claims
     policies.kyverno.io/description: >-
-      Validates the stuttgart-things Crossplane XR claims committed under tests/.
-      Runs offline in CI via the dagger kyverno module (kyverno apply) as a lint
-      gate for the test claims — it is NOT deployed to a cluster. Enforces an
-      allowlist of XR kinds, RFC-1123 claim names, and required spec fields for
-      ManagedNamespace.
+      Validates the stuttgart-things Crossplane XR claims. Runs offline in CI via
+      the dagger kyverno module (kyverno apply) as a lint gate — it is NOT
+      deployed to a cluster. Enforces an allowlist of XR kinds, RFC-1123 claim
+      names, and required spec fields for ManagedNamespace.
+
+      CONSUMED FROM ANOTHER REPO since 2026-09-12. The claims it gates used to
+      live here under tests/envs/harvester/; they are now the harvester target
+      env's own state, in stuttgart-things/harvester under
+      clusters/crossplane-mgmt/xrs/, and that repo's validate-claims.yml checks
+      this directory out and runs it against them. So this file has a consumer
+      outside this repository: tightening a rule here starts failing PRs there
+      on the next run.
 spec:
   validationFailureAction: Enforce
   background: false
