@@ -337,6 +337,14 @@ spec:
                     certManagerServiceAccount:
                       type: string
                       default: certmanager
+                      description: >-
+                        ServiceAccount cert-manager authenticates to Vault as. Only
+                        created when the vault-pki block is also on, because that is
+                        the only thing that needs it. Its absence surfaces as a Vault
+                        error ("while requesting a token for the service account
+                        /certmanager"), which is what makes it worth owning here.
+                        The matching cert-manager-tokenrequest Role arrives on its
+                        own from the cert-manager-vault-pki ApplicationSet.
                     composeMount:
                       type: boolean
                       default: false
@@ -378,14 +386,6 @@ spec:
                       type: string
                       default: in-cluster
                       description: "OpenTofu ClusterProviderConfig the composed VaultK8sAuth drives Vault through."
-                      description: >-
-                        ServiceAccount cert-manager authenticates to Vault as. Only
-                        created when the vault-pki block is also on, because that is
-                        the only thing that needs it. Its absence surfaces as a Vault
-                        error ("while requesting a token for the service account
-                        /certmanager"), which is what makes it worth owning here.
-                        The matching cert-manager-tokenrequest Role arrives on its
-                        own from the cert-manager-vault-pki ApplicationSet.
                   default:
                     enabled: false
               # providerConfigRef, kubernetesVersion and the Harvester infra
