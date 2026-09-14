@@ -320,6 +320,17 @@ spec:
                         system:auth-delegator-bound ServiceAccount whose token any
                         holder can use to review logins — a real grant, so it is
                         opt-in per cluster.
+
+                        composeMount: true turns this on regardless of what is
+                        stored here. XRD defaulting writes `enabled: false` into
+                        the spec of an XR that only set composeMount, and the
+                        Composition overrides it internally, so a cluster showing
+                        composeMount: true next to enabled: false is behaving
+                        correctly. Check status.vaultReviewerSecret and
+                        status.vaultKubernetesHost — they only exist once it took
+                        effect. Do not add `enabled: true` to "fix" the spec: it
+                        then reads as required and the next cluster copies it,
+                        which quietly undoes composeMount implying it.
                     reviewerServiceAccount:
                       type: string
                       default: vault-auth-reviewer
