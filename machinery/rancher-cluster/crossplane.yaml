@@ -40,6 +40,15 @@ metadata:
          `ClusterbookCluster` so clusterbook-operator creates the Argo CD
          cluster Secret.
 
+      A generic cluster has no machine pools, so its nodes are machines
+      brought from elsewhere. `spec.nodeRegistration.publish` observes the
+      cluster's `ClusterRegistrationToken` on the Rancher cluster and puts
+      Rancher's registration command in a Secret beside the XR
+      (`<name>-node-command`, keys `nodeCommand` / `insecureNodeCommand` /
+      `token`), optionally mirrored into `secretNamespace` for an
+      `AnsibleRun` to consume. Append the role flags yourself — Rancher does
+      not include them. Off by default: the command is a credential.
+
       ## Cluster preconditions
 
       On the Rancher management cluster (where Crossplane runs):

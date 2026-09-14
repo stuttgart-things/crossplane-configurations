@@ -142,6 +142,13 @@ Coverage this bought for `machinery/rancher-cluster`:
 | `xr-max` | 7 | 16 |
 | `xr-harvester` | 9 | 11 |
 
+`node-command.yaml` extends the same trick to the node-registration block
+(`spec.nodeRegistration.publish`, #422). That one is a **two-hop** gate — the
+ClusterRegistrationToken's namespace is the management cluster ID observed in the
+hop before it — so the fixture carries both Secrets per example XR
+(`<name>-rancher-id` and `<name>-node-command`), and without both the second hop
+and the mirror render to nothing.
+
 ## `crossplane render` does not apply XRD defaults
 
 Worth its own heading, because it is silent and it cost an afternoon.

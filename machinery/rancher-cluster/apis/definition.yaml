@@ -109,6 +109,52 @@ spec:
                     Free-form rkeConfig.machineGlobalConfig passthrough
                     (e.g. cni, disable, kube-apiserver-arg).
                   x-kubernetes-preserve-unknown-fields: true
+                nodeRegistration:
+                  type: object
+                  description: >-
+                    Publish Rancher's node registration command, so nodes this
+                    Configuration does NOT provision (the `generic` path, and any
+                    custom node added to a `harvester` cluster) can be joined
+                    without reading it out of the Rancher UI by hand.
+
+                    Off by default: the command embeds the cluster's registration
+                    token, and anyone who can read the published Secret can attach
+                    a node to the cluster. That is a smaller grant than
+                    `vaultAuth.enabled` but the same kind, so it is asked for
+                    rather than assumed.
+                  properties:
+                    publish:
+                      type: boolean
+                      description: >-
+                        Observe the cluster's ClusterRegistrationToken on the
+                        Rancher cluster and publish its command into a Secret
+                        beside this XR.
+                      default: false
+                    secretName:
+                      type: string
+                      description: >-
+                        Name of the published Secret. Defaults to
+                        `<name>-node-command`. Keys: `nodeCommand`,
+                        `insecureNodeCommand`, `token`.
+                    secretNamespace:
+                      type: string
+                      description: >-
+                        Additionally mirror the published Secret into this
+                        namespace on the control-plane cluster. Needed because
+                        `ansible-run`'s `extraEnvSecretName` reads a Secret from
+                        the PipelineRun's namespace (e.g. `tekton-ci`), while the
+                        published Secret lands next to this XR. Unset means no
+                        mirror.
+                    tokenName:
+                      type: string
+                      description: >-
+                        Name of the ClusterRegistrationToken in the management
+                        cluster's namespace. Rancher creates it as `default-token`;
+                        the knob exists because that name is a convention of
+                        Rancher's, not an API guarantee.
+                      default: default-token
+                  default:
+                    publish: false
                 harvester:
                   type: object
                   description: >-
@@ -423,6 +469,18 @@ spec:
                     Secret next to this XR holding the token reviewer's `token`
                     and `ca.crt`. Feed it to
                     VaultK8sAuth.spec.k8sAuths[].backendConfig.secretName.
+                nodeCommandSecret:
+                  type: string
+                  description: >-
+                    Secret beside this XR holding Rancher's node registration
+                    command (`nodeCommand`, `insecureNodeCommand`, `token`).
+                    Append the role flags (`--etcd --controlplane --worker`)
+                    when running it — Rancher does not include them.
+                rancherClusterId:
+                  type: string
+                  description: >-
+                    The management cluster ID Rancher assigned (`c-m-xxxxx`) —
+                    the namespace its ClusterRegistrationToken lives in.
                 vaultKubernetesHost:
                   type: string
                   description: >-

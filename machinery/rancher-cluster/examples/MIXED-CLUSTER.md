@@ -121,7 +121,7 @@ KUBECONFIG=~/.kube/platform.sthings.lab kubectl -n argocd get secret cluster-k3s
 | | `infrastructure: generic` (default) | `infrastructure: harvester` |
 |---|---|---|
 | Provision objects | one bare `provisioning.cattle.io/Cluster` (no pools) | `HarvesterConfig` + `Cluster` with a machine pool |
-| Node registration | manual (Rancher registration command) | automatic (Harvester VMs) |
+| Node registration | you bring the machines; `nodeRegistration.publish` hands you the registration command to run on each | automatic (Harvester VMs) |
 | Extra spec | — | `spec.harvester` (cloud cred, image, network, sizing) |
 | Downstream flow | identical | identical |
 
