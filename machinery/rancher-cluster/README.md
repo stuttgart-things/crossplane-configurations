@@ -83,6 +83,7 @@ real XR is usually just `name` + per-cluster sizing + `argocd.register`.
 | `rancherNamespace` | | **env** → `fleet-default` | Namespace of the provisioning Cluster + kubeconfig Secret |
 | `clusterLabels` | | — | Extra labels on the `provisioning.cattle.io` Cluster |
 | `machineGlobalConfig` | | — | Free-form `rkeConfig.machineGlobalConfig` passthrough |
+| `clusterSpec` | | — | Free-form passthrough merged **under** the whole `provisioning.cattle.io` Cluster spec — see [Cluster options](#cluster-options-machineglobalconfig-and-clusterspec) |
 | `harvester.cloudCredentialSecretName` | | **env** | Harvester cloud credential, `cattle-global-data:<name>` (Rancher UI → Cloud Credentials) |
 | `harvester.imageName` | | **env** | Harvester VM image, `<namespace>/<image>` (e.g. `default/sthings-u26-k3s`) |
 | `harvester.networkName` | | **env** | Harvester network, `<namespace>/<network>` (e.g. `default/vms`) |
@@ -124,6 +125,92 @@ real XR is usually just `name` + per-cluster sizing + `argocd.register`.
 Status: `kubeconfigSecret`, `clusterProviderConfig`, `argocdClusterSecret`,
 `vaultReviewerSecret`, `vaultKubernetesHost`, `nodeCommandSecret`,
 `rancherClusterId`.
+
+## Cluster options (`machineGlobalConfig` and `clusterSpec`)
+
+Two free-form escape hatches, at two levels. Neither is schema-checked here — the
+`provisioning.cattle.io` CRD is Rancher's, not ours — so a misspelled key reaches
+the cluster and is rejected (or ignored) there, never at admission.
+
+| | Merges into | Use for |
+|---|---|---|
+| `spec.machineGlobalConfig` | `rkeConfig.machineGlobalConfig` | the distro's own config file: `cni`, `disable`, `kube-apiserver-arg`, `tls-san`, `node-label`, … |
+| `spec.clusterSpec` | the whole `Cluster.spec` | everything else the CRD offers |
+
+### The CNI, including turning it off
+
+`cni` lives in `machineGlobalConfig`, and **the key is not the same for the two
+distros** — this is the part that bites, because nothing rejects the wrong one:
+
+```yaml
+# rke2
+machineGlobalConfig:
+  cni: none            # or calico, cilium, canal (the default)
+
+# k3s — `cni` is not a k3s config key at all
+machineGlobalConfig:
+  flannel-backend: none
+  disable-network-policy: true
+```
+
+Get it wrong on k3s and you do not get an error, you get flannel. (The lab's
+ansible path spells the same decision `rke2_cni: none` + `install_cilium: true`,
+and gates on both for the same reason.)
+
+A cluster built with no CNI is fine for this Configuration — the API server
+answers as soon as a node has joined, so steps 2–4 proceed — but it *is* then
+somebody else's job to install one. In this fleet that is Argo CD: flip the
+`network-platform/cilium-*` labels to `'true'` on the XR, since the
+EnvironmentConfig pins them `'false'` fleet-wide (its comment says exactly this:
+*"a cluster rebuilt with cilium via spec.machineGlobalConfig flips these to
+'true' on its own XR"*). The Cilium DaemonSet runs hostNetwork, so it schedules
+on a CNI-less node.
+
+### `clusterSpec` — everything else
+
+The Composition writes only `kubernetesVersion`, `rkeConfig.machineGlobalConfig`
+and, on the harvester path, `cloudCredentialSecretName` + `rkeConfig.machinePools`.
+`clusterSpec` reaches the rest without this XRD growing a field per CRD row:
+
+```yaml
+spec:
+  clusterSpec:
+    localClusterAuthEndpoint: {enabled: true}   # ACE — kubeconfig past the Rancher proxy
+    rkeConfig:
+      machineSelectorConfig:                    # per-role config; custom-node clusters need it
+        - machineLabelSelector:
+            matchLabels: {rke.cattle.io/control-plane-role: 'true'}
+          config: {protect-kernel-defaults: true}
+      registries: {...}                         # mirrors / air-gap
+      etcd: {snapshotScheduleCron: '0 */5 * * *', snapshotRetention: 5}
+      upgradeStrategy: {...}
+      chartValues: {...}                        # values for the bundled charts
+```
+
+`kubectl explain cluster.provisioning.cattle.io.spec --recursive` on your Rancher
+is the authoritative list.
+
+**Composed values win the merge**, so a passthrough can never take the harvester
+path apart by redefining its machine pool. Winning silently would be the failure
+mode this repo keeps paying for, though, so the keys the **active** path owns are
+a render **error** naming the field to use instead:
+
+| Key in `clusterSpec` | Refused on | Use instead |
+|---|---|---|
+| `kubernetesVersion` | both paths | `spec.kubernetesVersion` |
+| `cloudCredentialSecretName` | `harvester` | `spec.harvester.cloudCredentialSecretName` |
+| `rkeConfig.machinePools` | `harvester` | `spec.harvester.*` (sizing), or `infrastructure: generic` |
+
+`rkeConfig.machinePools` **is** allowed on `generic` — that path composes none, so
+a pool set here is added rather than conflicting.
+
+`rkeConfig.machineGlobalConfig` is the one deliberate exception: it deep-merges
+with `spec.machineGlobalConfig` per key (the latter wins), because the two halves
+are the same distro config file and splitting them across the two fields is
+reasonable.
+
+Still not reachable: the Cluster's `metadata.annotations` (only `clusterLabels` is
+plumbed through).
 
 ## Node registration (`spec.nodeRegistration.publish`)
 

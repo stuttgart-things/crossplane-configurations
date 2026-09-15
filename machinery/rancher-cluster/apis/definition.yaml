@@ -109,6 +109,33 @@ spec:
                     Free-form rkeConfig.machineGlobalConfig passthrough
                     (e.g. cni, disable, kube-apiserver-arg).
                   x-kubernetes-preserve-unknown-fields: true
+                clusterSpec:
+                  type: object
+                  description: >-
+                    Free-form passthrough, deep-merged UNDER the
+                    `provisioning.cattle.io` Cluster spec this Composition
+                    composes. Anything the Rancher CRD offers and this XRD does
+                    not name goes here — `rkeConfig.machineSelectorConfig` (the
+                    per-role config a custom-node cluster with mixed roles needs),
+                    `rkeConfig.registries` (mirrors / air-gap), `rkeConfig.etcd`
+                    (snapshot schedule + S3), `rkeConfig.upgradeStrategy`,
+                    `rkeConfig.chartValues`, `rkeConfig.additionalManifest`,
+                    `localClusterAuthEndpoint`, `agentEnvVars`,
+                    `enableNetworkPolicy`, the agent customizations.
+
+                    Composed values win the merge. The keys the active path owns
+                    are a render ERROR rather than a silent drop:
+                    `kubernetesVersion` always, plus `cloudCredentialSecretName`
+                    and `rkeConfig.machinePools` on `infrastructure: harvester`.
+                    Use `spec.kubernetesVersion` / `spec.harvester.*` for those.
+
+                    `rkeConfig.machineGlobalConfig` is the exception — it deep-
+                    merges with `spec.machineGlobalConfig` per key, with the
+                    latter winning, because both are the same distro config file.
+                    Nothing here is schema-checked (the Rancher CRD is not ours),
+                    so a misspelled key reaches the cluster and is rejected there,
+                    not at admission.
+                  x-kubernetes-preserve-unknown-fields: true
                 nodeRegistration:
                   type: object
                   description: >-
