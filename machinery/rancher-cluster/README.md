@@ -399,6 +399,21 @@ still wins. Writing the path twice is how it drifts, and a mismatch does not fai
 loudly: the issuer reports `Ready` on a successful *login* and only the signing
 request is denied.
 
+**A `Certificate` from this issuer needs a `commonName`.** The fleet's PKI role
+(`pki/sign/sthings-vsphere`) requires one, and `dnsNames` alone is refused at
+signing time — again with the issuer `Ready`:
+
+```
+Vault failed to sign certificate: ... POST .../v1/pki/sign/sthings-vsphere
+Code: 400. Errors:
+* the common_name field is required, or must be provided in a CSR with
+  "use_csr_common_name" set to true, unless "require_cn" is set to false
+```
+
+Set `spec.commonName` to one of the `dnsNames` (measured on `rancher-join-test4`,
+#422). The Gateway wildcard certificate from `cert-manager-cluster-ca` already
+does.
+
 Requires, on the control plane:
 
 - the **`vault-auth` Configuration**, declared as a `dependsOn` so a version below
