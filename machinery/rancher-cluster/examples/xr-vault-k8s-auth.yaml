@@ -1,0 +1,38 @@
+---
+# vault-pki with kubernetes auth (#435): spec.vaultAuth.composeMount on a control
+# plane whose EnvironmentConfig names a CA source and NO token source — the
+# realistic setup, since the ClusterIssuer logs in as the `certmanager`
+# ServiceAccount and never reads a token.
+#
+# Block (5) renders the cert-manager namespace (5a), the certmanager
+# ServiceAccount (5a2), the CA Secret (5b) and its teardown Usage — and no token
+# Secret. Before #435 it rendered none of them, and the issuer failed on
+# `serviceaccounts "certmanager" not found` with its auth mount Ready.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: rke2-vault-k8s-auth
+  namespace: default
+spec:
+  # -> EnvironmentConfig rancher-cluster-vault-k8s-auth (CA source only).
+  # Explicit: `crossplane render` applies no XRD defaults.
+  environmentConfig: vault-k8s-auth
+  name: rke2-vault-k8s-auth
+  infrastructure: generic
+  distro: rke2
+  kubernetesVersion: v1.36.4+rke2r1
+  # No CNI: Cilium comes separately, past Rancher (see the README).
+  machineGlobalConfig:
+    cni: none
+    disable-kube-proxy: true
+  vaultAuth:
+    composeMount: true
+  argocd:
+    register: true
+    labels:
+      network-platform: 'true'
+      network-platform/cert-manager-vault-pki: 'true'
+    annotations:
+      # Required by composeMount.
+      clusterbook.stuttgart-things.com/vault-server: https://openbao.platform.sthings.lab
+      clusterbook.stuttgart-things.com/vault-pki-path: pki/sign/sthings-lab
