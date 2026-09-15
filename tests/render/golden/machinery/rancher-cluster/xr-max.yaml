@@ -594,12 +594,6 @@ spec:
     name: default-token
     namespace: c-m-fake0002
     toConnectionSecretKey: insecureNodeCommand
-  - apiVersion: management.cattle.io/v3
-    fieldPath: status.token
-    kind: ClusterRegistrationToken
-    name: default-token
-    namespace: c-m-fake0002
-    toConnectionSecretKey: token
   forProvider:
     manifest:
       apiVersion: management.cattle.io/v3
@@ -645,7 +639,6 @@ spec:
       data:
         insecureNodeCommand: Y3VybCAtZkwgLS1pbnNlY3VyZSBodHRwczovL3JhbmNoZXIuZXhhbXBsZS5pbnZhbGlkL3N5c3RlbS1hZ2VudC1pbnN0YWxsLnNoIHwgc3VkbyBzaCAtcyAtIC0tc2VydmVyIGh0dHBzOi8vcmFuY2hlci5leGFtcGxlLmludmFsaWQgLS1sYWJlbCAnY2F0dGxlLmlvL29zPWxpbnV4JyAtLWluc2VjdXJlIC0tdG9rZW4gRkFLRS1SRUdJU1RSQVRJT04tVE9LRU4tTk9ULUEtQ1JFREVOVElBTCAtLWNhLWNoZWNrc3VtIDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
         nodeCommand: Y3VybCAtZkwgaHR0cHM6Ly9yYW5jaGVyLmV4YW1wbGUuaW52YWxpZC9zeXN0ZW0tYWdlbnQtaW5zdGFsbC5zaCB8IHN1ZG8gc2ggLXMgLSAtLXNlcnZlciBodHRwczovL3JhbmNoZXIuZXhhbXBsZS5pbnZhbGlkIC0tbGFiZWwgJ2NhdHRsZS5pby9vcz1saW51eCcgLS10b2tlbiBGQUtFLVJFR0lTVFJBVElPTi1UT0tFTi1OT1QtQS1DUkVERU5USUFMIC0tY2EtY2hlY2tzdW0gMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMA==
-        token: RkFLRS1SRUdJU1RSQVRJT04tVE9LRU4tTk9ULUEtQ1JFREVOVElBTA==
       kind: Secret
       metadata:
         name: rke2-prod-node-command
