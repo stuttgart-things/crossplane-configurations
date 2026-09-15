@@ -151,6 +151,7 @@ machineGlobalConfig:
 machineGlobalConfig:
   flannel-backend: none
   disable-network-policy: true
+  disable-kube-proxy: true   # Cilium replaces it — see step 3 below
 ```
 
 Get it wrong on k3s and you do not get an error, you get flannel. (The lab's
@@ -183,9 +184,23 @@ directly:
    `{clusterName}-kubernetes` / `{clusterName}-helm` ClusterProviderConfigs aimed at
    `node:6443`.
 3. A [`Cni`](../../bootstrap/cni/) XR installs Cilium through `{clusterName}-helm`.
-   Keep kube-proxy (do not set `disable-kube-proxy`) and set
-   `cilium.kubeProxyReplacement: false`: Cilium then needs no pinned API server
-   address, which on a DHCP node would be one more thing tied to the lease.
+   **Leave `cilium.kubeProxyReplacement` on** (the default) and disable kube-proxy
+   in `machineGlobalConfig` (`disable-kube-proxy: true`). An earlier version of this
+   step said the opposite, and that was wrong: the `network-platform/cilium-lb` and
+   `cilium-gateway` AppSets configure L2 announcements and Gateway API, and Cilium
+   supports both **only** with kube-proxy replacement. Turning it off gives you a
+   cluster whose LoadBalancer IPs are never announced.
+
+   Without kube-proxy, Cilium cannot reach the API server through the `kubernetes`
+   Service, so set `cilium.k8sServiceHost`. On a **single-node** cluster use
+   `127.0.0.1` — the agent and operator run in the host network, and the value is
+   not tied to a DHCP lease. With more than one node, point it at an address every
+   node can reach and that outlives a lease (a VIP or a DNS name). Features go
+   through `spec.values`, e.g. `l2announcements.enabled` / `externalIPs.enabled`.
+
+   For `cilium-gateway`, the Gateway API CRDs have to exist **before** Cilium
+   starts — Cilium enables its Gateway controller only if it finds them. A cluster
+   with k3s' traefik disabled does not have them.
 4. `cattle-cluster-agent` starts, the proxy answers, and steps 2–4 here proceed.
    Only then flip the `network-platform/cilium-*` labels.
 
