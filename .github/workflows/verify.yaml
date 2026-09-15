@@ -252,8 +252,20 @@ jobs:
         uses: dagger/dagger-for-github@27b130bf0f79a7f6fbbbe0fbca6760dc9bb40a77 # v8.4.1
         with:
           # Must match every other dagger job that can run on dagger-labda at
-          # the same time — the reusable workflows default to 0.21.8, so this
-          # does too. The dagger provisioner destroys engine containers of
+          # the same time — the reusable workflows (call-pre-commit,
+          # call-crossplane-verify) default to 0.21.9, so this does too.
+          #
+          # It drifted once already, and silently: github-workflow-templates#154
+          # took those defaults to 0.21.9 on 2026-09-05, nothing here watched
+          # this pin, and from then on every preview deleted the 0.21.9 engine
+          # underneath a concurrently running pre-commit
+          # (`exec docker rm -fv dagger-engine-v0.21.9`, 40-60s after
+          # pre-commit connected). pre-commit then hung in File.export for up
+          # to 46 minutes before dying with 137 or being cancelled
+          # (stuttgart-things/dagger#385). renovate.json now tracks this pin,
+          # like the templates repo tracks its defaults.
+          #
+          # The dagger provisioner destroys engine containers of
           # OTHER versions when it starts, so two concurrent jobs on different
           # versions kill each other's engine mid-run. The victim sees
           #   docker exec … buildctl dial-stdio … exit status 137
@@ -261,7 +273,7 @@ jobs:
           # runner logs no OOM at all. That is what the previous comment here
           # ("the 0.20.8 engine was OOM-killed") was actually seeing; bumping
           # one job's version only moved which job loses the race.
-          version: "0.21.8"
+          version: "0.21.9"
           verb: call
           module: github.com/stuttgart-things/dagger/crossplane@${{ env.CROSSPLANE_MODULE_VERSION }}
           # push-preview reads the package name from crossplane.yaml and pushes

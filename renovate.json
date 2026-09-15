@@ -15,6 +15,19 @@
       "fileMatch": [
         "^.+/apis/composition\\.yaml$"
       ]
+    },
+    {
+      "description": "The Dagger CLI pinned inline on dagger/dagger-for-github in our own workflows. It must equal the dagger-version defaults of the reusable workflows in github-workflow-templates, which that repo's Renovate already bumps: the dagger provisioner deletes engine containers of other versions on the shared dagger-labda Docker host, so a mismatch kills whichever job started first. This pin was unwatched, stayed at 0.21.8 after the templates moved to 0.21.9 (github-workflow-templates#154), and hung pre-commit for up to 46 minutes (stuttgart-things/dagger#385). Same regex shape as the templates repo's dagger-version manager.",
+      "customType": "regex",
+      "matchStrings": [
+        "dagger/dagger-for-github@[^\\n]*\\n(?:[ \\t]+[^\\n]*\\n)*?[ \\t]+version:[ \\t]*['\"]?(?<currentValue>v?\\d+\\.\\d+\\.\\d+)['\"]?"
+      ],
+      "depNameTemplate": "dagger/dagger",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver",
+      "fileMatch": [
+        "^\\.github/workflows/[^/]+\\.ya?ml$"
+      ]
     }
   ],
   "packageRules": [
