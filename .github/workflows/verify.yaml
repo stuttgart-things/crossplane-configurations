@@ -229,14 +229,26 @@ jobs:
         # registry's write path was down; nothing here was at fault.
         #
         # `crossplane xpkg push` sets no client-side timeout, so it blocks
-        # forever. This cap turns a ttl.sh outage into a two-minute, clearly
+        # forever. This cap turns a ttl.sh outage into a short, clearly
         # labelled failure instead of twenty minutes of an occupied runner.
+        #
+        # FOUR minutes, not two. Two was sized for that hang and not for a
+        # healthy COLD run, which needs about two minutes on its own: roughly
+        # 60s of engine start and module load before push-preview even begins,
+        # ~46s of `crossplane xpkg build`, ~13s of push. Measured on
+        # rancher-cluster, where the package pushed fine and the step was
+        # killed right after: #423 at 117s (pushPreview DONE 0.3s before the
+        # cap), #424 at 123.6s (pushPreview DONE [58.8s], then the timeout).
+        # vspherevm passed at 2m08s on the same PR -- on the edge, not clear
+        # of it. Each re-run went green in under 20s on a warm cache, which is
+        # what gave it away as a budget problem rather than a ttl.sh one.
+        # Four minutes is ~2x a cold run and still bounds the zero-byte hang.
         #
         # Note what this is NOT: it is not dagger contention, not the shared
         # engine, not the runner. Those were the earlier theories and they cost
         # a serialisation change that cured nothing. If previews hang again,
         # check ttl.sh's blob-upload endpoint FIRST.
-        timeout-minutes: 2
+        timeout-minutes: 4
         uses: dagger/dagger-for-github@27b130bf0f79a7f6fbbbe0fbca6760dc9bb40a77 # v8.4.1
         with:
           # Must match every other dagger job that can run on dagger-labda at
