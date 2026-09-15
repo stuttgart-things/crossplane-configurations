@@ -2,22 +2,25 @@
 # Observed-state fixtures for the node-registration block of
 # machinery/rancher-cluster (#422).
 #
-# WHY THIS FILE EXISTS. Publishing Rancher's registration command is TWO hops:
-# step (1c) observes the provisioning Cluster for the management cluster ID
-# Rancher assigned (status.clusterName, `c-m-xxxxx`), and only then can step
-# (1e) name the namespace that cluster's ClusterRegistrationToken lives in.
-# Both hops travel through connection Secrets, so both sit behind
+# WHY THIS FILE EXISTS. Everything in that block sits behind data only a
+# provider-kubernetes observation produces: the management cluster ID (1c), the
+# raw command Rancher writes into the ClusterRegistrationToken (1e), and on
+# Rancher 2.15+ the token from crt-token-<name> (1f). `crossplane render`
+# observes nothing, so without these Secrets the published command, the mirror
+# and the token Object render to nothing and no golden covers them -- the blind
+# spot #388 shipped through.
 #
-#     {{- if $rancherClusterId }}
+# THE TWO EXAMPLES DELIBERATELY COVER THE TWO RANCHER GENERATIONS:
+#   xr.yaml     (k3s-test)  Rancher 2.14 shape: the raw command embeds the token.
+#                           No placeholder, so no token Object; published as is.
+#   xr-max.yaml (rke2-prod) Rancher 2.15+ shape: the raw command carries a literal
+#                           `{token}`, so (1f) is emitted and (1g)/(1h) publish the
+#                           command with the token from <name>-registration-token
+#                           substituted in.
 #
-# i.e. behind data that only exists once provider-kubernetes has OBSERVED the
-# Rancher cluster. `crossplane render` observes nothing, so without these
-# Secrets steps (1e) and (1f) render to nothing and no golden covers them —
-# the same blind spot the Argo CD block sat in until #388 shipped through it.
-#
-# The IDs are deliberately not real `c-m-` hashes and the commands point at a
-# .invalid host with a zero checksum: a fixture ends up in a committed golden,
-# and a registration command IS a cluster credential. Low entropy on purpose.
+# Values are fake and low entropy on purpose: a .invalid host, a zero checksum
+# and an obviously fake token. A registration command IS a cluster credential,
+# and a fixture ends up in a committed golden.
 
 ---
 apiVersion: v1
@@ -30,10 +33,11 @@ data:
   clusterId: Yy1tLWZha2UwMDAx
 
 ---
+# Rancher 2.14 shape: token embedded, no placeholder.
 apiVersion: v1
 kind: Secret
 metadata:
-  name: k3s-test-node-command
+  name: k3s-test-node-command-raw
   namespace: default
 type: Opaque
 data:
@@ -51,12 +55,24 @@ data:
   clusterId: Yy1tLWZha2UwMDAy
 
 ---
+# Rancher 2.15+ shape: the command is a template with a literal {token}.
 apiVersion: v1
 kind: Secret
 metadata:
-  name: rke2-prod-node-command
+  name: rke2-prod-node-command-raw
   namespace: default
 type: Opaque
 data:
-  nodeCommand: Y3VybCAtZkwgaHR0cHM6Ly9yYW5jaGVyLmV4YW1wbGUuaW52YWxpZC9zeXN0ZW0tYWdlbnQtaW5zdGFsbC5zaCB8IHN1ZG8gc2ggLXMgLSAtLXNlcnZlciBodHRwczovL3JhbmNoZXIuZXhhbXBsZS5pbnZhbGlkIC0tbGFiZWwgJ2NhdHRsZS5pby9vcz1saW51eCcgLS10b2tlbiBGQUtFLVJFR0lTVFJBVElPTi1UT0tFTi1OT1QtQS1DUkVERU5USUFMIC0tY2EtY2hlY2tzdW0gMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMA==  # pragma: allowlist secret
-  insecureNodeCommand: Y3VybCAtZkwgLS1pbnNlY3VyZSBodHRwczovL3JhbmNoZXIuZXhhbXBsZS5pbnZhbGlkL3N5c3RlbS1hZ2VudC1pbnN0YWxsLnNoIHwgc3VkbyBzaCAtcyAtIC0tc2VydmVyIGh0dHBzOi8vcmFuY2hlci5leGFtcGxlLmludmFsaWQgLS1sYWJlbCAnY2F0dGxlLmlvL29zPWxpbnV4JyAtLWluc2VjdXJlIC0tdG9rZW4gRkFLRS1SRUdJU1RSQVRJT04tVE9LRU4tTk9ULUEtQ1JFREVOVElBTCAtLWNhLWNoZWNrc3VtIDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=  # pragma: allowlist secret
+  nodeCommand: Y3VybCAtZkwgaHR0cHM6Ly9yYW5jaGVyLmV4YW1wbGUuaW52YWxpZC9zeXN0ZW0tYWdlbnQtaW5zdGFsbC5zaCB8IHN1ZG8gc2ggLXMgLSAtLXNlcnZlciBodHRwczovL3JhbmNoZXIuZXhhbXBsZS5pbnZhbGlkIC0tbGFiZWwgJ2NhdHRsZS5pby9vcz1saW51eCcgLS10b2tlbiB7dG9rZW59IC0tY2EtY2hlY2tzdW0gMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMA==  # pragma: allowlist secret
+  insecureNodeCommand: Y3VybCAtZkwgLS1pbnNlY3VyZSBodHRwczovL3JhbmNoZXIuZXhhbXBsZS5pbnZhbGlkL3N5c3RlbS1hZ2VudC1pbnN0YWxsLnNoIHwgc3VkbyBzaCAtcyAtIC0tc2VydmVyIGh0dHBzOi8vcmFuY2hlci5leGFtcGxlLmludmFsaWQgLS1sYWJlbCAnY2F0dGxlLmlvL29zPWxpbnV4JyAtLWluc2VjdXJlIC0tdG9rZW4ge3Rva2VufSAtLWNhLWNoZWNrc3VtIDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=  # pragma: allowlist secret
+
+---
+# The token (1f) extracts from crt-token-default-token.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rke2-prod-registration-token
+  namespace: default
+type: Opaque
+data:
+  token: RkFLRS1SRUdJU1RSQVRJT04tVE9LRU4tTk9ULUEtQ1JFREVOVElBTA==  # pragma: allowlist secret

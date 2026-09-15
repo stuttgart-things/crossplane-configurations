@@ -162,10 +162,11 @@ spec:
                       description: >-
                         Name of the published Secret. Defaults to
                         `<name>-node-command`. Keys: `nodeCommand`,
-                        `insecureNodeCommand`. There is deliberately no raw
-                        `token` key: the token is already in both commands as
-                        `--token`, and Rancher 2.15 no longer exposes it in
-                        `status.token`.
+                        `insecureNodeCommand`, both ready to run. On Rancher 2.15+
+                        the ClusterRegistrationToken only carries a template with a
+                        literal `{token}`; the token is read from its
+                        `crt-token-<name>` Secret and substituted in. The raw
+                        template is kept beside it as `<secretName>-raw`.
                     secretNamespace:
                       type: string
                       description: >-
@@ -503,7 +504,8 @@ spec:
                   type: string
                   description: >-
                     Secret beside this XR holding Rancher's node registration
-                    command (`nodeCommand`, `insecureNodeCommand`).
+                    command (`nodeCommand`, `insecureNodeCommand`), ready to
+                    run: the registration token is substituted in.
                     Append the role flags (`--etcd --controlplane --worker`)
                     when running it — Rancher does not include them.
                 rancherClusterId:

@@ -143,11 +143,13 @@ Coverage this bought for `machinery/rancher-cluster`:
 | `xr-harvester` | 9 | 11 |
 
 `node-command.yaml` extends the same trick to the node-registration block
-(`spec.nodeRegistration.publish`, #422). That one is a **two-hop** gate — the
-ClusterRegistrationToken's namespace is the management cluster ID observed in the
-hop before it — so the fixture carries both Secrets per example XR
-(`<name>-rancher-id` and `<name>-node-command`), and without both the second hop
-and the mirror render to nothing.
+(`spec.nodeRegistration.publish`, #422). Its gates are observed in three hops — the
+management cluster ID, the raw command, and on Rancher 2.15+ the registration token
+— so the fixture carries `<name>-rancher-id` and `<name>-node-command-raw` for both
+examples, plus `rke2-prod-registration-token`. The two examples deliberately cover
+the two Rancher generations: `xr.yaml` has a raw command with the token embedded
+(2.14), `xr-max.yaml` one with a literal `{token}` (2.15+), which is what makes the
+token Object and the substitution show up in a golden at all.
 
 ### What fixtures cannot reach: observed COMPOSED resources
 

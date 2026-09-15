@@ -234,17 +234,30 @@ curl -fL https://rancher.example/system-agent-install.sh | sudo sh -s - \
 
 | Key | What it is |
 |---|---|
-| `nodeCommand` | The installer line, server URL + token + CA checksum filled in |
+| `nodeCommand` | The installer line, server URL + registration token + CA checksum filled in, ready to run |
 | `insecureNodeCommand` | The same with `--insecure`, for a node that does not trust the Rancher certificate |
 
-There is **no raw `token` key**, and that is deliberate. Rancher 2.15 leaves the
-`ClusterRegistrationToken`'s `status.token` empty and keeps the token in a Secret
-named by `status.tokenSecretName` (`crt-token-<name>`, same `c-m-xxxxx` namespace);
-the token is in both commands above as `--token` either way. It is not read from
-that Secret here because provider-kubernetes extracts connection details all or
-nothing — Rancher 2.14 has no such Secret, and one missing source would stop
-`nodeCommand` from being published at all. The token also expires
-(`status.expiresAt`, about 30 days on 2.15).
+**On Rancher 2.15+ the command Rancher stores is only a template.** Every command
+field of the `ClusterRegistrationToken` (and its `manifestUrl`) carries a literal
+`{token}`; Rancher substitutes the real token at its API layer, and keeps the token
+itself in the Secret `status.tokenSecretName` names (`crt-token-<name>`). Read through
+the Kubernetes API — which is all a Composition can do — the command authenticates
+as `{token}`. The node's `/v3/connect/agent` call then gets
+`500 machine not found by request`, and `system-agent-install.sh` retries it silently
+for hours. Measured on Rancher 2.15.1, 2026-09-15; 2.14.3 still embeds the token.
+
+So the published Secret is **built**: the raw template is collected into
+`<secretName>-raw`, the token is read from `crt-token-<tokenName>` — only when the
+template actually contains `{token}`, so a 2.14 Rancher never gets an Object whose
+source does not exist — and `<secretName>` is written with the token substituted.
+It is only published once it is runnable; a command that still says `{token}` is
+worse than none. The token expires (`expiresAt`, about 30 days on 2.15) and Rancher
+rotates it; the substituted command follows.
+
+**Upgrading from v0.8.x:** `<secretName>` used to be written directly as a connection
+Secret. It is now taken over by the publishing Object and rewritten with the
+runnable command; the template moves to `<secretName>-raw`. Nothing has to be
+deleted.
 
 **Append the role flags yourself** — `--etcd --controlplane --worker` for an
 all-in-one node, and `--node-name` / `--address` on a multi-NIC host. Rancher does
@@ -263,7 +276,11 @@ Two hops, because the token is not where the cluster is:
    `status.rancherClusterId`.
 2. The `management.cattle.io/v3` `ClusterRegistrationToken` (`tokenName`, Rancher's
    `default-token`) lives in a namespace of that name. An Observe-only `Object`
-   extracts its status into the Secret above.
+   extracts its commands into `<secretName>-raw`.
+3. On Rancher 2.15+ (the command contains `{token}`), a second Observe-only `Object`
+   reads the token from `crt-token-<tokenName>` in the same namespace.
+4. An `Object` on `providerConfigRef` writes `<secretName>` with the runnable command,
+   and the same into `secretNamespace` when set.
 
 Both are `Observe` only and both run on the Rancher cluster
 (`rancherProviderConfigRef`). They are also **eventually consistent** — the second
