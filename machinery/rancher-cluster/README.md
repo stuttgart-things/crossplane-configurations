@@ -200,7 +200,14 @@ directly:
 
    For `cilium-gateway`, the Gateway API CRDs have to exist **before** Cilium
    starts — Cilium enables its Gateway controller only if it finds them. A cluster
-   with k3s' traefik disabled does not have them.
+   with k3s' traefik disabled does not have them. **rke2 does**, but late: its
+   `rke2-traefik-crd` chart (not switched off by `disable: rke2-traefik`) ships
+   Gateway API v1.5.1 (standard channel), and like every rke2 helm-install job it
+   only runs once a pod network exists — i.e. after Cilium. So on rke2, install
+   Cilium without `gatewayAPI`, and turn it on through the `Cni` values once the
+   CRDs are there; the Helm upgrade restarts the operator and agents, which then
+   find them. (Measured on `rancher-join-test4`, #422; the second step is not yet
+   exercised.)
 4. `cattle-cluster-agent` starts, the proxy answers, and steps 2–4 here proceed.
    Only then flip the `network-platform/cilium-*` labels.
 
@@ -420,7 +427,12 @@ Vault and nothing else. That half is what this block supplies:
    `while requesting a token for the service account /certmanager:
    serviceaccounts "certmanager" not found` — and nothing else owns it. The
    matching `cert-manager-tokenrequest` Role arrives from the
-   `cert-manager-vault-pki` ApplicationSet.
+   `cert-manager-vault-pki` ApplicationSet. It depends on `vaultAuth` alone, not
+   on the vault-pki **source** Secrets: kubernetes auth reads no token, so a
+   control plane with a CA source only (`vaultPkiSourceCaName`, no
+   `vaultPkiSourceTokenName`) is a complete setup. Until #435 the whole block
+   needed both sources and silently rendered neither this ServiceAccount nor the
+   CA Secret without a token source — see `examples/xr-vault-k8s-auth.yaml`.
 
 Then point a `VaultK8sAuth` at the two published values:
 
@@ -587,8 +599,10 @@ what is worth knowing here:
   not here either: the Composition's inlined vault-pki block (below) mirrors
   `appset-cert-manager-vault-pki`'s gate exactly — `network-platform: 'true'` and
   `network-platform/cert-manager-vault-pki` not `'false'` — so a cluster that only
-  carries the umbrella gets both the ClusterIssuer *and* the token + CA Secrets it
-  needs, instead of an issuer with no prerequisites.
+  carries the umbrella gets both the ClusterIssuer *and* the prerequisites it
+  needs, instead of an issuer with none. Each prerequisite hangs off its own
+  input: the CA Secret off `vaultPkiSourceCaName`, the token Secret off
+  `vaultPkiSourceTokenName`, the `certmanager` ServiceAccount off `vaultAuth`.
 - **`storage-platform.stuttgart-things.com/nfs-config` is a gate, not a toggle.**
   `appset-nfs-csi-storageclasses` matches it with `Exists`, which `'false'`
   satisfies just as well as `'true'`. Set it on the XR only, together with the

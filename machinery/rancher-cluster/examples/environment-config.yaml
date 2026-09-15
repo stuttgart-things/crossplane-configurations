@@ -66,9 +66,10 @@ data:
   # --- vault-pki prerequisite Secrets (network-platform/cert-manager-vault-pki) ---
   # Where block (5) of the Composition READS the token + CA bundle it pushes onto
   # the downstream cluster's cert-manager namespace. Both are control-plane
-  # Secrets. Neither key has a default in the Composition, so with them unset the
-  # whole block is inert — which is why they belong in the example rather than
-  # only in the fleet's EnvironmentConfig.
+  # Secrets. Neither key has a default in the Composition: an unset key drops ITS
+  # Secret, nothing else. With spec.vaultAuth (kubernetes auth) the token is not
+  # read by the ClusterIssuer at all, so a CA source alone is a complete setup —
+  # see the `vault-k8s-auth` EnvironmentConfig below.
   vaultPkiSourceTokenName: cert-manager-vault-token  # pragma: allowlist secret
   vaultPkiSourceTokenNamespace: cert-manager
   # The Secret carrying the PKI root. The name says openbao because that is what
@@ -184,3 +185,28 @@ data:
     # With spec.vaultAuth.composeMount the Composition fills in
     # vault-auth-method / vault-k8s-auth-mount / -role / -sa itself; an
     # annotation set explicitly still wins.
+
+---
+# A control plane that carries ONLY the PKI CA and no token — the kubernetes-auth
+# setup, where the ClusterIssuer logs in as the `certmanager` ServiceAccount
+# (spec.vaultAuth). Selected by examples/xr-vault-k8s-auth.yaml, which keeps
+# block (5)'s CA-only branch in a golden snapshot (#435). Before that fix this
+# combination rendered no CA Secret and no ServiceAccount at all.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: rancher-cluster-vault-k8s-auth
+  labels:
+    rancher-cluster.resources.stuttgart-things.com/environment: vault-k8s-auth
+data:
+  providerConfigRef: in-cluster
+  rancherProviderConfigRef: rancher-mgmt
+  rancherNamespace: fleet-default
+  distro: rke2
+  kubernetesVersion: v1.36.4+rke2r1
+  argocdNamespace: argocd
+  argocdProviderConfigRef: rancher-mgmt
+  # CA only. No vaultPkiSourceTokenName: nothing on this control plane issues a
+  # static Vault token, and kubernetes auth does not need one.
+  vaultPkiSourceCaName: openbao-pki-ca  # pragma: allowlist secret
+  vaultPkiSourceCaNamespace: cert-manager

@@ -1,0 +1,781 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: rke2-vault-k8s-auth
+  namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-2a067cc926e4
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-41e098cf84fb
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-80861228cf73
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-8cf8824490fb
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-8dab37de96a1
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-b34bae2b9407
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-b7022b53c1a1
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-c42ebd9144a5
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-d9f5e7b71c16
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-da558736c452
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-e11098fe3759
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-f23b5225b20c
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-kubeconfig-bridge
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-providerconfig
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-vault-k8s-auth-vpki-ca
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rke2-vault-k8s-auth-31a7dedce4a9
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rke2-vault-k8s-auth-bc8fea6b3925
+status:
+  argocdClusterSecret: cluster-rke2-vault-k8s-auth
+  clusterProviderConfig: rke2-vault-k8s-auth
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: rke2-vault-k8s-auth-argocd-crb, rke2-vault-k8s-auth-argocd-sa,
+      rke2-vault-k8s-auth-argocd-saextract, and 12 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  kubeconfigSecret: rke2-vault-k8s-auth-kubeconfig
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-argocd-crb
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-argocd-crb
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-2a067cc926e4
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: argocd-manager-role-binding
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+      - kind: ServiceAccount
+        name: argocd-manager
+        namespace: kube-system
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-vault-k8s-auth
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-argocd-sa
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-argocd-sa
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-d9f5e7b71c16
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: argocd-manager
+        namespace: kube-system
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-vault-k8s-auth
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-argocd-saextract
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-argocd-saextract
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-f23b5225b20c
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.token
+    kind: Secret
+    name: argocd-manager-token
+    namespace: kube-system
+    toConnectionSecretKey: token
+  - apiVersion: v1
+    fieldPath: data[ca.crt]
+    kind: Secret
+    name: argocd-manager-token
+    namespace: kube-system
+    toConnectionSecretKey: ca
+  - apiVersion: v1
+    fieldPath: subsets[0].addresses[0].ip
+    kind: Endpoints
+    name: kubernetes
+    namespace: default
+    toConnectionSecretKey: apiserverIp
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: argocd-manager-token
+        namespace: kube-system
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-vault-k8s-auth
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+  writeConnectionSecretToRef:
+    name: rke2-vault-k8s-auth-argocd-sa
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-argocd-token
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-argocd-token
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-80861228cf73
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        annotations:
+          kubernetes.io/service-account.name: argocd-manager
+        name: argocd-manager-token
+        namespace: kube-system
+      type: kubernetes.io/service-account-token
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-vault-k8s-auth
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-bootstrap-namespace
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-bootstrap-namespace
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-da558736c452
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: crossplane-bootstrap
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-vault-k8s-auth
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-cluster
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-cluster
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-b34bae2b9407
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  forProvider:
+    manifest:
+      apiVersion: provisioning.cattle.io/v1
+      kind: Cluster
+      metadata:
+        name: rke2-vault-k8s-auth
+        namespace: fleet-default
+      spec:
+        kubernetesVersion: v1.36.4+rke2r1
+        rkeConfig:
+          machineGlobalConfig:
+            cni: none
+            disable-kube-proxy: true
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-kubeconfig-bridge
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-kubeconfig-bridge
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-kubeconfig-bridge
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.value
+    kind: Secret
+    name: rke2-vault-k8s-auth-kubeconfig
+    namespace: fleet-default
+    toConnectionSecretKey: value
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: rke2-vault-k8s-auth-kubeconfig
+        namespace: fleet-default
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+  writeConnectionSecretToRef:
+    name: rke2-vault-k8s-auth-kubeconfig-bridged
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-providerconfig
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-providerconfig
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-providerconfig
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  forProvider:
+    manifest:
+      apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: ClusterProviderConfig
+      metadata:
+        name: rke2-vault-k8s-auth
+      spec:
+        credentials:
+          secretRef:
+            key: value
+            name: rke2-vault-k8s-auth-kubeconfig-bridged
+            namespace: default
+          source: Secret
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-usage-bridge
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-usage-bridge
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-bc8fea6b3925
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: rke2-vault-k8s-auth-providerconfig
+  of:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: rke2-vault-k8s-auth-kubeconfig-bridge
+  reason: Bridged kubeconfig Secret is in use by the ClusterProviderConfig
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-usage-vpki-ca
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-usage-vpki-ca
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-31a7dedce4a9
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  by:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: rke2-vault-k8s-auth-vpki-ca
+  of:
+    apiVersion: kubernetes.m.crossplane.io/v1alpha1
+    kind: Object
+    resourceRef:
+      name: rke2-vault-k8s-auth-providerconfig
+  reason: Downstream ClusterProviderConfig is in use by the vault-pki CA Secret
+  replayDeletion: true
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-vault-reviewer-crb
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-vault-reviewer-crb
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-41e098cf84fb
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  forProvider:
+    manifest:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: rke2-vault-k8s-auth-vault-auth-reviewer
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: system:auth-delegator
+      subjects:
+      - kind: ServiceAccount
+        name: vault-auth-reviewer
+        namespace: kube-system
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-vault-k8s-auth
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-vault-reviewer-extract
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-vault-reviewer-extract
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-c42ebd9144a5
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.token
+    kind: Secret
+    name: vault-auth-reviewer
+    namespace: kube-system
+    toConnectionSecretKey: token
+  - apiVersion: v1
+    fieldPath: data[ca.crt]
+    kind: Secret
+    name: vault-auth-reviewer
+    namespace: kube-system
+    toConnectionSecretKey: ca.crt
+  - apiVersion: v1
+    fieldPath: subsets[0].addresses[0].ip
+    kind: Endpoints
+    name: kubernetes
+    namespace: default
+    toConnectionSecretKey: apiserverIp
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: vault-auth-reviewer
+        namespace: kube-system
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-vault-k8s-auth
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+  writeConnectionSecretToRef:
+    name: rke2-vault-k8s-auth-vault-reviewer
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-vault-reviewer-sa
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-vault-reviewer-sa
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-b7022b53c1a1
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      automountServiceAccountToken: false
+      kind: ServiceAccount
+      metadata:
+        name: vault-auth-reviewer
+        namespace: kube-system
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-vault-k8s-auth
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-vault-reviewer-token
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-vault-reviewer-token
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-8cf8824490fb
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        annotations:
+          kubernetes.io/service-account.name: vault-auth-reviewer
+        name: vault-auth-reviewer
+        namespace: kube-system
+      type: kubernetes.io/service-account-token
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-vault-k8s-auth
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-vpki-ca
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-vpki-ca
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-vpki-ca
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      data:
+        ca.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCkZBS0UtT1BFTkJBTy1QS0ktQ0EtRk9SLVJFTkRFUi1URVNUUy1PTkxZCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+      kind: Secret
+      metadata:
+        name: vault-pki-ca
+        namespace: cert-manager
+      type: Opaque
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-vault-k8s-auth
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-vpki-certmanager-sa
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-vpki-certmanager-sa
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-8dab37de96a1
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: certmanager
+        namespace: cert-manager
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-vault-k8s-auth
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-vault-k8s-auth-vpki-namespace
+  generateName: rke2-vault-k8s-auth-
+  labels:
+    app.kubernetes.io/instance: rke2-vault-k8s-auth-vpki-namespace
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-vault-k8s-auth
+  name: rke2-vault-k8s-auth-e11098fe3759
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-vault-k8s-auth
+    uid: f1dd4737-6259-591b-847d-fd0cb71c86e0
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: cert-manager
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rke2-vault-k8s-auth
+  readiness:
+    celQuery: object.status.phase == "Active"
+    policy: DeriveFromCelQuery
