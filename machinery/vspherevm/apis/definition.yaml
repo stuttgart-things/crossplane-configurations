@@ -185,6 +185,25 @@ spec:
                         — so the cluster registration token never travels through
                         a PipelineRun param or through this XR's spec, which
                         `varsFile` would have meant.
+                    vaultSecretName:
+                      type: string
+                      description: |
+                        Name of the Secret in the PipelineRun namespace the
+                        ansible step takes its Vault credentials from
+                        (`VAULT_ADDR`, `VAULT_ROLE_ID`, `VAULT_SECRET_ID`).
+
+                        Forwarded to the emitted AnsibleRun only when set.
+                        Unset, ansible-run uses its own default (`vault`) —
+                        which on the lab management clusters points at
+                        vault-vsphere, not at the infra Vault.
+
+                        Wired through for the Rancher custom-node join
+                        (crossplane-configurations#421): a node built without
+                        a CNI publishes its kubeconfig to the infra Vault
+                        (`sthings.rke.rancher_register`,
+                        `rancher_upload_kubeconfig: true`), which needs an
+                        AppRole with write on `kubeconfigs/` — a different
+                        credential than the default Secret carries.
                     crossplaneProviderConfig:
                       type: string
                     wrapInCrossplane:
