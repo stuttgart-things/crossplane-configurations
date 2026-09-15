@@ -138,11 +138,50 @@ spec:
             {{- $rancherClusterId = index $rancherIdData "clusterId" | b64dec }}
             {{- end }}
             {{- end }}
-            {{- $nodeCmdData := dict }}
-            {{- $nodeCmdItems := (index (.extraResources | default dict) "node-command" | default dict).items | default list }}
-            {{- if $nodeCmdItems }}
-            {{- $nodeCmdData = (index $nodeCmdItems 0).resource.data | default dict }}
+            {{- /* THE PUBLISHED COMMAND IS BUILT, NOT COPIED. Rancher 2.15+ writes every
+                   command field of the ClusterRegistrationToken with a literal `{token}`
+                   placeholder and substitutes the real token only at its API layer
+                   (pkg/controllers/dashboard/clusterregistrationtoken/status.go); the
+                   token itself lives in the Secret status.tokenSecretName names. Read
+                   through the Kubernetes API the command authenticates as "{token}",
+                   Rancher answers /v3/connect/agent with `500 machine not found by
+                   request`, and system-agent-install.sh retries that silently for hours.
+                   Rancher 2.14 still embeds the real token. So: (1e) collects the raw
+                   commands into <secretName>-raw, (1f) reads the token Secret ONLY when
+                   the placeholder is present, and (1g)/(1h) publish the substituted
+                   command -- and never a template. */}}
+            {{- $nodeCmdRawSecret := print $nodeCmdSecret "-raw" }}
+            {{- $regTokenSecret := print $name "-registration-token" }}
+            {{- $nodeCmdRaw := dict }}
+            {{- $nodeCmdRawItems := (index (.extraResources | default dict) "node-command-raw" | default dict).items | default list }}
+            {{- if $nodeCmdRawItems }}
+            {{- $nodeCmdRaw = (index $nodeCmdRawItems 0).resource.data | default dict }}
             {{- end }}
+            {{- $regToken := "" }}
+            {{- $regTokenItems := (index (.extraResources | default dict) "registration-token" | default dict).items | default list }}
+            {{- if $regTokenItems }}
+            {{- $regTokenData := (index $regTokenItems 0).resource.data | default dict }}
+            {{- if hasKey $regTokenData "token" }}
+            {{- $regToken = index $regTokenData "token" | b64dec }}
+            {{- end }}
+            {{- end }}
+            {{- $rawNodeCommand := "" }}
+            {{- if hasKey $nodeCmdRaw "nodeCommand" }}
+            {{- $rawNodeCommand = index $nodeCmdRaw "nodeCommand" | b64dec }}
+            {{- end }}
+            {{- $rawInsecureNodeCommand := "" }}
+            {{- if hasKey $nodeCmdRaw "insecureNodeCommand" }}
+            {{- $rawInsecureNodeCommand = index $nodeCmdRaw "insecureNodeCommand" | b64dec }}
+            {{- end }}
+            {{- $tokenPlaceholder := "{token}" }}
+            {{- $needsToken := contains $tokenPlaceholder $rawNodeCommand }}
+            {{- $nodeCommand := $rawNodeCommand }}
+            {{- $insecureNodeCommand := $rawInsecureNodeCommand }}
+            {{- if and $needsToken $regToken }}
+            {{- $nodeCommand = replace $tokenPlaceholder $regToken $rawNodeCommand }}
+            {{- $insecureNodeCommand = replace $tokenPlaceholder $regToken $rawInsecureNodeCommand }}
+            {{- end }}
+            {{- $cmdReady := and $rawNodeCommand (or (not $needsToken) $regToken) }}
             {{- $argocd := $spec.argocd | default dict }}
             {{- $argocdRegister := $argocd.register | default false }}
             {{- /* Platform profile labels/annotations on the ClusterbookCluster:
@@ -498,9 +537,10 @@ spec:
                     name: {{ $name }}
                     namespace: {{ $rancherNs }}
             ---
-            # (1d) Pull the ID (and, once it exists, the published command) into
-            # the pipeline: (1e) needs the ID to name a namespace, and (1f) needs
-            # the command's bytes to mirror them.
+            # (1d) Pull the ID, the raw command and (on Rancher 2.15+) the registration
+            # token into the pipeline: (1e) needs the ID to name a namespace, (1f)
+            # needs to know whether the raw command carries the `{token}` placeholder,
+            # and (1g)/(1h) need all three to build the command they publish.
             apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
             kind: ExtraResources
             requirements:
@@ -509,10 +549,15 @@ spec:
                 kind: Secret
                 matchName: {{ $rancherIdSecret }}
                 namespace: {{ $xrNs }}
-              node-command:
+              node-command-raw:
                 apiVersion: v1
                 kind: Secret
-                matchName: {{ $nodeCmdSecret }}
+                matchName: {{ $nodeCmdRawSecret }}
+                namespace: {{ $xrNs }}
+              registration-token:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $regTokenSecret }}
                 namespace: {{ $xrNs }}
             {{- if $rancherClusterId }}
             ---
@@ -531,19 +576,19 @@ spec:
             # `default-token` is Rancher's naming convention rather than an API
             # guarantee, hence spec.nodeRegistration.tokenName.
             #
-            # NO `token` KEY, ON PURPOSE. It used to be extracted from status.token,
-            # and on Rancher 2.15.1 that field is present but EMPTY: the token moved
-            # into a Secret named by status.tokenSecretName (crt-token-<name>, in the
-            # same c-m-xxxxx namespace). Measured on platform-sthings, 2026-09-15.
-            # The raw token is not lost -- nodeCommand already carries it as --token.
+            # IT COLLECTS A TEMPLATE, NOT A RUNNABLE COMMAND, on Rancher 2.15+: the
+            # command fields carry a literal `{token}` (see the vars block). So this
+            # Object writes to <secretName>-raw, and what consumers read is built by
+            # (1g) from it. Measured on platform-sthings (Rancher 2.15.1), 2026-09-15:
+            # a node running the raw command loops in retrieve_connection_info on
+            # `500 machine not found by request`; the same command with the token
+            # from crt-token-<name> joins at once. Rancher 2.14.3 embeds the token.
             #
-            # Reading it from that Secret here instead would be worse, not better.
-            # provider-kubernetes extracts connectionDetails ALL OR NOTHING
-            # (internal/controller/namespaced/object/object.go, v1.2.1): one missing
-            # object or field fails the whole Observe and writes nothing. Rancher
-            # 2.14 has no such Secret, so a Secret-sourced entry would stop
-            # nodeCommand being published there. For the same reason every entry
-            # below must be a field both versions carry.
+            # Only fields BOTH versions carry are extracted here. provider-kubernetes
+            # extracts connectionDetails all or nothing (namespaced/object/object.go,
+            # v1.2.1): one missing object or field fails the whole Observe and writes
+            # nothing -- which is why the token Secret gets its own Object in (1f)
+            # instead of an entry below.
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
             metadata:
@@ -563,7 +608,7 @@ spec:
                 policy: DeriveFromCelQuery
                 celQuery: object.metadata.uid != ""
               writeConnectionSecretToRef:
-                name: {{ $nodeCmdSecret }}
+                name: {{ $nodeCmdRawSecret }}
               connectionDetails:
                 - apiVersion: management.cattle.io/v3
                   kind: ClusterRegistrationToken
@@ -585,19 +630,101 @@ spec:
                     name: {{ $nodeCmdTokenName }}
                     namespace: {{ $rancherClusterId }}
             {{- end }}
-            {{- if and $nodeCmdSecretNs (ne $nodeCmdSecretNs $xrNs) (hasKey $nodeCmdData "nodeCommand") }}
+            {{- if and $rancherClusterId $needsToken }}
             ---
-            # (1f) MIRROR — the same keys, in the namespace that consumes them.
-            # A connection Secret lands in the Object's own namespace, i.e. next to
-            # this XR, but ansible-run's `extraEnvSecretName` reads its Secret from
-            # the PipelineRun's namespace (tekton-ci in this lab). That is the whole
-            # reason this exists: the keys become environment variables of the same
-            # name in the ansible step, so a join play can read the command from
-            # lookup('env', 'nodeCommand') and the token never travels through a
-            # PipelineRun param or an XR spec.
+            # (1f) NODE REGISTRATION, hop 3 (Rancher 2.15+ only) -- the token. Emitted
+            # ONLY when the raw command carries the `{token}` placeholder, which is
+            # exactly the Rancher versions that keep the token in crt-token-<name>.
+            # Rancher 2.14 embeds the token and has no such Secret; gating on the
+            # placeholder means it never gets an Object whose source cannot exist,
+            # so the all-or-nothing extraction cannot cost it anything. Observe-only:
+            # the Secret belongs to Rancher's ClusterRegistrationToken controller,
+            # which also rotates it.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-registration-token") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-registration-token
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $rancherCpc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              writeConnectionSecretToRef:
+                name: {{ $regTokenSecret }}
+              connectionDetails:
+                - apiVersion: v1
+                  kind: Secret
+                  name: crt-token-{{ $nodeCmdTokenName }}
+                  namespace: {{ $rancherClusterId }}
+                  fieldPath: data.token
+                  toConnectionSecretKey: token
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: crt-token-{{ $nodeCmdTokenName }}
+                    namespace: {{ $rancherClusterId }}
+            {{- end }}
+            {{- if $cmdReady }}
+            ---
+            # (1g) PUBLISH -- the runnable command, beside this XR. Built from the raw
+            # template with the token substituted (Rancher 2.15+) or copied as is
+            # (Rancher 2.14), and emitted only once it is runnable: a published command
+            # that still says `{token}` is worse than none, because it fails silently
+            # on the node for hours.
             #
-            # The values are copied as they arrive — already base64, no decode and
-            # re-encode — so nothing is reshaped on the way through.
+            # UPGRADING FROM v0.8.x: <secretName> used to be (1e)'s connection Secret.
+            # (1e) now writes <secretName>-raw, and this Object takes the existing
+            # <secretName> over and rewrites its data; nothing has to be deleted.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-node-command-publish") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-node-command-publish
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $cpc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: {{ $nodeCmdSecret }}
+                    namespace: {{ $xrNs }}
+                  type: Opaque
+                  stringData:
+                    nodeCommand: {{ $nodeCommand | quote }}
+                    {{- if $insecureNodeCommand }}
+                    insecureNodeCommand: {{ $insecureNodeCommand | quote }}
+                    {{- end }}
+            {{- if and $nodeCmdSecretNs (ne $nodeCmdSecretNs $xrNs) }}
+            ---
+            # (1h) MIRROR -- the same runnable command, in the namespace that consumes
+            # it. ansible-run's `extraEnvSecretName` reads its Secret from the
+            # PipelineRun's namespace (tekton-ci in this lab), and the keys become
+            # environment variables of the same name in the ansible step, so a join
+            # play reads lookup('env', 'nodeCommand') and the token never travels
+            # through a PipelineRun param or an XR spec.
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
             metadata:
@@ -624,10 +751,12 @@ spec:
                     name: {{ $nodeCmdSecret }}
                     namespace: {{ $nodeCmdSecretNs }}
                   type: Opaque
-                  data:
-                    {{- range $k, $v := $nodeCmdData }}
-                    {{ $k }}: {{ $v | quote }}
+                  stringData:
+                    nodeCommand: {{ $nodeCommand | quote }}
+                    {{- if $insecureNodeCommand }}
+                    insecureNodeCommand: {{ $insecureNodeCommand | quote }}
                     {{- end }}
+            {{- end }}
             {{- end }}
             {{- end }}
             ---

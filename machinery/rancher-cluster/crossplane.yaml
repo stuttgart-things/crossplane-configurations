@@ -45,7 +45,8 @@ metadata:
       cluster's `ClusterRegistrationToken` on the Rancher cluster and puts
       Rancher's registration command in a Secret beside the XR
       (`<name>-node-command`, keys `nodeCommand` / `insecureNodeCommand`,
-      the token embedded in both), optionally mirrored into `secretNamespace` for an
+      ready to run -- on Rancher 2.15+ the token is substituted into Rancher's
+      `{token}` template), optionally mirrored into `secretNamespace` for an
       `AnsibleRun` to consume. Append the role flags yourself — Rancher does
       not include them. Off by default: the command is a credential.
 

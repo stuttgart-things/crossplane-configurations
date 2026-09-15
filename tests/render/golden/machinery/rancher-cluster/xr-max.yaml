@@ -12,6 +12,9 @@ spec:
       name: rke2-prod-vault-auth
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
+      name: rke2-prod-0f9b5fe97840
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
       name: rke2-prod-1d1347e6d7c2
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
@@ -46,6 +49,9 @@ spec:
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
       name: rke2-prod-c24f4120f5c0
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-prod-c551eb7884a3
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
       name: rke2-prod-cde5161ec882
@@ -96,7 +102,7 @@ status:
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: rke2-prod-argocd-crb, rke2-prod-argocd-kubeconfig,
-      rke2-prod-argocd-sa, and 19 more'
+      rke2-prod-argocd-sa, and 21 more'
     reason: Creating
     status: "False"
     type: Ready
@@ -610,7 +616,7 @@ spec:
     celQuery: object.metadata.uid != ""
     policy: DeriveFromCelQuery
   writeConnectionSecretToRef:
-    name: rke2-prod-node-command
+    name: rke2-prod-node-command-raw
 ---
 apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
@@ -636,13 +642,64 @@ spec:
   forProvider:
     manifest:
       apiVersion: v1
-      data:
-        insecureNodeCommand: Y3VybCAtZkwgLS1pbnNlY3VyZSBodHRwczovL3JhbmNoZXIuZXhhbXBsZS5pbnZhbGlkL3N5c3RlbS1hZ2VudC1pbnN0YWxsLnNoIHwgc3VkbyBzaCAtcyAtIC0tc2VydmVyIGh0dHBzOi8vcmFuY2hlci5leGFtcGxlLmludmFsaWQgLS1sYWJlbCAnY2F0dGxlLmlvL29zPWxpbnV4JyAtLWluc2VjdXJlIC0tdG9rZW4gRkFLRS1SRUdJU1RSQVRJT04tVE9LRU4tTk9ULUEtQ1JFREVOVElBTCAtLWNhLWNoZWNrc3VtIDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
-        nodeCommand: Y3VybCAtZkwgaHR0cHM6Ly9yYW5jaGVyLmV4YW1wbGUuaW52YWxpZC9zeXN0ZW0tYWdlbnQtaW5zdGFsbC5zaCB8IHN1ZG8gc2ggLXMgLSAtLXNlcnZlciBodHRwczovL3JhbmNoZXIuZXhhbXBsZS5pbnZhbGlkIC0tbGFiZWwgJ2NhdHRsZS5pby9vcz1saW51eCcgLS10b2tlbiBGQUtFLVJFR0lTVFJBVElPTi1UT0tFTi1OT1QtQS1DUkVERU5USUFMIC0tY2EtY2hlY2tzdW0gMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMA==
       kind: Secret
       metadata:
         name: rke2-prod-node-command
         namespace: tekton-ci
+      stringData:
+        insecureNodeCommand: curl -fL --insecure https://rancher.example.invalid/system-agent-install.sh
+          | sudo sh -s - --server https://rancher.example.invalid --label 'cattle.io/os=linux'
+          --insecure --token FAKE-REGISTRATION-TOKEN-NOT-A-CREDENTIAL --ca-checksum
+          0000000000000000000000000000000000000000000000000000000000000000
+        nodeCommand: curl -fL https://rancher.example.invalid/system-agent-install.sh
+          | sudo sh -s - --server https://rancher.example.invalid --label 'cattle.io/os=linux'
+          --token FAKE-REGISTRATION-TOKEN-NOT-A-CREDENTIAL --ca-checksum 0000000000000000000000000000000000000000000000000000000000000000
+      type: Opaque
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-node-command-publish
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-node-command-publish
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-c551eb7884a3
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: rke2-prod-node-command
+        namespace: default
+      stringData:
+        insecureNodeCommand: curl -fL --insecure https://rancher.example.invalid/system-agent-install.sh
+          | sudo sh -s - --server https://rancher.example.invalid --label 'cattle.io/os=linux'
+          --insecure --token FAKE-REGISTRATION-TOKEN-NOT-A-CREDENTIAL --ca-checksum
+          0000000000000000000000000000000000000000000000000000000000000000
+        nodeCommand: curl -fL https://rancher.example.invalid/system-agent-install.sh
+          | sudo sh -s - --server https://rancher.example.invalid --label 'cattle.io/os=linux'
+          --token FAKE-REGISTRATION-TOKEN-NOT-A-CREDENTIAL --ca-checksum 0000000000000000000000000000000000000000000000000000000000000000
       type: Opaque
   managementPolicies:
   - '*'
@@ -740,6 +797,52 @@ spec:
     policy: DeriveFromCelQuery
   writeConnectionSecretToRef:
     name: rke2-prod-rancher-id
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-registration-token
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-registration-token
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-0f9b5fe97840
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  connectionDetails:
+  - apiVersion: v1
+    fieldPath: data.token
+    kind: Secret
+    name: crt-token-default-token
+    namespace: c-m-fake0002
+    toConnectionSecretKey: token
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: crt-token-default-token
+        namespace: c-m-fake0002
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+  writeConnectionSecretToRef:
+    name: rke2-prod-registration-token
 ---
 apiVersion: protection.crossplane.io/v1beta1
 kind: Usage

@@ -18,6 +18,9 @@ spec:
       name: k3s-test-4ab1329e4c7f
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
+      name: k3s-test-6950321c0052
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
       name: k3s-test-d561cb63879d
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
@@ -38,7 +41,7 @@ status:
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: k3s-test-bootstrap-namespace, k3s-test-cluster, k3s-test-kubeconfig-bridge,
-      and 3 more'
+      and 4 more'
     reason: Creating
     status: "False"
     type: Ready
@@ -210,7 +213,53 @@ spec:
     celQuery: object.metadata.uid != ""
     policy: DeriveFromCelQuery
   writeConnectionSecretToRef:
-    name: k3s-test-node-command
+    name: k3s-test-node-command-raw
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-test-node-command-publish
+  generateName: k3s-test-
+  labels:
+    app.kubernetes.io/instance: k3s-test-node-command-publish
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-test
+  name: k3s-test-6950321c0052
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-test
+    uid: 21f87fdd-8ab5-5a2c-b329-8e53b04b8295
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: k3s-test-node-command
+        namespace: default
+      stringData:
+        insecureNodeCommand: curl -fL --insecure https://rancher.example.invalid/system-agent-install.sh
+          | sudo sh -s - --server https://rancher.example.invalid --label 'cattle.io/os=linux'
+          --insecure --token FAKE-REGISTRATION-TOKEN-NOT-A-CREDENTIAL --ca-checksum
+          0000000000000000000000000000000000000000000000000000000000000000
+        nodeCommand: curl -fL https://rancher.example.invalid/system-agent-install.sh
+          | sudo sh -s - --server https://rancher.example.invalid --label 'cattle.io/os=linux'
+          --token FAKE-REGISTRATION-TOKEN-NOT-A-CREDENTIAL --ca-checksum 0000000000000000000000000000000000000000000000000000000000000000
+      type: Opaque
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
 ---
 apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
