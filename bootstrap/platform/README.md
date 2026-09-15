@@ -284,6 +284,25 @@ Values marked *discovered* come from `substitutionSources` on the catalog `Compo
 
 **`openebs` pins the flux artifact at `v1.19.1` for a reason.** The artifact pins the openebs *chart* separately as `OPENEBS_VERSION` (default `4.2.0`), and the chart changes shape at 4.5: `loki` and `alloy` become dependencies, **both defaulting to true**, and `localpv-provisioner` — the thing behind `openebs-hostpath` — becomes conditional. Before [flux#192](https://github.com/stuttgart-things/flux/pull/192) the artifact had no keys to turn any of that off, so raising `OPENEBS_VERSION` from an XR would have silently added a Loki StatefulSet, the MinIO StatefulSet backing it and an Alloy DaemonSet. Do not pin an older artifact tag.
 
+#### Certificates from the vault issuer need a `commonName`
+
+The fleet's PKI role (`pki/sign/sthings-vsphere` on `vault.infra.sthings-vsphere`)
+requires a common name. A `Certificate` against the `vaultIssuer` ClusterIssuer
+that sets only `dnsNames` fails at **signing** time, while the issuer itself stays
+`Ready`, because `Ready` only proves the Kubernetes-auth login:
+
+```
+Vault failed to sign certificate: ... POST .../v1/pki/sign/sthings-vsphere
+Code: 400. Errors:
+* the common_name field is required, or must be provided in a CSR with
+  "use_csr_common_name" set to true, unless "require_cn" is set to false
+```
+
+Set `spec.commonName` to one of the `dnsNames`. Measured on `rancher-join-test4`
+([#422](https://github.com/stuttgart-things/crossplane-configurations/issues/422)).
+The Gateway wildcard certificates (`wildcardCertificate` here, or the
+`cert-manager-cluster-ca` AppSet) already set it.
+
 #### A cluster that finds its own Vault
 
 `vaultIssuer.additionalAuths` creates further Kubernetes-auth mounts beside
