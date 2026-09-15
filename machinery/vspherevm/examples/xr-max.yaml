@@ -45,3 +45,8 @@ spec:
     # is for: the play reads lookup('env', 'nodeCommand') instead of taking the
     # registration token through varsFile, i.e. through this spec.
     extraEnvSecretName: ansible-extra-env  # pragma: allowlist secret
+    # Secret the ansible step takes VAULT_ADDR / VAULT_ROLE_ID / VAULT_SECRET_ID
+    # from. Unset, ansible-run's default `vault` applies. A join play publishing
+    # the node kubeconfig to the infra Vault needs a writer AppRole instead
+    # (crossplane-configurations#421).
+    vaultSecretName: vault-infra-kubeconfig-writer  # pragma: allowlist secret

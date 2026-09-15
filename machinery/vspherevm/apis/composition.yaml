@@ -354,6 +354,13 @@ spec:
                         # ansibleVarsFile would have meant.
                         if _ansible?.extraEnvSecretName:
                             extraEnvSecretName = _ansible.extraEnvSecretName
+                        # Forwarded ONLY when set, for the same reason. Unset,
+                        # ansible-run's default `vault` Secret applies. Wired
+                        # through so a join play can publish the node kubeconfig
+                        # to a different Vault than that default points at
+                        # (#421: rancher_register rancher_upload_kubeconfig).
+                        if _ansible?.vaultSecretName:
+                            vaultSecretName = _ansible.vaultSecretName
                         ansiblePlaybooks = _playbooks
                         if len(_varsFileFinal) > 0:
                             ansibleVarsFile = _varsFileFinal

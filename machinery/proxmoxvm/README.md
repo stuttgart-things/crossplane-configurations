@@ -403,6 +403,16 @@ on the cluster: Tekton, the ansible credentials Secret (default
 > written into a spec. See
 > [#422](https://github.com/stuttgart-things/crossplane-configurations/issues/422).
 
+> **`vaultSecretName`** names the Secret in the PipelineRun's namespace the ansible
+> step takes `VAULT_ADDR` / `VAULT_ROLE_ID` / `VAULT_SECRET_ID` from. It is
+> forwarded only when set and is **not** read from the EnvironmentConfig; unset,
+> ansible-run's own default (`vault`) applies — on the lab management clusters that
+> is vault-vsphere, not the infra Vault. The Rancher custom-node join needs it when
+> the node publishes its kubeconfig (`rancher_upload_kubeconfig: true`) for a
+> cluster built without a CNI: that write goes to the infra Vault's `kubeconfigs/`
+> with an AppRole of its own (on kind3 `tekton-ci/vault-infra-kubeconfig-writer`).
+> See [#421](https://github.com/stuttgart-things/crossplane-configurations/issues/421).
+
 
 ## Cluster preconditions
 
