@@ -17,6 +17,7 @@ spec:
   # publishing Rancher's registration command is what lets a machine built
   # elsewhere (a NativeProxmoxVM / NativeVsphereVM, or bare metal) join. Lands
   # in `k3s-test-node-command` next to this XR, keys nodeCommand /
-  # insecureNodeCommand / token. Append the role flags when running it.
+  # insecureNodeCommand (the token is embedded in both). Append the role flags
+  # when running it.
   nodeRegistration:
     publish: true

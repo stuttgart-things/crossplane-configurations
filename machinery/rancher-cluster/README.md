@@ -236,7 +236,15 @@ curl -fL https://rancher.example/system-agent-install.sh | sudo sh -s - \
 |---|---|
 | `nodeCommand` | The installer line, server URL + token + CA checksum filled in |
 | `insecureNodeCommand` | The same with `--insecure`, for a node that does not trust the Rancher certificate |
-| `token` | The raw registration token |
+
+There is **no raw `token` key**, and that is deliberate. Rancher 2.15 leaves the
+`ClusterRegistrationToken`'s `status.token` empty and keeps the token in a Secret
+named by `status.tokenSecretName` (`crt-token-<name>`, same `c-m-xxxxx` namespace);
+the token is in both commands above as `--token` either way. It is not read from
+that Secret here because provider-kubernetes extracts connection details all or
+nothing — Rancher 2.14 has no such Secret, and one missing source would stop
+`nodeCommand` from being published at all. The token also expires
+(`status.expiresAt`, about 30 days on 2.15).
 
 **Append the role flags yourself** — `--etcd --controlplane --worker` for an
 all-in-one node, and `--node-name` / `--address` on a multi-NIC host. Rancher does

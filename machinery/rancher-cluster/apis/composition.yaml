@@ -530,6 +530,20 @@ spec:
             #
             # `default-token` is Rancher's naming convention rather than an API
             # guarantee, hence spec.nodeRegistration.tokenName.
+            #
+            # NO `token` KEY, ON PURPOSE. It used to be extracted from status.token,
+            # and on Rancher 2.15.1 that field is present but EMPTY: the token moved
+            # into a Secret named by status.tokenSecretName (crt-token-<name>, in the
+            # same c-m-xxxxx namespace). Measured on platform-sthings, 2026-09-15.
+            # The raw token is not lost -- nodeCommand already carries it as --token.
+            #
+            # Reading it from that Secret here instead would be worse, not better.
+            # provider-kubernetes extracts connectionDetails ALL OR NOTHING
+            # (internal/controller/namespaced/object/object.go, v1.2.1): one missing
+            # object or field fails the whole Observe and writes nothing. Rancher
+            # 2.14 has no such Secret, so a Secret-sourced entry would stop
+            # nodeCommand being published there. For the same reason every entry
+            # below must be a field both versions carry.
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
             metadata:
@@ -563,12 +577,6 @@ spec:
                   namespace: {{ $rancherClusterId }}
                   fieldPath: status.insecureNodeCommand
                   toConnectionSecretKey: insecureNodeCommand
-                - apiVersion: management.cattle.io/v3
-                  kind: ClusterRegistrationToken
-                  name: {{ $nodeCmdTokenName }}
-                  namespace: {{ $rancherClusterId }}
-                  fieldPath: status.token
-                  toConnectionSecretKey: token
               forProvider:
                 manifest:
                   apiVersion: management.cattle.io/v3

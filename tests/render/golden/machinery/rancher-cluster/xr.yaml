@@ -194,12 +194,6 @@ spec:
     name: default-token
     namespace: c-m-fake0001
     toConnectionSecretKey: insecureNodeCommand
-  - apiVersion: management.cattle.io/v3
-    fieldPath: status.token
-    kind: ClusterRegistrationToken
-    name: default-token
-    namespace: c-m-fake0001
-    toConnectionSecretKey: token
   forProvider:
     manifest:
       apiVersion: management.cattle.io/v3
