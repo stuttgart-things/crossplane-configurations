@@ -200,14 +200,24 @@ directly:
 
    For `cilium-gateway`, the Gateway API CRDs have to exist **before** Cilium
    starts — Cilium enables its Gateway controller only if it finds them. A cluster
-   with k3s' traefik disabled does not have them. **rke2 does**, but late: its
-   `rke2-traefik-crd` chart (not switched off by `disable: rke2-traefik`) ships
-   Gateway API v1.5.1 (standard channel), and like every rke2 helm-install job it
-   only runs once a pod network exists — i.e. after Cilium. So on rke2, install
-   Cilium without `gatewayAPI`, and turn it on through the `Cni` values once the
-   CRDs are there; the Helm upgrade restarts the operator and agents, which then
-   find them. (Measured on `rancher-join-test4`, #422; the second step is not yet
-   exercised.)
+   with k3s' traefik disabled does not have them. **Do not rely on the ones rke2
+   brings either.** Measured on `rancher-join-test4` (rke2 v1.36.4, #422): its
+   `rke2-traefik-crd` Helm release ships Gateway API **v1.5.1**, and like every rke2
+   helm-install job it only runs once a pod network exists — i.e. *after* Cilium.
+   That version matches neither Cilium 1.19 (Gateway API v1.4.1) nor 1.20 (v1.6.1),
+   and the rke2 docs state the Gateway API CRDs are *removed* when traefik is
+   disabled after having been enabled — taking every Gateway and HTTPRoute with
+   them. So own them instead: install the CRDs pinned to the version your Cilium
+   supports before Cilium, and keep rke2 out of it.
+
+   On rke2 that means the documented switches, not chart names under `disable`:
+   `ingress-controller: none` (traefik is the default since rke2 v1.36), and the
+   Gateway API CRD chart in `disable`. The rke2 reference lists
+   `rke2-gateway-api-crd` as a valid `disable` item — and does **not** list
+   `rke2-traefik` or `rke2-ingress-nginx`, which test4 used. On v1.36.4 the chart
+   was still called `rke2-traefik-crd`, so check the name for your rke2 version
+   (`kubectl -n kube-system get helmcharts`). Installing the CRDs from the `Cni` is
+   planned (#438).
 4. `cattle-cluster-agent` starts, the proxy answers, and steps 2–4 here proceed.
    Only then flip the `network-platform/cilium-*` labels.
 
