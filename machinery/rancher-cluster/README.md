@@ -157,14 +157,41 @@ Get it wrong on k3s and you do not get an error, you get flannel. (The lab's
 ansible path spells the same decision `rke2_cni: none` + `install_cilium: true`,
 and gates on both for the same reason.)
 
-A cluster built with no CNI is fine for this Configuration — the API server
-answers as soon as a node has joined, so steps 2–4 proceed — but it *is* then
-somebody else's job to install one. In this fleet that is Argo CD: flip the
-`network-platform/cilium-*` labels to `'true'` on the XR, since the
-EnvironmentConfig pins them `'false'` fleet-wide (its comment says exactly this:
-*"a cluster rebuilt with cilium via spec.machineGlobalConfig flips these to
-'true' on its own XR"*). The Cilium DaemonSet runs hostNetwork, so it schedules
-on a CNI-less node.
+**A cluster built with no CNI does NOT get past step 2 on its own.** This used to say
+the opposite, and was wrong on two counts:
+
+- **Every step after the join goes through Rancher's proxy**, and the proxy goes
+  through `cattle-cluster-agent` — an ordinary Deployment in the pod network, not
+  `hostNetwork` (checked on a live custom-node k3s: pod IP `10.42.0.13`, host
+  `10.31.102.123`). With no CNI that pod never starts, so the bridged kubeconfig,
+  the wired `ClusterProviderConfig`, the bootstrap namespace, the Argo CD
+  registration and `vaultAuth` all wait on a proxy that cannot answer.
+- **Argo CD does not install Cilium on a clusterbook cluster.** There is no
+  `cilium-install-*` ApplicationSet for `network-platform` — only
+  `cilium-install-kind`. The `network-platform/cilium-lb` / `cilium-gateway` labels
+  enable AppSets that **configure** a Cilium that must already be running; set on a
+  cluster without it they fail silently
+  ([#421](https://github.com/stuttgart-things/crossplane-configurations/issues/421)).
+
+The CNI therefore has to reach the cluster **past** Rancher, at the API server
+directly:
+
+1. The node's join play publishes the node's own admin kubeconfig to Vault —
+   `sthings.rke.rancher_register` with `rancher_upload_kubeconfig: true`, the
+   AnsibleRun's `vaultSecretName` pointing at an AppRole with write on `kubeconfigs/`.
+2. A [`ClusterAccess`](../../bootstrap/remote-cluster/) XR reads it and emits
+   `{clusterName}-kubernetes` / `{clusterName}-helm` ClusterProviderConfigs aimed at
+   `node:6443`.
+3. A [`Cni`](../../bootstrap/cni/) XR installs Cilium through `{clusterName}-helm`.
+   Keep kube-proxy (do not set `disable-kube-proxy`) and set
+   `cilium.kubeProxyReplacement: false`: Cilium then needs no pinned API server
+   address, which on a DHCP node would be one more thing tied to the lease.
+4. `cattle-cluster-agent` starts, the proxy answers, and steps 2–4 here proceed.
+   Only then flip the `network-platform/cilium-*` labels.
+
+Do not take Cilium from rke2's bundled chart (`cni: cilium`) instead — this fleet
+never installs Cilium through a Rancher helm-controller release (see
+`crossplane/knowledge/cilium-not-via-rancher-helm.md` in stuttgart-things).
 
 ### `clusterSpec` — everything else
 
