@@ -40,6 +40,15 @@ metadata:
          `ClusterbookCluster` so clusterbook-operator creates the Argo CD
          cluster Secret.
 
+      A generic cluster has no machine pools, so its nodes are machines
+      brought from elsewhere. `spec.nodeRegistration.publish` observes the
+      cluster's `ClusterRegistrationToken` on the Rancher cluster and puts
+      Rancher's registration command in a Secret beside the XR
+      (`<name>-node-command`, keys `nodeCommand` / `insecureNodeCommand` /
+      `token`), optionally mirrored into `secretNamespace` for an
+      `AnsibleRun` to consume. Append the role flags yourself — Rancher does
+      not include them. Off by default: the command is a credential.
+
       ## Cluster preconditions
 
       On the Rancher management cluster (where Crossplane runs):
@@ -56,7 +65,13 @@ metadata:
       Required: `providerConfigRef`, `name`, `kubernetesVersion`.
       Optional: `distro` (k3s|rke2, default k3s), `rancherNamespace`
       (default `fleet-default`), `clusterLabels`, `machineGlobalConfig`
-      (free-form rkeConfig passthrough), `bootstrap.namespace` (default
+      (free-form rkeConfig.machineGlobalConfig passthrough — the distro's
+      own config file, where `cni: none` for rke2 / `flannel-backend: none`
+      for k3s lives), `clusterSpec` (free-form passthrough merged UNDER the
+      whole provisioning Cluster spec: machineSelectorConfig, registries,
+      etcd, upgradeStrategy, chartValues, localClusterAuthEndpoint, …;
+      composed keys win, and the ones the active path owns are a render
+      error rather than a silent drop), `bootstrap.namespace` (default
       `crossplane-bootstrap`), `bootstrap.labels`, `argocd.register`
       (default false; when true requires `argocd.tokenSecretRef`),
       `argocd.namespace` (default `argocd`), `argocd.labels`.

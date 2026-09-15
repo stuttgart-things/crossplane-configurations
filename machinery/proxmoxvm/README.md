@@ -386,12 +386,23 @@ is auto-populated with the VM IP.
 
 Shared fields (`playbooks`, `varsFile`,
 `gitRepoUrl`, `ansibleWorkingImage`, `credentialsSecretName`,
-`crossplaneProviderConfig`, `pipelineNamespace`) fall back to the
+`crossplaneProviderConfig`, `pipelineNamespace`, `extraEnvSecretName`) fall back to the
 EnvironmentConfig `ansible` sub-block when unset. This reuses the
 [`ansible-run`](../../cicd/ansible-run) Configuration and needs its preconditions
 on the cluster: Tekton, the ansible credentials Secret (default
 `ansible-credentials`), and an in-cluster `provider-kubernetes` config.
 `status.share.ansibleReady` reflects the run's readiness.
+
+> **`extraEnvSecretName`** names a Secret in the **PipelineRun's** namespace
+> whose keys become environment variables of the same name in the ansible step,
+> for plays that read `lookup('env', 'FOO')`. It is what lets a value reach the
+> play without passing through this XR's spec or a PipelineRun param — which is
+> why the Rancher custom-node join uses it: `rancher-cluster` publishes the node
+> registration command into a Secret and the join play reads
+> `lookup('env', 'nodeCommand')`, so the cluster registration token is never
+> written into a spec. See
+> [#422](https://github.com/stuttgart-things/crossplane-configurations/issues/422).
+
 
 ## Cluster preconditions
 

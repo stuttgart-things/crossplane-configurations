@@ -28,7 +28,7 @@ A namespaced `RancherCluster` XR (group `resources.stuttgart-things.com`) drives
 | | `generic` (default) | `harvester` |
 |---|---|---|
 | Step-1 objects | one bare `provisioning.cattle.io/v1` `Cluster` (no machine pools) | a `rke-machine-config.cattle.io/v1` `HarvesterConfig` (the VM template) **plus** a `provisioning.cattle.io/v1` `Cluster` with one machine pool referencing it |
-| Node registration | **manual** — run Rancher's registration command on each node | **automatic** — Rancher creates Harvester VMs and joins them |
+| Node registration | you bring the machines — run Rancher's registration command on each, which `spec.nodeRegistration.publish` hands you (see [Node registration](#node-registration-specnoderegistrationpublish)) | **automatic** — Rancher creates Harvester VMs and joins them |
 | Extra spec | — | the `spec.harvester` block (cloud credential, image, network, sizing) |
 | Example | [`examples/xr.yaml`](examples/xr.yaml) (co-located), [`examples/xr-split.yaml`](examples/xr-split.yaml) (split) | [`examples/xr-harvester.yaml`](examples/xr-harvester.yaml) |
 
@@ -83,6 +83,7 @@ real XR is usually just `name` + per-cluster sizing + `argocd.register`.
 | `rancherNamespace` | | **env** → `fleet-default` | Namespace of the provisioning Cluster + kubeconfig Secret |
 | `clusterLabels` | | — | Extra labels on the `provisioning.cattle.io` Cluster |
 | `machineGlobalConfig` | | — | Free-form `rkeConfig.machineGlobalConfig` passthrough |
+| `clusterSpec` | | — | Free-form passthrough merged **under** the whole `provisioning.cattle.io` Cluster spec — see [Cluster options](#cluster-options-machineglobalconfig-and-clusterspec) |
 | `harvester.cloudCredentialSecretName` | | **env** | Harvester cloud credential, `cattle-global-data:<name>` (Rancher UI → Cloud Credentials) |
 | `harvester.imageName` | | **env** | Harvester VM image, `<namespace>/<image>` (e.g. `default/sthings-u26-k3s`) |
 | `harvester.networkName` | | **env** | Harvester network, `<namespace>/<network>` (e.g. `default/vms`) |
@@ -93,6 +94,10 @@ real XR is usually just `name` + per-cluster sizing + `argocd.register`.
 | `harvester.diskSize` | | `40` | Root disk per VM, GiB (per-cluster) |
 | `harvester.quantity` | | `1` | Number of VM nodes in the pool (per-cluster) |
 | `harvester.userData` | | qemu-guest-agent cloud-config | cloud-init `userData` for the VMs (base64 is handled for you) |
+| `nodeRegistration.publish` | | `false` | Publish Rancher's node registration command into a Secret beside this XR |
+| `nodeRegistration.secretName` | | `<name>-node-command` | Name of that Secret |
+| `nodeRegistration.secretNamespace` | | — | Also mirror it into this namespace on the control plane (for `ansible-run`'s `extraEnvSecretName`) |
+| `nodeRegistration.tokenName` | | `default-token` | Name of the `ClusterRegistrationToken` Rancher created |
 | `bootstrap.namespace` | | `crossplane-bootstrap` | Namespace created on the downstream cluster |
 | `bootstrap.labels` | | — | Labels for that downstream namespace |
 | `argocd.register` | | `false` | Register the cluster in Argo CD via clusterbook-operator |
@@ -118,7 +123,176 @@ real XR is usually just `name` + per-cluster sizing + `argocd.register`.
 | `vaultAuth.opentofuProviderConfigName` | | `in-cluster` | OpenTofu `ClusterProviderConfig` the child XR drives Vault through |
 
 Status: `kubeconfigSecret`, `clusterProviderConfig`, `argocdClusterSecret`,
-`vaultReviewerSecret`, `vaultKubernetesHost`.
+`vaultReviewerSecret`, `vaultKubernetesHost`, `nodeCommandSecret`,
+`rancherClusterId`.
+
+## Cluster options (`machineGlobalConfig` and `clusterSpec`)
+
+Two free-form escape hatches, at two levels. Neither is schema-checked here — the
+`provisioning.cattle.io` CRD is Rancher's, not ours — so a misspelled key reaches
+the cluster and is rejected (or ignored) there, never at admission.
+
+| | Merges into | Use for |
+|---|---|---|
+| `spec.machineGlobalConfig` | `rkeConfig.machineGlobalConfig` | the distro's own config file: `cni`, `disable`, `kube-apiserver-arg`, `tls-san`, `node-label`, … |
+| `spec.clusterSpec` | the whole `Cluster.spec` | everything else the CRD offers |
+
+### The CNI, including turning it off
+
+`cni` lives in `machineGlobalConfig`, and **the key is not the same for the two
+distros** — this is the part that bites, because nothing rejects the wrong one:
+
+```yaml
+# rke2
+machineGlobalConfig:
+  cni: none            # or calico, cilium, canal (the default)
+
+# k3s — `cni` is not a k3s config key at all
+machineGlobalConfig:
+  flannel-backend: none
+  disable-network-policy: true
+```
+
+Get it wrong on k3s and you do not get an error, you get flannel. (The lab's
+ansible path spells the same decision `rke2_cni: none` + `install_cilium: true`,
+and gates on both for the same reason.)
+
+A cluster built with no CNI is fine for this Configuration — the API server
+answers as soon as a node has joined, so steps 2–4 proceed — but it *is* then
+somebody else's job to install one. In this fleet that is Argo CD: flip the
+`network-platform/cilium-*` labels to `'true'` on the XR, since the
+EnvironmentConfig pins them `'false'` fleet-wide (its comment says exactly this:
+*"a cluster rebuilt with cilium via spec.machineGlobalConfig flips these to
+'true' on its own XR"*). The Cilium DaemonSet runs hostNetwork, so it schedules
+on a CNI-less node.
+
+### `clusterSpec` — everything else
+
+The Composition writes only `kubernetesVersion`, `rkeConfig.machineGlobalConfig`
+and, on the harvester path, `cloudCredentialSecretName` + `rkeConfig.machinePools`.
+`clusterSpec` reaches the rest without this XRD growing a field per CRD row:
+
+```yaml
+spec:
+  clusterSpec:
+    localClusterAuthEndpoint: {enabled: true}   # ACE — kubeconfig past the Rancher proxy
+    rkeConfig:
+      machineSelectorConfig:                    # per-role config; custom-node clusters need it
+        - machineLabelSelector:
+            matchLabels: {rke.cattle.io/control-plane-role: 'true'}
+          config: {protect-kernel-defaults: true}
+      registries: {...}                         # mirrors / air-gap
+      etcd: {snapshotScheduleCron: '0 */5 * * *', snapshotRetention: 5}
+      upgradeStrategy: {...}
+      chartValues: {...}                        # values for the bundled charts
+```
+
+`kubectl explain cluster.provisioning.cattle.io.spec --recursive` on your Rancher
+is the authoritative list.
+
+**Composed values win the merge**, so a passthrough can never take the harvester
+path apart by redefining its machine pool. Winning silently would be the failure
+mode this repo keeps paying for, though, so the keys the **active** path owns are
+a render **error** naming the field to use instead:
+
+| Key in `clusterSpec` | Refused on | Use instead |
+|---|---|---|
+| `kubernetesVersion` | both paths | `spec.kubernetesVersion` |
+| `cloudCredentialSecretName` | `harvester` | `spec.harvester.cloudCredentialSecretName` |
+| `rkeConfig.machinePools` | `harvester` | `spec.harvester.*` (sizing), or `infrastructure: generic` |
+
+`rkeConfig.machinePools` **is** allowed on `generic` — that path composes none, so
+a pool set here is added rather than conflicting.
+
+`rkeConfig.machineGlobalConfig` is the one deliberate exception: it deep-merges
+with `spec.machineGlobalConfig` per key (the latter wins), because the two halves
+are the same distro config file and splitting them across the two fields is
+reasonable.
+
+Still not reachable: the Cluster's `metadata.annotations` (only `clusterLabels` is
+plumbed through).
+
+## Node registration (`spec.nodeRegistration.publish`)
+
+An `infrastructure: generic` cluster has **no machine pools**, so nothing joins it
+on its own: the nodes are machines somebody else provisioned, and each one is
+joined by running Rancher's registration command on it. Until now that command was
+read out of the Rancher UI by hand — the one manual step between "Crossplane built
+me a VM" (`NativeProxmoxVM` / `NativeVsphereVM`) and "Crossplane built me a Rancher
+cluster on it". Setting `publish: true` puts it in a Secret instead:
+
+```bash
+kubectl -n default get secret k3s-test-node-command \
+  -o jsonpath='{.data.nodeCommand}' | base64 -d
+```
+
+```
+curl -fL https://rancher.example/system-agent-install.sh | sudo sh -s - \
+  --server https://rancher.example --label 'cattle.io/os=linux' \
+  --token <token> --ca-checksum <sum>
+```
+
+| Key | What it is |
+|---|---|
+| `nodeCommand` | The installer line, server URL + token + CA checksum filled in |
+| `insecureNodeCommand` | The same with `--insecure`, for a node that does not trust the Rancher certificate |
+| `token` | The raw registration token |
+
+**Append the role flags yourself** — `--etcd --controlplane --worker` for an
+all-in-one node, and `--node-name` / `--address` on a multi-NIC host. Rancher does
+not put them in `nodeCommand`, and that is what lets one published command serve
+every node of the cluster whatever role each takes.
+
+Nothing else in the Configuration changes: steps 2–4 already wait for the
+downstream API, and it answers once the first node has joined.
+
+### How it is obtained
+
+Two hops, because the token is not where the cluster is:
+
+1. Rancher stamps `status.clusterName` on the `provisioning.cattle.io` Cluster once
+   it reconciles it — the management cluster ID, `c-m-xxxxx`, published here as
+   `status.rancherClusterId`.
+2. The `management.cattle.io/v3` `ClusterRegistrationToken` (`tokenName`, Rancher's
+   `default-token`) lives in a namespace of that name. An Observe-only `Object`
+   extracts its status into the Secret above.
+
+Both are `Observe` only and both run on the Rancher cluster
+(`rancherProviderConfigRef`). They are also **eventually consistent** — the second
+hop cannot be emitted before the first has observed an ID, so expect the Secret a
+little after the XR.
+
+### Feeding it to Ansible (`secretNamespace`)
+
+The intended consumer is an `AnsibleRun` that executes the command on a machine
+this platform built, which is the same staging `bootstrap/cluster` already uses for
+the k3s/rke2 install: VM → IP known → play. `ansible-run`'s `extraEnvSecretName`
+turns a Secret's keys into environment variables of the same name in the ansible
+step, so a play can read `lookup('env', 'nodeCommand')` and the token never travels
+through a PipelineRun param or an XR spec.
+
+That Secret has to live in the **PipelineRun's** namespace, while the published one
+lands beside this XR — hence `secretNamespace`, which mirrors the same keys there
+(on `providerConfigRef`, the control-plane cluster):
+
+```yaml
+spec:
+  nodeRegistration:
+    publish: true
+    secretNamespace: tekton-ci
+```
+
+The plan this is step one of — the join play and the `extraEnvSecretName`
+pass-through that `proxmoxvm` / `vspherevm` still need — is
+[#422](https://github.com/stuttgart-things/crossplane-configurations/issues/422).
+
+### It is a credential
+
+Off by default, and not for symmetry with the other toggles: **anyone who can read
+that Secret can attach a node to the cluster**. Publishing moves the token out of
+`c-m-xxxxx` on the Rancher cluster and into a namespace where more people can read
+it, and `secretNamespace` moves it again. A smaller grant than `vaultAuth.enabled`,
+the same kind of decision — so it is asked for rather than assumed.
 
 ## Optional: create the mount too (`spec.vaultAuth.composeMount: true`)
 
@@ -467,7 +641,12 @@ For **`infrastructure: harvester`**, additionally:
   `ClusterProviderConfig` eventually goes stale and must be refreshed.
 - **Eventual consistency.** Steps 2 and 3 stay `NotReady` until Rancher creates
   the kubeconfig Secret and the cluster's API is reachable — expected while nodes
-  are still joining (`generic`: manual registration; `harvester`: VMs booting).
+  are still joining (`generic`: registration on each node; `harvester`: VMs
+  booting).
+- **The node command arrives late.** With `nodeRegistration.publish` the second
+  hop cannot be emitted before the first has observed a cluster ID, so
+  `status.rancherClusterId` appears before `status.nodeCommandSecret` and the
+  Secret after both.
 
 ## Try it locally
 

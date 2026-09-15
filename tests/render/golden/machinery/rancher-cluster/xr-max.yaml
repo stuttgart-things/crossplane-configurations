@@ -12,10 +12,16 @@ spec:
       name: rke2-prod-vault-auth
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
+      name: rke2-prod-1d1347e6d7c2
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
       name: rke2-prod-28555c28ebf1
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
       name: rke2-prod-3c7762490a4e
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-prod-3ff4697c5f54
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
       name: rke2-prod-47707dc76a77
@@ -28,6 +34,9 @@ spec:
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
       name: rke2-prod-6a888edf0ec9
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: rke2-prod-7d41afb082e7
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
       name: rke2-prod-89dcabe62c6d
@@ -87,11 +96,13 @@ status:
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: rke2-prod-argocd-crb, rke2-prod-argocd-kubeconfig,
-      rke2-prod-argocd-sa, and 16 more'
+      rke2-prod-argocd-sa, and 19 more'
     reason: Creating
     status: "False"
     type: Ready
   kubeconfigSecret: rke2-prod-kubeconfig
+  nodeCommandSecret: rke2-prod-node-command
+  rancherClusterId: c-m-fake0002
   vaultKubernetesHost: https://192.168.10.135:6443
   vaultReviewerSecret: rke2-prod-vault-reviewer
 ---
@@ -404,14 +415,34 @@ spec:
         name: rke2-prod
         namespace: fleet-default
       spec:
+        enableNetworkPolicy: false
         kubernetesVersion: v1.31.5+rke2r1
+        localClusterAuthEndpoint:
+          enabled: true
         rkeConfig:
+          etcd:
+            snapshotRetention: 5
+            snapshotScheduleCron: 0 */5 * * *
           machineGlobalConfig:
             cni: calico
             disable:
             - rke2-ingress-nginx
             kube-apiserver-arg:
             - audit-log-maxage=30
+          machineSelectorConfig:
+          - config:
+              protect-kernel-defaults: true
+            machineLabelSelector:
+              matchLabels:
+                rke.cattle.io/control-plane-role: "true"
+          registries:
+            mirrors:
+              docker.io:
+                endpoint:
+                - https://registry-1.docker.io
+          upgradeStrategy:
+            controlPlaneConcurrency: "1"
+            workerConcurrency: "1"
   managementPolicies:
   - '*'
   providerConfigRef:
@@ -533,6 +564,106 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
+    crossplane.io/composition-resource-name: rke2-prod-node-command
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-node-command
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-7d41afb082e7
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  connectionDetails:
+  - apiVersion: management.cattle.io/v3
+    fieldPath: status.nodeCommand
+    kind: ClusterRegistrationToken
+    name: default-token
+    namespace: c-m-fake0002
+    toConnectionSecretKey: nodeCommand
+  - apiVersion: management.cattle.io/v3
+    fieldPath: status.insecureNodeCommand
+    kind: ClusterRegistrationToken
+    name: default-token
+    namespace: c-m-fake0002
+    toConnectionSecretKey: insecureNodeCommand
+  - apiVersion: management.cattle.io/v3
+    fieldPath: status.token
+    kind: ClusterRegistrationToken
+    name: default-token
+    namespace: c-m-fake0002
+    toConnectionSecretKey: token
+  forProvider:
+    manifest:
+      apiVersion: management.cattle.io/v3
+      kind: ClusterRegistrationToken
+      metadata:
+        name: default-token
+        namespace: c-m-fake0002
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+  writeConnectionSecretToRef:
+    name: rke2-prod-node-command
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-node-command-mirror
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-node-command-mirror
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-3ff4697c5f54
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      data:
+        insecureNodeCommand: Y3VybCAtZkwgLS1pbnNlY3VyZSBodHRwczovL3JhbmNoZXIuZXhhbXBsZS5pbnZhbGlkL3N5c3RlbS1hZ2VudC1pbnN0YWxsLnNoIHwgc3VkbyBzaCAtcyAtIC0tc2VydmVyIGh0dHBzOi8vcmFuY2hlci5leGFtcGxlLmludmFsaWQgLS1sYWJlbCAnY2F0dGxlLmlvL29zPWxpbnV4JyAtLWluc2VjdXJlIC0tdG9rZW4gRkFLRS1SRUdJU1RSQVRJT04tVE9LRU4tTk9ULUEtQ1JFREVOVElBTCAtLWNhLWNoZWNrc3VtIDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
+        nodeCommand: Y3VybCAtZkwgaHR0cHM6Ly9yYW5jaGVyLmV4YW1wbGUuaW52YWxpZC9zeXN0ZW0tYWdlbnQtaW5zdGFsbC5zaCB8IHN1ZG8gc2ggLXMgLSAtLXNlcnZlciBodHRwczovL3JhbmNoZXIuZXhhbXBsZS5pbnZhbGlkIC0tbGFiZWwgJ2NhdHRsZS5pby9vcz1saW51eCcgLS10b2tlbiBGQUtFLVJFR0lTVFJBVElPTi1UT0tFTi1OT1QtQS1DUkVERU5USUFMIC0tY2EtY2hlY2tzdW0gMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMA==
+        token: RkFLRS1SRUdJU1RSQVRJT04tVE9LRU4tTk9ULUEtQ1JFREVOVElBTA==
+      kind: Secret
+      metadata:
+        name: rke2-prod-node-command
+        namespace: tekton-ci
+      type: Opaque
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
     crossplane.io/composition-resource-name: rke2-prod-providerconfig
   labels:
     app.kubernetes.io/instance: rke2-prod-providerconfig
@@ -570,6 +701,52 @@ spec:
   readiness:
     celQuery: object.metadata.uid != ""
     policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rke2-prod-rancher-id
+  generateName: rke2-prod-
+  labels:
+    app.kubernetes.io/instance: rke2-prod-rancher-id
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: rke2-prod
+  name: rke2-prod-1d1347e6d7c2
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: rke2-prod
+    uid: 9b1aeab4-1619-5e73-9450-d4dcc356eebc
+spec:
+  connectionDetails:
+  - apiVersion: provisioning.cattle.io/v1
+    fieldPath: status.clusterName
+    kind: Cluster
+    name: rke2-prod
+    namespace: fleet-default
+    toConnectionSecretKey: clusterId
+  forProvider:
+    manifest:
+      apiVersion: provisioning.cattle.io/v1
+      kind: Cluster
+      metadata:
+        name: rke2-prod
+        namespace: fleet-default
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+  writeConnectionSecretToRef:
+    name: rke2-prod-rancher-id
 ---
 apiVersion: protection.crossplane.io/v1beta1
 kind: Usage

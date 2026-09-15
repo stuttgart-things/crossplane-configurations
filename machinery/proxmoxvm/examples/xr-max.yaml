@@ -73,3 +73,8 @@ spec:
       - manage_filesystem+-true
       - update_packages+-true
     crossplaneProviderConfig: in-cluster
+    # Keys of this Secret become env vars of the same name in the ansible step.
+    # The Rancher custom-node join (crossplane-configurations#422) is what this
+    # is for: the play reads lookup('env', 'nodeCommand') instead of taking the
+    # registration token through varsFile, i.e. through this spec.
+    extraEnvSecretName: ansible-extra-env  # pragma: allowlist secret

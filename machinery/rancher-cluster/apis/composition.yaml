@@ -63,6 +63,86 @@ spec:
             {{- $harvester := $spec.harvester | default dict }}
             {{- $bootstrap := $spec.bootstrap | default dict }}
             {{- $bootstrapNs := $bootstrap.namespace | default "crossplane-bootstrap" }}
+            {{- /* CLUSTER SPEC PASSTHROUGH (spec.clusterSpec).
+                   The Composition writes exactly three keys into the provisioning
+                   Cluster's spec -- kubernetesVersion, rkeConfig.machineGlobalConfig
+                   and, on the harvester path, cloudCredentialSecretName +
+                   rkeConfig.machinePools. Everything else the CRD offers was
+                   unreachable: machineSelectorConfig (rollen-abhaengige Config, the
+                   one a custom-node cluster with mixed roles cannot do without),
+                   registries (mirrors / air-gap), etcd snapshots, upgradeStrategy,
+                   chartValues, additionalManifest, localClusterAuthEndpoint,
+                   agentEnvVars, the agent customizations.
+
+                   Rather than grow a typed field per row of a CRD that is not ours,
+                   this is the same escape hatch machineGlobalConfig already is, one
+                   level up: a free-form map deep-merged UNDER the composed spec.
+                   Composed values win (sprig merge keeps the destination), so a
+                   passthrough can never take the harvester path apart by redefining
+                   its machine pool.
+
+                   "Win" would mean "silently ignored", though, and a Composition that
+                   renders and then does not do what the YAML says is the failure mode
+                   this repo keeps paying for. So the keys the ACTIVE path owns are a
+                   render error naming the field to use instead, not a quiet drop.
+                   rkeConfig.machineGlobalConfig is the deliberate exception: it deep-
+                   merges with spec.machineGlobalConfig (per key, spec wins), because
+                   both halves are the same distro config file and splitting them is
+                   reasonable. */}}
+            {{- $clusterSpecExtra := $spec.clusterSpec | default dict }}
+            {{- $extraRke := $clusterSpecExtra.rkeConfig | default dict }}
+            {{- if hasKey $clusterSpecExtra "kubernetesVersion" }}
+            {{- fail (printf "clusterSpec.kubernetesVersion is set on %s, but the Composition owns that key -- use spec.kubernetesVersion (or the EnvironmentConfig) instead" $name) }}
+            {{- end }}
+            {{- if eq ($spec.infrastructure | default "generic") "harvester" }}
+            {{- if hasKey $clusterSpecExtra "cloudCredentialSecretName" }}
+            {{- fail (printf "clusterSpec.cloudCredentialSecretName is set on %s, but the harvester path owns that key -- use spec.harvester.cloudCredentialSecretName instead" $name) }}
+            {{- end }}
+            {{- if hasKey $extraRke "machinePools" }}
+            {{- fail (printf "clusterSpec.rkeConfig.machinePools is set on %s, but the harvester path composes the machine pool from spec.harvester -- set sizing there, or use infrastructure: generic to bring your own nodes" $name) }}
+            {{- end }}
+            {{- end }}
+            {{- /* NODE REGISTRATION (spec.nodeRegistration.publish) — see #422.
+                   The `generic` path builds a cluster with NO machine pools, so its
+                   nodes are joined by running Rancher's registration command on a
+                   machine somebody else provisioned. Until now that command was read
+                   out of the Rancher UI by hand, which is the one manual step between
+                   "Crossplane built me a VM" (NativeProxmoxVM / NativeVsphereVM) and
+                   "Crossplane built me a Rancher cluster on it".
+
+                   TWO HOPS, because the token is not where the cluster is: Rancher
+                   stamps status.clusterName on the provisioning Cluster (the management
+                   cluster ID, c-m-xxxxx) and puts the ClusterRegistrationToken in a
+                   namespace of that name. So (1c) observes the Cluster for the ID and
+                   (1e) observes the token in the namespace the ID names.
+
+                   The ID travels through a connection Secret rather than out of
+                   .observed.resources, even though step (1) already manages that
+                   Cluster and carries the field in its observed manifest.
+                   .observed.resources is EMPTY under `crossplane render`, and a
+                   tests/render/extra-resources fixture can only satisfy an
+                   ExtraResources requirement — reading it the direct way would leave
+                   this whole region uncovered by the goldens, which is the blind spot
+                   #388 shipped through. */}}
+            {{- $nodeReg := $spec.nodeRegistration | default dict }}
+            {{- $nodeRegPublish := $nodeReg.publish | default false }}
+            {{- $nodeCmdSecret := $nodeReg.secretName | default (print $name "-node-command") }}
+            {{- $nodeCmdSecretNs := $nodeReg.secretNamespace | default "" }}
+            {{- $nodeCmdTokenName := $nodeReg.tokenName | default "default-token" }}
+            {{- $rancherIdSecret := print $name "-rancher-id" }}
+            {{- $rancherClusterId := "" }}
+            {{- $rancherIdItems := (index (.extraResources | default dict) "rancher-cluster-id" | default dict).items | default list }}
+            {{- if $rancherIdItems }}
+            {{- $rancherIdData := (index $rancherIdItems 0).resource.data | default dict }}
+            {{- if hasKey $rancherIdData "clusterId" }}
+            {{- $rancherClusterId = index $rancherIdData "clusterId" | b64dec }}
+            {{- end }}
+            {{- end }}
+            {{- $nodeCmdData := dict }}
+            {{- $nodeCmdItems := (index (.extraResources | default dict) "node-command" | default dict).items | default list }}
+            {{- if $nodeCmdItems }}
+            {{- $nodeCmdData = (index $nodeCmdItems 0).resource.data | default dict }}
+            {{- end }}
             {{- $argocd := $spec.argocd | default dict }}
             {{- $argocdRegister := $argocd.register | default false }}
             {{- /* Platform profile labels/annotations on the ClusterbookCluster:
@@ -278,25 +358,15 @@ spec:
                       {{ $k }}: {{ $v | quote }}
                       {{- end }}
                     {{- end }}
+                  {{- /* Built as a map and merged rather than written literally, so
+                         spec.clusterSpec can add anything the CRD offers without this
+                         template listing it. Composed keys win the merge; the ones
+                         this path owns already failed the render above. */}}
+                  {{- $pool := dict "name" "pool1" "etcdRole" true "controlPlaneRole" true "workerRole" true "quantity" $hQuantity "machineConfigRef" (dict "kind" "HarvesterConfig" "name" $hcfgName) }}
+                  {{- $rke := dict "machinePools" (list $pool) "machineGlobalConfig" ($spec.machineGlobalConfig | default dict) }}
+                  {{- $clusterSpec := merge (dict) (dict "kubernetesVersion" $version "cloudCredentialSecretName" $hCloudCred "rkeConfig" $rke) $clusterSpecExtra }}
                   spec:
-                    kubernetesVersion: {{ $version }}
-                    cloudCredentialSecretName: {{ $hCloudCred }}
-                    rkeConfig:
-                      machinePools:
-                        - name: pool1
-                          etcdRole: true
-                          controlPlaneRole: true
-                          workerRole: true
-                          quantity: {{ $hQuantity }}
-                          machineConfigRef:
-                            kind: HarvesterConfig
-                            name: {{ $hcfgName }}
-                      {{- if $spec.machineGlobalConfig }}
-                      machineGlobalConfig:
-                        {{- $spec.machineGlobalConfig | toYaml | nindent 12 }}
-                      {{- else }}
-                      machineGlobalConfig: {}
-                      {{- end }}
+                    {{- $clusterSpec | toYaml | nindent 20 }}
             {{- else }}
             ---
             # (1) PROVISION — the generic (custom-node) Rancher cluster on the
@@ -332,15 +402,13 @@ spec:
                       {{ $k }}: {{ $v | quote }}
                       {{- end }}
                     {{- end }}
+                  {{- /* Same merge as the harvester path above -- see the comment
+                         there. No machinePools here by definition: the nodes are
+                         machines somebody else built. */}}
+                  {{- $rke := dict "machineGlobalConfig" ($spec.machineGlobalConfig | default dict) }}
+                  {{- $clusterSpec := merge (dict) (dict "kubernetesVersion" $version "rkeConfig" $rke) $clusterSpecExtra }}
                   spec:
-                    kubernetesVersion: {{ $version }}
-                    rkeConfig:
-                      {{- if $spec.machineGlobalConfig }}
-                      machineGlobalConfig:
-                        {{- $spec.machineGlobalConfig | toYaml | nindent 12 }}
-                      {{- else }}
-                      machineGlobalConfig: {}
-                      {{- end }}
+                    {{- $clusterSpec | toYaml | nindent 20 }}
             {{- end }}
             {{- if $split }}
             ---
@@ -386,6 +454,173 @@ spec:
                   metadata:
                     name: {{ $name }}-kubeconfig
                     namespace: {{ $rancherNs }}
+            {{- end }}
+            {{- if $nodeRegPublish }}
+            ---
+            # (1c) NODE REGISTRATION, hop 1 — the management cluster ID. Rancher
+            # stamps status.clusterName on the provisioning Cluster once it
+            # reconciles it (c-m-xxxxx), and that is the namespace the cluster's
+            # ClusterRegistrationToken lives in. Observe-only: step (1) owns this
+            # object, this one only reads a field off it and surfaces it as a
+            # connection Secret on the control plane.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-rancher-id") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-rancher-id
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $rancherCpc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              writeConnectionSecretToRef:
+                name: {{ $rancherIdSecret }}
+              connectionDetails:
+                - apiVersion: provisioning.cattle.io/v1
+                  kind: Cluster
+                  name: {{ $name }}
+                  namespace: {{ $rancherNs }}
+                  fieldPath: status.clusterName
+                  toConnectionSecretKey: clusterId
+              forProvider:
+                manifest:
+                  apiVersion: provisioning.cattle.io/v1
+                  kind: Cluster
+                  metadata:
+                    name: {{ $name }}
+                    namespace: {{ $rancherNs }}
+            ---
+            # (1d) Pull the ID (and, once it exists, the published command) into
+            # the pipeline: (1e) needs the ID to name a namespace, and (1f) needs
+            # the command's bytes to mirror them.
+            apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
+            kind: ExtraResources
+            requirements:
+              rancher-cluster-id:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $rancherIdSecret }}
+                namespace: {{ $xrNs }}
+              node-command:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $nodeCmdSecret }}
+                namespace: {{ $xrNs }}
+            {{- if $rancherClusterId }}
+            ---
+            # (1e) NODE REGISTRATION, hop 2 — the command itself. Observe-only on
+            # the ClusterRegistrationToken Rancher created for this cluster; its
+            # status carries the ready-made installer line with the server URL, the
+            # token and the CA checksum already filled in, plus an --insecure
+            # variant for a node that does not trust the Rancher certificate.
+            #
+            # THE ROLE FLAGS ARE NOT IN IT. `--etcd --controlplane --worker` (and
+            # --node-name / --address on a multi-NIC host) are appended by whoever
+            # runs it. That is the design, not a gap: one published command then
+            # serves every node of the cluster, whatever role each one takes — which
+            # is what multi-node (#170) and day-2 scaling (#172) need.
+            #
+            # `default-token` is Rancher's naming convention rather than an API
+            # guarantee, hence spec.nodeRegistration.tokenName.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-node-command") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-node-command
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $rancherCpc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - Observe
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              writeConnectionSecretToRef:
+                name: {{ $nodeCmdSecret }}
+              connectionDetails:
+                - apiVersion: management.cattle.io/v3
+                  kind: ClusterRegistrationToken
+                  name: {{ $nodeCmdTokenName }}
+                  namespace: {{ $rancherClusterId }}
+                  fieldPath: status.nodeCommand
+                  toConnectionSecretKey: nodeCommand
+                - apiVersion: management.cattle.io/v3
+                  kind: ClusterRegistrationToken
+                  name: {{ $nodeCmdTokenName }}
+                  namespace: {{ $rancherClusterId }}
+                  fieldPath: status.insecureNodeCommand
+                  toConnectionSecretKey: insecureNodeCommand
+                - apiVersion: management.cattle.io/v3
+                  kind: ClusterRegistrationToken
+                  name: {{ $nodeCmdTokenName }}
+                  namespace: {{ $rancherClusterId }}
+                  fieldPath: status.token
+                  toConnectionSecretKey: token
+              forProvider:
+                manifest:
+                  apiVersion: management.cattle.io/v3
+                  kind: ClusterRegistrationToken
+                  metadata:
+                    name: {{ $nodeCmdTokenName }}
+                    namespace: {{ $rancherClusterId }}
+            {{- end }}
+            {{- if and $nodeCmdSecretNs (ne $nodeCmdSecretNs $xrNs) (hasKey $nodeCmdData "nodeCommand") }}
+            ---
+            # (1f) MIRROR — the same keys, in the namespace that consumes them.
+            # A connection Secret lands in the Object's own namespace, i.e. next to
+            # this XR, but ansible-run's `extraEnvSecretName` reads its Secret from
+            # the PipelineRun's namespace (tekton-ci in this lab). That is the whole
+            # reason this exists: the keys become environment variables of the same
+            # name in the ansible step, so a join play can read the command from
+            # lookup('env', 'nodeCommand') and the token never travels through a
+            # PipelineRun param or an XR spec.
+            #
+            # The values are copied as they arrive — already base64, no decode and
+            # re-encode — so nothing is reshaped on the way through.
+            apiVersion: kubernetes.m.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (print $name "-node-command-mirror") }}
+              labels:
+                app.kubernetes.io/name: rancher-cluster
+                app.kubernetes.io/instance: {{ $name }}-node-command-mirror
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $cpc }}
+                kind: ClusterProviderConfig
+              managementPolicies:
+                - '*'
+              readiness:
+                policy: DeriveFromCelQuery
+                celQuery: object.metadata.uid != ""
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Secret
+                  metadata:
+                    name: {{ $nodeCmdSecret }}
+                    namespace: {{ $nodeCmdSecretNs }}
+                  type: Opaque
+                  data:
+                    {{- range $k, $v := $nodeCmdData }}
+                    {{ $k }}: {{ $v | quote }}
+                    {{- end }}
+            {{- end }}
             {{- end }}
             ---
             # (2) WIRE — a ClusterProviderConfig on the control-plane cluster
@@ -471,6 +706,12 @@ spec:
             status:
               kubeconfigSecret: {{ $name }}-kubeconfig
               clusterProviderConfig: {{ $name }}
+              {{- if $nodeRegPublish }}
+              nodeCommandSecret: {{ $nodeCmdSecret }}
+              {{- end }}
+              {{- if $rancherClusterId }}
+              rancherClusterId: {{ $rancherClusterId }}
+              {{- end }}
               {{- if $argocdRegister }}
               argocdClusterSecret: cluster-{{ $name }}
               {{- end }}

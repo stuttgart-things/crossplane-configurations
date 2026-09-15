@@ -9,7 +9,13 @@ spec:
     resourceRefs:
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
+      name: k3s-test-0bd371964057
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
       name: k3s-test-18096291bb96
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: k3s-test-4ab1329e4c7f
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
       name: k3s-test-d561cb63879d
@@ -32,11 +38,13 @@ status:
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: k3s-test-bootstrap-namespace, k3s-test-cluster, k3s-test-kubeconfig-bridge,
-      and 1 more'
+      and 3 more'
     reason: Creating
     status: "False"
     type: Ready
   kubeconfigSecret: k3s-test-kubeconfig
+  nodeCommandSecret: k3s-test-node-command
+  rancherClusterId: c-m-fake0001
 ---
 apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
@@ -156,6 +164,64 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
+    crossplane.io/composition-resource-name: k3s-test-node-command
+  generateName: k3s-test-
+  labels:
+    app.kubernetes.io/instance: k3s-test-node-command
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-test
+  name: k3s-test-0bd371964057
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-test
+    uid: 21f87fdd-8ab5-5a2c-b329-8e53b04b8295
+spec:
+  connectionDetails:
+  - apiVersion: management.cattle.io/v3
+    fieldPath: status.nodeCommand
+    kind: ClusterRegistrationToken
+    name: default-token
+    namespace: c-m-fake0001
+    toConnectionSecretKey: nodeCommand
+  - apiVersion: management.cattle.io/v3
+    fieldPath: status.insecureNodeCommand
+    kind: ClusterRegistrationToken
+    name: default-token
+    namespace: c-m-fake0001
+    toConnectionSecretKey: insecureNodeCommand
+  - apiVersion: management.cattle.io/v3
+    fieldPath: status.token
+    kind: ClusterRegistrationToken
+    name: default-token
+    namespace: c-m-fake0001
+    toConnectionSecretKey: token
+  forProvider:
+    manifest:
+      apiVersion: management.cattle.io/v3
+      kind: ClusterRegistrationToken
+      metadata:
+        name: default-token
+        namespace: c-m-fake0001
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+  writeConnectionSecretToRef:
+    name: k3s-test-node-command
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
     crossplane.io/composition-resource-name: k3s-test-providerconfig
   labels:
     app.kubernetes.io/instance: k3s-test-providerconfig
@@ -193,3 +259,49 @@ spec:
   readiness:
     celQuery: object.metadata.uid != ""
     policy: DeriveFromCelQuery
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: k3s-test-rancher-id
+  generateName: k3s-test-
+  labels:
+    app.kubernetes.io/instance: k3s-test-rancher-id
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: rancher-cluster
+    crossplane.io/composite: k3s-test
+  name: k3s-test-4ab1329e4c7f
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: RancherCluster
+    name: k3s-test
+    uid: 21f87fdd-8ab5-5a2c-b329-8e53b04b8295
+spec:
+  connectionDetails:
+  - apiVersion: provisioning.cattle.io/v1
+    fieldPath: status.clusterName
+    kind: Cluster
+    name: k3s-test
+    namespace: fleet-default
+    toConnectionSecretKey: clusterId
+  forProvider:
+    manifest:
+      apiVersion: provisioning.cattle.io/v1
+      kind: Cluster
+      metadata:
+        name: k3s-test
+        namespace: fleet-default
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: rancher-mgmt
+  readiness:
+    celQuery: object.metadata.uid != ""
+    policy: DeriveFromCelQuery
+  writeConnectionSecretToRef:
+    name: k3s-test-rancher-id

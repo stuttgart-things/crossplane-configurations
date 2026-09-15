@@ -13,3 +13,10 @@ spec:
   kubernetesVersion: v1.34.7+k3s1   # override the env default for this cluster
   bootstrap:
     namespace: crossplane-bootstrap
+  # A generic cluster has no machine pools, so nothing joins it on its own:
+  # publishing Rancher's registration command is what lets a machine built
+  # elsewhere (a NativeProxmoxVM / NativeVsphereVM, or bare metal) join. Lands
+  # in `k3s-test-node-command` next to this XR, keys nodeCommand /
+  # insecureNodeCommand / token. Append the role flags when running it.
+  nodeRegistration:
+    publish: true

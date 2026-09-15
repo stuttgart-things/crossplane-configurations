@@ -35,6 +35,54 @@ spec:
     labels:
       managed-by: crossplane
       app.kubernetes.io/part-of: stuttgart-things
+  # Free-form passthrough into the provisioning Cluster's spec: everything the
+  # Rancher CRD offers that this XRD does not name. Deep-merged UNDER the
+  # composed spec, so kubernetesVersion and (on the harvester path) the machine
+  # pool cannot be redefined from here — those are a render error, not a silent
+  # drop. rkeConfig below MERGES with the machineGlobalConfig above rather than
+  # replacing it: the rendered cluster carries cni/disable/kube-apiserver-arg
+  # AND the four blocks here.
+  clusterSpec:
+    # Authorized Cluster Endpoint: a kubeconfig straight at the cluster instead
+    # of through the Rancher auth proxy. Relevant to the token-TTL caveat in the
+    # README — the proxy kubeconfig's token can expire, this endpoint does not.
+    localClusterAuthEndpoint:
+      enabled: true
+    enableNetworkPolicy: false
+    rkeConfig:
+      # THE ONE A CUSTOM-NODE CLUSTER CANNOT DO WITHOUT once it has more than one
+      # role: config that applies only to the nodes matching the selector. With
+      # every node registered by hand (infrastructure: generic), this is how a
+      # control-plane node gets different arguments from a worker.
+      machineSelectorConfig:
+        - machineLabelSelector:
+            matchLabels:
+              rke.cattle.io/control-plane-role: 'true'
+          config:
+            protect-kernel-defaults: true
+      # Registry mirrors — the Rancher-side equivalent of the registry_mirror_url
+      # the ansible path passes.
+      registries:
+        mirrors:
+          docker.io:
+            endpoint:
+              - https://registry-1.docker.io
+      etcd:
+        snapshotScheduleCron: 0 */5 * * *
+        snapshotRetention: 5
+      upgradeStrategy:
+        controlPlaneConcurrency: '1'
+        workerConcurrency: '1'
+  # Publish Rancher's node registration command. Every field set, which is what
+  # this example is for: secretNamespace additionally mirrors the Secret into the
+  # Tekton namespace, because ansible-run's extraEnvSecretName reads its Secret
+  # from the PipelineRun's namespace, not from next to this XR. tokenName is
+  # Rancher's own convention and normally left alone.
+  nodeRegistration:
+    publish: true
+    secretName: rke2-prod-node-command  # pragma: allowlist secret
+    secretNamespace: tekton-ci  # pragma: allowlist secret
+    tokenName: default-token
   # Register the new cluster in Argo CD via clusterbook-operator. Mints a
   # non-expiring argocd-manager SA token on the downstream cluster and assembles
   # a direct-endpoint kubeconfig (server below + downstream CA + SA token) — no

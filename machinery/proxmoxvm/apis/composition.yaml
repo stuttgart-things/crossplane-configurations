@@ -565,6 +565,22 @@ spec:
                             ansibleWorkingImage = _ansible.ansibleWorkingImage
                         if _ansible?.credentialsSecretName:
                             ansibleCredentialsSecretName = _ansible.credentialsSecretName
+                        # Forwarded ONLY when set, like the fields above, and
+                        # for the same reason: ansible-run leaves
+                        # extraEnvSecretName undefaulted so its OWN
+                        # EnvironmentConfig stays authoritative.
+                        #
+                        # Names a Secret in the PIPELINERUN namespace whose keys
+                        # become environment variables of the same name in the
+                        # ansible step. Wired through for the Rancher custom-node
+                        # join (#422): rancher-cluster publishes the node
+                        # registration command into a Secret, and a join play
+                        # reads it as lookup('env', 'nodeCommand') -- so the
+                        # cluster registration token never travels through a
+                        # PipelineRun param or through this XR's spec, which
+                        # ansibleVarsFile would have meant.
+                        if _ansible?.extraEnvSecretName:
+                            extraEnvSecretName = _ansible.extraEnvSecretName
                         ansiblePlaybooks = _playbooks
                         if len(_varsFileFinal) > 0:
                             ansibleVarsFile = _varsFileFinal
