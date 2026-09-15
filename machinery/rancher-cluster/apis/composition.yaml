@@ -114,6 +114,49 @@ spec:
                    clusterbook v1.26.0 the DNS half of a release failed and reported
                    success anyway (stuttgart-things/clusterbook#187). See #388. */}}
             {{- $releaseOnDelete := ternary ($reservation.releaseOnDelete) true (hasKey $reservation "releaseOnDelete") }}
+            {{- /* The network-platform umbrella. Shared by the Cilium guard right
+                   below and the inlined vault-pki block (5) further down: both mirror
+                   an AppSet selector, and every network-platform AppSet gates on this
+                   label first. */}}
+            {{- $nwPlatform := eq (index $argocdLabels "network-platform" | default "false") "true" }}
+            {{- /* Cilium is CONFIGURED by the network-platform AppSets and INSTALLED by
+                   the cluster build -- there is no cilium-install AppSet for a
+                   clusterbook cluster, only cilium-install-kind. So the cilium-lb /
+                   cilium-gateway labels are the CONSEQUENCE of a Cilium build, never the
+                   cause: flip them on a cluster that runs the distro default CNI and the
+                   AppSets ship a Gateway pointing at a `gatewayClassName: cilium` with no
+                   controller, plus an IPPool + L2Announcement whose CRDs do not exist.
+                   Nothing reports this. cilium-gateway sits at Synced/Progressing forever
+                   (the Gateway API CRDs come from k3s/traefik, so the object really did
+                   apply), and cilium-lb reports OutOfSync/HEALTHY -- Argo assesses the
+                   health of resources that exist, and none do. The cluster goes
+                   Ready=True with a wildcard cert and a DNS name for a network layer that
+                   is not there. See #421 (tabletennis).
+
+                   The gate MIRRORS the AppSet selectors, the same way the vault-pki gate
+                   below does: umbrella `network-platform: 'true'`, component NOT
+                   explicitly 'false' (the selectors are NotIn ["false"], which matches an
+                   ABSENT key too), and the operator-stamped allocation-ip that only exists
+                   with a reservation. Outside that combination the AppSets generate
+                   nothing, so there is nothing to be wrong about. */}}
+            {{- $ciliumComponents := list "network-platform/cilium-lb" "network-platform/cilium-gateway" "network-platform/cilium-gateway-secondary" }}
+            {{- $ciliumOn := list }}
+            {{- range $c := $ciliumComponents }}
+            {{- if ne (index $argocdLabels $c | default "true") "false" }}{{ $ciliumOn = append $ciliumOn $c }}{{ end }}
+            {{- end }}
+            {{- /* rkeConfig.machineGlobalConfig.cni is the only place a clusterbook
+                   cluster can get Cilium from. Accept a list (rke2 takes `cni: [cilium,
+                   multus]`) as well as a scalar, and accept `none` as the deliberate way
+                   out: it says the distro ships no CNI, which is what the bootstrap/cni +
+                   bootstrap/cilium Configurations install onto. Anything else -- unset,
+                   calico, flannel -- means the distro default is running. */}}
+            {{- $cni := index ($spec.machineGlobalConfig | default dict) "cni" | default "" }}
+            {{- if kindIs "slice" $cni }}{{ $cni = join "," $cni }}{{ end }}
+            {{- $cni = lower (printf "%v" $cni) }}
+            {{- $ciliumFromBuild := or (contains "cilium" $cni) (eq $cni "none") }}
+            {{- if and $argocdRegister $reserveIP $nwPlatform $ciliumOn (not $ciliumFromBuild) }}
+            {{- fail (printf "%s enables the Cilium platform components %s (spec.argocd.labels network-platform: 'true' with a reservation, component label not 'false') but spec.machineGlobalConfig selects no Cilium CNI (cni: %s): those AppSets CONFIGURE Cilium, they do not install it, so they would render a Gateway and a LoadBalancer pool onto a cluster running the distro default CNI and report Synced/Healthy while doing it -- rebuild with spec.machineGlobalConfig.cni: cilium (or cni: none plus a Cilium install of your own), or pin the components to 'false' in spec.argocd.labels" $name (join ", " $ciliumOn) (ternary "unset" (printf "%q" $cni) (eq $cni ""))) }}
+            {{- end }}
             {{- /* Inlined vault-pki-secrets: when network-platform/cert-manager-vault-pki
                    is enabled, read the source token + CA Secrets on the control plane
                    and push them onto the downstream cluster's cert-manager namespace so
@@ -128,7 +171,6 @@ spec:
                    ClusterIssuer to a cluster that only carries the umbrella --
                    reading the component label as "off unless 'true'" here would
                    hand that cluster an issuer with no token and no CA. */}}
-            {{- $nwPlatform := eq (index $argocdLabels "network-platform" | default "false") "true" }}
             {{- $vpkiOptOut := eq (index $argocdLabels "network-platform/cert-manager-vault-pki" | default "true") "false" }}
             {{- $vpkiEnabled := and $nwPlatform (not $vpkiOptOut) }}
             {{- $vpkiSrcTokenName := $env.vaultPkiSourceTokenName }}

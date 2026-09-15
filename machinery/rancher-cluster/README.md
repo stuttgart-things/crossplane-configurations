@@ -82,7 +82,7 @@ real XR is usually just `name` + per-cluster sizing + `argocd.register`.
 | `infrastructure` | | `generic` | `generic` (custom-node) or `harvester` (VM machine pool) |
 | `rancherNamespace` | | **env** → `fleet-default` | Namespace of the provisioning Cluster + kubeconfig Secret |
 | `clusterLabels` | | — | Extra labels on the `provisioning.cattle.io` Cluster |
-| `machineGlobalConfig` | | — | Free-form `rkeConfig.machineGlobalConfig` passthrough |
+| `machineGlobalConfig` | | — | Free-form `rkeConfig.machineGlobalConfig` passthrough. `cni` is read: the `network-platform/cilium-*` labels [need it to select Cilium](#the-cilium-components-need-a-cilium-build) |
 | `harvester.cloudCredentialSecretName` | | **env** | Harvester cloud credential, `cattle-global-data:<name>` (Rancher UI → Cloud Credentials) |
 | `harvester.imageName` | | **env** | Harvester VM image, `<namespace>/<image>` (e.g. `default/sthings-u26-k3s`) |
 | `harvester.networkName` | | **env** | Harvester network, `<namespace>/<network>` (e.g. `default/vms`) |
@@ -361,6 +361,12 @@ what is worth knowing here:
   otherwise bare.
 - **Never set the `[auto]` annotations** (`cluster-name`, `ip`, `fqdn`,
   `fqdn-secondary`, `lb-range-*`) — the operator stamps those from the reservation.
+- **The Cilium components configure Cilium; they do not install it.** There is no
+  `cilium-install-clusterbook` AppSet — only `cilium-install-kind`, and a
+  Rancher-provisioned cluster is never a kind cluster. So `network-platform/cilium-lb`
+  and `network-platform/cilium-gateway` are the *consequence* of a Cilium build, not
+  the cause, and enabling them on a cluster running the distro default CNI is
+  refused here rather than shipped. See [below](#the-cilium-components-need-a-cilium-build).
 - Preview platforms (`homerun2-pr-preview`, `machinery-pr-preview`,
   `machinery-catalog-locator-pr-preview`,
   `machinery-catalog-publisher-pr-preview`, `schmetterpause-pr-preview`) are
@@ -386,6 +392,69 @@ spec:
 > operator's `existingSecretRef` ("enrich") path the same `spec.labels` are written
 > **prefixed** with `clusterbook.stuttgart-things.com/`, which no platform selector
 > matches.
+
+### The Cilium components need a Cilium build
+
+`cilium-gateway` configures a Gateway API `Gateway` with `gatewayClassName: cilium`;
+`cilium-lb` configures a `CiliumLoadBalancerIPPool` + `CiliumL2AnnouncementPolicy`.
+Both assume Cilium is already on the cluster. For a clusterbook cluster it can only
+come from the build — `spec.machineGlobalConfig.cni`.
+
+Enabling them without it fails **silently**, which is why the Composition refuses the
+combination instead ([#421](https://github.com/stuttgart-things/crossplane-configurations/issues/421)).
+On the cluster that found this, everything read as "almost done":
+
+```
+cilium-gateway-<cluster>   Synced      Progressing   ← Gateway applied (k3s/traefik ships the
+                                                       Gateway API CRDs), but its GatewayClass
+                                                       has no controller. Spins forever.
+cilium-lb-<cluster>        OutOfSync   Healthy       ← neither CR was created (no Cilium CRDs);
+                                                       Argo assesses resources that EXIST, and
+                                                       none do — so nothing is unhealthy.
+```
+
+…while the cluster reported `Ready=True`, held a wildcard certificate for a Gateway
+nothing serves, and a DNS name whose `:80`/`:443` were closed.
+
+The render therefore fails when **all** of these hold, which is exactly when the
+AppSets would generate:
+
+| | |
+|---|---|
+| `spec.argocd.register` | `true` |
+| `spec.argocd.reservation.enabled` | `true` — the operator-stamped `allocation-ip` every network-platform AppSet also gates on |
+| `network-platform` | `'true'` (the umbrella) |
+| `network-platform/cilium-lb` \| `…/cilium-gateway` \| `…/cilium-gateway-secondary` | **not** `'false'` — `NotIn ["false"]` matches an absent key too |
+| `spec.machineGlobalConfig.cni` | neither mentions `cilium` nor is `none` |
+
+Two ways out, both named in the message. Build the cluster with Cilium:
+
+```yaml
+spec:
+  machineGlobalConfig:
+    cni: cilium         # …or a list: [cilium, multus]. `none` also passes — it says the
+                        # distro ships no CNI, which is what bootstrap/cni + bootstrap/cilium
+                        # install onto.
+```
+
+…or take the components back out:
+
+```yaml
+spec:
+  argocd:
+    labels:
+      network-platform/cilium-lb: 'false'
+      network-platform/cilium-gateway: 'false'
+```
+
+The second is rarely needed: the fleet EnvironmentConfig's `defaultLabels` already
+pin all three to `'false'`, so a flannel cluster that simply does not mention them
+renders fine. It is the XR that sets them to `'true'` — or an EnvironmentConfig that
+drops the pins while `network-platform: 'true'` is on — that trips the guard.
+
+> The mirror image is **not** caught: with the components at `'false'`,
+> `reservation.createDNS` still defaults `true`, so `*.<cluster>.sthings.lab` resolves
+> to an address nothing holds. Same dead wildcard, reached from the opposite side.
 
 ## Split control plane (`rancherProviderConfigRef`)
 

@@ -107,7 +107,12 @@ spec:
                   type: object
                   description: >-
                     Free-form rkeConfig.machineGlobalConfig passthrough
-                    (e.g. cni, disable, kube-apiserver-arg).
+                    (e.g. cni, disable, kube-apiserver-arg). `cni` is the one
+                    key the Composition reads: the network-platform/cilium-*
+                    labels CONFIGURE Cilium and cannot install it, so enabling
+                    them without `cni: cilium` (or `cni: none` plus an install
+                    of your own) fails the render. See README, "The Cilium
+                    components need a Cilium build".
                   x-kubernetes-preserve-unknown-fields: true
                 harvester:
                   type: object
