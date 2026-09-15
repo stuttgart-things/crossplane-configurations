@@ -318,6 +318,25 @@ spec:
                       type: string
                     credentialsSecretName:
                       type: string
+                    extraEnvSecretName:
+                      type: string
+                      description: |
+                        Name of a Secret in the PipelineRun namespace whose keys
+                        become environment variables of the same name in the
+                        ansible step, for playbooks that read values via
+                        `lookup('env', 'FOO')`.
+
+                        Forwarded to the emitted AnsibleRun only when set, like
+                        the fields above — ansible-run leaves it undefaulted so
+                        its OWN EnvironmentConfig stays authoritative.
+
+                        Wired through for the Rancher custom-node join
+                        (crossplane-configurations#422): `rancher-cluster`
+                        publishes the node registration command into a Secret,
+                        and a join play reads it as `lookup('env', 'nodeCommand')`
+                        — so the cluster registration token never travels through
+                        a PipelineRun param or through this XR's spec, which
+                        `varsFile` would have meant.
                     crossplaneProviderConfig:
                       type: string
                     wrapInCrossplane:
