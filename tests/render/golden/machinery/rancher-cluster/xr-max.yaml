@@ -415,14 +415,34 @@ spec:
         name: rke2-prod
         namespace: fleet-default
       spec:
+        enableNetworkPolicy: false
         kubernetesVersion: v1.31.5+rke2r1
+        localClusterAuthEndpoint:
+          enabled: true
         rkeConfig:
+          etcd:
+            snapshotRetention: 5
+            snapshotScheduleCron: 0 */5 * * *
           machineGlobalConfig:
             cni: calico
             disable:
             - rke2-ingress-nginx
             kube-apiserver-arg:
             - audit-log-maxage=30
+          machineSelectorConfig:
+          - config:
+              protect-kernel-defaults: true
+            machineLabelSelector:
+              matchLabels:
+                rke.cattle.io/control-plane-role: "true"
+          registries:
+            mirrors:
+              docker.io:
+                endpoint:
+                - https://registry-1.docker.io
+          upgradeStrategy:
+            controlPlaneConcurrency: "1"
+            workerConcurrency: "1"
   managementPolicies:
   - '*'
   providerConfigRef:

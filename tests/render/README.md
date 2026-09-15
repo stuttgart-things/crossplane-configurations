@@ -149,6 +149,25 @@ hop before it — so the fixture carries both Secrets per example XR
 (`<name>-rancher-id` and `<name>-node-command`), and without both the second hop
 and the mirror render to nothing.
 
+### What fixtures cannot reach: observed COMPOSED resources
+
+`--extra-resources` answers a Composition's `ExtraResources` requirements, which
+are looked up on the control-plane API server. It does **not** supply `ocds` —
+the observed *composed* resources a Composition sees for its own children.
+
+`machinery/proxmoxvm` and `machinery/vspherevm` gate their `AnsibleRun` on
+exactly that: the composed VM being Ready with an IP, read out of `ocds`. Under
+`crossplane render` `ocds` is empty, the gate never opens, and **no golden
+contains an `AnsibleRun` for either Configuration** — confirmed by
+`grep -rl 'kind: AnsibleRun' tests/render/golden/`, which lists only `cicd/*`.
+So everything inside that branch, `extraEnvSecretName` (#422) included, is
+invisible to these snapshots no matter what an example XR sets. A fixture cannot
+close this one; only feeding observed composed state to the renderer could.
+
+Until then the branch is verified by running the Composition's inline KCL
+directly against a synthetic `ocds` — a Ready VM with an IP — and reading the
+emitted `AnsibleRun`. Not a committed test, and worth turning into one.
+
 ## `crossplane render` does not apply XRD defaults
 
 Worth its own heading, because it is silent and it cost an afternoon.
