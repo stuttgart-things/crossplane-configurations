@@ -182,9 +182,11 @@ spec:
                                 Subtrees of kvMount to grant read on. `own` expands to
                                 this cluster's subtree. A leading `_` marks a SHARED
                                 entry every cluster may read, e.g. `_omni-pitcher` in
-                                `observability` — the convention the writer policies
-                                protect with `deny` on `<mount>/data/_*`. One `_` at
-                                most, never a slash.
+                                `observability`. It is protected only where the
+                                mount's writer policy denies `<mount>/data/_*` —
+                                today only write-observability-clusters; elsewhere
+                                `_` is a naming convention and nothing more. One `_`
+                                at most, never a slash.
                               items:
                                 type: string
                                 # `_?` rather than `_*`: one underscore is the shared

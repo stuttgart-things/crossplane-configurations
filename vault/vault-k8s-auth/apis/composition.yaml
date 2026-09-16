@@ -139,6 +139,14 @@ spec:
             {{-       if and (eq .type "Ready") (eq .status "True") }}{{ $_ := set $e "ready" true }}{{ end }}
             {{-       if and (eq .type "Synced") (eq .status "False") (contains "does not exist" (.message | default "")) }}{{ $_ := set $e "missing" true }}{{ end }}
             {{-     end }}
+            {{- /* vault_policy reads a policy that does not exist as one that does,
+                   with an empty body: Ready=True, atProvider.policy "". Measured on
+                   u26-kind3 (#454 point 1). A real policy never has an empty body,
+                   so that is "missing" — otherwise adoption reports a body
+                   difference and holds, instead of creating it at hand-over. */}}
+            {{-     if and (eq ($o.kind | default "") "Policy") (index $e "ready") (eq (dig "status" "atProvider" "policy" "" $o) "") (not (has "*" (dig "spec" "managementPolicies" list $o))) (not (has "Create" (dig "spec" "managementPolicies" list $o))) }}
+            {{-       $_ := set $e "ready" false }}{{ $_ := set $e "missing" true }}
+            {{-     end }}
             {{-     range (dig "spec" "managementPolicies" list $o) }}{{ if or (eq . "*") (eq . "Create") }}{{ $authHanded = true }}{{ end }}{{ end }}
             {{-   end }}
             {{-   $_ := set $st $n $e }}

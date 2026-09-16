@@ -131,10 +131,19 @@ The order:
 4. **Set `deleteOnRemoval: true`.** From here this XR is the only owner, and
    deleting it deletes the Vault objects as a fresh one would.
 
-> Not yet exercised against a real Vault — the provider-vault credential on
-> u26-kind3 is still missing the ACL for this (#454 point 1). The hand-over logic
-> itself is covered by the `xr-max` golden and render variants; step 3 is the
-> part to walk through by hand on a test cluster first.
+> **Measured** on u26-kind3 against infra.sthings-vsphere (#454 point 1): an XR
+> created the objects, they were released without a Vault delete, a second XR
+> with `adoption.enabled` observed them, found no difference (policy body, CA,
+> role lists included) and handed over after 60 s; with `deleteOnRemoval: true`
+> its delete removed them, confirmed by a read-only probe. Step 3 against a real
+> OpenTofu Workspace is not part of that run — walk it through on a test cluster
+> first.
+
+A **missing policy** is recognised by its empty body: `vault_policy` reads a
+policy that does not exist as one that does, `Ready=True` with
+`atProvider.policy: ""` — measured. An Observe-only Policy MR in that state
+counts as missing and is created at hand-over, rather than reported as a body
+difference.
 
 ## Who may grant what
 
@@ -149,7 +158,10 @@ so no XR can grant `sys/`, `auth/` or `sudo`. What remains:
   `read: [homerun2-test1]` *is* that cluster's subtree, so one cluster's XR can
   grant itself a neighbour's secrets. **Accepted.** A leading `_` marks a shared
   entry meant for every cluster (`_omni-pitcher`); it is allowed by the pattern
-  and grants nothing a shared entry does not already intend.
+  and grants nothing a shared entry does not already intend. It is **protected**
+  only where the mount's writer policy denies `<mount>/data/_*` — today only
+  `write-observability-clusters`. On any other mount `_` is a naming convention;
+  a new `write-*-clusters` writer has to bring the `_*` deny along.
 - `tokenPolicies` attaches **any existing policy** by name. A Kubernetes auth role
   has no `allowed_policies`: whoever may write `auth/<mount>/role/*` may assign
   policies it does not hold itself. This is the remaining path to admin
@@ -217,10 +229,8 @@ XR kinds explicitly rather than `crossplane-edit`.
    Lock node ([examples/provider.yaml](examples/provider.yaml)).
 2. A `vault.m.upbound.io` **ClusterProviderConfig** (default name `vault`), see
    [examples/cluster-provider-config.yaml](examples/cluster-provider-config.yaml).
-   The AppRole behind it needs `sudo` + create/update/delete on `sys/auth/*`
-   (mounting an auth backend is root-protected; without `delete` teardown
-   orphans the mount), create/update/delete on **`sys/policies/acl/xp-*`** — not
-   `*`, see [Who may grant what](#who-may-grant-what) — and on `auth/*`.
+   The AppRole behind it needs `skip_child_token: true` on the provider config and
+   the ACL in [ACL, measured](#acl-measured).
 
    The credentials Secret can be derived from an existing `terraform.tfvars`-shaped
    AppRole Secret without printing anything. `kubectl create`, **not** `apply`:
@@ -237,6 +247,32 @@ XR kinds explicitly rather than `crossplane-edit`.
    ```
 3. For `backendConfig`: the reviewer ServiceAccount-token Secret (`ca.crt`,
    `token`) in the XR's namespace.
+
+## ACL, measured
+
+u26-kind3 against infra.sthings-vsphere, 2026-09-16 (#454 point 1), provider-vault
+4.0.4 (terraform-provider-vault 5.9.0), temporary AppRole `xp-acl-test-k8s-auth`
+(stuttgart-things/stuttgart-things#3012), scoped to `xpv-acl-*` mounts and
+`xp-xpv-acl-*` policies. With exactly that scope, all of these went through: two
+auths — one creating a policy and configuring TokenReview, one without either —
+created and Ready, released, adopted and handed over, and deleted with every
+object confirmed gone.
+
+The table is that policy's shape (derived in #3012 from the provider source).
+The run proves it **sufficient**; it does not prove every line **necessary** —
+that would take the audit device.
+
+| path | capabilities | why |
+|---|---|---|
+| `sys/auth/<cluster>-*` | create, read, update, delete, **sudo** | enable / tune / disable the auth mount; root-protected |
+| `sys/mounts/auth/<cluster>-*` | read | provider 5.9 observes an auth mount here — the OpenTofu module (`~> 3.25`) did not |
+| `auth/<cluster>-*/role/*`, `auth/<cluster>-*/config` | create, read, update, delete | role and TokenReview config |
+| `sys/policies/acl/xp-<cluster>-*` | create, read, update, delete | created policies; the fixed `xp-` prefix keeps hand-maintained ones out of reach |
+
+For a fleet credential the `<cluster>-` parts become `*` (`sys/policies/acl/xp-*`
+stays prefixed). A credential without read on the observe path cannot delete
+either: the delete starts with an observe, and an MR whose observe gets a 403
+stays in deletion — also when nothing was ever created in Vault.
 
 ## Examples
 
