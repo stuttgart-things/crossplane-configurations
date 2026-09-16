@@ -3,4 +3,4 @@ kind: Configuration
 metadata:
   name: vault-secrets
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/vault-secrets:v0.3.0 # pragma: allowlist secret
+  package: ghcr.io/stuttgart-things/crossplane-configurations/vault-secrets:v0.3.1 # pragma: allowlist secret

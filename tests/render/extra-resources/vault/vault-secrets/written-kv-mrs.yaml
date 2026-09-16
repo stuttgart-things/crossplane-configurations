@@ -7,9 +7,11 @@
 # `blocked: [password]` in status.share, GeneratedValuesPreserved=False, and
 # the XR at Ready=False. No random value, so the golden is stable.
 #
-# Only external-create-succeeded marks it as written — the signal
-# crossplane-runtime sets after Create. An MR without it (a first write that
-# failed on a 403) must NOT block, or the XR could never recover.
+# The external-name marks it as written — provider-vault sets it only after a
+# successful apply. Deliberately NO crossplane.io/external-create-succeeded:
+# that annotation is set when the async create call returns and also sits on
+# MRs whose create failed (measured on u26-kind3, #454 point 1), so it must not
+# count.
 apiVersion: kv.vault.m.upbound.io/v1alpha1
 kind: SecretV2
 metadata:
@@ -17,7 +19,6 @@ metadata:
   namespace: default
   annotations:
     crossplane.io/composition-resource-name: vault-secrets-min-fe0d42c5-kv
-    crossplane.io/external-create-succeeded: "2026-09-16T12:00:00Z"
     crossplane.io/external-name: xpv-proto-kv/data/demo/min
 spec:
   forProvider:
