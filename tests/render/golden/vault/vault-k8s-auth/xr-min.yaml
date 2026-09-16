@@ -1,0 +1,59 @@
+---
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultK8sAuth
+metadata:
+  name: vault-k8s-auth-min
+  namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: auth.vault.m.upbound.io/v1alpha1
+      kind: Backend
+      name: xpv-proto-dev-backend
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: xpv-proto-dev-backend'
+    reason: Creating
+    status: "False"
+    type: Ready
+  share:
+    auths:
+    - name: dev
+      ready: false
+    clusterName: xpv-proto
+    ready: false
+---
+apiVersion: auth.vault.m.upbound.io/v1alpha1
+kind: Backend
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: xpv-proto-dev-backend
+  labels:
+    crossplane.io/composite: vault-k8s-auth-min
+    vault.stuttgart-things.com/auth: dev
+    vault.stuttgart-things.com/cluster: xpv-proto
+  name: xpv-proto-dev-backend
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultK8sAuth
+    name: vault-k8s-auth-min
+    uid: bcaba94e-5d1f-54cb-9d48-d484db0f8404
+spec:
+  forProvider:
+    path: xpv-proto-dev
+    type: kubernetes
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault

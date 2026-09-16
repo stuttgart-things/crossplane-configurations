@@ -1,0 +1,26 @@
+# Standard VaultK8sAuth — the copy-paste template. One auth that references
+# existing policies, and one that creates its own.
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultK8sAuth
+metadata:
+  name: vault-k8s-auth
+  namespace: default
+spec:
+  clusterName: xpv-proto
+  vaultAddr: https://vault.example.com
+  providerConfigRef:
+    name: vault
+    kind: ClusterProviderConfig
+  k8sAuths:
+    - name: dev
+      tokenPolicies: ["read-all-s3-kvv2"]
+      tokenTtl: 3600
+      boundServiceAccountNames: ["default"]
+      boundServiceAccountNamespaces: ["default"]
+    - name: eso
+      boundServiceAccountNames: ["external-secrets"]
+      boundServiceAccountNamespaces: ["external-secrets"]
+      policies:
+        - name: kv-own
+          kvMount: kv
+          read: [own]

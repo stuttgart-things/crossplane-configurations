@@ -1,0 +1,272 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: vault-secrets
+  labels:
+    crossplane.io/xrd: vaultsecretsets.vault.stuttgart-things.com
+    provider-vault: "true"
+    service: vault-secrets
+spec:
+  compositeTypeRef:
+    apiVersion: vault.stuttgart-things.com/v1alpha1
+    kind: VaultSecretSet
+  mode: Pipeline
+  pipeline:
+    - step: render-vault-secrets
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: | # pragma: allowlist secret
+            {{- $xr := .observed.composite.resource }}
+            {{- $spec := $xr.spec }}
+            {{- $xrName := $xr.metadata.name }}
+            {{- $xrNs := $xr.metadata.namespace }}
+            {{- /* `crossplane render` applies no XRD defaults (CLAUDE.md gotcha 5),
+                   so every default below restates the XRD's. */}}
+            {{- $pc := $spec.providerConfigRef | default dict }}
+            {{- $pcName := $pc.name | default "vault" }}
+            {{- $pcKind := $pc.kind | default "ClusterProviderConfig" }}
+            {{- $mount := $spec.mount.path }}
+            {{- $engine := $spec.mount.type | default "kv-v2" }}
+            {{- $createMount := $spec.mount.create | default false }}
+            {{- $policies := ternary (list "Observe" "Create" "Update" "LateInitialize") (list "*") ($spec.keepOnDelete | default false) }}
+            {{- $observed := .observed.resources | default dict }}
+            {{- $extras := .extraResources }}
+            {{- $secrets := $spec.secrets | default list }}
+
+            {{- /* One stable id per Vault path. Hashed rather than list-indexed, so
+                   reordering `secrets` does not delete and re-create every secret;
+                   hashed rather than slugified, so `a/b` and `a-b` cannot collide. */}}
+            {{- $ids := dict }}
+            {{- range $s := $secrets }}
+            {{-   $_ := set $ids $s.path (printf "%s-%s" ($xrName | trunc 40 | trimSuffix "-") (sha256sum (printf "%s/%s" $mount $s.path) | trunc 8)) }}
+            {{- end }}
+            ---
+            # Everything a value can come from that lives outside this pipeline:
+            #  - src-*  the Secrets named by secretKeyRef (XR namespace only)
+            #  - own-*  this XR's own composed data Secrets. Also available as
+            #           observed resources, but read here as well so an offline
+            #           render can be handed one as a fixture — otherwise every
+            #           render generates fresh random values and no golden is stable.
+            apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
+            kind: ExtraResources
+            requirements:
+            {{- $srcNames := dict }}
+            {{- range $s := $secrets }}{{ range $d := $s.data }}{{ if hasKey $d "secretKeyRef" }}{{ $_ := set $srcNames $d.secretKeyRef.name true }}{{ end }}{{ end }}{{ end }}
+            {{- range $n, $_ := $srcNames }}
+              src-{{ $n }}:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $n | quote }}
+                namespace: {{ $xrNs | quote }}
+            {{- end }}
+            {{- range $s := $secrets }}
+              own-{{ index $ids $s.path }}:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ index $ids $s.path | quote }}
+                namespace: {{ $xrNs | quote }}
+            {{- end }}
+
+            {{- /* Nothing below runs before Crossplane has answered the requirements.
+                   The first call sees no extra resources at all: generating then
+                   would be harmless (the output is discarded), but reading a missing
+                   secretKeyRef as "absent" would not be. */}}
+            {{- if $extras }}
+
+            {{- $mountReady := not $createMount }}
+            {{- if $createMount }}
+            {{- $mountMr := printf "%s-mount" ($xrName | trunc 50 | trimSuffix "-") }}
+            {{- $mountObs := index $observed $mountMr }}
+            {{- if $mountObs }}
+            {{-   range (dig "status" "conditions" list $mountObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $mountReady = true }}{{ end }}{{ end }}
+            {{- end }}
+            ---
+            # KV MOUNT — never deleted by this XR (no Delete policy): removing a
+            # mount removes every secret in it, not only the ones written here.
+            apiVersion: vault.vault.m.upbound.io/v1alpha1
+            kind: Mount
+            metadata:
+              name: {{ $mountMr }}
+              annotations:
+                {{ setResourceNameAnnotation $mountMr }}
+            spec:
+              providerConfigRef:
+                name: {{ $pcName }}
+                kind: {{ $pcKind }}
+              managementPolicies: ["Observe", "Create", "Update", "LateInitialize"]
+              forProvider:
+                path: {{ $mount | quote }}
+                type: kv
+                options:
+                  version: {{ ternary "2" "1" (eq $engine "kv-v2") | quote }}
+                {{- if $spec.mount.description }}
+                description: {{ $spec.mount.description | quote }}
+                {{- end }}
+            {{- end }}
+
+            {{- $share := list }}
+            {{- $missing := list }}
+            {{- range $s := $secrets }}
+            {{- $id := index $ids $s.path }}
+
+            {{- /* Values already written, if any: observed composed Secret first,
+                   then the same Secret as an extra resource (render fixtures). */}}
+            {{- $prev := dict }}
+            {{- $prevB64 := "" }}
+            {{- $obs := index $observed $id }}
+            {{- if $obs }}{{ $prevB64 = dig "resource" "data" "data.json" "" $obs }}{{ end }}
+            {{- if not $prevB64 }}
+            {{-   $own := index $extras (printf "own-%s" $id) }}
+            {{-   if and $own $own.items }}{{ $prevB64 = dig "resource" "data" "data.json" "" (index $own.items 0) }}{{ end }}
+            {{- end }}
+            {{- if $prevB64 }}{{ $prev = $prevB64 | b64dec | fromYaml }}{{ end }}
+
+            {{- $vals := dict }}
+            {{- $generated := list }}
+            {{- $unresolved := list }}
+            {{- range $d := $s.data }}
+            {{-   if hasKey $d "value" }}
+            {{-     $_ := set $vals $d.key $d.value }}
+            {{-   else if hasKey $d "secretKeyRef" }}
+            {{-     $src := index $extras (printf "src-%s" $d.secretKeyRef.name) }}
+            {{-     $b64 := "" }}
+            {{-     if and $src $src.items }}{{ $b64 = dig "resource" "data" $d.secretKeyRef.key "" (index $src.items 0) }}{{ end }}
+            {{-     if $b64 }}
+            {{-       $_ := set $vals $d.key (b64dec $b64) }}
+            {{-     else if hasKey $prev $d.key }}
+            {{- /* Source gone or key removed: keep what Vault already has
+                         rather than blanking a live credential. Reported below. */}}
+            {{-       $_ := set $vals $d.key (index $prev $d.key) }}
+            {{-       $unresolved = append $unresolved (printf "%s/%s" $d.secretKeyRef.name $d.secretKeyRef.key) }}
+            {{-     else }}
+            {{-       $unresolved = append $unresolved (printf "%s/%s" $d.secretKeyRef.name $d.secretKeyRef.key) }}
+            {{-     end }}
+            {{-   else if hasKey $d "generate" }}
+            {{-     $generated = append $generated $d.key }}
+            {{-     if hasKey $prev $d.key }}
+            {{-       $_ := set $vals $d.key (index $prev $d.key) }}
+            {{-     else }}
+            {{-       $len := int ($d.generate.length | default 32) }}
+            {{-       $cs := $d.generate.charset | default "alphanumeric" }}
+            {{-       if eq $cs "ascii" }}{{ $_ := set $vals $d.key (randAscii $len) }}
+            {{-       else if eq $cs "numeric" }}{{ $_ := set $vals $d.key (randNumeric $len) }}
+            {{-       else }}{{ $_ := set $vals $d.key (randAlphaNum $len) }}{{ end }}
+            {{-     end }}
+            {{-   end }}
+            {{- end }}
+
+            {{- /* Write only a COMPLETE secret. A first write with a key missing
+                   would publish a partial secret that a consumer happily reads. An
+                   already-written secret keeps its previous values instead (above). */}}
+            {{- $complete := or $obs (eq (len $unresolved) 0) }}
+            {{- if $unresolved }}{{ $missing = append $missing (printf "%s: %s" $s.path (join ", " $unresolved)) }}{{ end }}
+
+            {{- $kvReady := false }}
+            {{- $kvObs := index $observed (printf "%s-kv" $id) }}
+            {{- if $kvObs }}
+            {{-   range (dig "status" "conditions" list $kvObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $kvReady = true }}{{ end }}{{ end }}
+            {{- end }}
+
+            {{- if $complete }}
+            ---
+            # DATA — the JSON provider-vault writes, referenced by dataJsonSecretRef.
+            # Also the memory for generated values: they are read back from here.
+            apiVersion: v1
+            kind: Secret
+            metadata:
+              name: {{ $id }}
+              namespace: {{ $xrNs }}
+              annotations:
+                {{ setResourceNameAnnotation $id }}
+                gotemplating.fn.crossplane.io/ready: "True"
+                vault.stuttgart-things.com/path: {{ printf "%s/%s" $mount $s.path | quote }}
+              labels:
+                vault.stuttgart-things.com/secret-set: {{ $xrName }}
+            type: Opaque
+            data:
+              data.json: {{ toJson $vals | b64enc }}
+            {{- end }}
+
+            {{- if and $mountReady (or $kvObs $complete) }}
+            ---
+            {{- if eq $engine "kv-v2" }}
+            apiVersion: kv.vault.m.upbound.io/v1alpha1
+            kind: SecretV2
+            {{- else }}
+            apiVersion: kv.vault.m.upbound.io/v1alpha1
+            kind: Secret
+            {{- end }}
+            metadata:
+              name: {{ $id }}-kv
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-kv" $id) }}
+                vault.stuttgart-things.com/path: {{ printf "%s/%s" $mount $s.path | quote }}
+              labels:
+                vault.stuttgart-things.com/secret-set: {{ $xrName }}
+            spec:
+              providerConfigRef:
+                name: {{ $pcName }}
+                kind: {{ $pcKind }}
+              managementPolicies: {{ $policies | toJson }}
+              forProvider:
+                {{- if eq $engine "kv-v2" }}
+                mount: {{ $mount | quote }}
+                name: {{ $s.path | quote }}
+                deleteAllVersions: {{ $s.deleteAllVersions | default false }}
+                {{- else }}
+                path: {{ printf "%s/%s" $mount $s.path | quote }}
+                {{- end }}
+                dataJsonSecretRef:
+                  name: {{ $id }}
+                  key: data.json
+            {{- end }}
+
+            {{- $entry := dict "path" $s.path "ready" $kvReady }}
+            {{- if $complete }}{{ $_ := set $entry "dataSecret" $id }}{{ end }}
+            {{- if $generated }}{{ $_ := set $entry "generated" $generated }}{{ end }}
+            {{- $share = append $share $entry }}
+            {{- end }}
+
+            {{- $allReady := gt (len $share) 0 }}
+            {{- range $share }}{{ if not .ready }}{{ $allReady = false }}{{ end }}{{ end }}
+            ---
+            apiVersion: {{ $xr.apiVersion }}
+            kind: {{ $xr.kind }}
+            {{- if not $allReady }}
+            # Explicit, because readiness is otherwise derived from COMPOSED
+            # resources only: a secret held back for a missing source composes
+            # nothing, and an XR with nothing unready reports Ready=True.
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/ready: "False"
+            {{- end }}
+            status:
+              share:
+                mount: {{ $mount | quote }}
+                engine: {{ $engine }}
+                secrets: {{ $share | toJson }}
+                ready: {{ $allReady }}
+            ---
+            apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
+            kind: ClaimConditions
+            conditions:
+              {{- if $missing }}
+              - type: SourcesResolved
+                status: "False"
+                reason: SourceSecretMissing
+                message: {{ join "; " $missing | quote }}
+              {{- else }}
+              - type: SourcesResolved
+                status: "True"
+                reason: Available
+              {{- end }}
+            {{- end }}
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

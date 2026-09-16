@@ -1,0 +1,16 @@
+# Short CR names on `xpkg.upbound.io` — both halves are deliberate, see the
+# header of bootstrap/vault-auth/examples/functions.yaml and CLAUDE.md
+# ("Function CR names"). `task apply-dev` skips this file unless FUNCTIONS=1.
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: function-go-templating
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-go-templating:v0.12.1
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: function-auto-ready
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-auto-ready:v0.6.5

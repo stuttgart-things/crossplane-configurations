@@ -1,0 +1,43 @@
+# The one cluster precondition: how provider-vault reaches and logs into Vault.
+#
+# AppRole via `auth_login`. The Secret's JSON is read by the provider — it never
+# appears in an XR. Create it from an existing terraform.tfvars-shaped AppRole
+# Secret without printing anything (see README, "Cluster preconditions").
+#
+# The AppRole needs `sudo` on sys/auth/* (mounting an auth backend is
+# root-protected), `delete` there too (or teardown orphans the mount), plus
+# create/update/delete on sys/policies/acl/<clusterName>-* and auth/<clusterName>-*.
+apiVersion: vault.m.upbound.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: vault
+spec:
+  address: https://vault.example.com
+  skip_tls_verify: true
+  # A child token per operation needs `auth/token/create`, which a scoped
+  # AppRole rarely has — same as skip_child_token in the OpenTofu module.
+  skip_child_token: true
+  credentials:
+    source: Secret
+    secretRef:
+      name: vault-provider-creds # pragma: allowlist secret
+      namespace: crossplane-system
+      key: credentials
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vault-provider-creds
+  namespace: crossplane-system
+type: Opaque
+stringData:
+  credentials: |
+    {
+      "auth_login": {
+        "path": "auth/approle/login",
+        "parameters": {
+          "role_id": "EXAMPLE-ROLE-ID-REPLACE-WITH-REAL-VALUE",
+          "secret_id": "EXAMPLE-SECRET-ID-REPLACE-WITH-REAL-VALUE"
+        }
+      }
+    }

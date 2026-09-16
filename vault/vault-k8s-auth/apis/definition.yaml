@@ -1,0 +1,169 @@
+---
+# Native sibling of bootstrap/vault-auth. Same spec shape for the k8sAuths list,
+# so an XR can be moved across by changing apiVersion and the connection fields —
+# but every Vault object is its own provider-vault managed resource instead of
+# one OpenTofu Workspace per auth.
+#
+# A DIFFERENT API group on purpose (vault.stuttgart-things.com, not
+# config.stuttgart-things.com): both Configurations can sit on one cluster while
+# the native one is being proven, without the two XRDs fighting over
+# vaultk8sauths.config.stuttgart-things.com.
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: vaultk8sauths.vault.stuttgart-things.com
+spec:
+  group: vault.stuttgart-things.com
+  scope: Namespaced
+  defaultCompositeDeletePolicy: Foreground
+  names:
+    kind: VaultK8sAuth
+    plural: vaultk8sauths
+    singular: vaultk8sauth
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                clusterName:
+                  type: string
+                  minLength: 1
+                  pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                  description: >-
+                    Target cluster. Prefix of every auth mount path
+                    ({clusterName}-{name}) and every created policy
+                    ({clusterName}-{policy.name}).
+                vaultAddr:
+                  type: string
+                  description: >-
+                    Informational only — the connection itself comes from the
+                    provider-vault (Cluster)ProviderConfig. Republished in
+                    status.share.vaultAddr for consumers such as external-secrets,
+                    which need the address and cannot read a ProviderConfig.
+                providerConfigRef:
+                  type: object
+                  description: "provider-vault ProviderConfig / ClusterProviderConfig (vault.m.upbound.io) holding address and login."
+                  properties:
+                    name:
+                      type: string
+                      default: vault
+                    kind:
+                      type: string
+                      enum:
+                        - ClusterProviderConfig
+                        - ProviderConfig
+                      default: ClusterProviderConfig
+                kubernetesHost:
+                  type: string
+                  description: "Kubernetes API host Vault calls for TokenReview. Only used by auths with backendConfig."
+                  default: "https://kubernetes.default.svc:443"
+                k8sAuths:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - name
+                    x-kubernetes-validations:
+                      - rule: "has(self.tokenPolicies) || has(self.policies)"
+                        message: an auth must reference policies (tokenPolicies) or create them (policies) — one with neither is created successfully and can do nothing
+                    properties:
+                      name:
+                        type: string
+                        minLength: 1
+                        pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                      tokenPolicies:
+                        type: array
+                        description: "Existing Vault policies to attach to the role."
+                        items:
+                          type: string
+                      tokenTtl:
+                        type: integer
+                        default: 3600
+                      boundServiceAccountNames:
+                        type: array
+                        items:
+                          type: string
+                        default: ["default"]
+                      boundServiceAccountNamespaces:
+                        type: array
+                        items:
+                          type: string
+                        default: ["default"]
+                      policies:
+                        type: array
+                        description: >-
+                          Vault policies to CREATE, each named
+                          {clusterName}-{name} and appended to tokenPolicies. The
+                          body is BUILT by the Composition from kvMount + read,
+                          never supplied as HCL (crossplane-configurations#285).
+                          The role is only composed once every policy it names is
+                          Ready — Vault accepts a role naming a missing policy and
+                          the token then silently has no permissions.
+                        items:
+                          type: object
+                          required:
+                            - name
+                            - kvMount
+                            - read
+                          properties:
+                            name:
+                              type: string
+                              pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                            kvMount:
+                              type: string
+                              minLength: 1
+                              pattern: "^[a-z0-9][a-z0-9._-]*$"
+                            read:
+                              type: array
+                              minItems: 1
+                              description: "Subtrees of kvMount to grant read on. `own` expands to this cluster's subtree."
+                              items:
+                                type: string
+                                pattern: "^[a-z0-9][a-z0-9._-]*$"
+                      backendConfig:
+                        type: object
+                        description: >-
+                          Configure the auth mount's TokenReview connection. CA and
+                          reviewer JWT come from a ServiceAccount-token Secret that
+                          must live in the XR's OWN namespace: the JWT is handed to
+                          provider-vault as a local secret reference, and reading a
+                          Secret from another namespace would let any namespace that
+                          may create this XR aim Vault at a token it cannot read
+                          itself.
+                        required:
+                          - secretName
+                        properties:
+                          secretName:
+                            type: string
+                          caCertKey:
+                            type: string
+                            default: "ca.crt"
+                          tokenKey:
+                            type: string
+                            default: "token"
+                          disableIssValidation:
+                            type: boolean
+                            default: true
+                          disableLocalCaJwt:
+                            type: boolean
+                            default: true
+              required:
+                - clusterName
+                - k8sAuths
+            status:
+              type: object
+              properties:
+                share:
+                  type: object
+                  description: >-
+                    Same contract as bootstrap/vault-auth: mountPath, role and
+                    policies are ABSENT until the Vault object behind them is
+                    Ready, never published empty.
+                  x-kubernetes-preserve-unknown-fields: true

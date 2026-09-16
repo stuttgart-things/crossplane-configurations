@@ -1,0 +1,15 @@
+# provider-vault is published only on the Upbound mirror (checked 2026-09-16:
+# xpkg.crossplane.io has neither upbound/ nor crossplane-contrib/provider-vault).
+#
+# NAMED `upbound-provider-vault` ON PURPOSE — that is the CR name the package
+# manager derives from the dependsOn path in crossplane.yaml. A hand-installed
+# Provider under any other name on the same registry becomes a second Lock node
+# with an identical source the moment this Configuration is installed from OCI,
+# and that freezes dependency resolution for every package on the cluster
+# (CLAUDE.md, "Function CR names").
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: upbound-provider-vault
+spec:
+  package: xpkg.upbound.io/upbound/provider-vault:v4.0.4

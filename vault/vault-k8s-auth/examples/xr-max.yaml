@@ -1,0 +1,43 @@
+# Maximal VaultK8sAuth — every spec field set, including backendConfig.
+#
+# The reviewer Secret (`xpv-proto-vault-reviewer`) must exist in the XR's own
+# namespace with `ca.crt` + `token`; until it does the auth mount reports
+# Ready=False and the XR carries ReviewerSecretReady=False naming what is
+# missing. For `crossplane render` it is supplied as a fixture from
+# tests/render/extra-resources/vault/vault-k8s-auth/.
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultK8sAuth
+metadata:
+  name: vault-k8s-auth-max
+  namespace: default
+spec:
+  clusterName: xpv-proto
+  vaultAddr: https://vault.example.com
+  providerConfigRef:
+    name: vault
+    kind: ClusterProviderConfig
+  kubernetesHost: https://10.31.102.147:6443
+  k8sAuths:
+    - name: certmanager
+      tokenPolicies: ["pki-issue"]
+      tokenTtl: 7200
+      boundServiceAccountNames: ["certmanager"]
+      boundServiceAccountNamespaces: ["cert-manager"]
+      backendConfig:
+        secretName: xpv-proto-vault-reviewer # pragma: allowlist secret
+        caCertKey: ca.crt
+        tokenKey: token
+        disableIssValidation: true
+        disableLocalCaJwt: true
+    - name: eso
+      tokenPolicies: ["read-cicd"]
+      tokenTtl: 3600
+      boundServiceAccountNames: ["external-secrets"]
+      boundServiceAccountNamespaces: ["external-secrets"]
+      policies:
+        - name: kv-own
+          kvMount: kv
+          read: [own]
+        - name: kv-cicd
+          kvMount: kv
+          read: [cicd, shared]

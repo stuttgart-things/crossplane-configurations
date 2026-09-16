@@ -1,0 +1,27 @@
+# Standard VaultSecretSet — the copy-paste template: a database credential whose
+# username is a literal, whose password is generated once, and whose admin
+# token is copied from a Secret next to the XR (see source-secret.yaml).
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultSecretSet
+metadata:
+  name: vault-secrets
+  namespace: default
+spec:
+  providerConfigRef:
+    name: vault
+    kind: ClusterProviderConfig
+  mount:
+    path: xpv-proto-kv
+  secrets:
+    - path: apps/demo/db
+      data:
+        - key: username
+          value: demo
+        - key: password
+          generate:
+            length: 32
+            charset: alphanumeric
+        - key: admin-token
+          secretKeyRef:
+            name: demo-source # pragma: allowlist secret
+            key: admin-token
