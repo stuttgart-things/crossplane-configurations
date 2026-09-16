@@ -69,12 +69,17 @@ spec:
                 namespace: {{ $xrNs | quote }}
             {{- end }}
             {{- range $s := $secrets }}
-            {{- if not (hasKey $s "claim") }}
+            {{- /* own-* for EVERY entry, claims included — not because a claim reads
+                   its payload back, but because the gate below waits for extra
+                   resources to arrive. A set of claims only would otherwise request
+                   nothing, never receive anything, compose nothing and report
+                   Ready=True. Measured on u26-kind3 (#454 point 1). */}}
               own-{{ index $ids $s.path }}:
                 apiVersion: v1
                 kind: Secret
                 matchName: {{ index $ids $s.path | quote }}
                 namespace: {{ $xrNs | quote }}
+            {{- if not (hasKey $s "claim") }}
               kv-{{ index $ids $s.path }}:
                 apiVersion: kv.vault.m.upbound.io/v1alpha1
                 kind: {{ $kvKind }}
@@ -169,6 +174,9 @@ spec:
               annotations:
                 {{ setResourceNameAnnotation (printf "%s-claim" $id) }}
                 vault.stuttgart-things.com/path: {{ printf "%s/metadata/%s" $mount $s.path | quote }}
+                {{- with dig "resource" "metadata" "resourceVersion" "" (index $observed $id | default dict) }}
+                vault.stuttgart-things.com/data-revision: {{ . | quote }}
+                {{- end }}
               labels:
                 vault.stuttgart-things.com/secret-set: {{ $xrName }}
             spec:
@@ -206,9 +214,13 @@ spec:
                    as an extra resource (render fixtures). NOT "does the MR exist":
                    an MR whose first write failed (a 403, say) exists too, and
                    treating that as written would lock the XR out for good.
-                     external-create-succeeded  set by crossplane-runtime after Create
-                     Ready=True                 an MR that observed an existing secret
-                     atProvider.id              the provider's ID, only there after a read */}}
+                     external-name   set by the provider only after a successful apply
+                     Ready=True      an MR that observed an existing secret
+                     atProvider.id   the provider's ID, only there after a read
+                   NOT crossplane.io/external-create-succeeded: provider-vault creates
+                   asynchronously, and that annotation is set when the async call
+                   returns — on u26-kind3 it sat on four MRs whose every create had
+                   failed with a 403 (#454 point 1). */}}
             {{- $kvCur := dict }}
             {{- $kvObs := index $observed (printf "%s-kv" $id) }}
             {{- if $kvObs }}{{ $kvCur = $kvObs.resource }}
@@ -217,7 +229,7 @@ spec:
             {{-   if and $kvEx $kvEx.items }}{{ $kvCur = (index $kvEx.items 0).resource }}{{ end }}
             {{- end }}
             {{- $written := false }}
-            {{- if dig "metadata" "annotations" "crossplane.io/external-create-succeeded" "" $kvCur }}{{ $written = true }}{{ end }}
+            {{- if dig "metadata" "annotations" "crossplane.io/external-name" "" $kvCur }}{{ $written = true }}{{ end }}
             {{- if dig "status" "atProvider" "id" "" $kvCur }}{{ $written = true }}{{ end }}
             {{- range (dig "status" "conditions" list $kvCur) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $written = true }}{{ end }}{{ end }}
 
@@ -316,6 +328,16 @@ spec:
               annotations:
                 {{ setResourceNameAnnotation (printf "%s-kv" $id) }}
                 vault.stuttgart-things.com/path: {{ printf "%s/%s" $mount $s.path | quote }}
+                {{- /* The data reaches the provider through dataJsonSecretRef, so a
+                       changed value changes nothing in the MR — and the MR is not
+                       reconciled until the provider's next poll (minutes). Measured on
+                       u26-kind3 (#454 point 1). Carrying the data Secret's
+                       resourceVersion makes every change an MR event, without putting
+                       anything derived from the value on the MR. It lags one XR
+                       reconcile, which follows immediately on the Secret update. */}}
+                {{- with dig "resource" "metadata" "resourceVersion" "" ($obs | default dict) }}
+                vault.stuttgart-things.com/data-revision: {{ . | quote }}
+                {{- end }}
                 {{- if $blocked }}
                 # Paused rather than left to fail on its missing dataJsonSecretRef:
                 # an explicit hold, explained by GeneratedValuesPreserved, cannot be

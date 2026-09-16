@@ -60,9 +60,12 @@ Two ways out:
   next lost Secret rotates silently again.
 
 "Vault was written" is decided from the KV MR, not from its mere existence: the
-`crossplane.io/external-create-succeeded` annotation, a `Ready=True` condition, or
-`status.atProvider.id`. An MR whose first write failed (a 403 on a missing ACL,
-say) carries none of them, so it never locks the XR. A key that is only absent
+`crossplane.io/external-name` (set by the provider only after a successful apply),
+a `Ready=True` condition, or `status.atProvider.id`. An MR whose first write failed
+(a 403 on a missing ACL, say) carries none of them, so it never locks the XR.
+**Not** `crossplane.io/external-create-succeeded`: provider-vault creates
+asynchronously, and that annotation is set as soon as the async call returns —
+also when the create then fails. Measured on u26-kind3 (#454 point 1). A key that is only absent
 from an otherwise present data Secret is new, not lost, and is generated.
 
 While held, the paused MR is not reconciled — including deletion. Deleting the XR
@@ -113,8 +116,8 @@ stuttgart-things/stuttgart-things#2990) and `delete` for teardown; no `read`:
 path "kubeconfigs/metadata/+" { capabilities = ["create", "update", "delete"] }
 ```
 
-Verified for the OpenTofu call; for provider-vault it is part of the per-case
-ACL verification still open in #454 (point 1).
+Verified live for provider-vault on u26-kind3 (#454 point 1) with the real
+`write-kubeconfigs` policy: create, update and delete.
 
 ### Missing sources
 
@@ -139,11 +142,59 @@ both cases the XR is held at `Ready=False`.
 ## Cluster preconditions
 
 1. provider-vault as `upbound-provider-vault` ([examples/provider.yaml](examples/provider.yaml)).
-2. A `vault.m.upbound.io` ClusterProviderConfig (default `vault`) whose login may
-   create/read/update/delete `<mount>/data/*` and `<mount>/metadata/*` — plus
-   `sys/mounts/<mount>` if `mount.create`. Setup as in
+2. A `vault.m.upbound.io` ClusterProviderConfig (default `vault`) with
+   `skip_child_token: true` and a login whose policy covers the case — see
+   [ACL per case](#acl-per-case). Setup as in
    [vault-k8s-auth](../vault-k8s-auth/README.md#cluster-preconditions).
 3. The `secretKeyRef` Secrets, in the XR's namespace.
+
+## ACL per case
+
+**Measured** on u26-kind3 against infra.sthings-vsphere, 2026-09-16 (#454 point 1),
+provider-vault 4.0.4 (terraform-provider-vault 5.9.0). "Verified" = that policy,
+the XR Ready, and a clean delete confirmed by a read-only probe afterwards.
+
+**`data`, `mount.create: false`, kv-v2** — the paths the provider calls:
+
+| operation | calls | capability |
+|---|---|---|
+| create | `PUT <mount>/data/<p>` | `create` |
+| observe | `GET <mount>/data/<p>`, `GET <mount>/metadata/<p>` | `read` on both |
+| **update** (any value change, rotation) | `PUT <mount>/data/<p>`, **`PUT <mount>/metadata/<p>`** | `update` on data **and `create`/`update` on metadata** |
+| delete, `deleteAllVersions: true` | `DELETE <mount>/metadata/<p>` | `delete` on metadata |
+
+```hcl
+path "observability/data/+"     { capabilities = ["create", "update", "read"] }
+path "observability/metadata/+" { capabilities = ["create", "update", "read", "list", "delete"] }
+```
+
+Why metadata on update: `custom_metadata` is `Optional`+`Computed` in the
+Terraform resource. Every observe fills it from Vault, and the shared
+create/update function writes metadata whenever that field is set — so the
+create gets by without it, every later update does not. With a policy that
+lacks it (`write-observability-clusters` as of 2026-09-16) the update fails
+**after** the data write has landed, and each retry adds a data version: 6 → 15
+within minutes on u26-kind3. Create, observe and delete work with that policy;
+changing a value does not.
+
+**`claim`** — `write-kubeconfigs` as is: create, update, delete verified.
+
+```hcl
+path "kubeconfigs/metadata/+" { capabilities = ["create", "update", "delete"] }
+```
+
+**`mount.create: true`** — verified with a policy of `create`/`read`/`update` on
+`sys/mounts/<mount>` and full CRUD below it. The mount is never deleted by this
+XR, so no `delete` on `sys/mounts` is needed — and removing a test mount needs
+someone else's credential.
+
+### Value changes reach Vault immediately
+
+A changed value lands in the data Secret, which the KV MR only references — its
+own spec does not change, and without a nudge it would not be reconciled before
+the provider's next poll. The MR therefore carries the data Secret's
+`resourceVersion` as `vault.stuttgart-things.com/data-revision`: every change to
+the data is an MR event. Measured: update requested within seconds.
 
 ## Examples
 
