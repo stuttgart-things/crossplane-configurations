@@ -331,6 +331,46 @@ spec:
 
                         Set it only for a Vault pair the mapping does not know;
                         an explicit value still wins.
+                    lifecycle:
+                      type: object
+                      description: >-
+                        Who owns the Vault ENTRY for this cluster's kubeconfig. The
+                        upload writes it; without this nothing removes it, and a
+                        torn-down cluster leaves its kubeconfig in Vault.
+
+                        Enabled, this composes a Workspace (provider-opentofu) that
+                        claims the entry with custom_metadata and, on destroy, deletes
+                        <mount>/metadata/<path> — every version with it. It never
+                        touches the secret data: the upload play writes that.
+
+                        Defaults to ON for the rancher provisioner and OFF for the
+                        ansible path — not because that path does not leak the same
+                        entry, but because turning it on changes the teardown of
+                        clusters that already exist.
+                      properties:
+                        enabled:
+                          type: boolean
+                          description: Explicit wins over the per-provisioner default.
+                        vaultAddr:
+                          type: string
+                          description: >-
+                            Required when enabled — the Workspace has to know which
+                            Vault holds the entry. The render fails without it.
+                        mount:
+                          type: string
+                          default: kubeconfigs
+                          description: KV v2 mount holding the kubeconfigs.
+                        credentialSecret:
+                          type: string
+                          default: vault-kubeconfig-writer
+                          description: >-
+                            Secret next to this XR with terraform.tfvars
+                            (vault_role_id + vault_secret_id) for an approle that may
+                            write kubeconfigs/metadata/*.
+                        providerConfigName:
+                          type: string
+                          default: in-cluster
+                          description: OpenTofu ClusterProviderConfig for the Workspace.
                 platformEnabled:
                   type: boolean
                   default: true

@@ -31,6 +31,11 @@ spec:
     # The join play uploads with the WRITER approle; the ClusterAccess reads the
     # entry back through vault-kubeconfigs-infra, derived from this name.
     vaultSecretName: vault-infra-kubeconfig-writer  # pragma: allowlist secret
+    # Owns kubeconfigs/rke2-rancher-1: claims it with custom_metadata and
+    # deletes every version on teardown. On by default for this provisioner;
+    # vaultAddr is what it needs to know.
+    lifecycle:
+      vaultAddr: https://vault.infra.sthings-vsphere.labul.sva.de
   ansible:
     # Per-stage overrides live under `stages`, merged over the shared block.
     # The join stage needs the rke collection that carries rancher_register.

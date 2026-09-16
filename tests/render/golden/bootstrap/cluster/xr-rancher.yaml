@@ -7,6 +7,9 @@ metadata:
 spec:
   crossplane:
     resourceRefs:
+    - apiVersion: opentofu.m.upbound.io/v1beta1
+      kind: Workspace
+      name: rke2-rancher-1-kubeconfig-vault
     - apiVersion: resources.stuttgart-things.com/v1alpha1
       kind: RancherCluster
       name: rke2-rancher-1-rancher
@@ -21,7 +24,7 @@ status:
     status: "True"
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: rancher'
+    message: 'Unready resources: kubeconfig-vault, rancher'
     reason: Creating
     status: "False"
     type: Ready
@@ -45,6 +48,9 @@ status:
     kubeconfig:
       emitted: false
       succeeded: false
+    kubeconfigVault:
+      emitted: true
+      ready: false
     managementPlane:
       emitted: false
       ready: false
@@ -57,6 +63,106 @@ status:
     vm:
       ip: ""
       ready: false
+---
+apiVersion: opentofu.m.upbound.io/v1beta1
+kind: Workspace
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: kubeconfig-vault
+  labels:
+    crossplane.io/composite: rke2-rancher-1
+  name: rke2-rancher-1-kubeconfig-vault
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rke2-rancher-1
+    uid: a9303176-99df-5a6a-b0b8-ffa8a0bb3a13
+spec:
+  forProvider:
+    module: |
+      terraform {
+        required_providers {
+          vault = {
+            source  = "hashicorp/vault"
+            version = "~> 3.25"
+          }
+        }
+      }
+
+      variable "vault_addr" {
+        type = string
+      }
+
+      variable "metadata_path" {
+        type = string
+      }
+
+      variable "cluster_name" {
+        type = string
+      }
+
+      variable "vault_role_id" {
+        type = string
+      }
+
+      variable "vault_secret_id" {
+        type      = string
+        sensitive = true
+      }
+
+      provider "vault" {
+        address          = var.vault_addr
+        skip_tls_verify  = true
+        skip_child_token = true
+
+        auth_login {
+          path = "auth/approle/login"
+          parameters = {
+            role_id   = var.vault_role_id
+            secret_id = var.vault_secret_id
+          }
+        }
+      }
+
+      # Owns the ENTRY, never its content: the join play writes the kubeconfig into
+      # <mount>/data/<cluster> and keeps writing new versions. Writing custom_metadata
+      # is what marks the entry as Crossplane-owned; destroying this resource DELETEs
+      # the metadata path, and with it every version.
+      #
+      # disable_read: a GET on the metadata path returns a different shape than the
+      # POST takes, so reading it back would diff forever.
+      resource "vault_generic_endpoint" "kubeconfig_metadata" {
+        path                 = var.metadata_path
+        disable_read         = true
+        ignore_absent_fields = true
+
+        data_json = jsonencode({
+          custom_metadata = {
+            "managed-by" = "crossplane"
+            "cluster"    = var.cluster_name
+          }
+        })
+      }
+    source: Inline
+    varFiles:
+    - format: HCL
+      secretKeyRef:
+        key: terraform.tfvars
+        name: vault-kubeconfig-writer
+      source: SecretKey
+    vars:
+    - key: vault_addr
+      value: https://vault.infra.sthings-vsphere.labul.sva.de
+    - key: metadata_path
+      value: kubeconfigs/metadata/rke2-rancher-1
+    - key: cluster_name
+      value: rke2-rancher-1
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
 ---
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: RancherCluster
