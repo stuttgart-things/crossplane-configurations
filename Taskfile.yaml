@@ -915,7 +915,7 @@ tasks:
           --progress plain
 
   push:
-    desc: "Build and push a Configuration to an OCI registry via Dagger (non-interactive: CONFIG=k8s/<name> BUMP=patch|minor|major|vX.Y.Z YES=1 task push)"
+    desc: "Build and push a Configuration to an OCI registry via Dagger (non-interactive: CONFIG=k8s/<name> BUMP=patch|minor|major|vX.Y.Z YES=1 task push). Refuses a package dir that is dirty or differs from origin/main unless FORCE=1."
     silent: true
     cmds:
       - |
@@ -931,6 +931,37 @@ tasks:
           [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
           CONFIG=$(echo "$CONFIGS" | gum choose --header "select configuration to push:")
           [ -n "$CONFIG" ] || { gum style --foreground 3 "no selection"; exit 1; }
+        fi
+
+        # --- the tree is what gets built ---
+        # `task push` packages the WORKING TREE, not a git ref. Pushing from a
+        # stale checkout publishes a new version number over old content, and
+        # nothing downstream can tell: on 2026-09-16 cni v0.1.1 shipped the
+        # composition of whichever branch the shell happened to be on, still
+        # pointing at xplane-cni 0.1.0, while the version bump it carried said
+        # the opposite. The CompositionRevision on the cluster was the only
+        # clue. So compare the package directory against origin/main and
+        # refuse; FORCE=1 is for the deliberate case (a pre-release from a
+        # branch).
+        if [ "${FORCE:-}" = "1" ] || [ "${FORCE:-}" = "true" ]; then
+          gum style --foreground 3 "FORCE=$FORCE — not comparing $CONFIG against origin/main"
+        elif git rev-parse --git-dir >/dev/null 2>&1; then
+          if [ -n "$(git status --porcelain -- "$CONFIG")" ]; then
+            gum style --foreground 1 "uncommitted changes in $CONFIG — commit or stash them, or set FORCE=1"
+            git status --short -- "$CONFIG"
+            exit 1
+          fi
+          git fetch -q origin main 2>/dev/null || gum style --foreground 3 "could not fetch origin/main — comparing against the last known state"
+          if git rev-parse -q --verify origin/main >/dev/null 2>&1; then
+            HEAD_TREE=$(git rev-parse -q --verify "HEAD:$CONFIG" || true)
+            MAIN_TREE=$(git rev-parse -q --verify "origin/main:$CONFIG" || true)
+            if [ -n "$MAIN_TREE" ] && [ "$HEAD_TREE" != "$MAIN_TREE" ]; then
+              gum style --foreground 1 "$CONFIG differs from origin/main — this would publish content that is not on main"
+              git --no-pager diff --stat origin/main -- "$CONFIG"
+              gum style --foreground 8 "  switch to main and pull, or set FORCE=1 to publish this tree anyway"
+              exit 1
+            fi
+          fi
         fi
 
         META="$CONFIG/crossplane.yaml"
