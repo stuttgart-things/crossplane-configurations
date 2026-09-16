@@ -15,7 +15,7 @@ Per `spec.k8sAuths` entry, all named after `{clusterName}-{name}`:
 | MR | Vault object | When |
 |---|---|---|
 | `auth.vault.m.upbound.io/Backend` `…-backend` | kubernetes auth mount `{clusterName}-{name}` | always |
-| `vault.vault.m.upbound.io/Policy` `…-policy-{p}` | policy `{clusterName}-{p}` | per `policies` entry |
+| `vault.vault.m.upbound.io/Policy` `…-policy-{p}` | policy `xp-{clusterName}-{p}` | per `policies` entry |
 | `kubernetes.vault.m.upbound.io/AuthBackendRole` `…-role` | `auth/{mount}/role/{name}` | once the mount **and every created policy** are Ready — then sticky |
 | `kubernetes.vault.m.upbound.io/AuthBackendConfig` `…-config` | `auth/{mount}/config` | with `backendConfig`, once the mount is Ready and the CA is readable — then sticky |
 
@@ -121,6 +121,13 @@ The order:
      policies nothing is destroyed; or
    - `tofu state rm` every address in the Workspace's state first, so the
      destroy has nothing to remove.
+   Policies created by bootstrap/vault-auth are named `{clusterName}-{name}`; this
+   Configuration names them `xp-{clusterName}-{name}`. On adoption the new names
+   appear as missing and are created at hand-over (listed in
+   `createOnHandOver`), and the role's `tokenPolicies` show as a difference until
+   the spec and Vault agree. The old policies are left in Vault — delete them by
+   hand once no role names them. On u26-kind3 no vault-auth XR creates policies
+   (`policies: {}` throughout), so there is nothing to rename there.
 4. **Set `deleteOnRemoval: true`.** From here this XR is the only owner, and
    deleting it deletes the Vault objects as a fresh one would.
 
@@ -128,6 +135,43 @@ The order:
 > u26-kind3 is still missing the ACL for this (#454 point 1). The hand-over logic
 > itself is covered by the `xr-max` golden and render variants; step 3 is the
 > part to walk through by hand on a test cluster first.
+
+## Who may grant what
+
+Decided in #454 (point 5). Recorded here because it is a boundary, not a detail.
+
+`VaultK8sAuth` builds every policy body itself; free-form HCL is never accepted,
+so no XR can grant `sys/`, `auth/` or `sudo`. What it **can** grant is read on
+**any KV mount and any subtree**:
+
+- `kvMount` is a free string — any mount.
+- `read` entries other than `own` are literals. With a `<mount>/<cluster>` layout
+  `read: [homerun2-test1]` *is* that cluster's subtree, so one cluster's XR can
+  grant itself a neighbour's secrets.
+
+Both are **accepted**, not restricted in the package. The boundary is layered:
+
+| | prevents | enforced by |
+|---|---|---|
+| **Fixed prefix `xp-`.** Every created policy is `xp-{clusterName}-{name}`; the AppRole behind the ClusterProviderConfig gets `sys/policies/acl/xp-*` only | overwriting a hand-maintained policy (`pki-issue`, `read-homerun2-pr`, …) — whatever the XR says | Vault |
+| **RBAC on `vaultk8sauths.vault.stuttgart-things.com`.** Create/update only for the platform/machinery identity | a tenant granting itself read on someone else's mount or subtree | Kubernetes |
+
+Not chosen, and why:
+
+- **A per-cluster prefix** (`sys/policies/acl/<cluster>-*`) cannot be enforced: one
+  AppRole serves all clusters, and Vault globs only at the end of a path.
+- **An allow-list of mounts/subtrees** (EnvironmentConfig, enforced by the
+  Composition) was proposed and declined — RBAC is the boundary. If one is added
+  later it restricts mounts only, not subtrees.
+
+**RBAC as it stands.** Crossplane creates `crossplane:composite:vaultk8sauths…:aggregate-to-edit`
+for this XRD, labelled into Crossplane's **own** `crossplane-edit` /
+`crossplane-admin` — not into Kubernetes' built-in `edit` / `admin`. So a
+namespace `edit` binding does *not* allow creating a `VaultK8sAuth`; a binding to
+`crossplane-edit` or `crossplane-admin` does, for **every** XR kind at once. On
+u26-kind3 (2026-09-16) the only such binding is `crossplane-admin` →
+`Group:crossplane:masters`. Keep it that way: grant tenants roles that list their
+XR kinds explicitly rather than `crossplane-edit`.
 
 ## Readiness and status
 
@@ -146,7 +190,8 @@ The order:
    [examples/cluster-provider-config.yaml](examples/cluster-provider-config.yaml).
    The AppRole behind it needs `sudo` + create/update/delete on `sys/auth/*`
    (mounting an auth backend is root-protected; without `delete` teardown
-   orphans the mount) and create/update/delete on `sys/policies/acl/*` and `auth/*`.
+   orphans the mount), create/update/delete on **`sys/policies/acl/xp-*`** — not
+   `*`, see [Who may grant what](#who-may-grant-what) — and on `auth/*`.
 
    The credentials Secret can be derived from an existing `terraform.tfvars`-shaped
    AppRole Secret without printing anything. `kubectl create`, **not** `apply`:
