@@ -9,7 +9,8 @@ The Composition is a thin [`function-kcl`](https://github.com/crossplane-contrib
 | # | Kind | Purpose | Condition |
 |---|------|---------|-----------|
 | 1 | `kubernetes.m.crossplane.io/v1alpha1` Object | observe the target `RemoteCluster` — the install gate | when `spec.clusterName` is set |
-| 2 | `helm.m.crossplane.io/v1beta1` Release | the CNI chart | once the gate opens |
+| 2 | `helm.m.crossplane.io/v1beta1` Release | Gateway API CRDs | `spec.gatewayAPI.enabled`, once the gate opens |
+| 3 | `helm.m.crossplane.io/v1beta1` Release | the CNI chart | once the gate opens **and** the CRDs are Ready |
 
 Render and status happen in a single KCL pass — `status.ready` starts `false` and flips `true` once the Release reports Ready.
 
@@ -38,7 +39,24 @@ With `kubeProxyReplacement: false` the host/port are omitted entirely: a real ku
 - **Kind:** `Cni`
 - **Scope:** `Namespaced` (v2 XRD — no claim)
 
-### Spec
+### Gateway API comes first (v0.1.3)
+
+Cilium enables its Gateway controller **only if the CRDs exist when it starts**. Installed afterwards, `gatewayAPI.enabled` is a no-op until the operator and the agents restart.
+
+`spec.gatewayAPI.enabled` therefore installs them as a Release of their own, **withholds the CNI Release until that one is Ready**, and sets `gatewayAPI` in the cilium values — one switch, not two that can disagree. That gate is sticky: once the CNI Release exists it keeps being emitted, because not emitting a composed resource is how Crossplane deletes it.
+
+The version is paired with the cilium minor (cilium docs):
+
+| cilium | Gateway API | chart |
+|---|---|---|
+| 1.19.x | 1.4.1 | `oci://ghcr.io/stuttgart-things/charts/gateway-api-crds:1.4.1` |
+| 1.20.x | 1.6.1 | `…:1.6.1` |
+
+An unknown minor is **not guessed** — `spec.gatewayAPI.version` has to name it, and the render fails saying so. Upstream publishes no Gateway API chart at all (`gateway-api-charts.sigs.k8s.io` does not even resolve), which is why the default points at the chart in `stuttgart-things/stuttgart-things` that vendors the release manifest.
+
+On rke2 the CRDs also arrive via `rke2-traefik-crd` — but after the CNI, and at rke2's pinned version (v1.5.1 on v1.36.4, pairing with neither cilium 1.19 nor 1.20). Turn that off (`ingress-controller: none` plus the CRD chart in `disable`) and let this own them.
+
+## Spec
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|

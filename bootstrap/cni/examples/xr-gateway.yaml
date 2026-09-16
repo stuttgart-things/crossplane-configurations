@@ -1,0 +1,39 @@
+---
+# Cilium with Gateway API: the CRDs are installed FIRST, as a Release of their
+# own, and the CNI Release waits until they are Ready.
+#
+# Cilium enables its Gateway controller only if the CRDs exist when it starts —
+# installed afterwards, `gatewayAPI.enabled` is a no-op until the operator and
+# agents restart. On rke2 the CRDs do arrive on their own (rke2-traefik-crd), but
+# after the CNI and at rke2's pinned version, so disable that chart
+# (`ingress-controller: none` plus the CRD chart in `disable`) and let this own
+# them.
+#
+# The golden for this example is thin on purpose: `crossplane render` observes
+# nothing, so the RemoteCluster gate never opens and neither Release is emitted.
+# What it does cover is that the XRD accepts the block and that the version
+# pairing resolves — an unknown cilium minor fails the render here.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cni
+metadata:
+  name: rke2-gateway
+  namespace: crossplane-system
+spec:
+  clusterName: rke2-gateway
+  provider: cilium
+  chart:
+    version: "1.19.6"
+  cilium:
+    kubeProxyReplacement: true
+    # Single node: the agent and operator run in the host network, so this is
+    # not tied to a DHCP lease.
+    k8sServiceHost: 127.0.0.1
+    k8sServicePort: 6443
+  gatewayAPI:
+    # Version comes from the cilium minor: 1.19 pairs with Gateway API 1.4.1.
+    enabled: true
+  values:
+    l2announcements:
+      enabled: true
+    externalIPs:
+      enabled: true
