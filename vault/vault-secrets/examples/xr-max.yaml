@@ -1,0 +1,48 @@
+# Maximal VaultSecretSet — every spec field set: a mount it creates itself,
+# keepOnDelete, two secrets, all three value sources and all three charsets.
+#
+# For `crossplane render` both the source Secret and the composed data Secrets
+# are fixtures in tests/render/extra-resources/vault/vault-secrets/ — without the
+# latter every render generates new random values and the golden never settles.
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultSecretSet
+metadata:
+  name: vault-secrets-max
+  namespace: default
+spec:
+  providerConfigRef:
+    name: vault
+    kind: ClusterProviderConfig
+  mount:
+    path: xpv-proto-kv
+    type: kv-v2
+    create: true
+    description: prototype KV v2 mount composed by vault-secrets
+  keepOnDelete: true
+  secrets:
+    - path: apps/demo/db
+      deleteAllVersions: true
+      data:
+        - key: username
+          value: demo
+        - key: password
+          generate:
+            length: 32
+            charset: alphanumeric
+        - key: pin
+          generate:
+            length: 8
+            charset: numeric
+        - key: admin-token
+          secretKeyRef:
+            name: demo-source # pragma: allowlist secret
+            key: admin-token
+    - path: apps/demo/api
+      deleteAllVersions: false
+      data:
+        - key: signing-key
+          generate:
+            length: 64
+            charset: ascii
+        - key: endpoint
+          value: https://api.demo.example.com

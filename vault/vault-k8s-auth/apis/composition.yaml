@@ -1,0 +1,267 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: vault-k8s-auth
+  labels:
+    crossplane.io/xrd: vaultk8sauths.vault.stuttgart-things.com
+    provider-vault: "true"
+    service: vault-k8s-auth
+spec:
+  compositeTypeRef:
+    apiVersion: vault.stuttgart-things.com/v1alpha1
+    kind: VaultK8sAuth
+  mode: Pipeline
+  pipeline:
+    - step: render-vault-k8s-auth
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: | # pragma: allowlist secret
+            {{- $xr := .observed.composite.resource }}
+            {{- $spec := $xr.spec }}
+            {{- $xrName := $xr.metadata.name }}
+            {{- $xrNs := $xr.metadata.namespace }}
+            {{- $cluster := $spec.clusterName }}
+            {{- /* `crossplane render` applies no XRD defaults (CLAUDE.md gotcha 5),
+                   so every default below restates the XRD's. */}}
+            {{- $pc := $spec.providerConfigRef | default dict }}
+            {{- $pcName := $pc.name | default "vault" }}
+            {{- $pcKind := $pc.kind | default "ClusterProviderConfig" }}
+            {{- $k8sHost := $spec.kubernetesHost | default "https://kubernetes.default.svc:443" }}
+            {{- $observed := .observed.resources | default dict }}
+            {{- $extras := .extraResources | default dict }}
+            {{- $auths := $spec.k8sAuths | default list }}
+
+            {{- /* Reviewer Secrets are read for their CA only — the JWT stays in
+                   the Secret and reaches provider-vault by reference. */}}
+            {{- $wantReviewer := false }}
+            {{- range $a := $auths }}{{ if $a.backendConfig }}{{ $wantReviewer = true }}{{ end }}{{ end }}
+            {{- if $wantReviewer }}
+            ---
+            apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
+            kind: ExtraResources
+            requirements:
+            {{- range $a := $auths }}
+            {{- if $a.backendConfig }}
+              reviewer-{{ $a.name }}:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ $a.backendConfig.secretName | quote }}
+                namespace: {{ $xrNs | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+
+            {{- $shareAuths := list }}
+            {{- $pending := list }}
+            {{- range $a := $auths }}
+            {{- $mount := printf "%s-%s" $cluster $a.name }}
+            {{- $backendName := printf "%s-backend" $mount }}
+            {{- $roleName := printf "%s-role" $mount }}
+            {{- $configName := printf "%s-config" $mount }}
+
+            {{- /* Readiness of what already exists. `dig` rather than field access:
+                   a composed resource that has not been observed yet has no
+                   status, and .status.conditions on nil is a template error. */}}
+            {{- $backendReady := false }}
+            {{- $backendObs := index $observed $backendName }}
+            {{- if $backendObs }}
+            {{-   range (dig "status" "conditions" list $backendObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $backendReady = true }}{{ end }}{{ end }}
+            {{- end }}
+
+            {{- $policyNames := list }}
+            {{- $policiesReady := true }}
+            {{- range $p := ($a.policies | default list) }}
+            {{-   $pName := printf "%s-%s" $cluster $p.name }}
+            {{-   $policyNames = append $policyNames $pName }}
+            {{-   $pReady := false }}
+            {{-   $pObs := index $observed (printf "%s-policy-%s" $mount $p.name) }}
+            {{-   if $pObs }}
+            {{-     range (dig "status" "conditions" list $pObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $pReady = true }}{{ end }}{{ end }}
+            {{-   end }}
+            {{-   if not $pReady }}{{ $policiesReady = false }}{{ end }}
+            {{- end }}
+
+            {{- $roleObs := index $observed $roleName }}
+            {{- $roleReady := false }}
+            {{- if $roleObs }}
+            {{-   range (dig "status" "conditions" list $roleObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $roleReady = true }}{{ end }}{{ end }}
+            {{- end }}
+
+            {{- /* backendConfig: the CA, from the reviewer Secret — or, once composed,
+                   from the MR itself, so a reviewer Secret that is briefly absent
+                   (rotated, re-created by its own XR) does not remove the config
+                   from Vault and lock every login out. */}}
+            {{- $bc := $a.backendConfig }}
+            {{- $configObs := index $observed $configName }}
+            {{- $configReady := false }}
+            {{- $ca := "" }}
+            {{- if $bc }}
+            {{-   $req := index $extras (printf "reviewer-%s" $a.name) }}
+            {{-   if and $req $req.items }}
+            {{-     $caB64 := dig "resource" "data" ($bc.caCertKey | default "ca.crt") "" (index $req.items 0) }}
+            {{-     if $caB64 }}{{ $ca = b64dec $caB64 }}{{ end }}
+            {{-   end }}
+            {{-   if and (not $ca) $configObs }}
+            {{-     $ca = dig "spec" "forProvider" "kubernetesCaCert" "" $configObs.resource }}
+            {{-   end }}
+            {{-   if $configObs }}
+            {{-     range (dig "status" "conditions" list $configObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $configReady = true }}{{ end }}{{ end }}
+            {{-   end }}
+            {{- end }}
+            {{- $configWaiting := and $bc (not $ca) }}
+            {{- if $configWaiting }}{{ $pending = append $pending (printf "%s: reviewer Secret %s/%s has no %s" $a.name $xrNs $bc.secretName ($bc.caCertKey | default "ca.crt")) }}{{ end }}
+            ---
+            # AUTH MOUNT. Deleting it removes the role and config inside Vault as
+            # well, so their MRs deleting afterwards find nothing — that is fine.
+            apiVersion: auth.vault.m.upbound.io/v1alpha1
+            kind: Backend
+            metadata:
+              name: {{ $backendName }}
+              annotations:
+                {{ setResourceNameAnnotation $backendName }}
+                {{- if $configWaiting }}
+                # Not Ready while the TokenReview config cannot be composed: the
+                # mount exists but no login can succeed yet, and without this the
+                # XR would report Ready on the strength of the mount alone.
+                gotemplating.fn.crossplane.io/ready: "False"
+                {{- end }}
+              labels:
+                vault.stuttgart-things.com/cluster: {{ $cluster }}
+                vault.stuttgart-things.com/auth: {{ $a.name }}
+            spec:
+              providerConfigRef:
+                name: {{ $pcName }}
+                kind: {{ $pcKind }}
+              forProvider:
+                type: kubernetes
+                path: {{ $mount }}
+            {{- range $p := ($a.policies | default list) }}
+            {{- $pMr := printf "%s-policy-%s" $mount $p.name }}
+            ---
+            # POLICY {{ $cluster }}-{{ $p.name }} — body built from kvMount + read,
+            # four paths per subtree: Vault matches exactly unless a path ends in a
+            # glob, so x/data/foo/* alone denies the secret AT x/data/foo.
+            apiVersion: vault.vault.m.upbound.io/v1alpha1
+            kind: Policy
+            metadata:
+              name: {{ $pMr }}
+              annotations:
+                {{ setResourceNameAnnotation $pMr }}
+              labels:
+                vault.stuttgart-things.com/cluster: {{ $cluster }}
+                vault.stuttgart-things.com/auth: {{ $a.name }}
+            spec:
+              providerConfigRef:
+                name: {{ $pcName }}
+                kind: {{ $pcKind }}
+              forProvider:
+                name: {{ printf "%s-%s" $cluster $p.name }}
+                policy: |
+                  {{- range $s := $p.read }}
+                  {{- $sub := ternary $cluster $s (eq $s "own") }}
+                  path "{{ $p.kvMount }}/data/{{ $sub }}" { capabilities = ["read"] }
+                  path "{{ $p.kvMount }}/data/{{ $sub }}/*" { capabilities = ["read"] }
+                  path "{{ $p.kvMount }}/metadata/{{ $sub }}" { capabilities = ["read", "list"] }
+                  path "{{ $p.kvMount }}/metadata/{{ $sub }}/*" { capabilities = ["read", "list"] }
+                  {{- end }}
+            {{- end }}
+
+            {{- /* ROLE — gated on the mount and every created policy being Ready.
+                   Sticky: once composed it stays composed, or a Ready blip on a
+                   policy would delete the role and break every login mid-flight. */}}
+            {{- if or $roleObs (and $backendReady $policiesReady) }}
+            ---
+            apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
+            kind: AuthBackendRole
+            metadata:
+              name: {{ $roleName }}
+              annotations:
+                {{ setResourceNameAnnotation $roleName }}
+              labels:
+                vault.stuttgart-things.com/cluster: {{ $cluster }}
+                vault.stuttgart-things.com/auth: {{ $a.name }}
+            spec:
+              providerConfigRef:
+                name: {{ $pcName }}
+                kind: {{ $pcKind }}
+              forProvider:
+                backend: {{ $mount }}
+                roleName: {{ $a.name }}
+                boundServiceAccountNames: {{ $a.boundServiceAccountNames | default (list "default") | toJson }}
+                boundServiceAccountNamespaces: {{ $a.boundServiceAccountNamespaces | default (list "default") | toJson }}
+                tokenTtl: {{ $a.tokenTtl | default 3600 }}
+                tokenPolicies: {{ concat ($a.tokenPolicies | default list) $policyNames | toJson }}
+            {{- end }}
+
+            {{- if and $bc $ca (or $configObs $backendReady) }}
+            ---
+            apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
+            kind: AuthBackendConfig
+            metadata:
+              name: {{ $configName }}
+              annotations:
+                {{ setResourceNameAnnotation $configName }}
+              labels:
+                vault.stuttgart-things.com/cluster: {{ $cluster }}
+                vault.stuttgart-things.com/auth: {{ $a.name }}
+            spec:
+              providerConfigRef:
+                name: {{ $pcName }}
+                kind: {{ $pcKind }}
+              forProvider:
+                backend: {{ $mount }}
+                kubernetesHost: {{ $k8sHost | quote }}
+                kubernetesCaCert: {{ $ca | quote }}
+                tokenReviewerJwtSecretRef:
+                  name: {{ $bc.secretName }}
+                  key: {{ $bc.tokenKey | default "token" }}
+                disableIssValidation: {{ ternary $bc.disableIssValidation true (hasKey $bc "disableIssValidation") }}
+                disableLocalCaJwt: {{ ternary $bc.disableLocalCaJwt true (hasKey $bc "disableLocalCaJwt") }}
+            {{- end }}
+
+            {{- $authReady := and $backendReady $policiesReady $roleReady (or (not $bc) $configReady) }}
+            {{- $entry := dict "name" $a.name "ready" $authReady }}
+            {{- if $backendReady }}{{ $_ := set $entry "mountPath" $mount }}{{ end }}
+            {{- if $roleReady }}{{ $_ := set $entry "role" $a.name }}{{ end }}
+            {{- if and $policyNames $policiesReady }}{{ $_ := set $entry "policies" $policyNames }}{{ end }}
+            {{- $shareAuths = append $shareAuths $entry }}
+            {{- end }}
+
+            {{- $allReady := gt (len $shareAuths) 0 }}
+            {{- range $shareAuths }}{{ if not .ready }}{{ $allReady = false }}{{ end }}{{ end }}
+            ---
+            apiVersion: {{ $xr.apiVersion }}
+            kind: {{ $xr.kind }}
+            status:
+              share:
+                clusterName: {{ $cluster }}
+                {{- if $spec.vaultAddr }}
+                vaultAddr: {{ $spec.vaultAddr | quote }}
+                {{- end }}
+                auths: {{ $shareAuths | toJson }}
+                ready: {{ $allReady }}
+            {{- if $wantReviewer }}
+            ---
+            apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
+            kind: ClaimConditions
+            conditions:
+              {{- if $pending }}
+              - type: ReviewerSecretReady
+                status: "False"
+                reason: ReviewerSecretMissing
+                message: {{ join "; " $pending | quote }}
+              {{- else }}
+              - type: ReviewerSecretReady
+                status: "True"
+                reason: Available
+              {{- end }}
+            {{- end }}
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

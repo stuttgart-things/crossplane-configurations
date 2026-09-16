@@ -1,0 +1,53 @@
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: vault-secrets
+  annotations:
+    # Local convention used by `task push` to bump and re-publish.
+    # Not a Crossplane-standard field — the true package version is the OCI tag.
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Writes secrets into a Vault KV engine (v2 or v1) from a namespaced
+      `VaultSecretSet` XR, via provider-vault. Each key's value is a literal,
+      a key of a Secret in the XR's namespace, or generated once at random and
+      kept. Optionally composes the KV mount itself (never deletes it).
+      PROTOTYPE.
+    meta.crossplane.io/readme: |
+      # vault-secrets (prototype)
+
+      One `VaultSecretSet` = one KV mount + N secret paths. Per path the
+      Composition (function-go-templating) builds the JSON document, stores it
+      in a composed Secret `<xr>-<hash>` next to the XR, and composes a
+      `kv.vault.m.upbound.io` SecretV2 (or Secret for kv v1) that references it
+      via `dataJsonSecretRef` — no value ever sits in an MR spec.
+
+      Value sources per key — exactly one:
+
+      - `value` — literal, for non-sensitive data only
+      - `secretKeyRef` — a Secret key in the XR's OWN namespace
+      - `generate` — random (`alphanumeric` / `ascii` / `numeric`, 8–256), generated
+        once and read back from the composed Secret on every reconcile
+
+      A secret is written only once every source resolves. If a source
+      disappears later, the last written value is kept and `SourcesResolved`
+      goes False. The XR owns the whole secret at a path.
+
+      ## Cluster preconditions
+
+      - provider-vault installed (`upbound-provider-vault`).
+      - A `vault.m.upbound.io` ClusterProviderConfig (default `vault`) whose login
+        may write `<mount>/data/*` and `<mount>/metadata/*`.
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    # provider-vault is published only on the Upbound mirror.
+    - provider: xpkg.upbound.io/upbound/provider-vault
+      version: ">=v4.0.4,<v5.0.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-go-templating
+      version: ">=v0.12.1,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"

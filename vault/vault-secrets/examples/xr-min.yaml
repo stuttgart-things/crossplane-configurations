@@ -1,0 +1,16 @@
+# Minimal VaultSecretSet — only required fields. Exercises the defaults:
+# providerConfigRef vault/ClusterProviderConfig, mount type kv-v2, create false,
+# keepOnDelete false, generate length 32 alphanumeric.
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultSecretSet
+metadata:
+  name: vault-secrets-min
+  namespace: default
+spec:
+  mount:
+    path: xpv-proto-kv
+  secrets:
+    - path: demo/min
+      data:
+        - key: password
+          generate: {}

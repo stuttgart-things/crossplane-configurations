@@ -1,0 +1,173 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: vaultsecretsets.vault.stuttgart-things.com
+spec:
+  group: vault.stuttgart-things.com
+  scope: Namespaced
+  defaultCompositeDeletePolicy: Foreground
+  names:
+    kind: VaultSecretSet
+    plural: vaultsecretsets
+    singular: vaultsecretset
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                providerConfigRef:
+                  type: object
+                  description: "provider-vault ProviderConfig / ClusterProviderConfig (vault.m.upbound.io)."
+                  properties:
+                    name:
+                      type: string
+                      default: vault
+                    kind:
+                      type: string
+                      enum:
+                        - ClusterProviderConfig
+                        - ProviderConfig
+                      default: ClusterProviderConfig
+                mount:
+                  type: object
+                  description: The KV secret engine every entry of `secrets` is written to.
+                  required:
+                    - path
+                  properties:
+                    path:
+                      type: string
+                      minLength: 1
+                      pattern: "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"
+                    type:
+                      type: string
+                      enum:
+                        - kv-v2
+                        - kv
+                      default: kv-v2
+                      description: "kv-v2 (versioned) or kv (version 1)."
+                    create:
+                      type: boolean
+                      default: false
+                      description: >-
+                        Compose the mount as well. It is composed WITHOUT the
+                        Delete management policy: deleting a KV mount deletes every
+                        secret in it, including ones this XR never wrote, so
+                        removing the XR orphans the mount on purpose. Leave false to
+                        write into a mount that already exists — creating a mount
+                        on a path that is in use fails.
+                    description:
+                      type: string
+                keepOnDelete:
+                  type: boolean
+                  default: false
+                  description: >-
+                    Leave the written secrets in Vault when the XR is deleted
+                    (managementPolicies without Delete).
+                secrets:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: object
+                    required:
+                      - path
+                      - data
+                    properties:
+                      path:
+                        type: string
+                        minLength: 1
+                        pattern: "^[a-zA-Z0-9][a-zA-Z0-9._/-]*[a-zA-Z0-9._-]$"
+                        description: >-
+                          Secret path below the mount, e.g. `apps/demo/db`. The XR
+                          owns the WHOLE secret at that path: keys written by
+                          anything else are removed on the next reconcile.
+                      deleteAllVersions:
+                        type: boolean
+                        default: false
+                        description: "kv-v2 only: on delete, destroy every version and the metadata instead of soft-deleting the latest version."
+                      data:
+                        type: array
+                        minItems: 1
+                        maxItems: 100
+                        x-kubernetes-list-type: map
+                        x-kubernetes-list-map-keys:
+                          - key
+                        items:
+                          type: object
+                          required:
+                            - key
+                          x-kubernetes-validations:
+                            # Arithmetic, not a list + filter(): the list form is
+                            # multiplied by both array bounds and was rejected by
+                            # the API server at 1.8x the CEL cost budget.
+                            - rule: "(has(self.value) ? 1 : 0) + (has(self.secretKeyRef) ? 1 : 0) + (has(self.generate) ? 1 : 0) == 1"
+                              message: each data entry needs exactly one of value, secretKeyRef or generate
+                          properties:
+                            key:
+                              type: string
+                              minLength: 1
+                              description: "Key inside the Vault secret."
+                            value:
+                              type: string
+                              description: >-
+                                Literal value. For NON-sensitive data only (a
+                                username, a URL) — it is stored in the XR in clear
+                                text. Anything sensitive comes in via secretKeyRef.
+                            secretKeyRef:
+                              type: object
+                              description: >-
+                                A key of a Secret in the XR's OWN namespace. No
+                                namespace field, deliberately: reading across
+                                namespaces would let anyone allowed to create this
+                                XR copy any Secret the Crossplane core can read into
+                                a Vault path they can read back.
+                              required:
+                                - name
+                                - key
+                              properties:
+                                name:
+                                  type: string
+                                key:
+                                  type: string
+                            generate:
+                              type: object
+                              description: >-
+                                Generate a random value ONCE. It is kept in the
+                                composed `<xr>-<hash>` Secret next to the XR and
+                                reused on every reconcile. If that Secret is deleted
+                                a NEW value is generated and overwrites Vault — which
+                                is the rotation path, and also the footgun.
+                              properties:
+                                length:
+                                  type: integer
+                                  minimum: 8
+                                  maximum: 256
+                                  default: 32
+                                charset:
+                                  type: string
+                                  enum:
+                                    - alphanumeric
+                                    - ascii
+                                    - numeric
+                                  default: alphanumeric
+                                  description: "ascii = printable ASCII incl. punctuation; numeric = digits only."
+              required:
+                - mount
+                - secrets
+            status:
+              type: object
+              properties:
+                share:
+                  type: object
+                  description: >- # pragma: allowlist secret
+                    Per secret: its path, whether Vault has it, and the name of the
+                    local Secret carrying the JSON that was written — a consumer in
+                    the same namespace can mount that instead of reading Vault.
+                  x-kubernetes-preserve-unknown-fields: true

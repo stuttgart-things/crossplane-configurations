@@ -1,0 +1,128 @@
+---
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultSecretSet
+metadata:
+  name: vault-secrets-max
+  namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: v1
+      kind: Secret
+      name: vault-secrets-max-01973472
+    - apiVersion: v1
+      kind: Secret
+      name: vault-secrets-max-7ef99ccb
+    - apiVersion: vault.vault.m.upbound.io/v1alpha1
+      kind: Mount
+      name: vault-secrets-max-mount
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: Available
+    status: "True"
+    type: SourcesResolved
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: Creating
+    status: "False"
+    type: Ready
+  share:
+    engine: kv-v2
+    mount: xpv-proto-kv
+    ready: false
+    secrets:
+    - dataSecret: vault-secrets-max-7ef99ccb
+      generated:
+      - password
+      - pin
+      path: apps/demo/db
+      ready: false
+    - dataSecret: vault-secrets-max-01973472
+      generated:
+      - signing-key
+      path: apps/demo/api
+      ready: false
+---
+apiVersion: v1
+data:
+  data.json: eyJlbmRwb2ludCI6Imh0dHBzOi8vYXBpLmRlbW8uZXhhbXBsZS5jb20iLCJzaWduaW5nLWtleSI6IkZJWFRVUkVcXFxcIFwicXVvdGVkXCIgXHUwMDNjdGFnXHUwMDNlIFx1MDAyNiAkeDogI3kifQ==
+kind: Secret
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secrets-max-01973472
+    vault.stuttgart-things.com/path: xpv-proto-kv/apps/demo/api
+  labels:
+    crossplane.io/composite: vault-secrets-max
+    vault.stuttgart-things.com/secret-set: vault-secrets-max
+  name: vault-secrets-max-01973472
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultSecretSet
+    name: vault-secrets-max
+    uid: 72fe835c-1fb0-5807-b0b1-c9b18ac74ff9
+type: Opaque
+---
+apiVersion: v1
+data:
+  data.json: eyJhZG1pbi10b2tlbiI6IkZJWFRVUkUtQURNSU4tVE9LRU4iLCJwYXNzd29yZCI6IkZJWFRVUkUtR0VORVJBVEVELVBBU1NXT1JELTAwMDIiLCJwaW4iOiIxMjM0NTY3OCIsInVzZXJuYW1lIjoiZGVtbyJ9
+kind: Secret
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secrets-max-7ef99ccb
+    vault.stuttgart-things.com/path: xpv-proto-kv/apps/demo/db
+  labels:
+    crossplane.io/composite: vault-secrets-max
+    vault.stuttgart-things.com/secret-set: vault-secrets-max
+  name: vault-secrets-max-7ef99ccb
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultSecretSet
+    name: vault-secrets-max
+    uid: 72fe835c-1fb0-5807-b0b1-c9b18ac74ff9
+type: Opaque
+---
+apiVersion: vault.vault.m.upbound.io/v1alpha1
+kind: Mount
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secrets-max-mount
+  labels:
+    crossplane.io/composite: vault-secrets-max
+  name: vault-secrets-max-mount
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultSecretSet
+    name: vault-secrets-max
+    uid: 72fe835c-1fb0-5807-b0b1-c9b18ac74ff9
+spec:
+  forProvider:
+    description: prototype KV v2 mount composed by vault-secrets
+    options:
+      version: "2"
+    path: xpv-proto-kv
+    type: kv
+  managementPolicies:
+  - Observe
+  - Create
+  - Update
+  - LateInitialize
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault

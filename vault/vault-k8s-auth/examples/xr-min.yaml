@@ -1,0 +1,13 @@
+# Minimal VaultK8sAuth — only XRD-required fields. Exercises the defaults
+# (providerConfigRef vault/ClusterProviderConfig, tokenTtl, bound SA names and
+# namespaces). No backendConfig, so the auth mount gets no TokenReview config.
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultK8sAuth
+metadata:
+  name: vault-k8s-auth-min
+  namespace: default
+spec:
+  clusterName: xpv-proto
+  k8sAuths:
+    - name: dev
+      tokenPolicies: ["read-all-s3-kvv2"]

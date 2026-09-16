@@ -1,0 +1,125 @@
+---
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultK8sAuth
+metadata:
+  name: vault-k8s-auth
+  namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: auth.vault.m.upbound.io/v1alpha1
+      kind: Backend
+      name: xpv-proto-dev-backend
+    - apiVersion: auth.vault.m.upbound.io/v1alpha1
+      kind: Backend
+      name: xpv-proto-eso-backend
+    - apiVersion: vault.vault.m.upbound.io/v1alpha1
+      kind: Policy
+      name: xpv-proto-eso-policy-kv-own
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: xpv-proto-dev-backend, xpv-proto-eso-backend, and
+      xpv-proto-eso-policy-kv-own'
+    reason: Creating
+    status: "False"
+    type: Ready
+  share:
+    auths:
+    - name: dev
+      ready: false
+    - name: eso
+      ready: false
+    clusterName: xpv-proto
+    ready: false
+    vaultAddr: https://vault.example.com
+---
+apiVersion: auth.vault.m.upbound.io/v1alpha1
+kind: Backend
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: xpv-proto-dev-backend
+  labels:
+    crossplane.io/composite: vault-k8s-auth
+    vault.stuttgart-things.com/auth: dev
+    vault.stuttgart-things.com/cluster: xpv-proto
+  name: xpv-proto-dev-backend
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultK8sAuth
+    name: vault-k8s-auth
+    uid: 33c6e3af-63f8-598a-bae7-fb9754c5d46f
+spec:
+  forProvider:
+    path: xpv-proto-dev
+    type: kubernetes
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault
+---
+apiVersion: auth.vault.m.upbound.io/v1alpha1
+kind: Backend
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: xpv-proto-eso-backend
+  labels:
+    crossplane.io/composite: vault-k8s-auth
+    vault.stuttgart-things.com/auth: eso
+    vault.stuttgart-things.com/cluster: xpv-proto
+  name: xpv-proto-eso-backend
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultK8sAuth
+    name: vault-k8s-auth
+    uid: 33c6e3af-63f8-598a-bae7-fb9754c5d46f
+spec:
+  forProvider:
+    path: xpv-proto-eso
+    type: kubernetes
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault
+---
+apiVersion: vault.vault.m.upbound.io/v1alpha1
+kind: Policy
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: xpv-proto-eso-policy-kv-own
+  labels:
+    crossplane.io/composite: vault-k8s-auth
+    vault.stuttgart-things.com/auth: eso
+    vault.stuttgart-things.com/cluster: xpv-proto
+  name: xpv-proto-eso-policy-kv-own
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultK8sAuth
+    name: vault-k8s-auth
+    uid: 33c6e3af-63f8-598a-bae7-fb9754c5d46f
+spec:
+  forProvider:
+    name: xpv-proto-kv-own
+    policy: |
+      path "kv/data/xpv-proto" { capabilities = ["read"] }
+      path "kv/data/xpv-proto/*" { capabilities = ["read"] }
+      path "kv/metadata/xpv-proto" { capabilities = ["read", "list"] }
+      path "kv/metadata/xpv-proto/*" { capabilities = ["read", "list"] }
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault
