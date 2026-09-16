@@ -1,0 +1,107 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: rke2-rancher-1
+  namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: RancherCluster
+      name: rke2-rancher-1-rancher
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: rancher'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  share:
+    clusterName: rke2-rancher-1
+    cniOwnership: platform
+  stage: rancher
+  stages:
+    access:
+      emitted: false
+      ready: false
+    baseos:
+      succeeded: false
+    distribution:
+      emitted: false
+      succeeded: false
+    join:
+      emitted: false
+      succeeded: false
+    kubeconfig:
+      emitted: false
+      succeeded: false
+    managementPlane:
+      emitted: false
+      ready: false
+    platform:
+      emitted: false
+      ready: false
+    rancher:
+      emitted: true
+      nodeCommandSecret: ""
+    vm:
+      ip: ""
+      ready: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rancher
+  labels:
+    crossplane.io/composite: rke2-rancher-1
+  name: rke2-rancher-1-rancher
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rke2-rancher-1
+    uid: a9303176-99df-5a6a-b0b8-ffa8a0bb3a13
+spec:
+  argocd:
+    annotations:
+      clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki-k8s
+    labels:
+      env: LabUL
+      network-platform: "true"
+      network-platform/cert-manager-cluster-ca: "true"
+      network-platform/cert-manager-install: "true"
+      network-platform/cert-manager-selfsigned: "true"
+      network-platform/cert-manager-vault-pki: "false"
+      network-platform/cilium-lb: "true"
+      network-platform/trust-manager-bundle: "true"
+      network-platform/trust-manager-install: "true"
+    register: true
+    reservation:
+      enabled: true
+      networkKey: 10.31.102
+  environmentConfig: rancher-join-test
+  kubernetesVersion: v1.36.4+rke2r1
+  machineGlobalConfig:
+    cni: none
+    disable:
+    - rke2-traefik-crd
+    - rke2-gateway-api-crd
+    disable-kube-proxy: true
+    ingress-controller: none
+  name: rke2-rancher-1
+  nodeRegistration:
+    publish: true
+    secretNamespace: tekton-ci

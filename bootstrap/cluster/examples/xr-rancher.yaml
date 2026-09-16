@@ -1,0 +1,70 @@
+---
+# A Rancher custom-node rke2 cluster from one XR.
+#
+# `distribution: rancher-rke2` changes the SHAPE of the stack, not just the
+# playbooks: Rancher creates the cluster, so a RancherCluster child comes first,
+# the VM waits for the node-registration command it publishes, and ONE join
+# stage (register + kubeconfig upload) replaces the distribution + kubeconfig
+# pair. Everything after — ClusterAccess, Platform — is the same as elsewhere.
+#
+# The CNI is the one real difference: Rancher's own proxy needs
+# `cattle-cluster-agent`, which needs a pod network, so the cluster is
+# unreachable through Rancher until cilium runs. The catalog entry therefore
+# leaves the CNI to the Platform, and its defaults (API address 127.0.0.1,
+# Gateway API, L2 announcements, externalIPs, hubble) are merged under whatever
+# is set in `platform.cni` here.
+#
+# Its golden is thin by design: `crossplane render` observes nothing, so the
+# RancherCluster is the only child — the VM waits for a Secret that does not
+# exist yet. That IS the first reconcile.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: rke2-rancher-1
+  namespace: default
+spec:
+  provider: proxmox
+  distribution: rancher-rke2
+  size: medium
+  environmentConfig: labul
+  kubeconfig:
+    # The join play uploads with the WRITER approle; the ClusterAccess reads the
+    # entry back through vault-kubeconfigs-infra, derived from this name.
+    vaultSecretName: vault-infra-kubeconfig-writer
+  ansible:
+    join:
+      pipelineNamespace: tekton-ci
+      extraCollections:
+        - https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.915.1292/sthings-rke-26.915.1292.tar.gz
+  # Verbatim passthrough to the RancherCluster child. `name`,
+  # `nodeRegistration.publish` and the machineGlobalConfig baseline come from
+  # the Composition and the catalog.
+  rancher:
+    environmentConfig: rancher-join-test
+    kubernetesVersion: v1.36.4+rke2r1
+    argocd:
+      register: true
+      reservation:
+        enabled: true
+        networkKey: '10.31.102'
+      labels:
+        env: LabUL
+        network-platform: 'true'
+        network-platform/cilium-lb: 'true'
+        network-platform/cert-manager-install: 'true'
+        network-platform/cert-manager-selfsigned: 'true'
+        network-platform/cert-manager-cluster-ca: 'true'
+        network-platform/trust-manager-install: 'true'
+        network-platform/trust-manager-bundle: 'true'
+        # The Platform owns the vault-pki chain here, so the AppSet's issuer
+        # stays off and the wildcard certificate comes from Vault.
+        network-platform/cert-manager-vault-pki: 'false'
+      annotations:
+        clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki-k8s
+  platformEnabled: true
+  platform:
+    vaultIssuer:
+      enabled: true
+      vaultAddr: https://vault.infra.sthings-vsphere.labul.sva.de
+      pkiRole: sthings-vsphere
+      caSourceSecret: vault-pki-source-ca-infra

@@ -74,6 +74,38 @@ Everything is a **child XR** — this Configuration never talks to a provider it
 | 1 | `Platform` | `{name}-platform` | [platform](../platform/) |
 | 1 | `Usage` ×3 | `platform-uses-vm`, `platform-uses-access`, `access-uses-vm` | core Crossplane |
 
+## `distribution: rancher-rke2` — Rancher creates the cluster (v0.7.0)
+
+The catalog entry carries a `provisioner`, and it decides the **shape** of the stack, not just which playbook runs.
+
+```mermaid
+flowchart TD
+    CS["ClusterStack<br/>the XR you apply"]
+    R["RancherCluster<br/>{name}-rancher<br/>Rancher creates the cluster"]
+    VM["NativeProxmoxVM | NativeVsphereVM<br/>{name}-vm<br/>VM + base-OS ansible"]
+    J["AnsibleRun<br/>{name}-join<br/>register + kubeconfig → Vault"]
+    A["ClusterAccess<br/>{name}-access<br/>→ ClusterProviderConfigs"]
+    P["Platform<br/>{name}-platform<br/>cni, issuer, apps"]
+
+    CS --> R
+    R ==>|"node command published"| VM
+    VM ==>|"IP + baseos succeeded"| J
+    J ==>|"succeeded"| A
+    A ==>|"ready"| P
+
+    classDef xr fill:#e8f0fe,stroke:#4285f4,color:#000
+    class CS,R,VM,J,A,P xr
+```
+
+- **The RancherCluster comes first**, configured from `spec.rancher` (verbatim passthrough). The Composition supplies `name` and forces `nodeRegistration.publish`, with `secretNamespace` defaulting to the ansible pipeline namespace — `ansible-run` reads `extraEnvSecretName` from the **PipelineRun's** namespace, so a command published only next to the XR is one the join cannot read.
+- **The VM waits for that Secret.** A node that boots before Rancher minted a token has nothing to join, and the play fails on an empty env var rather than retrying.
+- **One join stage replaces two.** `sthings.rke.rancher_register` registers the node **and** uploads its admin kubeconfig to Vault — both need this node at this moment. Re-run it with `spec.runIDs.join`.
+- **The CNI comes from the Platform, and it has to.** Every path Rancher offers runs through its proxy, which needs `cattle-cluster-agent` — an ordinary Deployment on the pod network. Until cilium runs, that pod stays `Pending` and the Rancher kubeconfig answers **403** (measured). So the cluster is reachable only through the node's own kubeconfig, the catalog entry sets `cniOwnership: platform`, and its `cniDefaults` (API address `127.0.0.1`, Gateway API, L2 announcements, externalIPs, hubble) are merged **under** whatever you put in `platform.cni`.
+- **rke2 is told to stay out of the network** by the catalog's `machineGlobalConfig`: `cni: none`, `disable-kube-proxy: true`, `ingress-controller: none`, and the bundled Gateway API CRD chart disabled — it lands after the CNI and at rke2's pin, pairing with neither cilium 1.19 (1.4.1) nor 1.20 (1.6.1). Override one key with `spec.rancher.machineGlobalConfig`; it merges over the catalog's.
+- **A fourth Usage:** the VM must outlive the RancherCluster, which applies Objects *through* the cluster its own node runs.
+
+Verified end to end by hand before this existed: `rancher-join-test4` on u26-kind3, 2026-09-15 — join clean, kubeconfig in Vault, cilium through the node kubeconfig, then Rancher `Connected`, Argo CD registration with a clusterbook IP, a Vault-signed certificate and an L2-announced LoadBalancer ([#422](https://github.com/stuttgart-things/crossplane-configurations/issues/422), [#438](https://github.com/stuttgart-things/crossplane-configurations/issues/438)). See [`examples/xr-rancher.yaml`](examples/xr-rancher.yaml).
+
 ## Gates: sticky, and keyed on success
 
 Each stage opens when the previous one **succeeded** — not when it is Ready. An `AnsibleRun` whose PipelineRun failed still reports Ready once its Object is applied; unblocking on that would upload a kubeconfig from a cluster that was never installed.
