@@ -363,6 +363,31 @@ spec:
                             type: array
                             items:
                               type: string
+                          createServiceAccounts:
+                            type: boolean
+                            default: false
+                            description: >-
+                              Compose the bound ServiceAccounts on the target —
+                              every (namespace, name) pair this entry names.
+
+                              Vault binds a ServiceAccount by NAME and creates
+                              nothing. On homerun2-test1 external-secrets/eso
+                              came from hand-written Terraform, so a cluster
+                              built from an XR got a mount and a role bound to
+                              an identity that did not exist, and the
+                              ClusterSecretStore failed at login the way the
+                              missing certmanager ServiceAccount did in #435.
+
+                              Opt-in per auth on purpose: cert-manager's auth
+                              binds the CHART's own ServiceAccount, and
+                              composing a second one beside it would be wrong.
+
+                              The namespace is adopted rather than owned
+                              (Observe + Create): external-secrets normally
+                              arrives with its own Argo CD app, and creating it
+                              only when it is missing is what keeps the
+                              ServiceAccount out of a retry loop until that app
+                              shows up.
                           tokenPolicies:
                             type: array
                             items:
@@ -485,6 +510,95 @@ spec:
                     opentofuProviderConfigRef:
                       type: string
                       default: in-cluster
+                clusterSecrets:
+                  type: object
+                  description: >-
+                    The secrets that belong to the CLUSTER rather than to an app
+                    — the Grafana admin, the Alertmanager webhook token. An
+                    OpenTofu Workspace writes them into <mount>/<path> when the
+                    cluster is ordered and DELETES EVERY VERSION on destroy.
+
+                    Until now they were seeded by hand, survived no teardown and
+                    were reconciled by nothing (#438, decision 5.5).
+
+                    Generated values live in the Workspace's tfstate, which is a
+                    Secret on the control plane — the same exposure VaultK8sAuth
+                    already carries for its AppRole credentials.
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                      description: >-
+                        Opt-in. Enabling it is sufficient: the defaults write
+                        exactly what kube-prometheus-stack's ExternalSecrets
+                        read — grafana-admin-user, a generated
+                        grafana-admin-password and a generated
+                        alertmanager-webhook-token.
+                    vaultAddr:
+                      type: string
+                      description: >-
+                        Defaults to vaultIssuer.vaultAddr. One cluster, one
+                        Vault — a second address to keep in step is a second
+                        thing to get wrong.
+                    mount:
+                      type: string
+                      default: observability
+                      description: >-
+                        THE ONLY MOUNT A CLUSTER BUILD MAY SEED. The credential's
+                        policy is one path segment wide on it
+                        (observability/data/+), so the app-owned sets (homerun2,
+                        schmetterpause) stay Terraform: a credential that can
+                        write those can rewrite an app's database password.
+                        Pointing this elsewhere does not widen the policy — it
+                        produces a 403.
+                    path:
+                      type: string
+                      description: >-
+                        Entry name under the mount. Defaults to clusterName —
+                        the same default the kube-prometheus-stack
+                        ApplicationSet uses for its remoteKey.
+                    credentialSecret:
+                      type: string
+                      default: vault-cluster-secrets-writer
+                      description: >-
+                        Secret on the MANAGEMENT cluster, in this XR's
+                        namespace, holding terraform.tfvars with vault_role_id
+                        and vault_secret_id of the cluster-secrets-writer
+                        AppRole.
+                    providerConfigName:
+                      type: string
+                      default: in-cluster
+                      description: >-
+                        provider-opentofu ClusterProviderConfig the Workspace
+                        runs under.
+                    generate:
+                      type: array
+                      description: >-
+                        Keys to fill with a generated password. Replaces the
+                        default set rather than adding to it.
+
+                        Alphanumeric on purpose: the values travel through Helm
+                        values, a URL query and a file an Alertmanager config
+                        reads back, each with its own quoting rules — and 32
+                        alphanumeric characters carry more entropy than 16 with
+                        punctuation.
+                      items:
+                        type: object
+                        required:
+                          - key
+                        properties:
+                          key:
+                            type: string
+                          length:
+                            type: integer
+                            default: 32
+                    data:
+                      type: object
+                      description: >-
+                        Literal, non-secret values written alongside the
+                        generated ones (grafana-admin-user by default). Replaces
+                        the default set rather than adding to it.
+                      x-kubernetes-preserve-unknown-fields: true
             status:
               type: object
               properties:
@@ -685,6 +799,32 @@ spec:
                             silently pointing external-secrets at cert-manager's
                             mount.
                           x-kubernetes-preserve-unknown-fields: true
+                        serviceAccounts:
+                          type: array
+                          items:
+                            type: string
+                          description: >-
+                            Bound ServiceAccounts this Platform composes on the
+                            target, as "<namespace>/<name>". Empty is the normal
+                            state: only an auth with createServiceAccounts gets
+                            one, and an auth that binds a chart's own
+                            ServiceAccount must not.
+                    clusterSecrets:
+                      type: object
+                      description: >-
+                        The cluster's own secrets in Vault. mount and entry say
+                        WHERE they were written, so an ExternalSecret that reads
+                        nothing can be checked against what was actually written
+                        rather than against what the cluster annotation claims.
+                      properties:
+                        enabled:
+                          type: boolean
+                        ready:
+                          type: boolean
+                        mount:
+                          type: string
+                        entry:
+                          type: string
                 componentCount:
                   type: integer
                   description: Number of enabled components

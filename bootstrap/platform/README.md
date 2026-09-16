@@ -120,8 +120,8 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.5.1` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-platform` KCL module | `0.20.1` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `platform` Configuration | `v0.7.0` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-platform` KCL module | `0.23.1` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
 | `xplane-flux-catalog` KCL module | `0.16.0` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
 | `cni` Configuration | `>=v0.1.0` | `dependsOn` — pulled automatically |
@@ -369,6 +369,53 @@ that is the point: the defaults name one specific cluster's mount, so on any
 other cluster they would authenticate against the wrong Vault while looking
 configured. Required, they are either discovered or rejected by name.
 
+## The ServiceAccount an additional Vault auth binds
+
+A Kubernetes-auth role binds a ServiceAccount **by name**, and Vault creates nothing. On homerun2-test1 `external-secrets/eso` came from hand-written Terraform in `stuttgart-things/argocd` — so a cluster built from an XR ended up with a mount and a role bound to an identity that did not exist, and the ClusterSecretStore failed at login exactly the way the missing `certmanager` ServiceAccount did in [#435](https://github.com/stuttgart-things/crossplane-configurations/issues/435).
+
+```yaml
+vaultIssuer:
+  additionalAuths:
+    - name: eso
+      boundServiceAccountNames: [eso]
+      boundServiceAccountNamespaces: [external-secrets]
+      createServiceAccounts: true
+```
+
+composes every `(namespace, name)` pair the entry names, deduplicated. Opt-in **per auth** on purpose: cert-manager's auth binds the *chart's own* ServiceAccount, and composing a second one beside it would be wrong.
+
+The namespace is adopted rather than owned (`managementPolicies: [Observe, Create]`): external-secrets normally arrives with its own Argo CD app, so creating it only when it is missing keeps the ServiceAccount out of a retry loop until that app shows up — and nothing is ever modified or deleted.
+
+## The cluster's own secrets in Vault
+
+The values that belong to the **cluster** rather than to an app — the Grafana admin, the Alertmanager webhook token. Until now they were seeded by hand, survived no teardown and were reconciled by nothing ([#438](https://github.com/stuttgart-things/crossplane-configurations/issues/438), decision 5.5).
+
+```yaml
+clusterSecrets:
+  enabled: true      # vaultAddr falls back to vaultIssuer.vaultAddr
+```
+
+composes an OpenTofu `Workspace` that writes `observability/<clusterName>`. Enabling it is sufficient: the defaults are exactly what `infra/kube-prometheus-stack/secrets` in `stuttgart-things/argocd` reads — `grafana-admin-user`, a generated `grafana-admin-password`, a generated `alertmanager-webhook-token`. Both `generate` and `data` **replace** the default set when given.
+
+| | |
+|---|---|
+| **One mount** | `observability` is the only one the credential reaches — its policy is one path segment wide (`observability/data/+`). The app-owned sets (homerun2, schmetterpause) stay Terraform: a credential that can write those can rewrite an app's database password. Pointing `mount` elsewhere does not widen the policy, it produces a 403. |
+| **Teardown** | `delete_all_versions`, so the destroy removes the entry rather than adding a deletion marker — the next cluster of the same name does not read the old password. |
+| **Exposure** | The generated values live in the Workspace's tfstate, a Secret on the control plane. The same exposure `VaultK8sAuth` already carries for its AppRole credentials. |
+| **Character set** | Alphanumeric. The values pass through Helm values, a URL query and a file an Alertmanager config reads back, each with its own quoting rules; 32 alphanumeric characters carry more entropy than 16 with punctuation anyway. |
+
+The status says where they landed, so an ExternalSecret that reads nothing can be checked against what was written rather than against what the cluster annotation claims:
+
+```yaml
+status:
+  components:
+    clusterSecrets:
+      enabled: true
+      ready: true
+      mount: observability
+      entry: rancher-join-test5
+```
+
 ## Overrides
 
 ```yaml
@@ -500,6 +547,7 @@ Beyond that, the preconditions are those of the wrapped Configurations — `plat
 
 - A Helm `ClusterProviderConfig` (`helm.m.crossplane.io/v1beta1`) named `{clusterName}-helm`, or whatever `spec.helmProviderConfigRef` says.
 - A Kubernetes `ClusterProviderConfig` (`kubernetes.m.crossplane.io/v1alpha1`) named `{clusterName}-kubernetes`.
+- With `spec.clusterSecrets.enabled`: a Secret named by `credentialSecret` (default `vault-cluster-secrets-writer`) in the XR's namespace on the **management** cluster, holding `terraform.tfvars` with `vault_role_id` + `vault_secret_id` of the `cluster-secrets-writer` AppRole (stuttgart-things/stuttgart-things#2994).
 - A `flux-defaults` EnvironmentConfig — consumed by the flux-init Composition, not by this one. See [`../flux-init/examples/environment-config.yaml`](../flux-init/examples/environment-config.yaml).
 
 ## Notes

@@ -18,6 +18,12 @@ spec:
       name: production-vault-auth
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
+      name: production-auth-ns-external-secrets
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: production-auth-sa-external-secrets-external-secrets
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
       name: production-cert-manager-observe
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
@@ -31,8 +37,11 @@ spec:
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
       name: production-reviewer-token
+    - apiVersion: opentofu.m.upbound.io/v1beta1
+      kind: Workspace
+      name: production-cluster-secrets
 status:
-  componentCount: 3
+  componentCount: 4
   components:
     cilium:
       enabled: false
@@ -40,6 +49,11 @@ status:
       gatewayReady: false
       loadBalancerReady: false
       networkKey: ""
+      ready: false
+    clusterSecrets:
+      enabled: true
+      entry: kind1
+      mount: observability
       ready: false
     cni:
       enabled: false
@@ -76,6 +90,8 @@ status:
       enabled: true
       issuerReady: false
       ready: false
+      serviceAccounts:
+      - external-secrets/external-secrets
       waitingForCertManager: true
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
@@ -92,8 +108,8 @@ status:
     status: "True"
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: production-cert-manager-observe, production-flux-apps,
-      production-flux-init, and 5 more'
+    message: 'Unready resources: production-auth-ns-external-secrets, production-auth-sa-external-secrets-external-secrets,
+      production-cert-manager-observe, and 8 more'
     reason: Creating
     status: "False"
     type: Ready
@@ -105,6 +121,64 @@ status:
     kubernetesProviderConfigRef: production-kubernetes
     namespace: flux-system
     observeProviderConfigRef: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: production-auth-ns-external-secrets
+  labels:
+    crossplane.io/composite: production
+  name: production-auth-ns-external-secrets
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: production
+    uid: f2f8c67d-a306-5252-869c-f4b2df96b7cd
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: external-secrets
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: production-kubernetes
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: production-auth-sa-external-secrets-external-secrets
+  labels:
+    crossplane.io/composite: production
+  name: production-auth-sa-external-secrets-external-secrets
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: production
+    uid: f2f8c67d-a306-5252-869c-f4b2df96b7cd
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: external-secrets
+        namespace: external-secrets
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: production-kubernetes
 ---
 apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
@@ -135,6 +209,134 @@ spec:
   providerConfigRef:
     kind: ClusterProviderConfig
     name: production-kubernetes
+---
+apiVersion: opentofu.m.upbound.io/v1beta1
+kind: Workspace
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: production-cluster-secrets
+  labels:
+    crossplane.io/composite: production
+  name: production-cluster-secrets
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: production
+    uid: f2f8c67d-a306-5252-869c-f4b2df96b7cd
+spec:
+  forProvider:
+    module: |
+      terraform {
+        required_providers {
+          vault = {
+            source  = "hashicorp/vault"
+            version = "~> 3.25"
+          }
+          random = {
+            source  = "hashicorp/random"
+            version = "~> 3.6"
+          }
+        }
+      }
+
+      variable "vault_addr" {
+        type = string
+      }
+
+      variable "mount" {
+        type = string
+      }
+
+      variable "entry" {
+        type = string
+      }
+
+      # Maps travel as JSON: a Workspace var is a string, so the alternative would be
+      # one variable per key and a module that is no longer a constant.
+      variable "generated_keys_json" {
+        type = string
+      }
+
+      variable "literal_values_json" {
+        type = string
+      }
+
+      variable "vault_role_id" {
+        type = string
+      }
+
+      variable "vault_secret_id" {
+        type      = string
+        sensitive = true
+      }
+
+      locals {
+        generated_keys = jsondecode(var.generated_keys_json)
+        literal_values = jsondecode(var.literal_values_json)
+      }
+
+      provider "vault" {
+        address          = var.vault_addr
+        skip_tls_verify  = true
+        skip_child_token = true
+
+        auth_login {
+          path = "auth/approle/login"
+          parameters = {
+            role_id   = var.vault_role_id
+            secret_id = var.vault_secret_id
+          }
+        }
+      }
+
+      # Alphanumeric on purpose. These values travel through Helm values, a URL query
+      # and a file an Alertmanager config reads back -- every one of those has its own
+      # quoting rules, and 32 alphanumeric characters carry more entropy than 16 with
+      # punctuation anyway.
+      resource "random_password" "generated" {
+        for_each = local.generated_keys
+
+        length  = each.value
+        special = false
+      }
+
+      # delete_all_versions is what makes a teardown a real delete: without it the
+      # destroy leaves the versions behind and the next cluster of the same name
+      # reads the old password.
+      resource "vault_kv_secret_v2" "cluster" {
+        mount               = var.mount
+        name                = var.entry
+        delete_all_versions = true
+
+        data_json = jsonencode(merge(
+          local.literal_values,
+          { for k, r in random_password.generated : k => r.result },
+        ))
+      }
+    source: Inline
+    varFiles:
+    - format: HCL
+      secretKeyRef:
+        key: terraform.tfvars
+        name: vault-cluster-secrets-writer
+      source: SecretKey
+    vars:
+    - key: vault_addr
+      value: https://vault.infra.sthings-vsphere.labul.sva.de
+    - key: mount
+      value: observability
+    - key: entry
+      value: kind1
+    - key: generated_keys_json
+      value: '{"grafana-admin-password": 32, "alertmanager-webhook-token": 32}'
+    - key: literal_values_json
+      value: '{"grafana-admin-user": "admin"}'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
 ---
 apiVersion: config.stuttgart-things.com/v1alpha1
 kind: FluxApps
