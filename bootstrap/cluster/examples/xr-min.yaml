@@ -10,3 +10,8 @@ metadata:
   namespace: crossplane-system
 spec:
   provider: proxmox
+  # The XRD defaults this to labul, but `crossplane render` applies no XRD
+  # defaults (CLAUDE.md gotcha 5), and the environment step selects its
+  # EnvironmentConfig by this field with a Required path — set it here so the
+  # golden exercises the same selection a live XR gets.
+  environmentConfig: labul

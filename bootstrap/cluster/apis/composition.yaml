@@ -12,7 +12,36 @@ spec:
     kind: ClusterStack
   mode: Pipeline
   pipeline:
-    # One step. The logic lives in the xplane-cluster KCL module (which depends
+    # The EnvironmentConfig for this cluster's environment, selected by the
+    # label cluster.stuttgart-things.com/environment = spec.environmentConfig.
+    # Rancher mode reads the Vault policy mapping from its `vault` key: the
+    # order names stores, the environment says which policies they mean
+    # (crossplane-configurations#454). EnvironmentConfigs are cluster-scoped, so
+    # that mapping is admin-owned — which is the point.
+    #
+    # Multiple/minMatch 0: most environments carry no such config yet, and the
+    # ansible path does not need one. maxMatch 1 plus the Required field path
+    # means a missing spec.environmentConfig fails loudly instead of the
+    # selector matching every labelled config and picking one by name.
+    - step: load-environment
+      functionRef:
+        name: function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                mode: Multiple
+                minMatch: 0
+                maxMatch: 1
+                matchLabels:
+                  - key: cluster.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.environmentConfig
+                    fromFieldPathPolicy: Required
+    # The logic step. The logic lives in the xplane-cluster KCL module (which depends
     # on xplane-cluster-catalog) rather than inline here, for the reason
     # bootstrap/platform states: inline KCL cannot be unit-tested, and the rules
     # this Configuration encodes — which stage may open, who owns the CNI, what
@@ -39,7 +68,7 @@ spec:
         metadata:
           name: cluster
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-cluster?tag=0.15.2
+          source: oci://ghcr.io/stuttgart-things/xplane-cluster?tag=0.16.0
     # Propagates the composed children's readiness to the XR. status.ready is
     # set by the module itself (from the Platform child, or from ClusterAccess
     # when platformEnabled is false); this makes the XR's Ready condition track

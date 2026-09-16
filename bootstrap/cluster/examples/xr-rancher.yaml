@@ -53,9 +53,10 @@ spec:
     - security
     - storage-openebs
     - observability
-  # The KV mounts this cluster's ESO opens. The stores, their opt-in gate, the
-  # observability secrets gate and the shared webhook-token entry all follow
-  # from this list plus platform.clusterSecrets — nothing to write by hand.
+  # The KV mounts this cluster's ESO opens. The eso auth with its policies, the
+  # stores, their opt-in gate, the observability secrets gate and the shared
+  # webhook-token entry all follow from this list plus platform.clusterSecrets —
+  # nothing to write by hand. Only stores the environment maps are accepted.
   secretStores:
     - homerun2-pr
     - schmetterpause
@@ -89,16 +90,12 @@ spec:
       vaultAddr: https://vault.infra.sthings-vsphere.labul.sva.de
       pkiRole: sthings-vsphere
       caSourceSecret: vault-pki-source-ca  # pragma: allowlist secret
-      additionalAuths:
-        - name: eso
-          boundServiceAccountNames: [eso]
-          boundServiceAccountNamespaces: [external-secrets]
-          createServiceAccounts: true
-          # Must grant read on every mount in secretStores (decision 5.2).
-          tokenPolicies:
-            - read-homerun2-pr
-            - read-schmetterpause
-            - read-observability-clusters
+      # No tokenPolicies and no eso auth here, on purpose: in rancher mode the
+      # cert-manager policies and the whole eso auth are DERIVED — from
+      # secretStores above and the `vault` mapping in the EnvironmentConfig for
+      # environment labul (examples/environment-config-vault-labul.yaml). Writing
+      # either by hand fails the render: a Vault role accepts any existing
+      # policy, so the order must not be the one choosing them.
     # The cluster's own observability entry, created and deleted with it.
     clusterSecrets:
       enabled: true
