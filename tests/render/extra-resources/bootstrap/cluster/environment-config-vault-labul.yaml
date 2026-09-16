@@ -1,0 +1,31 @@
+---
+# The Vault policy mapping for ClusterStacks in environment `labul`
+# (infra.sthings-vsphere). Selected by label, matched against the XR's
+# spec.environmentConfig. Cluster-scoped, so only an admin changes which policies
+# an order may end up with — the order itself names stores, never policies
+# (crossplane-configurations#454).
+#
+# Rancher mode only. Every name here must exist in Vault: a role referencing a
+# missing policy is accepted and its token silently has no permissions.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: cluster-vault-labul
+  labels:
+    cluster.stuttgart-things.com/environment: labul
+data:
+  vault:
+    # The cert-manager auth: issue certificates from the PKI role.
+    certManagerPolicies:
+      - pki-issue
+    # KV mount -> the existing policies that let a cluster's ESO read it.
+    # The keys double as an allow-list: a store not listed here fails the order.
+    secretStores:
+      homerun2-pr:
+        - read-homerun2-pr
+      schmetterpause:
+        - read-schmetterpause
+      # One path segment on observability/data/+ — a cluster's own entry plus
+      # the shared _omni-pitcher (stuttgart-things/stuttgart-things#2999).
+      observability:
+        - read-observability-clusters

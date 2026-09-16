@@ -464,11 +464,19 @@ spec:
                     also the observability secrets-config gate, its store and
                     the shared webhook-token entry.
 
-                    Requires platform.vaultIssuer with an additionalAuths entry
-                    named `eso` — the stores log in through <cluster>-eso. The
-                    eso role's tokenPolicies still have to grant read on every
-                    mount listed (decision 5.2); a store whose role cannot read
-                    reports Valid while its ExternalSecrets fail with a 400.
+                    Requires platform.vaultIssuer. In rancher mode the `eso` auth
+                    is DERIVED from this list — SA external-secrets/eso, and as
+                    tokenPolicies the policies the EnvironmentConfig for
+                    spec.environmentConfig maps each store to (`vault.secretStores`).
+                    A store that environment does not map fails the render, so
+                    the mapping doubles as an allow-list.
+
+                    In rancher mode tokenPolicies are never taken from the order:
+                    a hand-written tokenPolicies on platform.vaultIssuer or any
+                    additionalAuths entry, or a hand-written `eso` entry, fails
+                    the render. A Vault Kubernetes-auth role accepts ANY existing
+                    policy, so whoever orders a cluster must not choose them
+                    (#454).
                   items:
                     type: string
                 platform:
