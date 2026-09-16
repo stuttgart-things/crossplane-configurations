@@ -1419,39 +1419,63 @@ spec:
             {{- end }}
             {{- end }}
             {{- if $vpkiEnabled }}
+            {{- /* (5) VAULT-PKI PREREQUISITES (inlined bootstrap/vault-pki-secrets).
+
+                   Each source Secret resolves ON ITS OWN, and each downstream
+                   resource hangs off only what it needs (#435). This used to be one
+                   guard -- token AND CA found -- and that was wrong for kubernetes
+                   auth: with spec.vaultAuth the ClusterIssuer logs in as the
+                   `certmanager` ServiceAccount and never reads a token, yet a
+                   control plane without a token source got NO CA Secret and NO
+                   ServiceAccount either, silently. Seen on rancher-join-test4:
+                   mount Ready, issuer failing on `serviceaccounts "certmanager"
+                   not found`.
+
+                     (5a)  namespace       vaultAuth on, or any source found
+                     (5a2) certmanager SA  vaultAuth on
+                     (5b)  CA Secret       CA source found
+                     (5c)  token Secret    token source found
+
+                   A source is only REQUESTED when its name is set. An
+                   ExtraResources requirement with an empty matchName is not "no
+                   match": function-go-templating turns it into an empty label
+                   selector, i.e. every Secret in that namespace. */}}
+            {{- $vtVal := "" }}
+            {{- $vcVal := "" }}
+            {{- if or $vpkiSrcTokenName $vpkiSrcCaName }}
             ---
-            # (5) VAULT-PKI PREREQUISITE SECRETS (inlined bootstrap/vault-pki-secrets).
-            # network-platform/cert-manager-vault-pki is on: read the source token +
-            # CA Secrets on the control plane and push them onto the DOWNSTREAM
-            # cluster's cert-manager namespace (its ClusterProviderConfig is named
-            # after the cluster) so the vault-pki ClusterIssuer the AppSet ships has
-            # its prerequisites. Values stay base64 the whole way.
+            # (5) Read the source token and/or CA Secret on the control plane; the
+            # objects below push them onto the DOWNSTREAM cluster's cert-manager
+            # namespace (its ClusterProviderConfig is named after the cluster) so the
+            # vault-pki ClusterIssuer the AppSet ships has its prerequisites. Values
+            # stay base64 the whole way.
             apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
             kind: ExtraResources
             requirements:
+              {{- if $vpkiSrcTokenName }}
               vpki-token:
                 apiVersion: v1
                 kind: Secret
                 matchName: {{ $vpkiSrcTokenName }}
                 namespace: {{ $vpkiSrcTokenNs }}
+              {{- end }}
+              {{- if $vpkiSrcCaName }}
               vpki-ca:
                 apiVersion: v1
                 kind: Secret
                 matchName: {{ $vpkiSrcCaName }}
                 namespace: {{ $vpkiSrcCaNs }}
+              {{- end }}
+            {{- end }}
             {{- with .extraResources }}
-            {{- $vt := index . "vpki-token" }}
-            {{- $vc := index . "vpki-ca" }}
-            {{- if and $vt $vc }}
-            {{- $vtItems := $vt.items }}
-            {{- $vcItems := $vc.items }}
-            {{- if and $vtItems $vcItems }}
-            {{- $vtData := (index $vtItems 0).resource.data }}
-            {{- $vcData := (index $vcItems 0).resource.data }}
-            {{- if and $vtData $vcData }}
-            {{- $vtVal := index $vtData $vpkiSrcTokenKey }}
-            {{- $vcVal := index $vcData $vpkiSrcCaKey }}
-            {{- if and $vtVal $vcVal }}
+            {{- with index . "vpki-token" }}{{- with .items }}{{- with (index . 0).resource.data }}
+            {{- $vtVal = index . $vpkiSrcTokenKey | default "" }}
+            {{- end }}{{- end }}{{- end }}
+            {{- with index . "vpki-ca" }}{{- with .items }}{{- with (index . 0).resource.data }}
+            {{- $vcVal = index . $vpkiSrcCaKey | default "" }}
+            {{- end }}{{- end }}{{- end }}
+            {{- end }}
+            {{- if or $vaEnabled $vtVal $vcVal }}
             ---
             # (5a) cert-manager namespace on the downstream cluster
             # ([Observe, Create] — adopt if present, create if missing, never
@@ -1504,6 +1528,10 @@ spec:
             # namespace that (5a) adopts-or-creates, and it is only needed when
             # there is a vault-pki issuer to make work. A second Object managing
             # that namespace would mean two owners for one Namespace.
+            #
+            # Gated on vaultAuth ALONE, not on the source Secrets (#435): kubernetes
+            # auth reads no token, so a control plane with only a CA source -- or
+            # none -- still needs this ServiceAccount.
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
             kind: Object
             metadata:
@@ -1531,6 +1559,7 @@ spec:
                     name: {{ $vaCertManagerSa }}
                     namespace: {{ $vpkiTargetNs | quote }}
             {{- end }}
+            {{- if $vcVal }}
             ---
             # (5b) CA-bundle Secret (ClusterIssuer caBundleSecretRef).
             apiVersion: kubernetes.m.crossplane.io/v1alpha1
@@ -1560,6 +1589,8 @@ spec:
                   type: Opaque
                   data:
                     {{ $vpkiCaKey }}: {{ $vcVal | quote }}
+            {{- end }}
+            {{- if $vtVal }}
             ---
             # (5c) Vault-token Secret (ClusterIssuer auth.tokenSecretRef; name from
             # the clusterbook vault-token-secret annotation).
@@ -1590,6 +1621,7 @@ spec:
                   type: Opaque
                   data:
                     {{ $vpkiTokenKey }}: {{ $vtVal | quote }}
+            {{- end }}
             {{- /* TEARDOWN ORDERING (Usage). Steps (5b)/(5c) carry
                    managementPolicies ['*'], so on delete they must actually
                    REACH the downstream cluster to remove the Secrets. They get
@@ -1622,8 +1654,14 @@ spec:
                    replayDeletion lets the protected resource's own delete
                    proceed once the Usage is removed; the ready annotation
                    keeps these Usages from gating XR readiness. Usage is core
-                   Crossplane — no dependsOn entry needed. */}}
-            {{- if $split }}
+                   Crossplane — no dependsOn entry needed.
+
+                   Each Usage exists only alongside the Object it names as `by`
+                   (#435): a Usage whose `by` was never composed would sit there
+                   referencing nothing. The namespace and the certmanager SA are
+                   [Observe, Create] -- nothing to delete downstream, no ordering
+                   needed. */}}
+            {{- if and $split (or $vcVal $vtVal) }}
             ---
             apiVersion: protection.crossplane.io/v1beta1
             kind: Usage
@@ -1650,6 +1688,7 @@ spec:
                 resourceRef:
                   name: {{ $xrName }}-providerconfig
             {{- end }}
+            {{- if $vcVal }}
             ---
             apiVersion: protection.crossplane.io/v1beta1
             kind: Usage
@@ -1675,6 +1714,8 @@ spec:
                 kind: Object
                 resourceRef:
                   name: {{ $xrName }}-vpki-ca
+            {{- end }}
+            {{- if $vtVal }}
             ---
             apiVersion: protection.crossplane.io/v1beta1
             kind: Usage
@@ -1700,9 +1741,6 @@ spec:
                 kind: Object
                 resourceRef:
                   name: {{ $xrName }}-vpki-token
-            {{- end }}
-            {{- end }}
-            {{- end }}
             {{- end }}
             {{- end }}
             {{- end }}
