@@ -92,11 +92,17 @@ spec:
                   default: k3s
                   description: >-
                     Kubernetes distribution from the catalog
-                    (k3s | kind | rke2). Determines the install playbooks, the
-                    required inventory groups, and WHO OWNS THE CNI — which is
-                    why `platform.cni.enabled` must not be set by hand: the k3s
-                    and rke2 roles install cilium themselves, a kind cluster is
-                    built without one.
+                    (k3s | kind | rke2 | rancher-rke2). Determines the install
+                    playbooks, the required inventory groups, and WHO OWNS THE
+                    CNI — which is why `platform.cni.enabled` must not be set by
+                    hand: the k3s and rke2 roles install cilium themselves, a
+                    kind cluster is built without one.
+
+                    `rancher-rke2` also changes the SHAPE of the stack: Rancher
+                    creates the cluster (a RancherCluster child, configured from
+                    `spec.rancher`), the VM waits for the node-registration
+                    command it publishes, and ONE join stage replaces the
+                    distribution + kubeconfig pair.
                 clusterName:
                   type: string
                   description: >-
@@ -188,7 +194,8 @@ spec:
                       description: >-
                         Per-stage overrides, MERGED OVER the shared block above
                         rather than replacing it — so the common case stays one
-                        list. Keys: baseos, distribution, kubeconfig.
+                        list. Keys: baseos, distribution, kubeconfig — and
+                        join, the single stage of the rancher provisioner.
 
                         This exists because the shared block reaches every run:
                         pinning one collection for the base-OS stage otherwise
@@ -205,11 +212,14 @@ spec:
                         kubeconfig:
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
+                        join:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
                 runIDs:
                   type: object
                   description: >-
                     Per-stage re-run identifiers, keyed by stage
-                    (`distribution`, `kubeconfig`). Bumping one suffixes that
+                    (`distribution`, `kubeconfig`; `join` on the rancher path). Bumping one suffixes that
                     stage's PipelineRun and wrapped Object, which is what makes
                     provider-kubernetes create a NEW run — a completed Tekton
                     PipelineRun is immutable and the wrapped Object has no
@@ -360,6 +370,26 @@ spec:
                     unknown fields must not also declare known ones, or schema
                     converters emit `additionalProperties: false` and reject
                     every passthrough key.
+                  x-kubernetes-preserve-unknown-fields: true
+                rancher:
+                  type: object
+                  description: >-
+                    Passed through to the RancherCluster child verbatim
+                    (environmentConfig, kubernetesVersion, argocd, vaultAuth,
+                    clusterSpec, …). Only used when the distribution's catalog
+                    entry has `provisioner: rancher`.
+
+                    `name` and `nodeRegistration.publish` are supplied by this
+                    Composition: the join stage reads the registration command
+                    from the Secret that publish creates, and `secretNamespace`
+                    defaults to the ansible pipeline namespace — `ansible-run`
+                    reads it from the PipelineRun's namespace, not from next to
+                    this XR. `machineGlobalConfig` is merged OVER the catalog's,
+                    so one key can be overridden without restating the set that
+                    keeps rke2 out of the network (cni none, no kube-proxy, no
+                    bundled ingress, no bundled Gateway API CRDs).
+
+                    No properties are declared on purpose — see `platform`.
                   x-kubernetes-preserve-unknown-fields: true
                 platform:
                   type: object
