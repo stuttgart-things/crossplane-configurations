@@ -152,7 +152,7 @@ metadata:
   namespace: default
   annotations:
     crossplane.io/composition-resource-name: xpv-adopt-eso-policy-kv-own
-    crossplane.io/external-name: xpv-adopt-kv-own
+    crossplane.io/external-name: xp-xpv-adopt-kv-own
   labels:
     vault.stuttgart-things.com/cluster: xpv-adopt
     vault.stuttgart-things.com/auth: eso
@@ -162,7 +162,7 @@ spec:
   forProvider: {}
 status:
   atProvider:
-    name: xpv-adopt-kv-own
+    name: xp-xpv-adopt-kv-own
     policy: 'path "kv/data/xpv-adopt" { capabilities = ["read"] }
 
       path "kv/data/xpv-adopt/*" { capabilities = ["read"] }
@@ -189,7 +189,7 @@ metadata:
   namespace: default
   annotations:
     crossplane.io/composition-resource-name: xpv-adopt-eso-policy-kv-cicd
-    crossplane.io/external-name: xpv-adopt-kv-cicd
+    crossplane.io/external-name: xp-xpv-adopt-kv-cicd
   labels:
     vault.stuttgart-things.com/cluster: xpv-adopt
     vault.stuttgart-things.com/auth: eso

@@ -37,8 +37,8 @@ spec:
                   pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
                   description: >-
                     Target cluster. Prefix of every auth mount path
-                    ({clusterName}-{name}) and every created policy
-                    ({clusterName}-{policy.name}).
+                    ({clusterName}-{name}); created policies are named
+                    xp-{clusterName}-{policy.name}.
                 vaultAddr:
                   type: string
                   description: >-
@@ -131,9 +131,13 @@ spec:
                         type: array
                         description: >-
                           Vault policies to CREATE, each named
-                          {clusterName}-{name} and appended to tokenPolicies. The
-                          body is BUILT by the Composition from kvMount + read,
+                          xp-{clusterName}-{name} and appended to tokenPolicies.
+                          The body is BUILT by the Composition from kvMount + read,
                           never supplied as HCL (crossplane-configurations#285).
+                          Neither kvMount nor the read subtrees are restricted:
+                          whoever may create this XR may grant read on any KV
+                          mount and subtree. RBAC on the XR is the boundary — see
+                          README, "Who may grant what".
                           The role is only composed once every policy it names is
                           Ready — Vault accepts a role naming a missing policy and
                           the token then silently has no permissions.

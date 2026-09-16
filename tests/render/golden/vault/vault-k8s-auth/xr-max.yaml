@@ -41,7 +41,7 @@ status:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'not handed over — Vault differs from the spec (fix the spec, or set
       adoption.acceptDifferences to overwrite Vault): eso: role tokenPolicies observed
-      ["read-cicd"], spec ["read-cicd","xpv-adopt-kv-cicd","xpv-adopt-kv-own"]'
+      ["read-cicd"], spec ["read-cicd","xp-xpv-adopt-kv-cicd","xp-xpv-adopt-kv-own"]'
     reason: DifferencesFound
     status: "False"
     type: AdoptionComplete
@@ -217,7 +217,7 @@ kind: Policy
 metadata:
   annotations:
     crossplane.io/composition-resource-name: xpv-adopt-eso-policy-kv-cicd
-    crossplane.io/external-name: xpv-adopt-kv-cicd
+    crossplane.io/external-name: xp-xpv-adopt-kv-cicd
   labels:
     crossplane.io/composite: vault-k8s-auth-max
     vault.stuttgart-things.com/auth: eso
@@ -233,7 +233,7 @@ metadata:
     uid: e7c48d76-e4d0-557e-babe-81cba82f2a12
 spec:
   forProvider:
-    name: xpv-adopt-kv-cicd
+    name: xp-xpv-adopt-kv-cicd
     policy: |
       path "kv/data/cicd" { capabilities = ["read"] }
       path "kv/data/cicd/*" { capabilities = ["read"] }
@@ -254,7 +254,7 @@ kind: Policy
 metadata:
   annotations:
     crossplane.io/composition-resource-name: xpv-adopt-eso-policy-kv-own
-    crossplane.io/external-name: xpv-adopt-kv-own
+    crossplane.io/external-name: xp-xpv-adopt-kv-own
   labels:
     crossplane.io/composite: vault-k8s-auth-max
     vault.stuttgart-things.com/auth: eso
@@ -270,7 +270,7 @@ metadata:
     uid: e7c48d76-e4d0-557e-babe-81cba82f2a12
 spec:
   forProvider:
-    name: xpv-adopt-kv-own
+    name: xp-xpv-adopt-kv-own
     policy: |
       path "kv/data/xpv-adopt" { capabilities = ["read"] }
       path "kv/data/xpv-adopt/*" { capabilities = ["read"] }
@@ -311,8 +311,8 @@ spec:
     roleName: eso
     tokenPolicies:
     - read-cicd
-    - xpv-adopt-kv-own
-    - xpv-adopt-kv-cicd
+    - xp-xpv-adopt-kv-own
+    - xp-xpv-adopt-kv-cicd
     tokenTtl: 3600
   managementPolicies:
   - Observe

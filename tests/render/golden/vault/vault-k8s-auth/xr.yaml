@@ -114,7 +114,7 @@ metadata:
     uid: 33c6e3af-63f8-598a-bae7-fb9754c5d46f
 spec:
   forProvider:
-    name: xpv-proto-kv-own
+    name: xp-xpv-proto-kv-own
     policy: |
       path "kv/data/xpv-proto" { capabilities = ["read"] }
       path "kv/data/xpv-proto/*" { capabilities = ["read"] }

@@ -5,7 +5,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.2.0
+    meta.crossplane.io/version: v0.3.0
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -24,7 +24,7 @@ metadata:
 
       - `auth.vault.m.upbound.io` Backend — kubernetes auth mount `{clusterName}-{name}`
       - `vault.vault.m.upbound.io` Policy — one per `policies` entry, body BUILT from
-        `kvMount` + `read` (never free-form HCL), named `{clusterName}-{policy}`
+        `kvMount` + `read` (never free-form HCL), named `xp-{clusterName}-{policy}`
       - `kubernetes.vault.m.upbound.io` AuthBackendRole — composed only once the mount
         and every created policy are Ready; sticky afterwards
       - `kubernetes.vault.m.upbound.io` AuthBackendConfig — when `backendConfig` is set;
@@ -44,7 +44,9 @@ metadata:
       - provider-vault installed (`upbound-provider-vault`, see examples/provider.yaml).
       - A `vault.m.upbound.io` ClusterProviderConfig (default name `vault`) with
         an AppRole login that has `sudo` + create/update/delete on `sys/auth/*`,
-        and create/update/delete on `sys/policies/acl/*` and `auth/*`.
+        create/update/delete on `sys/policies/acl/xp-*` (never `*`) and `auth/*`.
+      - RBAC: creating a VaultK8sAuth grants read on any KV mount — keep
+        `vaultk8sauths.vault.stuttgart-things.com` away from tenants (README).
       - For `backendConfig`: the reviewer ServiceAccount-token Secret in the XR's
         own namespace.
 spec:

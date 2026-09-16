@@ -6,7 +6,9 @@
 #
 # The AppRole needs `sudo` on sys/auth/* (mounting an auth backend is
 # root-protected), `delete` there too (or teardown orphans the mount), plus
-# create/update/delete on sys/policies/acl/<clusterName>-* and auth/<clusterName>-*.
+# create/update/delete on sys/policies/acl/xp-* — the fixed prefix of every
+# policy this Configuration creates, so hand-maintained ones stay out of reach —
+# and on auth/*.
 apiVersion: vault.m.upbound.io/v1beta1
 kind: ClusterProviderConfig
 metadata:

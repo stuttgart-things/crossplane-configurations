@@ -99,7 +99,12 @@ spec:
             {{- $policyNames := list }}
             {{- $policyBodies := dict }}
             {{- range $p := ($a.policies | default list) }}
-            {{-   $policyNames = append $policyNames (printf "%s-%s" $cluster $p.name) }}
+            {{- /* xp-: the one fixed prefix every Crossplane-created policy carries,
+                   so the AppRole needs only sys/policies/acl/xp-* and can never
+                   overwrite a hand-maintained policy (pki-issue, read-homerun2-pr).
+                   A per-cluster prefix cannot be enforced — one AppRole serves all
+                   clusters and Vault globs only at the end. #454 point 5. */}}
+            {{-   $policyNames = append $policyNames (printf "xp-%s-%s" $cluster $p.name) }}
             {{-   $body := "" }}
             {{-   range $s := $p.read }}
             {{-     $sub := ternary $cluster $s (eq $s "own") }}
@@ -191,7 +196,7 @@ spec:
             {{-     if $pe.ready }}
             {{-       $obsBody := dig "status" "atProvider" "policy" "" (index $known $pn) }}
             {{-       if ne (trim $obsBody) (trim (index $policyBodies $p.name)) }}
-            {{-         $authDiffs = append $authDiffs (printf "%s: policy %s-%s has a different body in Vault" $a.name $cluster $p.name) }}
+            {{-         $authDiffs = append $authDiffs (printf "%s: policy xp-%s-%s has a different body in Vault" $a.name $cluster $p.name) }}
             {{-       end }}
             {{-     end }}
             {{-   end }}
@@ -253,7 +258,7 @@ spec:
                    safety net that stops a non-adopting XR from silently taking over
                    someone else's mount. */}}
             {{- $extName := dict $backendName $mount $roleName (printf "auth/%s/role/%s" $mount $a.name) $configName (printf "auth/%s/config" $mount) }}
-            {{- range $p := ($a.policies | default list) }}{{ $_ := set $extName (printf "%s-policy-%s" $mount $p.name) (printf "%s-%s" $cluster $p.name) }}{{ end }}
+            {{- range $p := ($a.policies | default list) }}{{ $_ := set $extName (printf "%s-policy-%s" $mount $p.name) (printf "xp-%s-%s" $cluster $p.name) }}{{ end }}
             {{- $useExt := dict }}
             {{- range $n, $v := $extName }}
             {{-   if or $adopt (dig "metadata" "annotations" "crossplane.io/external-name" "" (index $known $n | default dict)) }}{{ $_ := set $useExt $n $v }}{{ end }}
@@ -292,7 +297,7 @@ spec:
             {{- range $p := ($a.policies | default list) }}
             {{- $pMr := printf "%s-policy-%s" $mount $p.name }}
             ---
-            # POLICY {{ $cluster }}-{{ $p.name }} — body built from kvMount + read,
+            # POLICY xp-{{ $cluster }}-{{ $p.name }} — body built from kvMount + read,
             # four paths per subtree: Vault matches exactly unless a path ends in a
             # glob, so x/data/foo/* alone denies the secret AT x/data/foo.
             apiVersion: vault.vault.m.upbound.io/v1alpha1
@@ -315,7 +320,7 @@ spec:
               managementPolicies: {{ $policies | toJson }}
               {{- end }}
               forProvider:
-                name: {{ printf "%s-%s" $cluster $p.name }}
+                name: {{ printf "xp-%s-%s" $cluster $p.name }}
                 policy: {{ index $policyBodies $p.name | toJson }}
             {{- end }}
 
