@@ -30,7 +30,7 @@ spec:
   kubeconfig:
     # The join play uploads with the WRITER approle; the ClusterAccess reads the
     # entry back through vault-kubeconfigs-infra, derived from this name.
-    vaultSecretName: vault-infra-kubeconfig-writer
+    vaultSecretName: vault-infra-kubeconfig-writer  # pragma: allowlist secret
   ansible:
     join:
       pipelineNamespace: tekton-ci
@@ -67,4 +67,4 @@ spec:
       enabled: true
       vaultAddr: https://vault.infra.sthings-vsphere.labul.sva.de
       pkiRole: sthings-vsphere
-      caSourceSecret: vault-pki-source-ca-infra
+      caSourceSecret: vault-pki-source-ca-infra  # pragma: allowlist secret
