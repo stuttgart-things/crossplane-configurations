@@ -43,7 +43,7 @@ spec:
             # ── Defaults ────────────────────────────────────
             _install = oxr.spec?.install or {}
             _installEnabled     = _install?.enabled if _install?.enabled != None else True
-            _version            = _install?.version or "1.19.2"
+            _version            = _install?.version or "1.19.6"
             _namespace          = _install?.namespace or "kube-system"
             _kubeProxyRepl      = _install?.kubeProxyReplacement if _install?.kubeProxyReplacement != None else True
             _k8sHost            = _install?.k8sServiceHost or ""
@@ -56,6 +56,15 @@ spec:
             _nativeRoutingCIDR  = _install?.ipv4NativeRoutingCIDR or "10.244.0.0/16"
             _autoDirectRoutes   = _install?.autoDirectNodeRoutes if _install?.autoDirectNodeRoutes != None else (_routingMode == "native")
             _devices            = _install?.devices or []
+            # ipam: the chart default is cluster-pool (10.0.0.0/8), which does not
+            # match ipv4NativeRoutingCIDR below and is the wrong shape wherever the
+            # cluster already assigns node podCIDRs. `kubernetes` is what
+            # bootstrap/cni uses, and what kind and k3s/rke2 all want.
+            _ipamMode           = _install?.ipamMode or "kubernetes"
+            # Raw Helm values, merged LAST — the escape hatch for everything this
+            # XRD does not model (hubble, bpf, encryption, ...). Same contract as
+            # bootstrap/cni's spec.values.
+            _extraValues        = _install?.values or {}
 
             _lb = oxr.spec?.loadBalancer or {}
             _lbEnabled       = _lb?.enabled or False
@@ -197,8 +206,9 @@ spec:
                             gatewayAPI = { enabled = _gatewayAPIEnabled }
                             l2announcements = { enabled = _l2Enabled }
                             externalIPs = { enabled = _extIPsEnabled }
+                            ipam = { mode = _ipamMode }
                             operator = { replicas = _operatorReplicas }
-                        }
+                        } | _extraValues
                     }
                     rollbackLimit = 3
                 }
@@ -348,11 +358,29 @@ spec:
                 }
             }
 
+            # ── Gateway API CRDs come BEFORE cilium ──
+            # Cilium enables its Gateway controller only if the CRDs are present
+            # when it starts; installed afterwards, gatewayAPI.enabled is a no-op
+            # until the operator and agents restart. The two Releases used to be
+            # emitted in the same pass, so which won was a race.
+            #
+            # The gate is sticky: once the cilium Release exists it keeps being
+            # emitted, because NOT emitting a composed resource is how Crossplane
+            # deletes it — and deleting the CNI of a running cluster because a CRD
+            # chart went briefly NotReady is worse than the race it would close.
+            _readyOf = lambda key: str -> bool {
+                _conds = ocds[key].Resource?.status?.conditions or [] if key in ocds else []
+                len([c for c in _conds if c.type == "Ready" and c.status == "True"]) > 0
+            }
+            _ciliumKey = "{}-cilium".format(_name)
+            _gwApiKey  = "{}-gateway-api".format(_name)
+            _ciliumGateOpen = (not _gatewayAPIEnabled) or _readyOf(_gwApiKey) or (_ciliumKey in ocds)
+
             # ── Assemble items by flattening conditional groups (no mutable
             # accumulation — sum(list-of-lists, []) is deterministic) ──
             _gwUsageForGateway = [_gwClassUsage("{}-gateway".format(_name))] if (_installEnabled and _gatewayAPIEnabled) else []
             _groups = [
-                [_helmRelease] if _installEnabled else []
+                [_helmRelease] if (_installEnabled and _ciliumGateOpen) else []
                 [_ciliumUsage("{}-lb-pool".format(_name)), _ciliumUsage("{}-l2-policy".format(_name))] if (_installEnabled and _lbEnabled) else []
                 [_ciliumUsage("{}-gateway".format(_name))] if (_installEnabled and _gwEnabled) else []
                 [_observeIP] if _wantObserve else []
