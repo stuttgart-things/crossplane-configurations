@@ -19,6 +19,8 @@ A cluster with no CNI has **NotReady nodes, so nothing schedules** — and a Hel
 
 `status.ready` is the signal. The [platform](../platform) Configuration holds its `FluxInit`/`FluxApps` children until it flips.
 
+Since v0.1.1 the XR's **Ready condition** says the same thing. Before that, the gate Object used provider-kubernetes' default readiness (`SuccessfulCreate`): while the gate was closed it was the only composed resource and ready by definition, so `function-auto-ready` reported `Ready=True` on a Cni that had installed nothing — next to a correct `status.ready: false`. The gate now carries a `DeriveFromCelQuery` readiness asserting the observed `clusterType`, the same fact the render gate uses ([#439](https://github.com/stuttgart-things/crossplane-configurations/issues/439)).
+
 > A `protection.crossplane.io` `Usage` does **not** solve this. Usage orders *deletion* — it blocks removal of the `of` resource while the `by` exists — and has no effect on creation order. Creation ordering has to be a render gate.
 
 ## kube-proxy and the API server address
