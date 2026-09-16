@@ -32,10 +32,13 @@ spec:
     # entry back through vault-kubeconfigs-infra, derived from this name.
     vaultSecretName: vault-infra-kubeconfig-writer  # pragma: allowlist secret
   ansible:
-    join:
-      pipelineNamespace: tekton-ci
-      extraCollections:
-        - https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.915.1292/sthings-rke-26.915.1292.tar.gz
+    # Per-stage overrides live under `stages`, merged over the shared block.
+    # The join stage needs the rke collection that carries rancher_register.
+    stages:
+      join:
+        pipelineNamespace: tekton-ci
+        extraCollections:
+          - https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.915.1292/sthings-rke-26.915.1292.tar.gz
   # Verbatim passthrough to the RancherCluster child. `name`,
   # `nodeRegistration.publish` and the machineGlobalConfig baseline come from
   # the Composition and the catalog.

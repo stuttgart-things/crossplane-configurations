@@ -194,7 +194,8 @@ spec:
                       description: >-
                         Per-stage overrides, MERGED OVER the shared block above
                         rather than replacing it — so the common case stays one
-                        list. Keys: baseos, distribution, kubeconfig.
+                        list. Keys: baseos, distribution, kubeconfig — and
+                        join, the single stage of the rancher provisioner.
 
                         This exists because the shared block reaches every run:
                         pinning one collection for the base-OS stage otherwise
@@ -209,6 +210,9 @@ spec:
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
                         kubeconfig:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                        join:
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
                 runIDs:
