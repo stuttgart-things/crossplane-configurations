@@ -54,6 +54,18 @@ The version is paired with the cilium minor (cilium docs):
 
 An unknown minor is **not guessed** — `spec.gatewayAPI.version` has to name it, and the render fails saying so. Upstream publishes no Gateway API chart at all (`gateway-api-charts.sigs.k8s.io` does not even resolve), which is why the default points at the chart in `stuttgart-things/stuttgart-things` that vendors the release manifest.
 
+### ...and goes last on teardown (v0.1.4)
+
+The install order alone was not enough. Crossplane deletes composed resources **in parallel**, and on `rancher-join-test5` the small CRD Release won: the Gateway API CRDs were gone before cilium was uninstalled. That wedges the teardown for good — cilium's release manifest carries `GatewayClass/cilium`, Helm cannot build a manifest whose kind no longer exists, and every retry fails with
+
+```
+failed to uninstall release: failed to delete release: cilium
+```
+
+The only fix would have been the CRD that was already deleted (it had to be re-applied by hand).
+
+So a `Usage` makes the CRD Release **in use by** cilium's, with `replayDeletion: true`: the CRD delete is rejected until cilium is gone, then re-issued, and the teardown completes on its own. It is emitted once both Releases exist, so it does not appear in the goldens — `crossplane render` observes nothing. The direction (`of` = CRDs, `by` = cilium) is pinned by a unit test in `xplane-cni`.
+
 On rke2 the CRDs also arrive via `rke2-traefik-crd` — but after the CNI, and at rke2's pinned version (v1.5.1 on v1.36.4, pairing with neither cilium 1.19 nor 1.20). Turn that off (`ingress-controller: none` plus the CRD chart in `disable`) and let this own them.
 
 ## Spec
