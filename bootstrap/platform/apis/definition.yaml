@@ -545,10 +545,16 @@ spec:
                       default: false
                       description: >-
                         Opt-in. Enabling it is sufficient: the defaults write
-                        exactly what kube-prometheus-stack's ExternalSecrets
-                        read — grafana-admin-user, a generated
-                        grafana-admin-password and a generated
-                        alertmanager-webhook-token.
+                        what kube-prometheus-stack reads from the cluster's own
+                        entry — grafana-admin-user and a generated
+                        grafana-admin-password.
+
+                        NOT the Alertmanager webhook token (generated up to
+                        v0.7.1). That token is the omni-pitcher's AUTH_TOKEN,
+                        identical on every cluster; a generated one synced
+                        cleanly on rancher-join-test5 and would have made every
+                        alert a 401. It lives once in observability/_omni-pitcher,
+                        and the stack reads it from there.
                     vaultAddr:
                       type: string
                       description: >-

@@ -120,8 +120,8 @@ On the target cluster that becomes the flux-operator Deployment plus the Flux co
 
 | What | Version | Where it comes from |
 |---|---|---|
-| `platform` Configuration | `v0.7.1` | [`crossplane.yaml`](crossplane.yaml) |
-| `xplane-platform` KCL module | `0.23.2` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
+| `platform` Configuration | `v0.7.2` | [`crossplane.yaml`](crossplane.yaml) |
+| `xplane-platform` KCL module | `0.24.0` | [`apis/composition.yaml`](apis/composition.yaml) (OCI, pulled at render time) |
 | `xplane-flux-catalog` KCL module | `0.16.0` | dependency of `xplane-platform` — the app definitions |
 | Crossplane | `>=v2.1.3` | `crossplane.yaml` |
 | `cni` Configuration | `>=v0.1.0` | `dependsOn` — pulled automatically |
@@ -395,7 +395,9 @@ clusterSecrets:
   enabled: true      # vaultAddr falls back to vaultIssuer.vaultAddr
 ```
 
-composes an OpenTofu `Workspace` that writes `observability/<clusterName>`. Enabling it is sufficient: the defaults are exactly what `infra/kube-prometheus-stack/secrets` in `stuttgart-things/argocd` reads — `grafana-admin-user`, a generated `grafana-admin-password`, a generated `alertmanager-webhook-token`. Both `generate` and `data` **replace** the default set when given.
+composes an OpenTofu `Workspace` that writes `observability/<clusterName>`. Enabling it is sufficient: the defaults are exactly what `infra/kube-prometheus-stack/secrets` in `stuttgart-things/argocd` reads from the cluster's own entry — `grafana-admin-user` and a generated `grafana-admin-password`. Both `generate` and `data` **replace** the default set when given.
+
+**The Alertmanager webhook token is not generated** (it was up to v0.7.1). It is the omni-pitcher's `AUTH_TOKEN` on platform-sthings, identical on every cluster — `rancher-join-test5` synced a generated one cleanly, and every alert would have been a 401. It lives once in `observability/_omni-pitcher` (stuttgart-things/stuttgart-things#3006); a ClusterStack-built cluster reads it from there via the annotation `observability-platform.stuttgart-things.com/alert-webhook-secret-key`.
 
 | | |
 |---|---|
