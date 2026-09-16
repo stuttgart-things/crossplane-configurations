@@ -1,0 +1,82 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cilium
+metadata:
+  name: kind-install-only
+  namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: kind-install-only-cilium
+status:
+  ciliumVersion: 1.19.2
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: kind-install-only-cilium'
+    reason: Creating
+    status: "False"
+    type: Ready
+  gatewayReady: true
+  installReady: false
+  loadBalancerReady: true
+  networkKey: ""
+  ready: false
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: kind-install-only-cilium
+    crossplane.io/external-name: cilium
+  labels:
+    crossplane.io/composite: kind-install-only
+  name: kind-install-only-cilium
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Cilium
+    name: kind-install-only
+    uid: c5632196-541f-5301-b9b2-62a8bf545ec8
+spec:
+  forProvider:
+    chart:
+      name: cilium
+      repository: https://helm.cilium.io
+      version: 1.19.6
+    namespace: kube-system
+    values:
+      externalIPs:
+        enabled: true
+      gatewayAPI:
+        enabled: false
+      hubble:
+        enabled: true
+        relay:
+          enabled: true
+      ipam:
+        mode: kubernetes
+      ipv4NativeRoutingCIDR: 10.244.0.0/16
+      k8sServiceHost: kind-install-only-control-plane
+      k8sServicePort: 6443
+      kubeProxyReplacement: true
+      l2announcements:
+        enabled: true
+      operator:
+        replicas: 1
+      routingMode: native
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: kind-install-only-helm
+  rollbackLimit: 3

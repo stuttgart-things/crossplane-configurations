@@ -9,9 +9,6 @@ spec:
     resourceRefs:
     - apiVersion: helm.m.crossplane.io/v1beta1
       kind: Release
-      name: u26-kind1-max-cilium
-    - apiVersion: helm.m.crossplane.io/v1beta1
-      kind: Release
       name: u26-kind1-max-gateway-api
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
@@ -55,8 +52,8 @@ status:
     status: "True"
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: u26-kind1-max-cilium, u26-kind1-max-gateway, u26-kind1-max-gateway-api,
-      and 9 more'
+    message: 'Unready resources: u26-kind1-max-gateway, u26-kind1-max-gateway-api,
+      u26-kind1-max-gateway-class, and 8 more'
     reason: Creating
     status: "False"
     type: Ready
@@ -65,53 +62,6 @@ status:
   loadBalancerReady: false
   networkKey: ""
   ready: false
----
-apiVersion: helm.m.crossplane.io/v1beta1
-kind: Release
-metadata:
-  annotations:
-    crossplane.io/composition-resource-name: u26-kind1-max-cilium
-    crossplane.io/external-name: cilium
-  labels:
-    crossplane.io/composite: u26-kind1-max
-  name: u26-kind1-max-cilium
-  namespace: crossplane-system
-  ownerReferences:
-  - apiVersion: config.stuttgart-things.com/v1alpha1
-    blockOwnerDeletion: true
-    controller: true
-    kind: Cilium
-    name: u26-kind1-max
-    uid: f1e3e77b-1936-529a-89cc-43c9d45fca7c
-spec:
-  forProvider:
-    chart:
-      name: cilium
-      repository: https://helm.cilium.io
-      version: 1.19.2
-    namespace: kube-system
-    values:
-      autoDirectNodeRoutes: true
-      devices:
-      - eth0
-      - eth1
-      externalIPs:
-        enabled: true
-      gatewayAPI:
-        enabled: true
-      ipv4NativeRoutingCIDR: 10.244.0.0/16
-      k8sServiceHost: u26-kind1-control-plane
-      k8sServicePort: 6443
-      kubeProxyReplacement: true
-      l2announcements:
-        enabled: true
-      operator:
-        replicas: 2
-      routingMode: native
-  providerConfigRef:
-    kind: ClusterProviderConfig
-    name: u26-kind1-helm
-  rollbackLimit: 3
 ---
 apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object

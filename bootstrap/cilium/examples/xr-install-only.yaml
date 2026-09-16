@@ -1,0 +1,36 @@
+---
+# Install only, no Gateway API — and therefore the one example whose Cilium
+# Release renders in a single pass.
+#
+# With `gatewayAPI.enabled` (the default) the Release is withheld until the
+# composed gateway-api CRD Release reports Ready, and `crossplane render`
+# observes nothing, so the Release is absent from those goldens by design. This
+# example keeps the Release itself — chart version, ipam, kubeProxyReplacement
+# and the `values` passthrough — under a snapshot.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Cilium
+metadata:
+  name: kind-install-only
+  namespace: crossplane-system
+spec:
+  clusterName: kind-install-only
+  install:
+    enabled: true
+    kubeProxyReplacement: true
+    k8sServiceHost: kind-install-only-control-plane
+    k8sServicePort: 6443
+    # No CRDs to wait for.
+    gatewayAPI:
+      enabled: false
+    l2Announcements:
+      enabled: true
+    externalIPs:
+      enabled: true
+    ipamMode: kubernetes
+    # Merged last — wins over everything above. Here: Hubble, which this XRD
+    # deliberately does not model.
+    values:
+      hubble:
+        enabled: true
+        relay:
+          enabled: true

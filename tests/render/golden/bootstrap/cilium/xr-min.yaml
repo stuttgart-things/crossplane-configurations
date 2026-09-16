@@ -9,9 +9,6 @@ spec:
     resourceRefs:
     - apiVersion: helm.m.crossplane.io/v1beta1
       kind: Release
-      name: demo-cilium
-    - apiVersion: helm.m.crossplane.io/v1beta1
-      kind: Release
       name: demo-gateway-api
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
@@ -34,8 +31,8 @@ status:
     status: "True"
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: demo-cilium, demo-gateway-api, demo-gateway-class,
-      and 2 more'
+    message: 'Unready resources: demo-gateway-api, demo-gateway-class, demo-gateway-class-uses-cilium,
+      and 1 more'
     reason: Creating
     status: "False"
     type: Ready
@@ -44,50 +41,6 @@ status:
   loadBalancerReady: true
   networkKey: ""
   ready: false
----
-apiVersion: helm.m.crossplane.io/v1beta1
-kind: Release
-metadata:
-  annotations:
-    crossplane.io/composition-resource-name: demo-cilium
-    crossplane.io/external-name: cilium
-  labels:
-    crossplane.io/composite: demo
-  name: demo-cilium
-  namespace: crossplane-system
-  ownerReferences:
-  - apiVersion: config.stuttgart-things.com/v1alpha1
-    blockOwnerDeletion: true
-    controller: true
-    kind: Cilium
-    name: demo
-    uid: 6f8488e3-7be0-52ed-a19f-a96a0d3e8c84
-spec:
-  forProvider:
-    chart:
-      name: cilium
-      repository: https://helm.cilium.io
-      version: 1.19.2
-    namespace: kube-system
-    values:
-      autoDirectNodeRoutes: true
-      externalIPs:
-        enabled: true
-      gatewayAPI:
-        enabled: true
-      ipv4NativeRoutingCIDR: 10.244.0.0/16
-      k8sServiceHost: ""
-      k8sServicePort: 6443
-      kubeProxyReplacement: true
-      l2announcements:
-        enabled: true
-      operator:
-        replicas: 1
-      routingMode: native
-  providerConfigRef:
-    kind: ClusterProviderConfig
-    name: demo-helm
-  rollbackLimit: 3
 ---
 apiVersion: helm.m.crossplane.io/v1beta1
 kind: Release

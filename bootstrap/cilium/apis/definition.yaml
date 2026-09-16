@@ -101,6 +101,23 @@ spec:
                       description: >-
                         Network devices for Cilium. When omitted, Cilium
                         auto-detects the correct device.
+                    ipamMode:
+                      type: string
+                      default: kubernetes
+                      description: >-
+                        Cilium IPAM mode. Defaults to `kubernetes` (node
+                        podCIDRs), which is what kind, k3s and rke2 all assign
+                        and what bootstrap/cni uses. The chart's own default is
+                        `cluster-pool` (10.0.0.0/8), which does not match
+                        ipv4NativeRoutingCIDR.
+                    values:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                      description: >-
+                        Raw Helm values for the cilium chart, merged LAST — they
+                        win over every field above. The escape hatch for what
+                        this XRD does not model (hubble, bpf, encryption, ...),
+                        same contract as bootstrap/cni's spec.values.
                     operator:
                       type: object
                       properties:
