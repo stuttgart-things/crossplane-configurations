@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.6.2
+    meta.crossplane.io/version: v0.7.0
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -118,8 +118,9 @@ spec:
       version: ">=v1.0.0,<v2.0.0"
     - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
       version: ">=v1.2.0,<v2.0.0"
-    # vault-auth drives Vault through OpenTofu. provider-opentofu is published
-    # only on the Upbound mirror.
+    # vault-auth drives Vault through OpenTofu, and spec.clusterSecrets composes
+    # a Workspace of its own (the cluster's entry in the observability mount).
+    # provider-opentofu is published only on the Upbound mirror.
     - provider: xpkg.upbound.io/upbound/provider-opentofu
       version: ">=v1.0.3,<v2.0.0"
     # Functions used by this Composition's pipeline (kcl, auto-ready) and by

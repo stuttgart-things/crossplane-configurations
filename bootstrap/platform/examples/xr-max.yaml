@@ -110,6 +110,11 @@ spec:
       - name: eso
         boundServiceAccountNames: ["external-secrets"]
         boundServiceAccountNamespaces: ["external-secrets"]
+        # Vault binds the ServiceAccount by name and creates nothing. On
+        # homerun2-test1 this one came from hand-written Terraform; without it
+        # the ClusterSecretStore fails at login with a bound SA that does not
+        # exist.
+        createServiceAccounts: true
         # Created in the same OpenTofu plan as the role that names them. The
         # cluster's own subtree, plus the cicd tree it reads by virtue of the
         # role it plays — separate grants, separate lifetimes.
@@ -122,3 +127,22 @@ spec:
           - name: kv-cicd
             kvMount: kv
             read: [cicd]
+
+  # The cluster's OWN secrets, written into observability/<clusterName> and
+  # deleted — every version — when the XR goes away. The defaults are exactly
+  # what kube-prometheus-stack's ExternalSecrets read, so the keys below are
+  # spelled out only because this example sets every field.
+  clusterSecrets:
+    enabled: true
+    vaultAddr: https://vault.infra.sthings-vsphere.labul.sva.de
+    mount: observability
+    path: kind1
+    credentialSecret: vault-cluster-secrets-writer # pragma: allowlist secret
+    providerConfigName: in-cluster
+    generate:
+      - key: grafana-admin-password
+        length: 32
+      - key: alertmanager-webhook-token
+        length: 32
+    data:
+      grafana-admin-user: admin

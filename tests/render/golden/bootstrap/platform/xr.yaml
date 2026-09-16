@@ -23,6 +23,11 @@ status:
       loadBalancerReady: false
       networkKey: ""
       ready: false
+    clusterSecrets:
+      enabled: false
+      entry: ""
+      mount: observability
+      ready: false
     cni:
       enabled: false
       provider: ""
@@ -58,6 +63,7 @@ status:
       enabled: false
       issuerReady: false
       ready: false
+      serviceAccounts: []
       waitingForCertManager: false
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
