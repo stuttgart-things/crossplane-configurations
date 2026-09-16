@@ -131,7 +131,7 @@ spec:
 | `kv-mounts`, `security-platform/external-secrets-stores: true` | `secretStores` |
 | `secrets-config: true`, `secret-store: vault-observability`, `alert-webhook-secret-key: _omni-pitcher` | `platform.clusterSecrets` + `observability` in `secretStores` |
 
-The opt-in gates are only ever derived: each asserts that a Vault role can read a mount, which only the stack composing the role can know. **Precedence:** profile < derived < `rancher.argocd`. The render fails on an unknown profile, on `secretStores` without `vaultIssuer`, and without an `additionalAuths` entry named `eso`.
+The opt-in gates are only ever derived: each asserts that a Vault role can read a mount, which only the stack composing the role can know. **Precedence:** profile < derived < `rancher.argocd`. The render fails on an unknown profile, on `secretStores` without `vaultIssuer`, and without an `additionalAuths` entry named `eso` — **but only while the Platform is enabled**. `platformEnabled: false` is phase 1 of every teardown; up to v0.9.1 the check fired there, the render failed, and the Platform could not be removed (rancher-join-test6). With the Platform off, `secretStores` derives nothing (v0.9.2).
 
 **The eso role's `tokenPolicies` are still explicit** (decision 5.2): they must grant read on every mount in `secretStores`. A store whose role cannot read reports `Valid` while its ExternalSecrets fail with a 400 — nothing here can check that for you.
 
