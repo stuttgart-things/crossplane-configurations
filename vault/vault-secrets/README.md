@@ -20,7 +20,13 @@ spec:
           generate: {length: 32}         # alphanumeric | ascii | numeric
         - key: admin-token
           secretKeyRef: {name: demo-source, key: admin-token}   # XR namespace only
+    - path: demo/ci-report
+      claim:                             # own the entry, never its data
+        customMetadata: {owner: ci}
 ```
+
+Each `secrets` entry has exactly one of `data` (own the secret) or `claim` (own
+the entry). One entry per path.
 
 ## How it works
 
@@ -75,6 +81,41 @@ Two more consequences worth knowing:
   same namespace allowed to read Secrets can read the values without Vault. Its
   name is published as `status.share.secrets[].dataSecret`.
 
+### Claiming an entry
+
+`claim` is for an entry that **something else writes** — the rancher join play
+writes `kubeconfigs/<cluster>` and keeps adding versions — but whose lifetime
+belongs to this XR. A `data` entry there would overwrite the kubeconfig on its
+next reconcile, because it owns the whole secret.
+
+A claim composes `generic.vault.m.upbound.io/Endpoint` on `<mount>/metadata/<path>`:
+
+- **writes** `custom_metadata` only — whatever `customMetadata` sets, plus
+  `managed-by: crossplane`, which is always set and marks the entry as owned;
+- **never reads or writes the data**. `disableRead: true`: a GET on the metadata
+  path returns versions and timestamps rather than what was written, so reading
+  it back would diff forever;
+- **on delete, DELETEs `<mount>/metadata/<path>`** — the metadata and *every
+  version*, whoever wrote them. `keepOnDelete: true` skips that.
+
+The entry does not need to exist yet: custom_metadata can be written before the
+first version, so the claim can land before the writer runs.
+
+kv-v2 only (kv v1 has no metadata endpoint) — rejected at admission otherwise.
+This is the same call as the `kubeconfig-vault` OpenTofu Workspace in
+`xplane-cluster`.
+
+ACL a claim needs on `<mount>/metadata/<path>` — `create` + `update` to write
+custom_metadata (the first OpenTofu version failed on exactly this,
+stuttgart-things/stuttgart-things#2990) and `delete` for teardown; no `read`:
+
+```hcl
+path "kubeconfigs/metadata/+" { capabilities = ["create", "update", "delete"] }
+```
+
+Verified for the OpenTofu call; for provider-vault it is part of the per-case
+ACL verification still open in #454 (point 1).
+
 ### Missing sources
 
 A secret is written **only once every source resolves** — a first write with a
@@ -90,8 +131,10 @@ both cases the XR is held at `Ready=False`.
   the Delete management policy and leaves them in Vault.
 - Mount (`create: true`): **never deleted** — no Delete policy. Removing a KV
   mount removes every secret in it, including ones this XR never wrote.
-- The XR owns the **whole** secret at a path: keys written by anything else are
-  removed on the next reconcile.
+- Claims: `<mount>/metadata/<path>` is deleted with the XR — every version,
+  including those written by someone else. `keepOnDelete: true` leaves it.
+- A `data` entry owns the **whole** secret at its path: keys written by anything
+  else are removed on the next reconcile. Use `claim` when that is not yours.
 
 ## Cluster preconditions
 
@@ -107,8 +150,8 @@ both cases the XR is held at `Ready=False`.
 | File | Purpose |
 |---|---|
 | `xr-min.yaml` | one generated key — exercises every default |
-| `xr.yaml` | literal + generated + secretKeyRef (needs `source-secret.yaml`) |
-| `xr-max.yaml` | every field: composed mount, keepOnDelete, two paths, all charsets |
+| `xr.yaml` | literal + generated + secretKeyRef (needs `source-secret.yaml`), plus a bare `claim: {}` |
+| `xr-max.yaml` | every field: composed mount, keepOnDelete, two data paths, all charsets, `regenerate`, a claim with `customMetadata` |
 
 Render fixtures (source Secret, pre-existing data Secrets that pin generated
 values) are in `tests/render/extra-resources/vault/vault-secrets/`.

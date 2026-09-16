@@ -68,26 +68,56 @@ spec:
                   type: boolean
                   default: false
                   description: >-
-                    Leave the written secrets in Vault when the XR is deleted
-                    (managementPolicies without Delete).
+                    Leave the written secrets — and claimed entries — in Vault when
+                    the XR is deleted (managementPolicies without Delete).
                 secrets:
                   type: array
                   minItems: 1
                   maxItems: 100
+                  # One entry per path: a `data` entry and a `claim` on the same
+                  # path would fight over it, and two data entries would too.
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - path
                   items:
                     type: object
                     required:
                       - path
-                      - data
+                    x-kubernetes-validations:
+                      - rule: "has(self.data) != has(self.claim)"
+                        message: each secret needs exactly one of data (own the secret) or claim (own the entry, not its data)
                     properties:
                       path:
                         type: string
                         minLength: 1
-                        pattern: "^[a-zA-Z0-9][a-zA-Z0-9._/-]*[a-zA-Z0-9._-]$"
+                        pattern: "^[a-zA-Z0-9]([a-zA-Z0-9._/-]*[a-zA-Z0-9._-])?$"
                         description: >-
-                          Secret path below the mount, e.g. `apps/demo/db`. The XR
-                          owns the WHOLE secret at that path: keys written by
-                          anything else are removed on the next reconcile.
+                          Secret path below the mount, e.g. `apps/demo/db`. With
+                          `data` the XR owns the WHOLE secret at that path: keys
+                          written by anything else are removed on the next
+                          reconcile. With `claim` it owns only the entry.
+                      claim:
+                        type: object
+                        description: >-
+                          Own the ENTRY without owning its data (kv-v2 only). Writes
+                          custom_metadata to <mount>/metadata/<path> and, when the XR
+                          is deleted, DELETEs that path — the metadata and every
+                          version, whoever wrote them. The data itself is never
+                          read or written, so whatever writes it (e.g. the rancher
+                          join play into kubeconfigs/<cluster>) keeps doing so.
+                          The entry may not exist yet: custom_metadata can be
+                          written before the first version.
+                        properties:
+                          customMetadata:
+                            type: object
+                            maxProperties: 63
+                            description: >-
+                              Added to custom_metadata. `managed-by: crossplane` is
+                              always set and cannot be overridden — it is what marks
+                              the entry as owned.
+                            additionalProperties:
+                              type: string
+                              maxLength: 512
                       deleteAllVersions:
                         type: boolean
                         default: false
@@ -173,6 +203,10 @@ spec:
               required:
                 - mount
                 - secrets
+              x-kubernetes-validations:
+                # KV v1 has no metadata endpoint, so there is nothing to claim.
+                - rule: "!has(self.mount.type) || self.mount.type == 'kv-v2' || self.secrets.all(s, !has(s.claim))"
+                  message: claim needs a kv-v2 mount — kv v1 has no <mount>/metadata endpoint
             status:
               type: object
               properties:

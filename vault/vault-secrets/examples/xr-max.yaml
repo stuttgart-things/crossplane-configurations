@@ -49,3 +49,10 @@ spec:
             charset: ascii
         - key: endpoint
           value: https://api.demo.example.com
+    # Own the entry, not its data: something else writes the kubeconfig here and
+    # keeps adding versions. Deleting the XR removes the entry with all of them.
+    - path: kubeconfigs/demo-cluster
+      claim:
+        customMetadata:
+          cluster: demo-cluster
+          owner: vault-secrets-max
