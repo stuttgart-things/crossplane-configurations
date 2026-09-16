@@ -147,7 +147,9 @@ so no XR can grant `sys/`, `auth/` or `sudo`. What remains:
 - `kvMount` is free — except for the denied mounts below.
 - `read` entries other than `own` are literals. With a `<mount>/<cluster>` layout
   `read: [homerun2-test1]` *is* that cluster's subtree, so one cluster's XR can
-  grant itself a neighbour's secrets. **Accepted.**
+  grant itself a neighbour's secrets. **Accepted.** A leading `_` marks a shared
+  entry meant for every cluster (`_omni-pitcher`); it is allowed by the pattern
+  and grants nothing a shared entry does not already intend.
 - `tokenPolicies` attaches **any existing policy** by name. A Kubernetes auth role
   has no `allowed_policies`: whoever may write `auth/<mount>/role/*` may assign
   policies it does not hold itself. This is the remaining path to admin
