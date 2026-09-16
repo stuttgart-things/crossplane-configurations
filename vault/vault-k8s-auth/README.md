@@ -138,31 +138,58 @@ The order:
 
 ## Who may grant what
 
-Decided in #454 (point 5). Recorded here because it is a boundary, not a detail.
+Decided in #454 (point 5 and its [addendum](https://github.com/stuttgart-things/crossplane-configurations/issues/454#issuecomment-5700426267)).
+Recorded here because it is a boundary, not a detail.
 
 `VaultK8sAuth` builds every policy body itself; free-form HCL is never accepted,
-so no XR can grant `sys/`, `auth/` or `sudo`. What it **can** grant is read on
-**any KV mount and any subtree**:
+so no XR can grant `sys/`, `auth/` or `sudo`. What remains:
 
-- `kvMount` is a free string — any mount.
+- `kvMount` is free — except for the denied mounts below.
 - `read` entries other than `own` are literals. With a `<mount>/<cluster>` layout
   `read: [homerun2-test1]` *is* that cluster's subtree, so one cluster's XR can
-  grant itself a neighbour's secrets.
+  grant itself a neighbour's secrets. **Accepted.**
+- `tokenPolicies` attaches **any existing policy** by name. A Kubernetes auth role
+  has no `allowed_policies`: whoever may write `auth/<mount>/role/*` may assign
+  policies it does not hold itself. This is the remaining path to admin
+  credentials and is **not** closed in the package — see the last row.
 
-Both are **accepted**, not restricted in the package. The boundary is layered:
+The boundary is layered:
 
 | | prevents | enforced by |
 |---|---|---|
 | **Fixed prefix `xp-`.** Every created policy is `xp-{clusterName}-{name}`; the AppRole behind the ClusterProviderConfig gets `sys/policies/acl/xp-*` only | overwriting a hand-maintained policy (`pki-issue`, `read-homerun2-pr`, …) — whatever the XR says | Vault |
-| **RBAC on `vaultk8sauths.vault.stuttgart-things.com`.** Create/update only for the platform/machinery identity | a tenant granting itself read on someone else's mount or subtree | Kubernetes |
+| **Deny-list on `policies[].kvMount`** (CEL, at admission): `kubeconfigs`, `ssh`, every mount starting with `cicd-`, and `sys`, `auth`, `identity`, `cubbyhole` | creating a policy that reads admin credentials — a role reading `kubeconfigs` is cluster-admin on every cluster of the fleet. *Impossible*, not merely forbidden | Kubernetes API server |
+| **RBAC on `vaultk8sauths.vault.stuttgart-things.com`.** Create/update only for the platform/machinery identity | a tenant granting itself read on someone else's mount or subtree, **or attaching an existing admin policy through `tokenPolicies`** | Kubernetes |
+| **Platform: orderers name secret stores, never policies** (#454 addendum, option 2). The eso role's `tokenPolicies` are derived from `ClusterStack.spec.secretStores` via a fixed store → policy map in the catalog, and `xplane-cluster` strips `tokenPolicies` from the `spec.platform` passthrough | the `tokenPolicies` path for everyone who can order a ClusterStack | the Platform (`xplane-cluster`); not built yet |
+
+**About the deny-list.**
+
+- The names are **infra.sthings-vsphere's**. vault-vsphere.tiab.labda has its own
+  mounts, which a package-wide list cannot know.
+- A new admin mount **needs a package release** — except `cicd-*`, which is a
+  prefix so the next CI mount is covered. CEL in an XRD cannot read an
+  EnvironmentConfig, so the list cannot be per environment.
+- Exact names, not prefixes, for everything but `cicd-`: `kubeconfigs2` or
+  `kubeconfigs-labda` would pass. Name such a mount `cicd-…` or add it here.
+- Deliberately **not** denied: the app sets clusters legitimately read through ESO
+  (`homerun2-pr`, `homerun2-cd`, `schmetterpause`, `observability`, `minio`,
+  `zitadel`) and `clusters`. `machinery-catalog-locator` (a GitHub App key with repo
+  write) is the first candidate if its reach grows.
+- `sys`, `auth`, `identity`, `cubbyhole` grant nothing to a KV-shaped body today;
+  they are on the list because a deny-list cannot predict what a later Vault
+  serves there.
 
 Not chosen, and why:
 
 - **A per-cluster prefix** (`sys/policies/acl/<cluster>-*`) cannot be enforced: one
   AppRole serves all clusters, and Vault globs only at the end of a path.
 - **An allow-list of mounts/subtrees** (EnvironmentConfig, enforced by the
-  Composition) was proposed and declined — RBAC is the boundary. If one is added
+  Composition) was proposed and declined in favour of the deny-list: it would
+  have to enumerate every legitimate app set per environment. If one is added
   later it restricts mounts only, not subtrees.
+- **A deny-list on `tokenPolicies`** would have to know every dangerous policy by
+  name and keep up with new ones; the Platform-side derivation above closes that
+  path where it matters instead.
 
 **RBAC as it stands.** Crossplane creates `crossplane:composite:vaultk8sauths…:aggregate-to-edit`
 for this XRD, labelled into Crossplane's **own** `crossplane-edit` /
