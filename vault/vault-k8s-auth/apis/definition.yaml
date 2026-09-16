@@ -97,6 +97,10 @@ spec:
                 k8sAuths:
                   type: array
                   minItems: 1
+                  # Bounds keep the CEL rule below inside the API server's cost
+                  # budget: rule cost is multiplied by every enclosing array's
+                  # maximum size, and unbounded arrays count as huge.
+                  maxItems: 20
                   items:
                     type: object
                     required:
@@ -129,15 +133,16 @@ spec:
                         default: ["default"]
                       policies:
                         type: array
+                        maxItems: 20
                         description: >-
                           Vault policies to CREATE, each named
                           xp-{clusterName}-{name} and appended to tokenPolicies.
                           The body is BUILT by the Composition from kvMount + read,
                           never supplied as HCL (crossplane-configurations#285).
-                          Neither kvMount nor the read subtrees are restricted:
-                          whoever may create this XR may grant read on any KV
-                          mount and subtree. RBAC on the XR is the boundary — see
-                          README, "Who may grant what".
+                          kvMount may not name a mount holding admin credentials
+                          (kubeconfigs, ssh, cicd-*) or a Vault system path; any
+                          other mount and subtree is allowed, bounded by RBAC on
+                          the XR — see README, "Who may grant what".
                           The role is only composed once every policy it names is
                           Ready — Vault accepts a role naming a missing policy and
                           the token then silently has no permissions.
@@ -147,6 +152,19 @@ spec:
                             - name
                             - kvMount
                             - read
+                          x-kubernetes-validations:
+                            # #454 point 5 addendum. Mounts holding infrastructure /
+                            # admin credentials no workload cluster needs, on
+                            # infra.sthings-vsphere: a role reading `kubeconfigs` is
+                            # cluster-admin on every cluster of the fleet. `cicd-` is
+                            # a PREFIX so the next CI mount is covered without a
+                            # release. sys/auth/identity/cubbyhole grant nothing to a
+                            # KV-shaped body today; listed because a deny-list cannot
+                            # predict what a later Vault serves there.
+                            # Not a complete boundary: tokenPolicies can still attach
+                            # any existing policy — see README.
+                            - rule: "!(self.kvMount in ['kubeconfigs', 'ssh', 'sys', 'auth', 'identity', 'cubbyhole']) && !self.kvMount.startsWith('cicd-')"
+                              message: kvMount names a mount that holds admin credentials (kubeconfigs, ssh, cicd-*) or a Vault system path (sys, auth, identity, cubbyhole) — a VaultK8sAuth may not create a policy reading it
                           properties:
                             name:
                               type: string
@@ -154,10 +172,12 @@ spec:
                             kvMount:
                               type: string
                               minLength: 1
+                              maxLength: 64
                               pattern: "^[a-z0-9][a-z0-9._-]*$"
                             read:
                               type: array
                               minItems: 1
+                              maxItems: 20
                               description: "Subtrees of kvMount to grant read on. `own` expands to this cluster's subtree."
                               items:
                                 type: string
