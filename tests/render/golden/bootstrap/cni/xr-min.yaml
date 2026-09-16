@@ -59,3 +59,7 @@ spec:
   providerConfigRef:
     kind: ClusterProviderConfig
     name: in-cluster
+  readiness:
+    celQuery: has(object.status) && has(object.status.atProvider) && has(object.status.atProvider.clusterType)
+      && object.status.atProvider.clusterType != ""
+    policy: DeriveFromCelQuery
