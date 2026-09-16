@@ -337,12 +337,12 @@ spec:
                         Who owns the Vault ENTRY for this cluster's kubeconfig. The
                         upload writes it; without this nothing removes it, and a
                         torn-down cluster leaves its kubeconfig in Vault.
-                    
+
                         Enabled, this composes a Workspace (provider-opentofu) that
                         claims the entry with custom_metadata and, on destroy, deletes
                         <mount>/metadata/<path> — every version with it. It never
                         touches the secret data: the upload play writes that.
-                    
+
                         Defaults to ON for the rancher provisioner and OFF for the
                         ansible path — not because that path does not leak the same
                         entry, but because turning it on changes the teardown of
