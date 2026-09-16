@@ -135,9 +135,10 @@ spec:
             read: [cicd]
 
   # The cluster's OWN secrets, written into observability/<clusterName> and
-  # deleted — every version — when the XR goes away. The defaults are exactly
-  # what kube-prometheus-stack's ExternalSecrets read, so the keys below are
-  # spelled out only because this example sets every field.
+  # deleted — every version — when the XR goes away. The defaults are what
+  # kube-prometheus-stack reads from the cluster's own entry, so the keys below
+  # are spelled out only because this example sets every field. The webhook
+  # token is not one of them: it is shared, in observability/_omni-pitcher.
   clusterSecrets:
     enabled: true
     vaultAddr: https://vault.infra.sthings-vsphere.labul.sva.de
@@ -147,8 +148,6 @@ spec:
     providerConfigName: in-cluster
     generate:
       - key: grafana-admin-password
-        length: 32
-      - key: alertmanager-webhook-token
         length: 32
     data:
       grafana-admin-user: admin

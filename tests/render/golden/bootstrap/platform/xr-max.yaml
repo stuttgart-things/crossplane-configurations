@@ -331,7 +331,7 @@ spec:
     - key: entry
       value: kind1
     - key: generated_keys_json
-      value: '{"grafana-admin-password": 32, "alertmanager-webhook-token": 32}'
+      value: '{"grafana-admin-password": 32}'
     - key: literal_values_json
       value: '{"grafana-admin-user": "admin"}'
   providerConfigRef:
