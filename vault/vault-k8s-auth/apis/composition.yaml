@@ -36,13 +36,21 @@ spec:
             {{- $observed := .observed.resources | default dict }}
             {{- $extras := .extraResources | default dict }}
             {{- $auths := $spec.k8sAuths | default list }}
+            {{- $adoption := $spec.adoption | default dict }}
+            {{- $adopt := $adoption.enabled | default false }}
+            {{- $acceptDiff := $adoption.acceptDifferences | default false }}
+            {{- $handedPolicies := ternary (list "*") (list "Observe" "Create" "Update" "LateInitialize") ($adoption.deleteOnRemoval | default false) }}
 
-            {{- /* Reviewer Secrets are read for their CA only — the JWT stays in
-                   the Secret and reaches provider-vault by reference. */}}
             {{- $wantReviewer := false }}
             {{- range $a := $auths }}{{ if $a.backendConfig }}{{ $wantReviewer = true }}{{ end }}{{ end }}
-            {{- if $wantReviewer }}
             ---
+            # What the pipeline reads besides its own observed resources:
+            #  - reviewer-*  reviewer Secrets, for their CA only — the JWT stays in
+            #                the Secret and reaches provider-vault by reference.
+            #  - mr-*        this XR's own MRs, by label. Also observed, but read here
+            #                as well so a render can be handed them as fixtures: the
+            #                adoption hand-over is decided from observed state, and
+            #                without this no golden could cover it.
             apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
             kind: ExtraResources
             requirements:
@@ -55,51 +63,100 @@ spec:
                 namespace: {{ $xrNs | quote }}
             {{- end }}
             {{- end }}
+            {{- range $k, $gv := dict "Backend" "auth.vault.m.upbound.io/v1alpha1" "Policy" "vault.vault.m.upbound.io/v1alpha1" "AuthBackendRole" "kubernetes.vault.m.upbound.io/v1alpha1" "AuthBackendConfig" "kubernetes.vault.m.upbound.io/v1alpha1" }}
+              mr-{{ lower $k }}:
+                apiVersion: {{ $gv }}
+                kind: {{ $k }}
+                namespace: {{ $xrNs | quote }}
+                matchLabels:
+                  vault.stuttgart-things.com/cluster: {{ $cluster | quote }}
             {{- end }}
+
+            {{- /* name → current MR object. Extra resources first, observed on top:
+                   both are the live object, observed is simply fresher. */}}
+            {{- $known := dict }}
+            {{- range $k, $req := $extras }}
+            {{-   if hasPrefix "mr-" $k }}
+            {{-     range $it := ($req.items | default list) }}{{ $_ := set $known $it.resource.metadata.name $it.resource }}{{ end }}
+            {{-   end }}
+            {{- end }}
+            {{- range $n, $o := $observed }}{{ $_ := set $known $n $o.resource }}{{ end }}
 
             {{- $shareAuths := list }}
             {{- $pending := list }}
+            {{- $diffs := list }}
+            {{- $adoptWaiting := list }}
+            {{- $adoptBlocked := false }}
             {{- range $a := $auths }}
             {{- $mount := printf "%s-%s" $cluster $a.name }}
             {{- $backendName := printf "%s-backend" $mount }}
             {{- $roleName := printf "%s-role" $mount }}
             {{- $configName := printf "%s-config" $mount }}
+            {{- $bc := $a.backendConfig }}
 
-            {{- /* Readiness of what already exists. `dig` rather than field access:
-                   a composed resource that has not been observed yet has no
-                   status, and .status.conditions on nil is a template error. */}}
-            {{- $backendReady := false }}
-            {{- $backendObs := index $observed $backendName }}
-            {{- if $backendObs }}
-            {{-   range (dig "status" "conditions" list $backendObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $backendReady = true }}{{ end }}{{ end }}
+            {{- /* ---- desired values, computed once: emitted below AND compared
+                   against what Vault holds before an adoption hands over ---- */}}
+            {{- $policyNames := list }}
+            {{- $policyBodies := dict }}
+            {{- range $p := ($a.policies | default list) }}
+            {{-   $policyNames = append $policyNames (printf "%s-%s" $cluster $p.name) }}
+            {{-   $body := "" }}
+            {{-   range $s := $p.read }}
+            {{-     $sub := ternary $cluster $s (eq $s "own") }}
+            {{-     $body = printf "%spath \"%s/data/%s\" { capabilities = [\"read\"] }\npath \"%s/data/%s/*\" { capabilities = [\"read\"] }\npath \"%s/metadata/%s\" { capabilities = [\"read\", \"list\"] }\npath \"%s/metadata/%s/*\" { capabilities = [\"read\", \"list\"] }\n" $body $p.kvMount $sub $p.kvMount $sub $p.kvMount $sub $p.kvMount $sub }}
+            {{-   end }}
+            {{-   $_ := set $policyBodies $p.name $body }}
+            {{- end }}
+            {{- $saNames := $a.boundServiceAccountNames | default (list "default") }}
+            {{- $saNamespaces := $a.boundServiceAccountNamespaces | default (list "default") }}
+            {{- $ttl := $a.tokenTtl | default 3600 }}
+            {{- $tokenPolicies := concat ($a.tokenPolicies | default list) $policyNames }}
+            {{- $disableIss := true }}{{ $disableLocalCa := true }}
+            {{- if $bc }}
+            {{-   if hasKey $bc "disableIssValidation" }}{{ $disableIss = $bc.disableIssValidation }}{{ end }}
+            {{-   if hasKey $bc "disableLocalCaJwt" }}{{ $disableLocalCa = $bc.disableLocalCaJwt }}{{ end }}
             {{- end }}
 
-            {{- $policyNames := list }}
+            {{- /* ---- state of every MR of this auth ----
+                   ready     Ready=True
+                   missing   Observe-only and Vault has no such object
+                   handed    already under full management (sticky) */}}
+            {{- $st := dict }}
+            {{- $mrNames := list $backendName $roleName $configName }}
+            {{- range $p := ($a.policies | default list) }}{{ $mrNames = append $mrNames (printf "%s-policy-%s" $mount $p.name) }}{{ end }}
+            {{- $authHanded := false }}
+            {{- range $n := $mrNames }}
+            {{-   $o := index $known $n }}
+            {{-   $e := dict "exists" false "ready" false "missing" false }}
+            {{-   if $o }}
+            {{-     $_ := set $e "exists" true }}
+            {{-     range (dig "status" "conditions" list $o) }}
+            {{-       if and (eq .type "Ready") (eq .status "True") }}{{ $_ := set $e "ready" true }}{{ end }}
+            {{-       if and (eq .type "Synced") (eq .status "False") (contains "does not exist" (.message | default "")) }}{{ $_ := set $e "missing" true }}{{ end }}
+            {{-     end }}
+            {{-     range (dig "spec" "managementPolicies" list $o) }}{{ if or (eq . "*") (eq . "Create") }}{{ $authHanded = true }}{{ end }}{{ end }}
+            {{-   end }}
+            {{-   $_ := set $st $n $e }}
+            {{- end }}
+            {{- $backendReady := (index $st $backendName).ready }}
+            {{- $roleReady := (index $st $roleName).ready }}
+            {{- $configReady := (index $st $configName).ready }}
             {{- $policiesReady := true }}
             {{- range $p := ($a.policies | default list) }}
-            {{-   $pName := printf "%s-%s" $cluster $p.name }}
-            {{-   $policyNames = append $policyNames $pName }}
-            {{-   $pReady := false }}
-            {{-   $pObs := index $observed (printf "%s-policy-%s" $mount $p.name) }}
-            {{-   if $pObs }}
-            {{-     range (dig "status" "conditions" list $pObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $pReady = true }}{{ end }}{{ end }}
-            {{-   end }}
-            {{-   if not $pReady }}{{ $policiesReady = false }}{{ end }}
+            {{-   if not (index $st (printf "%s-policy-%s" $mount $p.name)).ready }}{{ $policiesReady = false }}{{ end }}
             {{- end }}
-
-            {{- $roleObs := index $observed $roleName }}
-            {{- $roleReady := false }}
-            {{- if $roleObs }}
-            {{-   range (dig "status" "conditions" list $roleObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $roleReady = true }}{{ end }}{{ end }}
+            {{- /* A policy the adoption finds missing is created on hand-over; it
+                   must not hold the role back meanwhile, or nothing ever hands over. */}}
+            {{- $policiesPresentOrMissing := true }}
+            {{- range $p := ($a.policies | default list) }}
+            {{-   $pe := index $st (printf "%s-policy-%s" $mount $p.name) }}
+            {{-   if not (or $pe.ready $pe.missing) }}{{ $policiesPresentOrMissing = false }}{{ end }}
             {{- end }}
 
             {{- /* backendConfig: the CA, from the reviewer Secret — or, once composed,
                    from the MR itself, so a reviewer Secret that is briefly absent
                    (rotated, re-created by its own XR) does not remove the config
                    from Vault and lock every login out. */}}
-            {{- $bc := $a.backendConfig }}
-            {{- $configObs := index $observed $configName }}
-            {{- $configReady := false }}
             {{- $ca := "" }}
             {{- if $bc }}
             {{-   $req := index $extras (printf "reviewer-%s" $a.name) }}
@@ -107,15 +164,100 @@ spec:
             {{-     $caB64 := dig "resource" "data" ($bc.caCertKey | default "ca.crt") "" (index $req.items 0) }}
             {{-     if $caB64 }}{{ $ca = b64dec $caB64 }}{{ end }}
             {{-   end }}
-            {{-   if and (not $ca) $configObs }}
-            {{-     $ca = dig "spec" "forProvider" "kubernetesCaCert" "" $configObs.resource }}
-            {{-   end }}
-            {{-   if $configObs }}
-            {{-     range (dig "status" "conditions" list $configObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $configReady = true }}{{ end }}{{ end }}
+            {{-   if and (not $ca) (index $known $configName) }}
+            {{-     $ca = dig "spec" "forProvider" "kubernetesCaCert" "" (index $known $configName) }}
             {{-   end }}
             {{- end }}
             {{- $configWaiting := and $bc (not $ca) }}
             {{- if $configWaiting }}{{ $pending = append $pending (printf "%s: reviewer Secret %s/%s has no %s" $a.name $xrNs $bc.secretName ($bc.caCertKey | default "ca.crt")) }}{{ end }}
+
+            {{- /* ---- adoption: compare, then hand over ---- */}}
+            {{- $emitRole := or (index $known $roleName) (and $backendReady (ternary $policiesPresentOrMissing $policiesReady $adopt)) }}
+            {{- $emitConfig := and $bc $ca (or (index $known $configName) $backendReady) }}
+            {{- $phase := "managed" }}
+            {{- $policies := list }}
+            {{- if $adopt }}
+            {{-   $authDiffs := list }}
+            {{-   $be := index $st $backendName }}
+            {{-   $bo := index $known $backendName | default dict }}
+            {{-   if $be.missing }}
+            {{-     $authDiffs = append $authDiffs (printf "%s: mount %s does not exist — adoption expects an existing mount; unset adoption.enabled for a fresh cluster" $a.name $mount) }}
+            {{-   else if and $be.ready (ne (dig "status" "atProvider" "type" "" $bo) "kubernetes") }}
+            {{-     $authDiffs = append $authDiffs (printf "%s: mount %s has type %q, not kubernetes" $a.name $mount (dig "status" "atProvider" "type" "" $bo)) }}
+            {{-   end }}
+            {{-   range $p := ($a.policies | default list) }}
+            {{-     $pn := printf "%s-policy-%s" $mount $p.name }}
+            {{-     $pe := index $st $pn }}
+            {{-     if $pe.ready }}
+            {{-       $obsBody := dig "status" "atProvider" "policy" "" (index $known $pn) }}
+            {{-       if ne (trim $obsBody) (trim (index $policyBodies $p.name)) }}
+            {{-         $authDiffs = append $authDiffs (printf "%s: policy %s-%s has a different body in Vault" $a.name $cluster $p.name) }}
+            {{-       end }}
+            {{-     end }}
+            {{-   end }}
+            {{-   $re := index $st $roleName }}
+            {{-   if $re.ready }}
+            {{-     $ro := index $known $roleName }}
+            {{-     range $f, $want := dict "boundServiceAccountNames" $saNames "boundServiceAccountNamespaces" $saNamespaces "tokenPolicies" $tokenPolicies }}
+            {{-       $have := dig "status" "atProvider" $f list $ro }}
+            {{-       if ne (sortAlpha $have | toJson) (sortAlpha $want | toJson) }}
+            {{-         $authDiffs = append $authDiffs (printf "%s: role %s observed %s, spec %s" $a.name $f (sortAlpha $have | toJson) (sortAlpha $want | toJson)) }}
+            {{-       end }}
+            {{-     end }}
+            {{-     $haveTtl := int (dig "status" "atProvider" "tokenTtl" 0 $ro) }}
+            {{-     if ne $haveTtl (int $ttl) }}
+            {{-       $authDiffs = append $authDiffs (printf "%s: role tokenTtl observed %d, spec %d" $a.name $haveTtl (int $ttl)) }}
+            {{-     end }}
+            {{-   end }}
+            {{-   $ce := index $st $configName }}
+            {{-   if and $bc $ce.ready }}
+            {{-     $co := index $known $configName }}
+            {{-     if ne (dig "status" "atProvider" "kubernetesHost" "" $co) $k8sHost }}
+            {{-       $authDiffs = append $authDiffs (printf "%s: config kubernetesHost observed %q, spec %q" $a.name (dig "status" "atProvider" "kubernetesHost" "" $co) $k8sHost) }}
+            {{-     end }}
+            {{-     if and $ca (ne (trim (dig "status" "atProvider" "kubernetesCaCert" "" $co)) (trim $ca)) }}
+            {{-       $authDiffs = append $authDiffs (printf "%s: config kubernetesCaCert differs from the reviewer Secret's CA" $a.name) }}
+            {{-     end }}
+            {{-     if ne (dig "status" "atProvider" "disableIssValidation" false $co) $disableIss }}
+            {{-       $authDiffs = append $authDiffs (printf "%s: config disableIssValidation observed %v, spec %v" $a.name (dig "status" "atProvider" "disableIssValidation" false $co) $disableIss) }}
+            {{-     end }}
+            {{-     if ne (dig "status" "atProvider" "disableLocalCaJwt" false $co) $disableLocalCa }}
+            {{-       $authDiffs = append $authDiffs (printf "%s: config disableLocalCaJwt observed %v, spec %v" $a.name (dig "status" "atProvider" "disableLocalCaJwt" false $co) $disableLocalCa) }}
+            {{-     end }}
+            {{-   end }}
+
+            {{- /* Everything this auth will compose has been looked at: present
+                     (Ready) or confirmed missing. Only then is "no differences" a
+                     statement about Vault rather than about what we have not read yet. */}}
+            {{-   $looked := and (or $be.ready $be.missing) $policiesPresentOrMissing (or $re.ready $re.missing) }}
+            {{-   if $bc }}{{ $looked = and $looked (or $ce.ready $ce.missing) }}{{ end }}
+            {{-   if $authHanded }}
+            {{-     $phase = "handedOver" }}
+            {{-   else if and $authDiffs (not $acceptDiff) }}
+            {{-     $phase = "differences" }}
+            {{-     $diffs = concat $diffs $authDiffs }}
+            {{-     $adoptBlocked = true }}
+            {{-   else if and $looked (not $be.missing) }}
+            {{-     $phase = "handedOver" }}
+            {{-   else }}
+            {{-     $phase = "observing" }}
+            {{-     $adoptWaiting = append $adoptWaiting $a.name }}
+            {{-     if $be.missing }}{{ $diffs = concat $diffs $authDiffs }}{{ $adoptBlocked = true }}{{ $phase = "differences" }}{{ end }}
+            {{-   end }}
+            {{-   $policies = ternary $handedPolicies (list "Observe") (eq $phase "handedOver") }}
+            {{- end }}
+
+            {{- /* external-name: always while adopting, and kept for good once an
+                   MR has one. Never on a plain fresh create: without it a mount that
+                   already exists fails with "path is already in use", which is the
+                   safety net that stops a non-adopting XR from silently taking over
+                   someone else's mount. */}}
+            {{- $extName := dict $backendName $mount $roleName (printf "auth/%s/role/%s" $mount $a.name) $configName (printf "auth/%s/config" $mount) }}
+            {{- range $p := ($a.policies | default list) }}{{ $_ := set $extName (printf "%s-policy-%s" $mount $p.name) (printf "%s-%s" $cluster $p.name) }}{{ end }}
+            {{- $useExt := dict }}
+            {{- range $n, $v := $extName }}
+            {{-   if or $adopt (dig "metadata" "annotations" "crossplane.io/external-name" "" (index $known $n | default dict)) }}{{ $_ := set $useExt $n $v }}{{ end }}
+            {{- end }}
             ---
             # AUTH MOUNT. Deleting it removes the role and config inside Vault as
             # well, so their MRs deleting afterwards find nothing — that is fine.
@@ -125,6 +267,9 @@ spec:
               name: {{ $backendName }}
               annotations:
                 {{ setResourceNameAnnotation $backendName }}
+                {{- with index $useExt $backendName }}
+                crossplane.io/external-name: {{ . | quote }}
+                {{- end }}
                 {{- if $configWaiting }}
                 # Not Ready while the TokenReview config cannot be composed: the
                 # mount exists but no login can succeed yet, and without this the
@@ -138,6 +283,9 @@ spec:
               providerConfigRef:
                 name: {{ $pcName }}
                 kind: {{ $pcKind }}
+              {{- if $policies }}
+              managementPolicies: {{ $policies | toJson }}
+              {{- end }}
               forProvider:
                 type: kubernetes
                 path: {{ $mount }}
@@ -153,6 +301,9 @@ spec:
               name: {{ $pMr }}
               annotations:
                 {{ setResourceNameAnnotation $pMr }}
+                {{- with index $useExt $pMr }}
+                crossplane.io/external-name: {{ . | quote }}
+                {{- end }}
               labels:
                 vault.stuttgart-things.com/cluster: {{ $cluster }}
                 vault.stuttgart-things.com/auth: {{ $a.name }}
@@ -160,22 +311,19 @@ spec:
               providerConfigRef:
                 name: {{ $pcName }}
                 kind: {{ $pcKind }}
+              {{- if $policies }}
+              managementPolicies: {{ $policies | toJson }}
+              {{- end }}
               forProvider:
                 name: {{ printf "%s-%s" $cluster $p.name }}
-                policy: |
-                  {{- range $s := $p.read }}
-                  {{- $sub := ternary $cluster $s (eq $s "own") }}
-                  path "{{ $p.kvMount }}/data/{{ $sub }}" { capabilities = ["read"] }
-                  path "{{ $p.kvMount }}/data/{{ $sub }}/*" { capabilities = ["read"] }
-                  path "{{ $p.kvMount }}/metadata/{{ $sub }}" { capabilities = ["read", "list"] }
-                  path "{{ $p.kvMount }}/metadata/{{ $sub }}/*" { capabilities = ["read", "list"] }
-                  {{- end }}
+                policy: {{ index $policyBodies $p.name | toJson }}
             {{- end }}
 
-            {{- /* ROLE — gated on the mount and every created policy being Ready.
-                   Sticky: once composed it stays composed, or a Ready blip on a
-                   policy would delete the role and break every login mid-flight. */}}
-            {{- if or $roleObs (and $backendReady $policiesReady) }}
+            {{- /* ROLE — gated on the mount and every created policy being Ready
+                   (while adopting: present or confirmed missing). Sticky: once
+                   composed it stays composed, or a Ready blip on a policy would
+                   delete the role and break every login mid-flight. */}}
+            {{- if $emitRole }}
             ---
             apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
             kind: AuthBackendRole
@@ -183,6 +331,9 @@ spec:
               name: {{ $roleName }}
               annotations:
                 {{ setResourceNameAnnotation $roleName }}
+                {{- with index $useExt $roleName }}
+                crossplane.io/external-name: {{ . | quote }}
+                {{- end }}
               labels:
                 vault.stuttgart-things.com/cluster: {{ $cluster }}
                 vault.stuttgart-things.com/auth: {{ $a.name }}
@@ -190,16 +341,19 @@ spec:
               providerConfigRef:
                 name: {{ $pcName }}
                 kind: {{ $pcKind }}
+              {{- if $policies }}
+              managementPolicies: {{ $policies | toJson }}
+              {{- end }}
               forProvider:
                 backend: {{ $mount }}
                 roleName: {{ $a.name }}
-                boundServiceAccountNames: {{ $a.boundServiceAccountNames | default (list "default") | toJson }}
-                boundServiceAccountNamespaces: {{ $a.boundServiceAccountNamespaces | default (list "default") | toJson }}
-                tokenTtl: {{ $a.tokenTtl | default 3600 }}
-                tokenPolicies: {{ concat ($a.tokenPolicies | default list) $policyNames | toJson }}
+                boundServiceAccountNames: {{ $saNames | toJson }}
+                boundServiceAccountNamespaces: {{ $saNamespaces | toJson }}
+                tokenTtl: {{ $ttl }}
+                tokenPolicies: {{ $tokenPolicies | toJson }}
             {{- end }}
 
-            {{- if and $bc $ca (or $configObs $backendReady) }}
+            {{- if $emitConfig }}
             ---
             apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
             kind: AuthBackendConfig
@@ -207,6 +361,9 @@ spec:
               name: {{ $configName }}
               annotations:
                 {{ setResourceNameAnnotation $configName }}
+                {{- with index $useExt $configName }}
+                crossplane.io/external-name: {{ . | quote }}
+                {{- end }}
               labels:
                 vault.stuttgart-things.com/cluster: {{ $cluster }}
                 vault.stuttgart-things.com/auth: {{ $a.name }}
@@ -214,6 +371,9 @@ spec:
               providerConfigRef:
                 name: {{ $pcName }}
                 kind: {{ $pcKind }}
+              {{- if $policies }}
+              managementPolicies: {{ $policies | toJson }}
+              {{- end }}
               forProvider:
                 backend: {{ $mount }}
                 kubernetesHost: {{ $k8sHost | quote }}
@@ -221,12 +381,19 @@ spec:
                 tokenReviewerJwtSecretRef:
                   name: {{ $bc.secretName }}
                   key: {{ $bc.tokenKey | default "token" }}
-                disableIssValidation: {{ ternary $bc.disableIssValidation true (hasKey $bc "disableIssValidation") }}
-                disableLocalCaJwt: {{ ternary $bc.disableLocalCaJwt true (hasKey $bc "disableLocalCaJwt") }}
+                disableIssValidation: {{ $disableIss }}
+                disableLocalCaJwt: {{ $disableLocalCa }}
             {{- end }}
 
-            {{- $authReady := and $backendReady $policiesReady $roleReady (or (not $bc) $configReady) }}
+            {{- $authReady := and $backendReady $policiesReady $roleReady (or (not $bc) $configReady) (ne $phase "differences") }}
             {{- $entry := dict "name" $a.name "ready" $authReady }}
+            {{- if $adopt }}
+            {{-   $_ := set $entry "adoption" $phase }}
+            {{- /* Not a difference, but worth seeing before the hand-over creates it. */}}
+            {{-   $missingNames := list }}
+            {{-   range $n := $mrNames }}{{ if and (index $st $n).missing (ne $n $backendName) }}{{ $missingNames = append $missingNames $n }}{{ end }}{{ end }}
+            {{-   if and $missingNames (ne $phase "handedOver") }}{{ $_ := set $entry "createOnHandOver" $missingNames }}{{ end }}
+            {{- end }}
             {{- if $backendReady }}{{ $_ := set $entry "mountPath" $mount }}{{ end }}
             {{- if $roleReady }}{{ $_ := set $entry "role" $a.name }}{{ end }}
             {{- if and $policyNames $policiesReady }}{{ $_ := set $entry "policies" $policyNames }}{{ end }}
@@ -238,6 +405,13 @@ spec:
             ---
             apiVersion: {{ $xr.apiVersion }}
             kind: {{ $xr.kind }}
+            {{- if $adoptBlocked }}
+            # Explicit: an adoption held on differences composes only Observe-only
+            # MRs that are all Ready, and would otherwise report the XR Ready.
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/ready: "False"
+            {{- end }}
             status:
               share:
                 clusterName: {{ $cluster }}
@@ -246,11 +420,12 @@ spec:
                 {{- end }}
                 auths: {{ $shareAuths | toJson }}
                 ready: {{ $allReady }}
-            {{- if $wantReviewer }}
+            {{- if or $wantReviewer $adopt }}
             ---
             apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
             kind: ClaimConditions
             conditions:
+              {{- if $wantReviewer }}
               {{- if $pending }}
               - type: ReviewerSecretReady
                 status: "False"
@@ -260,6 +435,25 @@ spec:
               - type: ReviewerSecretReady
                 status: "True"
                 reason: Available
+              {{- end }}
+              {{- end }}
+              {{- if $adopt }}
+              {{- if $diffs }}
+              - type: AdoptionComplete
+                status: "False"
+                reason: DifferencesFound
+                message: {{ printf "not handed over — Vault differs from the spec (fix the spec, or set adoption.acceptDifferences to overwrite Vault): %s" (join "; " $diffs) | quote }}
+              {{- else if $adoptWaiting }}
+              - type: AdoptionComplete
+                status: "False"
+                reason: Observing
+                message: {{ printf "observing existing Vault objects before hand-over: %s" (join ", " $adoptWaiting) | quote }}
+              {{- else }}
+              - type: AdoptionComplete
+                status: "True"
+                reason: HandedOver
+                message: {{ ternary "managed, including deletion" "managed WITHOUT deletion — set adoption.deleteOnRemoval once the previous owner has let go" ($adoption.deleteOnRemoval | default false) | quote }}
+              {{- end }}
               {{- end }}
             {{- end }}
     - step: automatically-detect-ready-composed-resources

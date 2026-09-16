@@ -1,0 +1,243 @@
+# Fixture: the MRs of xr-max (clusterName xpv-adopt) as provider-vault reports
+# them while adoption.enabled holds them Observe-only — i.e. what Vault already
+# has, e.g. from bootstrap/vault-auth.
+#
+#   certmanager  mount, role and config all match the spec → handed over:
+#                managementPolicies [Observe, Create, Update, LateInitialize],
+#                no Delete (deleteOnRemoval: false)
+#   eso          role tokenPolicies lack the two policies the spec creates, and
+#                policy kv-cicd does not exist → held at Observe,
+#                AdoptionComplete=False reason DifferencesFound, XR Ready=False
+#
+# Generated; the CA matches reviewer-secret.yaml.
+---
+apiVersion: auth.vault.m.upbound.io/v1alpha1
+kind: Backend
+metadata:
+  name: xpv-adopt-certmanager-backend
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: xpv-adopt-certmanager-backend
+    crossplane.io/external-name: xpv-adopt-certmanager
+  labels:
+    vault.stuttgart-things.com/cluster: xpv-adopt
+    vault.stuttgart-things.com/auth: certmanager
+spec:
+  managementPolicies:
+  - Observe
+  forProvider: {}
+status:
+  atProvider:
+    id: xpv-adopt-certmanager
+    path: xpv-adopt-certmanager
+    type: kubernetes
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-09-16T12:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-09-16T12:00:00Z'
+---
+apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
+kind: AuthBackendRole
+metadata:
+  name: xpv-adopt-certmanager-role
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: xpv-adopt-certmanager-role
+    crossplane.io/external-name: auth/xpv-adopt-certmanager/role/certmanager
+  labels:
+    vault.stuttgart-things.com/cluster: xpv-adopt
+    vault.stuttgart-things.com/auth: certmanager
+spec:
+  managementPolicies:
+  - Observe
+  forProvider: {}
+status:
+  atProvider:
+    backend: xpv-adopt-certmanager
+    roleName: certmanager
+    boundServiceAccountNames:
+    - certmanager
+    boundServiceAccountNamespaces:
+    - cert-manager
+    tokenPolicies:
+    - pki-issue
+    tokenTtl: 7200
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-09-16T12:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-09-16T12:00:00Z'
+---
+apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
+kind: AuthBackendConfig
+metadata:
+  name: xpv-adopt-certmanager-config
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: xpv-adopt-certmanager-config
+    crossplane.io/external-name: auth/xpv-adopt-certmanager/config
+  labels:
+    vault.stuttgart-things.com/cluster: xpv-adopt
+    vault.stuttgart-things.com/auth: certmanager
+spec:
+  managementPolicies:
+  - Observe
+  forProvider: {}
+status:
+  atProvider:
+    backend: xpv-adopt-certmanager
+    kubernetesHost: https://10.31.102.147:6443
+    kubernetesCaCert: '-----BEGIN CERTIFICATE-----
+
+      FIXTURE-CA
+
+      -----END CERTIFICATE-----
+
+      '
+    disableIssValidation: true
+    disableLocalCaJwt: true
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-09-16T12:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-09-16T12:00:00Z'
+---
+apiVersion: auth.vault.m.upbound.io/v1alpha1
+kind: Backend
+metadata:
+  name: xpv-adopt-eso-backend
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: xpv-adopt-eso-backend
+    crossplane.io/external-name: xpv-adopt-eso
+  labels:
+    vault.stuttgart-things.com/cluster: xpv-adopt
+    vault.stuttgart-things.com/auth: eso
+spec:
+  managementPolicies:
+  - Observe
+  forProvider: {}
+status:
+  atProvider:
+    id: xpv-adopt-eso
+    path: xpv-adopt-eso
+    type: kubernetes
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-09-16T12:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-09-16T12:00:00Z'
+---
+apiVersion: vault.vault.m.upbound.io/v1alpha1
+kind: Policy
+metadata:
+  name: xpv-adopt-eso-policy-kv-own
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: xpv-adopt-eso-policy-kv-own
+    crossplane.io/external-name: xpv-adopt-kv-own
+  labels:
+    vault.stuttgart-things.com/cluster: xpv-adopt
+    vault.stuttgart-things.com/auth: eso
+spec:
+  managementPolicies:
+  - Observe
+  forProvider: {}
+status:
+  atProvider:
+    name: xpv-adopt-kv-own
+    policy: 'path "kv/data/xpv-adopt" { capabilities = ["read"] }
+
+      path "kv/data/xpv-adopt/*" { capabilities = ["read"] }
+
+      path "kv/metadata/xpv-adopt" { capabilities = ["read", "list"] }
+
+      path "kv/metadata/xpv-adopt/*" { capabilities = ["read", "list"] }
+
+      '
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-09-16T12:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-09-16T12:00:00Z'
+---
+apiVersion: vault.vault.m.upbound.io/v1alpha1
+kind: Policy
+metadata:
+  name: xpv-adopt-eso-policy-kv-cicd
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: xpv-adopt-eso-policy-kv-cicd
+    crossplane.io/external-name: xpv-adopt-kv-cicd
+  labels:
+    vault.stuttgart-things.com/cluster: xpv-adopt
+    vault.stuttgart-things.com/auth: eso
+spec:
+  managementPolicies:
+  - Observe
+  forProvider: {}
+status:
+  atProvider: {}
+  conditions:
+  - type: Synced
+    status: 'False'
+    reason: ReconcileError
+    message: 'observe failed: external resource does not exist'
+    lastTransitionTime: '2026-09-16T12:00:00Z'
+---
+apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
+kind: AuthBackendRole
+metadata:
+  name: xpv-adopt-eso-role
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: xpv-adopt-eso-role
+    crossplane.io/external-name: auth/xpv-adopt-eso/role/eso
+  labels:
+    vault.stuttgart-things.com/cluster: xpv-adopt
+    vault.stuttgart-things.com/auth: eso
+spec:
+  managementPolicies:
+  - Observe
+  forProvider: {}
+status:
+  atProvider:
+    backend: xpv-adopt-eso
+    roleName: eso
+    boundServiceAccountNames:
+    - external-secrets
+    boundServiceAccountNamespaces:
+    - external-secrets
+    tokenPolicies:
+    - read-cicd
+    tokenTtl: 3600
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-09-16T12:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-09-16T12:00:00Z'
