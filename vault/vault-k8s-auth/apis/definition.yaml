@@ -59,6 +59,37 @@ spec:
                         - ClusterProviderConfig
                         - ProviderConfig
                       default: ClusterProviderConfig
+                adoption:
+                  type: object
+                  description: >-
+                    Take over Vault objects that already exist — typically the ones
+                    bootstrap/vault-auth created through OpenTofu for the same
+                    clusterName — instead of failing with "path is already in use".
+                    Every MR gets a crossplane.io/external-name and starts Observe-only.
+                    Once everything an auth composes has been observed, it is
+                    compared with the spec; with no differences the auth is handed
+                    over as a whole, WITHOUT the Delete policy. Differences hold the
+                    hand-over and are named in the AdoptionComplete condition.
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                    acceptDifferences:
+                      type: boolean
+                      default: false
+                      description: >-
+                        Hand over despite differences, i.e. overwrite Vault with the
+                        spec on the next reconcile. Set it after reading the
+                        AdoptionComplete message, not before.
+                    deleteOnRemoval:
+                      type: boolean
+                      default: false
+                      description: >-
+                        Add the Delete policy, so deleting the XR deletes the Vault
+                        objects. Leave false while the previous owner (an OpenTofu
+                        Workspace and its state) still holds them — a delete from
+                        either side would remove them under the other. See README,
+                        "Migrating from bootstrap/vault-auth".
                 kubernetesHost:
                   type: string
                   description: "Kubernetes API host Vault calls for TokenReview. Only used by auths with backendConfig."

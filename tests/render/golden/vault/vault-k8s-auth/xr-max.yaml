@@ -9,16 +9,25 @@ spec:
     resourceRefs:
     - apiVersion: auth.vault.m.upbound.io/v1alpha1
       kind: Backend
-      name: xpv-proto-certmanager-backend
+      name: xpv-adopt-certmanager-backend
     - apiVersion: auth.vault.m.upbound.io/v1alpha1
       kind: Backend
-      name: xpv-proto-eso-backend
+      name: xpv-adopt-eso-backend
+    - apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
+      kind: AuthBackendConfig
+      name: xpv-adopt-certmanager-config
+    - apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
+      kind: AuthBackendRole
+      name: xpv-adopt-certmanager-role
+    - apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
+      kind: AuthBackendRole
+      name: xpv-adopt-eso-role
     - apiVersion: vault.vault.m.upbound.io/v1alpha1
       kind: Policy
-      name: xpv-proto-eso-policy-kv-cicd
+      name: xpv-adopt-eso-policy-kv-cicd
     - apiVersion: vault.vault.m.upbound.io/v1alpha1
       kind: Policy
-      name: xpv-proto-eso-policy-kv-own
+      name: xpv-adopt-eso-policy-kv-own
 status:
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
@@ -30,22 +39,35 @@ status:
     status: "True"
     type: ReviewerSecretReady
   - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'not handed over — Vault differs from the spec (fix the spec, or set
+      adoption.acceptDifferences to overwrite Vault): eso: role tokenPolicies observed
+      ["read-cicd"], spec ["read-cicd","xpv-adopt-kv-cicd","xpv-adopt-kv-own"]'
+    reason: DifferencesFound
+    status: "False"
+    type: AdoptionComplete
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
     reason: ReconcileSuccess
     status: "True"
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: xpv-proto-certmanager-backend, xpv-proto-eso-backend,
-      xpv-proto-eso-policy-kv-cicd, and 1 more'
     reason: Creating
     status: "False"
     type: Ready
   share:
     auths:
-    - name: certmanager
+    - adoption: handedOver
+      mountPath: xpv-adopt-certmanager
+      name: certmanager
+      ready: true
+      role: certmanager
+    - adoption: differences
+      createOnHandOver:
+      - xpv-adopt-eso-policy-kv-cicd
+      mountPath: xpv-adopt-eso
+      name: eso
       ready: false
-    - name: eso
-      ready: false
-    clusterName: xpv-proto
+      role: eso
+    clusterName: xpv-adopt
     ready: false
     vaultAddr: https://vault.example.com
 ---
@@ -53,12 +75,13 @@ apiVersion: auth.vault.m.upbound.io/v1alpha1
 kind: Backend
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: xpv-proto-certmanager-backend
+    crossplane.io/composition-resource-name: xpv-adopt-certmanager-backend
+    crossplane.io/external-name: xpv-adopt-certmanager
   labels:
     crossplane.io/composite: vault-k8s-auth-max
     vault.stuttgart-things.com/auth: certmanager
-    vault.stuttgart-things.com/cluster: xpv-proto
-  name: xpv-proto-certmanager-backend
+    vault.stuttgart-things.com/cluster: xpv-adopt
+  name: xpv-adopt-certmanager-backend
   namespace: default
   ownerReferences:
   - apiVersion: vault.stuttgart-things.com/v1alpha1
@@ -69,8 +92,93 @@ metadata:
     uid: e7c48d76-e4d0-557e-babe-81cba82f2a12
 spec:
   forProvider:
-    path: xpv-proto-certmanager
+    path: xpv-adopt-certmanager
     type: kubernetes
+  managementPolicies:
+  - Observe
+  - Create
+  - Update
+  - LateInitialize
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault
+---
+apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
+kind: AuthBackendConfig
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: xpv-adopt-certmanager-config
+    crossplane.io/external-name: auth/xpv-adopt-certmanager/config
+  labels:
+    crossplane.io/composite: vault-k8s-auth-max
+    vault.stuttgart-things.com/auth: certmanager
+    vault.stuttgart-things.com/cluster: xpv-adopt
+  name: xpv-adopt-certmanager-config
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultK8sAuth
+    name: vault-k8s-auth-max
+    uid: e7c48d76-e4d0-557e-babe-81cba82f2a12
+spec:
+  forProvider:
+    backend: xpv-adopt-certmanager
+    disableIssValidation: true
+    disableLocalCaJwt: true
+    kubernetesCaCert: |
+      -----BEGIN CERTIFICATE-----
+      FIXTURE-CA
+      -----END CERTIFICATE-----
+    kubernetesHost: https://10.31.102.147:6443
+    tokenReviewerJwtSecretRef:
+      key: token
+      name: xpv-proto-vault-reviewer
+  managementPolicies:
+  - Observe
+  - Create
+  - Update
+  - LateInitialize
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault
+---
+apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
+kind: AuthBackendRole
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: xpv-adopt-certmanager-role
+    crossplane.io/external-name: auth/xpv-adopt-certmanager/role/certmanager
+  labels:
+    crossplane.io/composite: vault-k8s-auth-max
+    vault.stuttgart-things.com/auth: certmanager
+    vault.stuttgart-things.com/cluster: xpv-adopt
+  name: xpv-adopt-certmanager-role
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultK8sAuth
+    name: vault-k8s-auth-max
+    uid: e7c48d76-e4d0-557e-babe-81cba82f2a12
+spec:
+  forProvider:
+    backend: xpv-adopt-certmanager
+    boundServiceAccountNames:
+    - certmanager
+    boundServiceAccountNamespaces:
+    - cert-manager
+    roleName: certmanager
+    tokenPolicies:
+    - pki-issue
+    tokenTtl: 7200
+  managementPolicies:
+  - Observe
+  - Create
+  - Update
+  - LateInitialize
   providerConfigRef:
     kind: ClusterProviderConfig
     name: vault
@@ -79,12 +187,13 @@ apiVersion: auth.vault.m.upbound.io/v1alpha1
 kind: Backend
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: xpv-proto-eso-backend
+    crossplane.io/composition-resource-name: xpv-adopt-eso-backend
+    crossplane.io/external-name: xpv-adopt-eso
   labels:
     crossplane.io/composite: vault-k8s-auth-max
     vault.stuttgart-things.com/auth: eso
-    vault.stuttgart-things.com/cluster: xpv-proto
-  name: xpv-proto-eso-backend
+    vault.stuttgart-things.com/cluster: xpv-adopt
+  name: xpv-adopt-eso-backend
   namespace: default
   ownerReferences:
   - apiVersion: vault.stuttgart-things.com/v1alpha1
@@ -95,8 +204,10 @@ metadata:
     uid: e7c48d76-e4d0-557e-babe-81cba82f2a12
 spec:
   forProvider:
-    path: xpv-proto-eso
+    path: xpv-adopt-eso
     type: kubernetes
+  managementPolicies:
+  - Observe
   providerConfigRef:
     kind: ClusterProviderConfig
     name: vault
@@ -105,12 +216,13 @@ apiVersion: vault.vault.m.upbound.io/v1alpha1
 kind: Policy
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: xpv-proto-eso-policy-kv-cicd
+    crossplane.io/composition-resource-name: xpv-adopt-eso-policy-kv-cicd
+    crossplane.io/external-name: xpv-adopt-kv-cicd
   labels:
     crossplane.io/composite: vault-k8s-auth-max
     vault.stuttgart-things.com/auth: eso
-    vault.stuttgart-things.com/cluster: xpv-proto
-  name: xpv-proto-eso-policy-kv-cicd
+    vault.stuttgart-things.com/cluster: xpv-adopt
+  name: xpv-adopt-eso-policy-kv-cicd
   namespace: default
   ownerReferences:
   - apiVersion: vault.stuttgart-things.com/v1alpha1
@@ -121,7 +233,7 @@ metadata:
     uid: e7c48d76-e4d0-557e-babe-81cba82f2a12
 spec:
   forProvider:
-    name: xpv-proto-kv-cicd
+    name: xpv-adopt-kv-cicd
     policy: |
       path "kv/data/cicd" { capabilities = ["read"] }
       path "kv/data/cicd/*" { capabilities = ["read"] }
@@ -131,6 +243,8 @@ spec:
       path "kv/data/shared/*" { capabilities = ["read"] }
       path "kv/metadata/shared" { capabilities = ["read", "list"] }
       path "kv/metadata/shared/*" { capabilities = ["read", "list"] }
+  managementPolicies:
+  - Observe
   providerConfigRef:
     kind: ClusterProviderConfig
     name: vault
@@ -139,12 +253,13 @@ apiVersion: vault.vault.m.upbound.io/v1alpha1
 kind: Policy
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: xpv-proto-eso-policy-kv-own
+    crossplane.io/composition-resource-name: xpv-adopt-eso-policy-kv-own
+    crossplane.io/external-name: xpv-adopt-kv-own
   labels:
     crossplane.io/composite: vault-k8s-auth-max
     vault.stuttgart-things.com/auth: eso
-    vault.stuttgart-things.com/cluster: xpv-proto
-  name: xpv-proto-eso-policy-kv-own
+    vault.stuttgart-things.com/cluster: xpv-adopt
+  name: xpv-adopt-eso-policy-kv-own
   namespace: default
   ownerReferences:
   - apiVersion: vault.stuttgart-things.com/v1alpha1
@@ -155,12 +270,52 @@ metadata:
     uid: e7c48d76-e4d0-557e-babe-81cba82f2a12
 spec:
   forProvider:
-    name: xpv-proto-kv-own
+    name: xpv-adopt-kv-own
     policy: |
-      path "kv/data/xpv-proto" { capabilities = ["read"] }
-      path "kv/data/xpv-proto/*" { capabilities = ["read"] }
-      path "kv/metadata/xpv-proto" { capabilities = ["read", "list"] }
-      path "kv/metadata/xpv-proto/*" { capabilities = ["read", "list"] }
+      path "kv/data/xpv-adopt" { capabilities = ["read"] }
+      path "kv/data/xpv-adopt/*" { capabilities = ["read"] }
+      path "kv/metadata/xpv-adopt" { capabilities = ["read", "list"] }
+      path "kv/metadata/xpv-adopt/*" { capabilities = ["read", "list"] }
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault
+---
+apiVersion: kubernetes.vault.m.upbound.io/v1alpha1
+kind: AuthBackendRole
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: xpv-adopt-eso-role
+    crossplane.io/external-name: auth/xpv-adopt-eso/role/eso
+  labels:
+    crossplane.io/composite: vault-k8s-auth-max
+    vault.stuttgart-things.com/auth: eso
+    vault.stuttgart-things.com/cluster: xpv-adopt
+  name: xpv-adopt-eso-role
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultK8sAuth
+    name: vault-k8s-auth-max
+    uid: e7c48d76-e4d0-557e-babe-81cba82f2a12
+spec:
+  forProvider:
+    backend: xpv-adopt-eso
+    boundServiceAccountNames:
+    - external-secrets
+    boundServiceAccountNamespaces:
+    - external-secrets
+    roleName: eso
+    tokenPolicies:
+    - read-cicd
+    - xpv-adopt-kv-own
+    - xpv-adopt-kv-cicd
+    tokenTtl: 3600
+  managementPolicies:
+  - Observe
   providerConfigRef:
     kind: ClusterProviderConfig
     name: vault

@@ -38,10 +38,96 @@ opaque `tofu apply` log.
   resource reference; here the role is simply not composed until the policies are
   Ready. Same reason: Vault accepts a role naming a missing policy and the token
   then silently has no permissions.
-- **Nothing is adopted.** The MRs carry no `crossplane.io/external-name`, so a
-  mount that already exists (e.g. created by bootstrap/vault-auth for the same
-  cluster name) makes the Backend fail with *path is already in use* rather than
-  taking it over. Migration by adoption is the next step, not part of the prototype.
+- **Nothing is adopted unless asked.** Without `adoption.enabled` the MRs carry
+  no `crossplane.io/external-name`, so a mount that already exists (e.g. created
+  by bootstrap/vault-auth for the same cluster name) makes the Backend fail with
+  *path is already in use* rather than being taken over silently. See
+  [Adopting existing Vault objects](#adopting-existing-vault-objects).
+
+## Adopting existing Vault objects
+
+`spec.adoption.enabled: true` takes over the mount, role, config and policies an
+earlier owner created for the same `clusterName` — the way an existing cluster
+moves off bootstrap/vault-auth without a rebuild (#454).
+
+```yaml
+spec:
+  clusterName: homerun2-test1
+  adoption:
+    enabled: true
+    acceptDifferences: false   # default
+    deleteOnRemoval: false     # default — see "Migrating" below
+```
+
+**How it proceeds, per auth:**
+
+1. Every MR gets `crossplane.io/external-name` — the Terraform import ID:
+   `<mount>` for the Backend, `auth/<mount>/role/<name>`, `auth/<mount>/config`,
+   and the policy name — and starts with `managementPolicies: [Observe]`.
+   Nothing is written.
+2. Once everything the auth composes has been read — present and Ready, or
+   confirmed missing — it is **compared with the spec**:
+   - Backend `type`
+   - Policy body (whitespace-trimmed)
+   - Role `boundServiceAccountNames`, `boundServiceAccountNamespaces`,
+     `tokenPolicies` (order-insensitive), `tokenTtl`
+   - Config `kubernetesHost`, `kubernetesCaCert`, `disableIssValidation`,
+     `disableLocalCaJwt`. The reviewer JWT is not compared — Vault never returns it.
+3. **No differences:** the auth is handed over **as a whole** to
+   `[Observe, Create, Update, LateInitialize]` — without `Delete`. Objects
+   confirmed missing (a policy the spec adds, a role not yet created) are created
+   now; they are listed beforehand in `status.share.auths[].createOnHandOver`.
+4. **Differences:** the auth stays Observe-only, the XR is `Ready=False`, and
+   `AdoptionComplete=False` (reason `DifferencesFound`) names each one, e.g.
+   `eso: role tokenPolicies observed ["read-cicd"], spec ["read-cicd","x-kv-own"]`.
+   Fix the spec to match Vault, or set `acceptDifferences: true` to hand over
+   anyway, i.e. **overwrite Vault** with the spec on the next reconcile.
+
+A mount that does not exist at all holds the adoption too — adopting is a claim
+that something is there; for a fresh cluster leave `adoption` off.
+
+Hand-over is sticky: once any MR of an auth carries `Create`, the auth stays
+managed, and a later drift is simply corrected rather than re-held.
+
+`status.share.auths[].adoption` is `observing` | `differences` | `handedOver`;
+`AdoptionComplete=True` (reason `HandedOver`) says whether deletion is included.
+
+External names stay on an MR once set, also after `adoption.enabled` is turned
+off: removing one would make the provider treat the object as new and try to
+create it again.
+
+### Migrating from bootstrap/vault-auth
+
+During the migration the same Vault objects have **two owners**: the OpenTofu
+Workspace with its tfstate, and this XR. Neither may delete while the other
+still holds them — a `tofu destroy` from the old side removes the mount under the
+new one, and a delete from the new side removes it under the old one. Hence
+`deleteOnRemoval: false` until the old side has let go.
+
+The order:
+
+1. **Keep the specs identical.** Apply the `VaultK8sAuth` (this group) with
+   `adoption.enabled: true` for the same `clusterName` and auths. Until step 3,
+   both sides reconcile: the Workspace re-applies its values on every run, this
+   XR its own — any difference between the two flaps back and forth. The
+   comparison in step 2 of the adoption is what shows there is none.
+2. **Wait for `AdoptionComplete=True`.**
+3. **Release the OpenTofu side without a destroy.** Deleting the old XR (or the
+   Platform that composes it) deletes its Workspace, and a Workspace deleted
+   with its default policies runs `tofu destroy`. Either
+   - orphan it: `kubectl delete vaultk8sauths.config.stuttgart-things.com <name> --cascade=orphan`,
+     then patch each `<cluster>-<auth>-vault-auth` Workspace to
+     `managementPolicies: ["Observe"]` and delete it — without `Delete` in its
+     policies nothing is destroyed; or
+   - `tofu state rm` every address in the Workspace's state first, so the
+     destroy has nothing to remove.
+4. **Set `deleteOnRemoval: true`.** From here this XR is the only owner, and
+   deleting it deletes the Vault objects as a fresh one would.
+
+> Not yet exercised against a real Vault — the provider-vault credential on
+> u26-kind3 is still missing the ACL for this (#454 point 1). The hand-over logic
+> itself is covered by the `xr-max` golden and render variants; step 3 is the
+> part to walk through by hand on a test cluster first.
 
 ## Readiness and status
 
@@ -84,7 +170,7 @@ opaque `tofu apply` log.
 |---|---|
 | `xr-min.yaml` | required fields only — exercises every default |
 | `xr.yaml` | one auth referencing policies, one creating its own |
-| `xr-max.yaml` | every field, incl. `backendConfig` (render fixture: `tests/render/extra-resources/vault/vault-k8s-auth/`) |
+| `xr-max.yaml` | every field, incl. `backendConfig` and `adoption` — fixtures in `tests/render/extra-resources/vault/vault-k8s-auth/`: one auth that matches and is handed over, one held on differences |
 
 ```bash
 KUBECONFIG=~/.kube/kind3 CONFIG=vault/vault-k8s-auth WHAT=both XR=xr.yaml YES=1 task apply-dev

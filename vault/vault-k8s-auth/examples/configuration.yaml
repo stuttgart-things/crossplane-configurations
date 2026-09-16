@@ -3,4 +3,4 @@ kind: Configuration
 metadata:
   name: vault-k8s-auth
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/vault-k8s-auth:v0.1.0
+  package: ghcr.io/stuttgart-things/crossplane-configurations/vault-k8s-auth:v0.2.0

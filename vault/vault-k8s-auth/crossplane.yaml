@@ -5,7 +5,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/version: v0.2.0
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -29,6 +29,12 @@ metadata:
         and every created policy are Ready; sticky afterwards
       - `kubernetes.vault.m.upbound.io` AuthBackendConfig — when `backendConfig` is set;
         CA read from the reviewer Secret, JWT passed by reference
+
+      `spec.adoption.enabled` takes over objects that already exist (e.g. from
+      bootstrap/vault-auth): external-names, Observe-only first, compared with
+      the spec, then handed over per auth WITHOUT Delete; differences hold it
+      and are named in the AdoptionComplete condition. `deleteOnRemoval` adds
+      Delete once the previous owner has let go.
 
       `status.share` keeps the contract of bootstrap/vault-auth: `mountPath`,
       `role`, `policies` are absent until Ready, never empty.
