@@ -142,9 +142,21 @@ spec:
                                 Generate a random value ONCE. It is kept in the
                                 composed `<xr>-<hash>` Secret next to the XR and
                                 reused on every reconcile. If that Secret is deleted
-                                a NEW value is generated and overwrites Vault — which
-                                is the rotation path, and also the footgun.
+                                after Vault was written, the XR holds at Ready=False
+                                (condition GeneratedValuesPreserved) instead of
+                                generating — unless `regenerate` is true.
                               properties:
+                                regenerate:
+                                  type: boolean
+                                  default: false
+                                  description: >-
+                                    Generate a new value when the data Secret is
+                                    missing although Vault already holds the secret,
+                                    i.e. ROTATE the live credential. Off by default:
+                                    a Secret removed during a namespace cleanup must
+                                    not hand a running consumer a password it does
+                                    not have. Set it deliberately to rotate, then
+                                    unset it again.
                                 length:
                                   type: integer
                                   minimum: 8

@@ -1,0 +1,25 @@
+# Fixture: xr-min's KV MR after a successful first write — and its data Secret
+# (composed-data-secrets.yaml) deliberately absent. That is the #454 point 4
+# case: someone deleted the Secret holding the generated password while Vault
+# (and whatever consumes it) still has the old one.
+#
+# Expected golden: no data Secret, the MR composed with crossplane.io/paused,
+# `blocked: [password]` in status.share, GeneratedValuesPreserved=False, and
+# the XR at Ready=False. No random value, so the golden is stable.
+#
+# Only external-create-succeeded marks it as written — the signal
+# crossplane-runtime sets after Create. An MR without it (a first write that
+# failed on a 403) must NOT block, or the XR could never recover.
+apiVersion: kv.vault.m.upbound.io/v1alpha1
+kind: SecretV2
+metadata:
+  name: vault-secrets-min-fe0d42c5-kv
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: vault-secrets-min-fe0d42c5-kv
+    crossplane.io/external-create-succeeded: "2026-09-16T12:00:00Z"
+    crossplane.io/external-name: xpv-proto-kv/data/demo/min
+spec:
+  forProvider:
+    mount: xpv-proto-kv
+    name: demo/min
