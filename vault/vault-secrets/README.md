@@ -37,8 +37,37 @@ Per `secrets` entry the Composition (inline `function-go-templating`):
 ### Generated values
 
 Generated once, then read back from the composed data Secret on every reconcile.
-**If that Secret is deleted, a new value is generated and overwrites Vault** —
-that is the rotation path, and also the footgun. Two consequences worth knowing:
+
+**If that Secret is deleted after Vault was written, nothing is generated.** The
+XR holds at `Ready=False` with `GeneratedValuesPreserved=False` naming the Secret
+and the keys, `status.share.secrets[].blocked` lists them, and the KV MR is
+paused (`crossplane.io/paused`) so it cannot write either. A consumer keeps
+reading the value it already has instead of being handed a new password that the
+running service never saw (#454).
+
+Two ways out:
+
+- **Restore** the Secret (from a backup, or re-create it with the value read from
+  Vault). The hold lifts on the next reconcile.
+- **Rotate** by setting `generate.regenerate: true` on the keys concerned — a new
+  value is generated and written. Unset it again afterwards; while it is set, the
+  next lost Secret rotates silently again.
+
+"Vault was written" is decided from the KV MR, not from its mere existence: the
+`crossplane.io/external-create-succeeded` annotation, a `Ready=True` condition, or
+`status.atProvider.id`. An MR whose first write failed (a 403 on a missing ACL,
+say) carries none of them, so it never locks the XR. A key that is only absent
+from an otherwise present data Secret is new, not lost, and is generated.
+
+While held, the paused MR is not reconciled — including deletion. Deleting the XR
+then waits until the hold is lifted by one of the two ways above.
+
+The data Secret carries `app.kubernetes.io/managed-by: crossplane`,
+`vault.stuttgart-things.com/role: data` and, when it holds generated values, the
+annotations `vault.stuttgart-things.com/holds-generated-values` and
+`…/on-delete`, so a cleanup can tell it apart.
+
+Two more consequences worth knowing:
 
 - Pointing a `VaultSecretSet` at a path that already holds a real credential and
   asking to `generate` that key replaces it on first reconcile.

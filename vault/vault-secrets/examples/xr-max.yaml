@@ -33,6 +33,9 @@ spec:
           generate:
             length: 8
             charset: numeric
+            # Rotate instead of holding at Ready=False if the data Secret is
+            # ever lost. Deliberate, per key — the default is false.
+            regenerate: true
         - key: admin-token
           secretKeyRef:
             name: demo-source # pragma: allowlist secret

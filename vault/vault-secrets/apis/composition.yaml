@@ -38,6 +38,7 @@ spec:
             {{- $observed := .observed.resources | default dict }}
             {{- $extras := .extraResources }}
             {{- $secrets := $spec.secrets | default list }}
+            {{- $kvKind := ternary "SecretV2" "Secret" (eq $engine "kv-v2") }}
 
             {{- /* One stable id per Vault path. Hashed rather than list-indexed, so
                    reordering `secrets` does not delete and re-create every secret;
@@ -53,6 +54,8 @@ spec:
             #           observed resources, but read here as well so an offline
             #           render can be handed one as a fixture — otherwise every
             #           render generates fresh random values and no golden is stable.
+            #  - kv-*   this XR's own KV MRs, for the same reason: whether Vault was
+            #           already written decides between generating and refusing to.
             apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
             kind: ExtraResources
             requirements:
@@ -70,6 +73,11 @@ spec:
                 apiVersion: v1
                 kind: Secret
                 matchName: {{ index $ids $s.path | quote }}
+                namespace: {{ $xrNs | quote }}
+              kv-{{ index $ids $s.path }}:
+                apiVersion: kv.vault.m.upbound.io/v1alpha1
+                kind: {{ $kvKind }}
+                matchName: {{ printf "%s-kv" (index $ids $s.path) | quote }}
                 namespace: {{ $xrNs | quote }}
             {{- end }}
 
@@ -112,6 +120,7 @@ spec:
 
             {{- $share := list }}
             {{- $missing := list }}
+            {{- $refused := list }}
             {{- range $s := $secrets }}
             {{- $id := index $ids $s.path }}
 
@@ -127,9 +136,29 @@ spec:
             {{- end }}
             {{- if $prevB64 }}{{ $prev = $prevB64 | b64dec | fromYaml }}{{ end }}
 
+            {{- /* Has Vault already been written? Observed MR first, then the same MR
+                   as an extra resource (render fixtures). NOT "does the MR exist":
+                   an MR whose first write failed (a 403, say) exists too, and
+                   treating that as written would lock the XR out for good.
+                     external-create-succeeded  set by crossplane-runtime after Create
+                     Ready=True                 an MR that observed an existing secret
+                     atProvider.id              the provider's ID, only there after a read */}}
+            {{- $kvCur := dict }}
+            {{- $kvObs := index $observed (printf "%s-kv" $id) }}
+            {{- if $kvObs }}{{ $kvCur = $kvObs.resource }}
+            {{- else }}
+            {{-   $kvEx := index $extras (printf "kv-%s" $id) }}
+            {{-   if and $kvEx $kvEx.items }}{{ $kvCur = (index $kvEx.items 0).resource }}{{ end }}
+            {{- end }}
+            {{- $written := false }}
+            {{- if dig "metadata" "annotations" "crossplane.io/external-create-succeeded" "" $kvCur }}{{ $written = true }}{{ end }}
+            {{- if dig "status" "atProvider" "id" "" $kvCur }}{{ $written = true }}{{ end }}
+            {{- range (dig "status" "conditions" list $kvCur) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $written = true }}{{ end }}{{ end }}
+
             {{- $vals := dict }}
             {{- $generated := list }}
             {{- $unresolved := list }}
+            {{- $blocked := list }}
             {{- range $d := $s.data }}
             {{-   if hasKey $d "value" }}
             {{-     $_ := set $vals $d.key $d.value }}
@@ -151,6 +180,12 @@ spec:
             {{-     $generated = append $generated $d.key }}
             {{-     if hasKey $prev $d.key }}
             {{-       $_ := set $vals $d.key (index $prev $d.key) }}
+            {{- /* The data Secret is GONE while Vault already holds this secret:
+                   generating now would silently rotate a live credential. Refuse
+                   unless regenerate says otherwise. A key merely absent from an
+                   existing data Secret is new, not lost, and is generated. */}}
+            {{-     else if and $written (not $prevB64) (not ($d.generate.regenerate | default false)) }}
+            {{-       $blocked = append $blocked $d.key }}
             {{-     else }}
             {{-       $len := int ($d.generate.length | default 32) }}
             {{-       $cs := $d.generate.charset | default "alphanumeric" }}
@@ -164,14 +199,15 @@ spec:
             {{- /* Write only a COMPLETE secret. A first write with a key missing
                    would publish a partial secret that a consumer happily reads. An
                    already-written secret keeps its previous values instead (above). */}}
-            {{- $complete := or $obs (eq (len $unresolved) 0) }}
+            {{- $complete := and (or $obs (eq (len $unresolved) 0)) (not $blocked) }}
             {{- if $unresolved }}{{ $missing = append $missing (printf "%s: %s" $s.path (join ", " $unresolved)) }}{{ end }}
+            {{- if $blocked }}{{ $refused = append $refused (printf "%s: data Secret %s/%s is gone but Vault already holds this secret, so %s would be regenerated — restore the Secret, or set generate.regenerate: true to rotate" $s.path $xrNs $id (join ", " $blocked)) }}{{ end }}
 
             {{- $kvReady := false }}
-            {{- $kvObs := index $observed (printf "%s-kv" $id) }}
             {{- if $kvObs }}
             {{-   range (dig "status" "conditions" list $kvObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $kvReady = true }}{{ end }}{{ end }}
             {{- end }}
+            {{- if $blocked }}{{ $kvReady = false }}{{ end }}
 
             {{- if $complete }}
             ---
@@ -186,14 +222,21 @@ spec:
                 {{ setResourceNameAnnotation $id }}
                 gotemplating.fn.crossplane.io/ready: "True"
                 vault.stuttgart-things.com/path: {{ printf "%s/%s" $mount $s.path | quote }}
+                {{- if $generated }}
+                # For whoever is cleaning up Secrets in this namespace.
+                vault.stuttgart-things.com/holds-generated-values: {{ join "," $generated | quote }}
+                vault.stuttgart-things.com/on-delete: "the VaultSecretSet holds at Ready=False; with generate.regenerate true these values are ROTATED in Vault instead"
+                {{- end }}
               labels:
+                app.kubernetes.io/managed-by: crossplane
                 vault.stuttgart-things.com/secret-set: {{ $xrName }}
+                vault.stuttgart-things.com/role: data
             type: Opaque
             data:
               data.json: {{ toJson $vals | b64enc }}
             {{- end }}
 
-            {{- if and $mountReady (or $kvObs $complete) }}
+            {{- if and $mountReady (or $kvObs $kvCur $complete) }}
             ---
             {{- if eq $engine "kv-v2" }}
             apiVersion: kv.vault.m.upbound.io/v1alpha1
@@ -207,6 +250,13 @@ spec:
               annotations:
                 {{ setResourceNameAnnotation (printf "%s-kv" $id) }}
                 vault.stuttgart-things.com/path: {{ printf "%s/%s" $mount $s.path | quote }}
+                {{- if $blocked }}
+                # Paused rather than left to fail on its missing dataJsonSecretRef:
+                # an explicit hold, explained by GeneratedValuesPreserved, cannot be
+                # mistaken for a transient error. Dropped again as soon as the
+                # Secret is back or regenerate is set.
+                crossplane.io/paused: "true"
+                {{- end }}
               labels:
                 vault.stuttgart-things.com/secret-set: {{ $xrName }}
             spec:
@@ -230,6 +280,7 @@ spec:
             {{- $entry := dict "path" $s.path "ready" $kvReady }}
             {{- if $complete }}{{ $_ := set $entry "dataSecret" $id }}{{ end }}
             {{- if $generated }}{{ $_ := set $entry "generated" $generated }}{{ end }}
+            {{- if $blocked }}{{ $_ := set $entry "blocked" $blocked }}{{ end }}
             {{- $share = append $share $entry }}
             {{- end }}
 
@@ -263,6 +314,16 @@ spec:
                 message: {{ join "; " $missing | quote }}
               {{- else }}
               - type: SourcesResolved
+                status: "True"
+                reason: Available
+              {{- end }}
+              {{- if $refused }}
+              - type: GeneratedValuesPreserved
+                status: "False"
+                reason: DataSecretMissing
+                message: {{ join "; " $refused | quote }}
+              {{- else }}
+              - type: GeneratedValuesPreserved
                 status: "True"
                 reason: Available
               {{- end }}

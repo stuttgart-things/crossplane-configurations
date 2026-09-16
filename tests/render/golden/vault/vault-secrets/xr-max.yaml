@@ -27,6 +27,10 @@ status:
     status: "True"
     type: SourcesResolved
   - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: Available
+    status: "True"
+    type: GeneratedValuesPreserved
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
     reason: ReconcileSuccess
     status: "True"
     type: Synced
@@ -58,9 +62,14 @@ kind: Secret
 metadata:
   annotations:
     crossplane.io/composition-resource-name: vault-secrets-max-01973472
+    vault.stuttgart-things.com/holds-generated-values: signing-key
+    vault.stuttgart-things.com/on-delete: the VaultSecretSet holds at Ready=False;
+      with generate.regenerate true these values are ROTATED in Vault instead
     vault.stuttgart-things.com/path: xpv-proto-kv/apps/demo/api
   labels:
+    app.kubernetes.io/managed-by: crossplane
     crossplane.io/composite: vault-secrets-max
+    vault.stuttgart-things.com/role: data
     vault.stuttgart-things.com/secret-set: vault-secrets-max
   name: vault-secrets-max-01973472
   namespace: default
@@ -80,9 +89,14 @@ kind: Secret
 metadata:
   annotations:
     crossplane.io/composition-resource-name: vault-secrets-max-7ef99ccb
+    vault.stuttgart-things.com/holds-generated-values: password,pin
+    vault.stuttgart-things.com/on-delete: the VaultSecretSet holds at Ready=False;
+      with generate.regenerate true these values are ROTATED in Vault instead
     vault.stuttgart-things.com/path: xpv-proto-kv/apps/demo/db
   labels:
+    app.kubernetes.io/managed-by: crossplane
     crossplane.io/composite: vault-secrets-max
+    vault.stuttgart-things.com/role: data
     vault.stuttgart-things.com/secret-set: vault-secrets-max
   name: vault-secrets-max-7ef99ccb
   namespace: default
