@@ -15,7 +15,7 @@ spec:
       name: xpv-proto-eso-backend
     - apiVersion: vault.vault.m.upbound.io/v1alpha1
       kind: Policy
-      name: xpv-proto-eso-policy-kv-own
+      name: xpv-proto-eso-policy-observability
 status:
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
@@ -28,7 +28,7 @@ status:
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'Unready resources: xpv-proto-dev-backend, xpv-proto-eso-backend, and
-      xpv-proto-eso-policy-kv-own'
+      xpv-proto-eso-policy-observability'
     reason: Creating
     status: "False"
     type: Ready
@@ -98,12 +98,12 @@ apiVersion: vault.vault.m.upbound.io/v1alpha1
 kind: Policy
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: xpv-proto-eso-policy-kv-own
+    crossplane.io/composition-resource-name: xpv-proto-eso-policy-observability
   labels:
     crossplane.io/composite: vault-k8s-auth
     vault.stuttgart-things.com/auth: eso
     vault.stuttgart-things.com/cluster: xpv-proto
-  name: xpv-proto-eso-policy-kv-own
+  name: xpv-proto-eso-policy-observability
   namespace: default
   ownerReferences:
   - apiVersion: vault.stuttgart-things.com/v1alpha1
@@ -114,12 +114,16 @@ metadata:
     uid: 33c6e3af-63f8-598a-bae7-fb9754c5d46f
 spec:
   forProvider:
-    name: xp-xpv-proto-kv-own
+    name: xp-xpv-proto-observability
     policy: |
-      path "kv/data/xpv-proto" { capabilities = ["read"] }
-      path "kv/data/xpv-proto/*" { capabilities = ["read"] }
-      path "kv/metadata/xpv-proto" { capabilities = ["read", "list"] }
-      path "kv/metadata/xpv-proto/*" { capabilities = ["read", "list"] }
+      path "observability/data/xpv-proto" { capabilities = ["read"] }
+      path "observability/data/xpv-proto/*" { capabilities = ["read"] }
+      path "observability/metadata/xpv-proto" { capabilities = ["read", "list"] }
+      path "observability/metadata/xpv-proto/*" { capabilities = ["read", "list"] }
+      path "observability/data/_omni-pitcher" { capabilities = ["read"] }
+      path "observability/data/_omni-pitcher/*" { capabilities = ["read"] }
+      path "observability/metadata/_omni-pitcher" { capabilities = ["read", "list"] }
+      path "observability/metadata/_omni-pitcher/*" { capabilities = ["read", "list"] }
   providerConfigRef:
     kind: ClusterProviderConfig
     name: vault

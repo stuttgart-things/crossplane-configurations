@@ -178,10 +178,18 @@ spec:
                               type: array
                               minItems: 1
                               maxItems: 20
-                              description: "Subtrees of kvMount to grant read on. `own` expands to this cluster's subtree."
+                              description: >-
+                                Subtrees of kvMount to grant read on. `own` expands to
+                                this cluster's subtree. A leading `_` marks a SHARED
+                                entry every cluster may read, e.g. `_omni-pitcher` in
+                                `observability` — the convention the writer policies
+                                protect with `deny` on `<mount>/data/_*`. One `_` at
+                                most, never a slash.
                               items:
                                 type: string
-                                pattern: "^[a-z0-9][a-z0-9._-]*$"
+                                # `_?` rather than `_*`: one underscore is the shared
+                                # convention; more would be a second, undocumented one.
+                                pattern: "^_?[a-z0-9][a-z0-9._-]*$"
                       backendConfig:
                         type: object
                         description: >-

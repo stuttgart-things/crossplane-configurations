@@ -1,5 +1,6 @@
 # Standard VaultK8sAuth — the copy-paste template. One auth that references
-# existing policies, and one that creates its own.
+# existing policies, and one that creates its own: its cluster's observability
+# entry plus the shared `_omni-pitcher` entry every cluster reads.
 apiVersion: vault.stuttgart-things.com/v1alpha1
 kind: VaultK8sAuth
 metadata:
@@ -21,6 +22,6 @@ spec:
       boundServiceAccountNames: ["external-secrets"]
       boundServiceAccountNamespaces: ["external-secrets"]
       policies:
-        - name: kv-own
-          kvMount: kv
-          read: [own]
+        - name: observability
+          kvMount: observability
+          read: [own, _omni-pitcher]
