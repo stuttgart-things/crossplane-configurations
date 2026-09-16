@@ -100,6 +100,36 @@ spec:
                       type: integer
                       default: 1
                       description: 1 suits single-node and kind clusters; raise for HA.
+                gatewayAPI:
+                  type: object
+                  description: >-
+                    Gateway API CRDs. Cilium enables its Gateway controller only
+                    if they exist WHEN IT STARTS — installed afterwards,
+                    gatewayAPI.enabled does nothing until the operator and agents
+                    restart. Enabling this installs them as a Release of their
+                    own, holds the CNI Release until that one is Ready, and turns
+                    on cilium's gatewayAPI — one switch, not two that can
+                    disagree.
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                    version:
+                      type: string
+                      description: >-
+                        Gateway API version = chart version. Defaults to the one
+                        paired with the cilium minor (1.19 with 1.4.1, 1.20 with
+                        1.6.1); an unknown minor is not guessed, and the render
+                        fails until this names the version.
+                    chart:
+                      type: object
+                      properties:
+                        repository:
+                          type: string
+                          description: Default oci://ghcr.io/stuttgart-things/charts
+                        name:
+                          type: string
+                          description: Default gateway-api-crds
                 values:
                   type: object
                   description: >-
@@ -119,6 +149,12 @@ spec:
                 clusterType:
                   type: string
                   description: Distribution observed from the target RemoteCluster
+                gatewayApiVersion:
+                  type: string
+                  description: Gateway API version installed, when gatewayAPI is on.
+                gatewayApiReady:
+                  type: boolean
+                  description: The Gateway API CRD Release is Ready.
                 ready:
                   type: boolean
                   description: >-
