@@ -79,6 +79,11 @@ spec:
         observability-platform.stuttgart-things.com/alert-webhook-url: https://omni.platform.sthings-vsphere.labul.sva.de/pitch/grafana
   platformEnabled: true
   platform:
+    # Apps come from Argo CD. fluxInit defaults to ON in the Platform, so
+    # without this a rancher cluster also gets flux-operator and a
+    # FluxInstance it never uses — rancher-join-test6 did.
+    fluxInit:
+      enabled: false
     vaultIssuer:
       enabled: true
       vaultAddr: https://vault.infra.sthings-vsphere.labul.sva.de
