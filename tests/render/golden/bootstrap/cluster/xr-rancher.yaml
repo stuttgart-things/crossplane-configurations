@@ -192,6 +192,7 @@ spec:
       observability-platform.stuttgart-things.com/secret-store: vault-observability
       observability-platform.stuttgart-things.com/storage-class: openebs-hostpath
     labels:
+      auto-project: "true"
       env: LabUL
       network-platform: "true"
       network-platform/cert-manager-vault-pki: "false"

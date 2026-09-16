@@ -126,6 +126,7 @@ spec:
 
 | derived | from |
 |---|---|
+| `auto-project: true` — without it no AppProject exists and every AppSet refuses its Applications (v0.9.1) | `rancher.argocd.register` |
 | `vault-server`, `wildcard-issuer-name`, `cert-manager-vault-pki: false` | `platform.vaultIssuer` |
 | `kv-mounts`, `security-platform/external-secrets-stores: true` | `secretStores` |
 | `secrets-config: true`, `secret-store: vault-observability`, `alert-webhook-secret-key: _omni-pitcher` | `platform.clusterSecrets` + `observability` in `secretStores` |
