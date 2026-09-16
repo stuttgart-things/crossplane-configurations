@@ -29,6 +29,12 @@ spec:
       k8sServicePort: 6443
       ipamMode: kubernetes
       operatorReplicas: 2
+    # Set here so resource validate exercises it: the XRD once lacked this
+    # field, and a ClusterStack whose catalog entry sets it could not create
+    # its Platform at all.
+    gatewayAPI:
+      enabled: true
+      version: "1.4.1"
     values:
       hubble:
         enabled: true

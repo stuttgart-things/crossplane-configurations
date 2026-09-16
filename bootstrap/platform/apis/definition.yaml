@@ -167,6 +167,21 @@ spec:
                       type: object
                       description: Passed through verbatim to Cni.spec.cilium.
                       x-kubernetes-preserve-unknown-fields: true
+                    gatewayAPI:
+                      type: object
+                      description: >-
+                        Passed through verbatim to Cni.spec.gatewayAPI — the
+                        Gateway API CRDs installed before cilium starts
+                        ({enabled, version, chart}; see the cni Configuration).
+
+                        A passthrough rather than a mirrored schema, on purpose:
+                        cni v0.1.3 added this field and the mirror here was not
+                        updated, so a ClusterStack whose catalog entry sets it
+                        (rancher-rke2) could not create its Platform at all —
+                        "field not declared in schema", found building
+                        rancher-join-test5. The Cni XRD validates it one level
+                        down either way.
+                      x-kubernetes-preserve-unknown-fields: true
                     values:
                       type: object
                       description: Passed through verbatim to Cni.spec.values (raw Helm values).
