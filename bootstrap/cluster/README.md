@@ -106,6 +106,36 @@ flowchart TD
 
 Verified end to end by hand before this existed: `rancher-join-test4` on u26-kind3, 2026-09-15 — join clean, kubeconfig in Vault, cilium through the node kubeconfig, then Rancher `Connected`, Argo CD registration with a clusterbook IP, a Vault-signed certificate and an L2-announced LoadBalancer ([#422](https://github.com/stuttgart-things/crossplane-configurations/issues/422), [#438](https://github.com/stuttgart-things/crossplane-configurations/issues/438)). See [`examples/xr-rancher.yaml`](examples/xr-rancher.yaml).
 
+## Argo CD labels: profiles instead of a hand-written list (v0.9.0)
+
+`rancher-join-test5` carried ~35 hand-written labels and annotations and needed **five edits** after it was ordered. That list mixed two things, and the stack now separates them:
+
+```yaml
+spec:
+  profiles: [network, security, storage-openebs, observability]   # choices
+  secretStores: [homerun2-pr, schmetterpause, observability]      # KV mounts ESO opens
+  rancher:
+    argocd:
+      register: true
+      labels: {env: LabUL}                                         # overrides win
+      annotations:
+        observability-platform.stuttgart-things.com/alert-webhook-url: https://…   # environment
+```
+
+**Profiles** are choices, from `xplane-cluster-catalog`. **Facts** are derived from what the stack composes:
+
+| derived | from |
+|---|---|
+| `vault-server`, `wildcard-issuer-name`, `cert-manager-vault-pki: false` | `platform.vaultIssuer` |
+| `kv-mounts`, `security-platform/external-secrets-stores: true` | `secretStores` |
+| `secrets-config: true`, `secret-store: vault-observability`, `alert-webhook-secret-key: _omni-pitcher` | `platform.clusterSecrets` + `observability` in `secretStores` |
+
+The opt-in gates are only ever derived: each asserts that a Vault role can read a mount, which only the stack composing the role can know. **Precedence:** profile < derived < `rancher.argocd`. The render fails on an unknown profile, on `secretStores` without `vaultIssuer`, and without an `additionalAuths` entry named `eso`.
+
+**The eso role's `tokenPolicies` are still explicit** (decision 5.2): they must grant read on every mount in `secretStores`. A store whose role cannot read reports `Valid` while its ExternalSecrets fail with a 400 — nothing here can check that for you.
+
+See [`examples/xr-rancher.yaml`](examples/xr-rancher.yaml) for the complete order.
+
 ## Gates: sticky, and keyed on success
 
 Each stage opens when the previous one **succeeded** — not when it is Ready. An `AnsibleRun` whose PipelineRun failed still reports Ready once its Object is applied; unblocking on that would upload a kubeconfig from a cluster that was never installed.

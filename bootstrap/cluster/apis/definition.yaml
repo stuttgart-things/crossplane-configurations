@@ -430,7 +430,47 @@ spec:
                     bundled ingress, no bundled Gateway API CRDs).
 
                     No properties are declared on purpose — see `platform`.
+
+                    `argocd.labels` and `argocd.annotations` are merged OVER what
+                    `profiles` and `secretStores` produce and what this stack
+                    derives from `platform`, so a hand-written value always wins.
                   x-kubernetes-preserve-unknown-fields: true
+                profiles:
+                  type: array
+                  description: >-
+                    Named app-platform profiles from xplane-cluster-catalog,
+                    turned into Argo CD cluster labels on the RancherCluster
+                    registration: network, security, storage-openebs,
+                    observability, base. Later entries win on a shared key; an
+                    unknown name fails the render.
+
+                    A profile is a CHOICE. What follows from this stack itself
+                    is derived, not chosen: the Vault server and issuer name
+                    from platform.vaultIssuer, and the opt-in gates below. A
+                    rancher-join-test5 that listed all of it by hand needed five
+                    edits after it was ordered.
+
+                    No enum on purpose: the catalog owns the names, and a copy
+                    here is the kind of mirror that drifted for cni.gatewayAPI.
+                  items:
+                    type: string
+                secretStores:
+                  type: array
+                  description: >-
+                    KV mounts this cluster's ESO opens, one ClusterSecretStore
+                    each (vault-<mount>). Derives the kv-mounts annotation and
+                    the security-platform/external-secrets-stores gate; with
+                    platform.clusterSecrets enabled and `observability` listed,
+                    also the observability secrets-config gate, its store and
+                    the shared webhook-token entry.
+
+                    Requires platform.vaultIssuer with an additionalAuths entry
+                    named `eso` — the stores log in through <cluster>-eso. The
+                    eso role's tokenPolicies still have to grant read on every
+                    mount listed (decision 5.2); a store whose role cannot read
+                    reports Valid while its ExternalSecrets fail with a 400.
+                  items:
+                    type: string
                 platform:
                   type: object
                   description: >-
