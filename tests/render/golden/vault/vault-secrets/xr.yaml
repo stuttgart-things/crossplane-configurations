@@ -7,12 +7,18 @@ metadata:
 spec:
   crossplane:
     resourceRefs:
+    - apiVersion: generic.vault.m.upbound.io/v1alpha1
+      kind: Endpoint
+      name: vault-secrets-d8cad6d1-claim
     - apiVersion: kv.vault.m.upbound.io/v1alpha1
       kind: SecretV2
       name: vault-secrets-7ef99ccb-kv
     - apiVersion: v1
       kind: Secret
       name: vault-secrets-7ef99ccb
+    - apiVersion: v1
+      kind: Secret
+      name: vault-secrets-d8cad6d1
 status:
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
@@ -43,7 +49,12 @@ status:
     - dataSecret: vault-secrets-7ef99ccb
       generated:
       - password
+      mode: data
       path: apps/demo/db
+      ready: false
+    - dataSecret: vault-secrets-d8cad6d1
+      mode: claim
+      path: apps/demo/ci-report
       ready: false
 ---
 apiVersion: v1
@@ -99,6 +110,62 @@ spec:
     deleteAllVersions: false
     mount: xpv-proto-kv
     name: apps/demo/db
+  managementPolicies:
+  - '*'
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault
+---
+apiVersion: v1
+data:
+  data.json: eyJjdXN0b21fbWV0YWRhdGEiOnsibWFuYWdlZC1ieSI6ImNyb3NzcGxhbmUifX0=
+kind: Secret
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secrets-d8cad6d1
+    vault.stuttgart-things.com/path: xpv-proto-kv/metadata/apps/demo/ci-report
+  labels:
+    app.kubernetes.io/managed-by: crossplane
+    crossplane.io/composite: vault-secrets
+    vault.stuttgart-things.com/role: claim
+    vault.stuttgart-things.com/secret-set: vault-secrets
+  name: vault-secrets-d8cad6d1
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultSecretSet
+    name: vault-secrets
+    uid: 9cadf3ab-a148-5037-b9f8-5c6691d475a9
+type: Opaque
+---
+apiVersion: generic.vault.m.upbound.io/v1alpha1
+kind: Endpoint
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secrets-d8cad6d1-claim
+    vault.stuttgart-things.com/path: xpv-proto-kv/metadata/apps/demo/ci-report
+  labels:
+    crossplane.io/composite: vault-secrets
+    vault.stuttgart-things.com/secret-set: vault-secrets
+  name: vault-secrets-d8cad6d1-claim
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultSecretSet
+    name: vault-secrets
+    uid: 9cadf3ab-a148-5037-b9f8-5c6691d475a9
+spec:
+  forProvider:
+    dataJsonSecretRef:
+      key: data.json
+      name: vault-secrets-d8cad6d1
+    disableRead: true
+    ignoreAbsentFields: true
+    path: xpv-proto-kv/metadata/apps/demo/ci-report
   managementPolicies:
   - '*'
   providerConfigRef:

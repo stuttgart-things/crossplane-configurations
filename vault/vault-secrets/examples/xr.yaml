@@ -1,6 +1,7 @@
 # Standard VaultSecretSet — the copy-paste template: a database credential whose
 # username is a literal, whose password is generated once, and whose admin
-# token is copied from a Secret next to the XR (see source-secret.yaml).
+# token is copied from a Secret next to the XR (see source-secret.yaml); plus
+# one entry that is claimed rather than written.
 apiVersion: vault.stuttgart-things.com/v1alpha1
 kind: VaultSecretSet
 metadata:
@@ -25,3 +26,8 @@ spec:
           secretKeyRef:
             name: demo-source # pragma: allowlist secret
             key: admin-token
+    # An entry this XR owns but does not fill: a CI job writes the report here
+    # and keeps adding versions. Only custom_metadata is written; deleting the
+    # XR removes the entry with every version.
+    - path: apps/demo/ci-report
+      claim: {}

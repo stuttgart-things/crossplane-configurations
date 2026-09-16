@@ -44,6 +44,7 @@ status:
       - password
       generated:
       - password
+      mode: data
       path: demo/min
       ready: false
 ---

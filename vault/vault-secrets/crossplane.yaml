@@ -5,7 +5,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.2.0
+    meta.crossplane.io/version: v0.3.0
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -33,6 +33,10 @@ metadata:
         Secret is lost after Vault was written, the XR holds at Ready=False
         (`GeneratedValuesPreserved`) instead of rotating — unless
         `generate.regenerate: true`.
+
+      `claim` instead of `data` owns an entry without owning its data: it writes
+      custom_metadata to `<mount>/metadata/<path>` and deletes that path (every
+      version) with the XR, never touching what something else writes there.
 
       A secret is written only once every source resolves. If a source
       disappears later, the last written value is kept and `SourcesResolved`

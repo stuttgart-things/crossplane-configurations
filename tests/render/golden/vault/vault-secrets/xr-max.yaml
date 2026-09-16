@@ -13,6 +13,9 @@ spec:
     - apiVersion: v1
       kind: Secret
       name: vault-secrets-max-7ef99ccb
+    - apiVersion: v1
+      kind: Secret
+      name: vault-secrets-max-fa8a7589
     - apiVersion: vault.vault.m.upbound.io/v1alpha1
       kind: Mount
       name: vault-secrets-max-mount
@@ -47,12 +50,18 @@ status:
       generated:
       - password
       - pin
+      mode: data
       path: apps/demo/db
       ready: false
     - dataSecret: vault-secrets-max-01973472
       generated:
       - signing-key
+      mode: data
       path: apps/demo/api
+      ready: false
+    - dataSecret: vault-secrets-max-fa8a7589
+      mode: claim
+      path: kubeconfigs/demo-cluster
       ready: false
 ---
 apiVersion: v1
@@ -99,6 +108,30 @@ metadata:
     vault.stuttgart-things.com/role: data
     vault.stuttgart-things.com/secret-set: vault-secrets-max
   name: vault-secrets-max-7ef99ccb
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultSecretSet
+    name: vault-secrets-max
+    uid: 72fe835c-1fb0-5807-b0b1-c9b18ac74ff9
+type: Opaque
+---
+apiVersion: v1
+data:
+  data.json: eyJjdXN0b21fbWV0YWRhdGEiOnsiY2x1c3RlciI6ImRlbW8tY2x1c3RlciIsIm1hbmFnZWQtYnkiOiJjcm9zc3BsYW5lIiwib3duZXIiOiJ2YXVsdC1zZWNyZXRzLW1heCJ9fQ==
+kind: Secret
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secrets-max-fa8a7589
+    vault.stuttgart-things.com/path: xpv-proto-kv/metadata/kubeconfigs/demo-cluster
+  labels:
+    app.kubernetes.io/managed-by: crossplane
+    crossplane.io/composite: vault-secrets-max
+    vault.stuttgart-things.com/role: claim
+    vault.stuttgart-things.com/secret-set: vault-secrets-max
+  name: vault-secrets-max-fa8a7589
   namespace: default
   ownerReferences:
   - apiVersion: vault.stuttgart-things.com/v1alpha1

@@ -69,6 +69,7 @@ spec:
                 namespace: {{ $xrNs | quote }}
             {{- end }}
             {{- range $s := $secrets }}
+            {{- if not (hasKey $s "claim") }}
               own-{{ index $ids $s.path }}:
                 apiVersion: v1
                 kind: Secret
@@ -79,6 +80,7 @@ spec:
                 kind: {{ $kvKind }}
                 matchName: {{ printf "%s-kv" (index $ids $s.path) | quote }}
                 namespace: {{ $xrNs | quote }}
+            {{- end }}
             {{- end }}
 
             {{- /* Nothing below runs before Crossplane has answered the requirements.
@@ -123,6 +125,70 @@ spec:
             {{- $refused := list }}
             {{- range $s := $secrets }}
             {{- $id := index $ids $s.path }}
+
+            {{- if hasKey $s "claim" }}
+            {{- /* CLAIM — mark the entry as owned and remove it with the XR, but
+                   never read or write its data: something else (the rancher join
+                   play for kubeconfigs/<cluster>) writes that and keeps writing
+                   versions. Same call the xplane-cluster kubeconfig Workspace makes. */}}
+            {{- $meta := dict }}
+            {{- range $k, $v := ($s.claim.customMetadata | default dict) }}{{ $_ := set $meta $k $v }}{{ end }}
+            {{- $_ := set $meta "managed-by" "crossplane" }}
+            {{- $claimReady := false }}
+            {{- $claimObs := index $observed (printf "%s-claim" $id) }}
+            {{- if $claimObs }}
+            {{-   range (dig "status" "conditions" list $claimObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $claimReady = true }}{{ end }}{{ end }}
+            {{- end }}
+            ---
+            # CLAIM PAYLOAD — generic.Endpoint only takes its JSON by secret
+            # reference. Nothing in it is sensitive; it is custom_metadata only.
+            apiVersion: v1
+            kind: Secret
+            metadata:
+              name: {{ $id }}
+              namespace: {{ $xrNs }}
+              annotations:
+                {{ setResourceNameAnnotation $id }}
+                gotemplating.fn.crossplane.io/ready: "True"
+                vault.stuttgart-things.com/path: {{ printf "%s/metadata/%s" $mount $s.path | quote }}
+              labels:
+                app.kubernetes.io/managed-by: crossplane
+                vault.stuttgart-things.com/secret-set: {{ $xrName }}
+                vault.stuttgart-things.com/role: claim
+            type: Opaque
+            data:
+              data.json: {{ dict "custom_metadata" $meta | toJson | b64enc }}
+            {{- if $mountReady }}
+            ---
+            # Deleting this MR DELETEs <mount>/metadata/<path>: the metadata and
+            # EVERY version of the data, whoever wrote them.
+            apiVersion: generic.vault.m.upbound.io/v1alpha1
+            kind: Endpoint
+            metadata:
+              name: {{ $id }}-claim
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-claim" $id) }}
+                vault.stuttgart-things.com/path: {{ printf "%s/metadata/%s" $mount $s.path | quote }}
+              labels:
+                vault.stuttgart-things.com/secret-set: {{ $xrName }}
+            spec:
+              providerConfigRef:
+                name: {{ $pcName }}
+                kind: {{ $pcKind }}
+              managementPolicies: {{ $policies | toJson }}
+              forProvider:
+                path: {{ printf "%s/metadata/%s" $mount $s.path | quote }}
+                # A GET on the metadata path returns a different shape than the
+                # POST takes (versions, timestamps), so reading it back would diff
+                # forever — and it keeps the ACL to create/update/delete.
+                disableRead: true
+                ignoreAbsentFields: true
+                dataJsonSecretRef:
+                  name: {{ $id }}
+                  key: data.json
+            {{- end }}
+            {{- $share = append $share (dict "path" $s.path "mode" "claim" "ready" $claimReady "dataSecret" $id) }}
+            {{- else }}
 
             {{- /* Values already written, if any: observed composed Secret first,
                    then the same Secret as an extra resource (render fixtures). */}}
@@ -277,11 +343,12 @@ spec:
                   key: data.json
             {{- end }}
 
-            {{- $entry := dict "path" $s.path "ready" $kvReady }}
+            {{- $entry := dict "path" $s.path "mode" "data" "ready" $kvReady }}
             {{- if $complete }}{{ $_ := set $entry "dataSecret" $id }}{{ end }}
             {{- if $generated }}{{ $_ := set $entry "generated" $generated }}{{ end }}
             {{- if $blocked }}{{ $_ := set $entry "blocked" $blocked }}{{ end }}
             {{- $share = append $share $entry }}
+            {{- end }}
             {{- end }}
 
             {{- $allReady := gt (len $share) 0 }}
