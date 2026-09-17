@@ -493,16 +493,19 @@ spec:
                     properties:
                       app:
                         type: string
+                        maxLength: 40
                         description: AppSecretProfile name.
                         pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
                       suffix:
                         type: string
                         description: 'Entry suffix as in the profile; "" is the entry named like the cluster.'
                         pattern: "^(-[a-z0-9]+)*$"
+                        maxLength: 32
                         default: ""
                       key:
                         type: string
                         minLength: 1
+                        maxLength: 128
                       vaultRef:
                         type: object
                         required:
@@ -516,12 +519,19 @@ spec:
                           mount:
                             type: string
                             minLength: 1
+                            maxLength: 64
                           entry:
                             type: string
                             minLength: 1
+                            # Bounds the CEL cost of the `_` rule above. Without
+                            # it the API server rejects the whole CRD ("estimated
+                            # rule cost exceeds budget by factor of 1.6x") and
+                            # the XRD never establishes — v0.11.0/v0.11.1 on kind3.
+                            maxLength: 256
                           key:
                             type: string
                             minLength: 1
+                            maxLength: 128
                           reread:
                             type: boolean
                       secretKeyRef:
@@ -532,8 +542,10 @@ spec:
                         properties:
                           name:
                             type: string
+                            maxLength: 253
                           key:
                             type: string
+                            maxLength: 253
                 secretStores:
                   type: array
                   description: >-
