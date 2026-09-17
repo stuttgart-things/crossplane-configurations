@@ -285,12 +285,22 @@ spec:
       clusterbook.stuttgart-things.com/vault-server: https://vault.infra.sthings-vsphere.labul.sva.de
       clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki-k8s
       external-secrets.stuttgart-things.com/kv-mounts: observability,homerun2,schmetterpause
+      homerun2-platform.stuttgart-things.com/homerun2-secret-key: rke2-rancher-1
+      homerun2-platform.stuttgart-things.com/homerun2-secret-store: vault-homerun2
       homerun2-platform.stuttgart-things.com/secret-store: vault-homerun2
+      homerun2-platform.stuttgart-things.com/shared-git-pat-secret-key: _git-pat
+      homerun2-platform.stuttgart-things.com/shared-git-pat-secret-store: vault-homerun2
       homerun2-platform.stuttgart-things.com/storage-class: openebs-hostpath
       observability-platform.stuttgart-things.com/alert-webhook-secret-key: _omni-pitcher
       observability-platform.stuttgart-things.com/alert-webhook-url: https://omni.platform.sthings-vsphere.labul.sva.de/pitch/grafana
       observability-platform.stuttgart-things.com/secret-store: vault-observability
       observability-platform.stuttgart-things.com/storage-class: openebs-hostpath
+      tabletennis-platform.stuttgart-things.com/homerun2-secret-key: rke2-rancher-1
+      tabletennis-platform.stuttgart-things.com/homerun2-secret-store: vault-homerun2
+      tabletennis-platform.stuttgart-things.com/schmetterpause-secret-key: rke2-rancher-1
+      tabletennis-platform.stuttgart-things.com/schmetterpause-secret-store: vault-schmetterpause
+      tabletennis-platform.stuttgart-things.com/shared-object-store-backup-secret-key: _backup
+      tabletennis-platform.stuttgart-things.com/shared-object-store-backup-secret-store: vault-schmetterpause
     labels:
       auto-project: "true"
       env: LabUL
@@ -308,6 +318,7 @@ spec:
       storage-platform/nfs-csi-install: "false"
       storage-platform/nfs-csi-storageclasses: "false"
       tabletennis-platform: "true"
+      tabletennis-platform.stuttgart-things.com/secrets-config: "true"
     register: true
     reservation:
       enabled: true
