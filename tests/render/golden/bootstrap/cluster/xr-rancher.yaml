@@ -13,6 +13,12 @@ spec:
     - apiVersion: resources.stuttgart-things.com/v1alpha1
       kind: RancherCluster
       name: rke2-rancher-1-rancher
+    - apiVersion: vault.stuttgart-things.com/v1alpha1
+      kind: VaultSecretSet
+      name: rke2-rancher-1-secrets-homerun2
+    - apiVersion: vault.stuttgart-things.com/v1alpha1
+      kind: VaultSecretSet
+      name: rke2-rancher-1-secrets-schmetterpause
 status:
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
@@ -24,7 +30,8 @@ status:
     status: "True"
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: kubeconfig-vault, rancher'
+    message: 'Unready resources: app-secrets-homerun2, app-secrets-schmetterpause,
+      kubeconfig-vault, and 1 more'
     reason: Creating
     status: "False"
     type: Ready
@@ -37,6 +44,17 @@ status:
     access:
       emitted: false
       ready: false
+    appSecrets:
+      profiles:
+      - homerun2
+      - schmetterpause
+      - zaehlwerk
+      - tabletennis
+      ready: false
+      resolved: true
+      sets:
+      - rke2-rancher-1-secrets-homerun2
+      - rke2-rancher-1-secrets-schmetterpause
     baseos:
       succeeded: false
     distribution:
@@ -63,6 +81,87 @@ status:
     vm:
       ip: ""
       ready: false
+---
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultSecretSet
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: app-secrets-homerun2
+  labels:
+    crossplane.io/composite: rke2-rancher-1
+  name: rke2-rancher-1-secrets-homerun2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rke2-rancher-1
+    uid: a9303176-99df-5a6a-b0b8-ffa8a0bb3a13
+spec:
+  mount:
+    create: false
+    path: homerun2
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault-cluster-secrets
+  secrets:
+  - data:
+    - generate:
+        charset: alphanumeric
+        length: 32
+      key: authToken
+    - generate:
+        charset: alphanumeric
+        length: 32
+      key: redisPassword
+    deleteAllVersions: true
+    path: rke2-rancher-1
+---
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultSecretSet
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: app-secrets-schmetterpause
+  labels:
+    crossplane.io/composite: rke2-rancher-1
+  name: rke2-rancher-1-secrets-schmetterpause
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rke2-rancher-1
+    uid: a9303176-99df-5a6a-b0b8-ffa8a0bb3a13
+spec:
+  mount:
+    create: false
+    path: schmetterpause
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault-cluster-secrets
+  secrets:
+  - data:
+    - generate:
+        charset: alphanumeric
+        length: 32
+      key: password
+    - generate:
+        charset: alphanumeric
+        length: 64
+      key: session-key
+    - key: username
+      value: schmetterpause
+    deleteAllVersions: true
+    path: rke2-rancher-1
+  - data:
+    - generate:
+        charset: alphanumeric
+        length: 32
+      key: token
+    deleteAllVersions: true
+    path: rke2-rancher-1-scoreboard
 ---
 apiVersion: opentofu.m.upbound.io/v1beta1
 kind: Workspace
@@ -185,7 +284,8 @@ spec:
     annotations:
       clusterbook.stuttgart-things.com/vault-server: https://vault.infra.sthings-vsphere.labul.sva.de
       clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki-k8s
-      external-secrets.stuttgart-things.com/kv-mounts: homerun2-pr,schmetterpause,observability
+      external-secrets.stuttgart-things.com/kv-mounts: observability,homerun2,schmetterpause
+      homerun2-platform.stuttgart-things.com/secret-store: vault-homerun2
       homerun2-platform.stuttgart-things.com/storage-class: openebs-hostpath
       observability-platform.stuttgart-things.com/alert-webhook-secret-key: _omni-pitcher
       observability-platform.stuttgart-things.com/alert-webhook-url: https://omni.platform.sthings-vsphere.labul.sva.de/pitch/grafana
@@ -194,6 +294,8 @@ spec:
     labels:
       auto-project: "true"
       env: LabUL
+      homerun2-platform: "true"
+      homerun2-platform.stuttgart-things.com/secrets-config: "true"
       network-platform: "true"
       network-platform/cert-manager-vault-pki: "false"
       network-platform/cilium-gateway-secondary: "false"
@@ -205,6 +307,7 @@ spec:
       storage-platform/longhorn: "false"
       storage-platform/nfs-csi-install: "false"
       storage-platform/nfs-csi-storageclasses: "false"
+      tabletennis-platform: "true"
     register: true
     reservation:
       enabled: true
