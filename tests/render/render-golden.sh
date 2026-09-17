@@ -41,6 +41,10 @@ GOLDEN_ROOT="${GOLDEN_ROOT:-tests/render/golden}"
 # is about to render with, so the run says which tool produced the output.
 # shellcheck source=tests/render/crossplane-version.sh
 . "$(cd "$(dirname "$0")" && pwd)/crossplane-version.sh"
+
+# The extra resources are selected with yq (mikefarah v4). Without it they would
+# silently be empty and every Composition that reads one would render less.
+command -v yq >/dev/null 2>&1 || { echo "render-golden: yq (mikefarah v4) is required" >&2; exit 1; }
 crossplane_versions_load
 crossplane_version_guard render-golden
 
@@ -88,12 +92,15 @@ for c in $CONFIGS; do
     continue
   fi
 
-  # Extra-resources: pass every EnvironmentConfig example so Compositions with a
-  # load-environment step find exactly one match. Names differ across the repo
-  # (environmentconfig.yaml and environment-config.yaml both occur), and some
-  # Configurations ship more than one — collect them into a scratch dir and hand
-  # crossplane render the directory, which is version-agnostic (older CLIs take a
-  # single --extra-resources path, newer ones a repeatable flag).
+  # Extra-resources: every manifest in examples/ that is not an input XR
+  # (xr*.yaml) and not package metadata (Function, Configuration, Provider,
+  # DeploymentRuntimeConfig) — the same rule the dagger verify harness applies
+  # (stuttgart-things/dagger#388), so a golden and a verify run see the same
+  # cluster. That covers EnvironmentConfigs for a load-environment step and
+  # resources a function requests by name (the cluster Configuration's
+  # AppSecretProfiles). Collected into a scratch dir and handed to crossplane
+  # render as a directory, which is version-agnostic (older CLIs take a single
+  # --extra-resources path, newer ones a repeatable flag).
   #
   # Observed-state fixtures: tests/render/extra-resources/<config>/*.yaml is
   # copied into the same scratch dir. Large parts of a Composition can hang off
@@ -104,16 +111,19 @@ for c in $CONFIGS; do
   # unnoticed. Fixtures live under tests/ for the same reason the goldens do: an
   # examples/ glob must not reach them.
   extra_dir=""
-  env_files=$(find "$c/examples" -maxdepth 1 -type f \
-                \( -name '*environmentconfig*.yaml' -o -name '*environment-config*.yaml' \) \
-                2>/dev/null | sort || true)
+  example_files=$(find "$c/examples" -maxdepth 1 -type f -name '*.yaml' ! -name 'xr*.yaml' \
+                    2>/dev/null | sort || true)
+  example_extra=""
+  if [ -n "$example_files" ]; then
+    # shellcheck disable=SC2086
+    example_extra=$(yq ea 'select(.kind != null and .kind != "Function" and .kind != "Configuration" and .kind != "Provider" and .kind != "DeploymentRuntimeConfig")' $example_files 2>/dev/null || true)
+  fi
   fixture_files=$(find "tests/render/extra-resources/$c" -maxdepth 1 -type f \
                     -name '*.yaml' 2>/dev/null | sort || true)
-  if [ -n "$env_files" ] || [ -n "$fixture_files" ]; then
+  if [ -n "$example_extra" ] || [ -n "$fixture_files" ]; then
     extra_dir=$(mktemp -d)
-    if [ -n "$env_files" ]; then
-      # shellcheck disable=SC2086
-      cp $env_files "$extra_dir"/
+    if [ -n "$example_extra" ]; then
+      printf '%s\n' "$example_extra" > "$extra_dir/examples.yaml"
     fi
     if [ -n "$fixture_files" ]; then
       # shellcheck disable=SC2086

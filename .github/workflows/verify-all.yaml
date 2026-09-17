@@ -60,4 +60,9 @@ jobs:
     with:
       src: ${{ matrix.config }}
       runs-on: dagger-labda
+      # v0.132.0: render gets every non-XR manifest from examples/ as an extra
+      # resource, not only EnvironmentConfigs (stuttgart-things/dagger#388) —
+      # the cluster Configuration fetches AppSecretProfiles by name and fails
+      # the render without them (#470). The template default is still v0.122.0.
+      crossplane-module-version: v0.132.0
     secrets: inherit # pragma: allowlist secret
