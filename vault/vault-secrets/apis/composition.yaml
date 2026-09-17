@@ -47,6 +47,11 @@ spec:
             {{- range $s := $secrets }}
             {{-   $_ := set $ids $s.path (printf "%s-%s" ($xrName | trunc 40 | trimSuffix "-") (sha256sum (printf "%s/%s" $mount $s.path) | trunc 8)) }}
             {{- end }}
+            {{- /* One reader per referenced Vault entry, however many keys use it. */}}
+            {{- $refIds := dict }}
+            {{- range $s := $secrets }}{{ range $d := ($s.data | default list) }}{{ if hasKey $d "vaultRef" }}
+            {{-   $_ := set $refIds (printf "%s/%s" $d.vaultRef.mount $d.vaultRef.entry) (printf "%s-ref-%s" ($xrName | trunc 40 | trimSuffix "-") (sha256sum (printf "%s/%s" $d.vaultRef.mount $d.vaultRef.entry) | trunc 8)) }}
+            {{- end }}{{ end }}{{ end }}
             ---
             # Everything a value can come from that lives outside this pipeline:
             #  - src-*  the Secrets named by secretKeyRef (XR namespace only)
@@ -56,11 +61,20 @@ spec:
             #           render generates fresh random values and no golden is stable.
             #  - kv-*   this XR's own KV MRs, for the same reason: whether Vault was
             #           already written decides between generating and refusing to.
+            #  - ref-*  the connection Secret of each vaultRef reader: the adopted
+            #           values arrive there as attribute.data.<key>.
             apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
             kind: ExtraResources
             requirements:
             {{- $srcNames := dict }}
             {{- range $s := $secrets }}{{ range $d := $s.data }}{{ if hasKey $d "secretKeyRef" }}{{ $_ := set $srcNames $d.secretKeyRef.name true }}{{ end }}{{ end }}{{ end }}
+            {{- range $src, $rid := $refIds }}
+              ref-{{ $rid }}:
+                apiVersion: v1
+                kind: Secret
+                matchName: {{ printf "%s-conn" $rid | quote }}
+                namespace: {{ $xrNs | quote }}
+            {{- end }}
             {{- range $n, $_ := $srcNames }}
               src-{{ $n }}:
                 apiVersion: v1
@@ -128,6 +142,7 @@ spec:
             {{- $share := list }}
             {{- $missing := list }}
             {{- $refused := list }}
+            {{- $readers := dict }}
             {{- range $s := $secrets }}
             {{- $id := index $ids $s.path }}
 
@@ -235,6 +250,7 @@ spec:
 
             {{- $vals := dict }}
             {{- $generated := list }}
+            {{- $adopted := list }}
             {{- $unresolved := list }}
             {{- $blocked := list }}
             {{- range $d := $s.data }}
@@ -271,15 +287,53 @@ spec:
             {{-       else if eq $cs "numeric" }}{{ $_ := set $vals $d.key (randNumeric $len) }}
             {{-       else }}{{ $_ := set $vals $d.key (randAlphaNum $len) }}{{ end }}
             {{-     end }}
+            {{- /* vaultRef — adopted once, like a generated value: kept in the data
+                   Secret and never read again. Same hold when that Secret is lost
+                   after Vault was written; reread lifts it. */}}
+            {{-   else if hasKey $d "vaultRef" }}
+            {{-     $r := $d.vaultRef }}
+            {{-     $src := printf "%s/%s" $r.mount $r.entry }}
+            {{-     $rid := index $refIds $src }}
+            {{-     $adopted = append $adopted $d.key }}
+            {{-     if hasKey $prev $d.key }}
+            {{-       $_ := set $vals $d.key (index $prev $d.key) }}
+            {{-     else if and $written (not $prevB64) (not ($r.reread | default false)) }}
+            {{-       $blocked = append $blocked $d.key }}
+            {{-     else }}
+            {{-       $_ := set $readers $rid $src }}
+            {{-       $conn := index $extras (printf "ref-%s" $rid) }}
+            {{-       $b64 := "" }}
+            {{-       if and $conn $conn.items }}{{ $b64 = dig "resource" "data" (printf "attribute.data.%s" $r.key) "" (index $conn.items 0) }}{{ end }}
+            {{-       if $b64 }}
+            {{-         $_ := set $vals $d.key (b64dec $b64) }}
+            {{-       else }}
+            {{- /* Why, most specific first: the reader answered without the key; the
+                   reader reports an error (a 403 names what the credential lacks);
+                   or it has not read yet. */}}
+            {{-         $why := "not read yet" }}
+            {{-         if and $conn $conn.items }}
+            {{-           $why = printf "entry has no key %s" $r.key }}
+            {{-         else }}
+            {{-           $rObs := index $observed $rid }}
+            {{-           if $rObs }}
+            {{-             range (dig "status" "conditions" list $rObs.resource) }}{{ if and (eq .type "Synced") (eq .status "False") }}{{ $why = (.message | default "read failed" | replace "\n" " " | trunc 160) }}{{ end }}{{ end }}
+            {{- /* Measured on u26-kind3: an entry outside the credential's policy is
+                   reported as "does not exist", not as a 403 — so say both. */}}
+            {{-             if contains "does not exist" $why }}{{ $why = printf "%s — the entry is missing, or this XR's providerConfigRef may not read it" $why }}{{ end }}
+            {{-           end }}
+            {{-         end }}
+            {{-         $unresolved = append $unresolved (printf "vaultRef %s#%s (%s)" $src $r.key $why) }}
+            {{-       end }}
+            {{-     end }}
             {{-   end }}
             {{- end }}
 
             {{- /* Write only a COMPLETE secret. A first write with a key missing
                    would publish a partial secret that a consumer happily reads. An
                    already-written secret keeps its previous values instead (above). */}}
-            {{- $complete := and (or $obs (eq (len $unresolved) 0)) (not $blocked) }}
+            {{- $complete := and (or $obs $prevB64 (eq (len $unresolved) 0)) (not $blocked) }}
             {{- if $unresolved }}{{ $missing = append $missing (printf "%s: %s" $s.path (join ", " $unresolved)) }}{{ end }}
-            {{- if $blocked }}{{ $refused = append $refused (printf "%s: data Secret %s/%s is gone but Vault already holds this secret, so %s would be regenerated — restore the Secret, or set generate.regenerate: true to rotate" $s.path $xrNs $id (join ", " $blocked)) }}{{ end }}
+            {{- if $blocked }}{{ $refused = append $refused (printf "%s: data Secret %s/%s is gone but Vault already holds this secret, so %s would be regenerated or re-read — restore the Secret, or set generate.regenerate / vaultRef.reread to true" $s.path $xrNs $id (join ", " $blocked)) }}{{ end }}
 
             {{- $kvReady := false }}
             {{- if $kvObs }}
@@ -304,6 +358,9 @@ spec:
                 # For whoever is cleaning up Secrets in this namespace.
                 vault.stuttgart-things.com/holds-generated-values: {{ join "," $generated | quote }}
                 vault.stuttgart-things.com/on-delete: "the VaultSecretSet holds at Ready=False; with generate.regenerate true these values are ROTATED in Vault instead"
+                {{- end }}
+                {{- if $adopted }}
+                vault.stuttgart-things.com/holds-adopted-values: {{ join "," $adopted | quote }}
                 {{- end }}
               labels:
                 app.kubernetes.io/managed-by: crossplane
@@ -368,9 +425,43 @@ spec:
             {{- $entry := dict "path" $s.path "mode" "data" "ready" $kvReady }}
             {{- if $complete }}{{ $_ := set $entry "dataSecret" $id }}{{ end }}
             {{- if $generated }}{{ $_ := set $entry "generated" $generated }}{{ end }}
+            {{- if $adopted }}{{ $_ := set $entry "adopted" $adopted }}{{ end }}
             {{- if $blocked }}{{ $_ := set $entry "blocked" $blocked }}{{ end }}
             {{- $share = append $share $entry }}
             {{- end }}
+            {{- end }}
+
+            {{- range $rid, $src := $readers }}
+            ---
+            # vaultRef READER — Observe-only: it can never write or delete. Its
+            # connection Secret carries the entry as attribute.data.<key>; it exists
+            # only until every key it serves is adopted into the data Secret, then it
+            # goes and takes that copy with it.
+            #
+            # Same providerConfigRef as the writer, by rule: a reference reaches
+            # exactly what this XR's credential may read, and no field lets an order
+            # pick a stronger one.
+            apiVersion: generic.vault.m.upbound.io/v1alpha1
+            kind: Secret
+            metadata:
+              name: {{ $rid }}
+              annotations:
+                {{ setResourceNameAnnotation $rid }}
+                crossplane.io/external-name: {{ $src | quote }}
+                vault.stuttgart-things.com/path: {{ $src | quote }}
+              labels:
+                vault.stuttgart-things.com/secret-set: {{ $xrName }}
+                vault.stuttgart-things.com/role: reader
+            spec:
+              providerConfigRef:
+                name: {{ $pcName }}
+                kind: {{ $pcKind }}
+              managementPolicies: ["Observe"]
+              writeConnectionSecretToRef:
+                name: {{ printf "%s-conn" $rid }}
+              forProvider:
+                # Without `data/`: vault_generic_secret resolves kv-v2 itself.
+                path: {{ $src | quote }}
             {{- end }}
 
             {{- $allReady := gt (len $share) 0 }}
