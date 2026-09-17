@@ -1,0 +1,18 @@
+# Fixture: the connection Secret of xr-max's vaultRef reader
+# (vault-secrets-max-ref-db78cbbe, Observe-only generic.Secret on
+# xpv-proto-kv/legacy/demo), as provider-vault publishes it — every key of the
+# entry as attribute.data.<key>, plus attribute.data_json. Measured shape on
+# u26-kind3 (#464). Dummy values.
+#
+# xr-max references only `password`; `username` is here to show the reader
+# carries the whole entry, which is why it is removed once the key is adopted.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vault-secrets-max-ref-db78cbbe-conn
+  namespace: default
+type: connection.crossplane.io/v1alpha1
+data:
+  attribute.data.password: RklYVFVSRS1MRUdBQ1ktUEFTU1dPUkQ= # pragma: allowlist secret
+  attribute.data.username: bGVnYWN5 # pragma: allowlist secret
+  attribute.data_json: eyJwYXNzd29yZCI6IkZJWFRVUkUtTEVHQUNZLVBBU1NXT1JEIiwidXNlcm5hbWUiOiJsZWdhY3kifQ== # pragma: allowlist secret

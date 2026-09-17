@@ -137,8 +137,8 @@ spec:
                             # Arithmetic, not a list + filter(): the list form is
                             # multiplied by both array bounds and was rejected by
                             # the API server at 1.8x the CEL cost budget.
-                            - rule: "(has(self.value) ? 1 : 0) + (has(self.secretKeyRef) ? 1 : 0) + (has(self.generate) ? 1 : 0) == 1"
-                              message: each data entry needs exactly one of value, secretKeyRef or generate
+                            - rule: "(has(self.value) ? 1 : 0) + (has(self.secretKeyRef) ? 1 : 0) + (has(self.generate) ? 1 : 0) + (has(self.vaultRef) ? 1 : 0) == 1"
+                              message: each data entry needs exactly one of value, secretKeyRef, generate or vaultRef
                           properties:
                             key:
                               type: string
@@ -200,6 +200,54 @@ spec:
                                     - numeric
                                   default: alphanumeric
                                   description: "ascii = printable ASCII incl. punctuation; numeric = digits only."
+                            vaultRef:
+                              type: object
+                              description: >-
+                                Adopt a value that already exists in Vault — seeded by
+                                Terraform, or written by us for an earlier cluster.
+                                Read ONCE, through this XR's own providerConfigRef (there
+                                is no separate credential for reading, so a reference
+                                reaches exactly what the writer may read), then kept in
+                                the composed data Secret like a generated value and
+                                never re-read. If that Secret is lost after Vault was
+                                written, the XR holds at Ready=False instead of
+                                re-reading a value that may have changed since —
+                                unless `reread` is true.
+                              required:
+                                - mount
+                                - entry
+                                - key
+                              x-kubernetes-validations:
+                                # Shared `_` entries are read by every consumer directly
+                                # and never copied into a cluster's entry (#464). The
+                                # writer policies deny them too; rejecting here says so
+                                # instead of surfacing a 403.
+                                - rule: "!self.entry.startsWith('_') && !self.entry.contains('/_')"
+                                  message: vaultRef cannot point at a shared `_` entry — shared entries are read directly by their consumers, never copied
+                              properties:
+                                mount:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 64
+                                  pattern: "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"
+                                entry:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 256
+                                  pattern: "^[a-zA-Z0-9_]([a-zA-Z0-9._/-]*[a-zA-Z0-9._-])?$"
+                                  description: "Entry below the mount, e.g. `schmetterpause` or `apps/demo/db` — without `data/`."
+                                key:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 128
+                                reread:
+                                  type: boolean
+                                  default: false
+                                  description: >-
+                                    Read the source again when the data Secret is
+                                    missing although Vault already holds this secret.
+                                    Off by default: the source may have changed or
+                                    been removed since it was adopted.
               required:
                 - mount
                 - secrets

@@ -20,6 +20,8 @@ spec:
           generate: {length: 32}         # alphanumeric | ascii | numeric
         - key: admin-token
           secretKeyRef: {name: demo-source, key: admin-token}   # XR namespace only
+        - key: db-password
+          vaultRef: {mount: apps, entry: legacy/db, key: password}   # adopted once
     - path: demo/ci-report
       claim:                             # own the entry, never its data
         customMetadata: {owner: ci}
@@ -83,6 +85,48 @@ Two more consequences worth knowing:
 - The composed Secret is the local copy of everything written, so anything in the
   same namespace allowed to read Secrets can read the values without Vault. Its
   name is published as `status.share.secrets[].dataSecret`.
+
+### Adopting existing values (`vaultRef`)
+
+`vaultRef` takes a value that **already exists in Vault** — seeded by Terraform,
+or written by us for an earlier cluster — so a migration keeps a live credential
+instead of generating a new one (#464: homerun2-test1's schmetterpause DB
+password).
+
+```yaml
+- key: password
+  vaultRef: {mount: schmetterpause, entry: schmetterpause, key: password}
+```
+
+- **Read once, then stable.** The value is read, stored in the data Secret like a
+  generated value, and never read again — a later change at the source does not
+  follow. `status.share.secrets[].adopted` lists the keys; the data Secret carries
+  `vault.stuttgart-things.com/holds-adopted-values`.
+- **Same credential as the writer, by rule.** The read goes through this XR's own
+  `providerConfigRef`; there is no field for a separate reading credential. A
+  reference therefore reaches exactly what the writer's policy may read — with a
+  one-segment writer policy on an app mount, never `kubeconfigs/*`.
+- **Lost data Secret → hold**, exactly as for `generate`: `Ready=False`,
+  `GeneratedValuesPreserved=False`, no silent re-read of a value that may have
+  changed. `vaultRef.reread: true` lifts it.
+- **Unreadable → `Ready=False`.** `SourcesResolved=False` names
+  `vaultRef <mount>/<entry>#<key>` and why: the entry has no such key, or the
+  reader failed. Vault reports an entry **outside the credential's policy as "does
+  not exist"**, not as a 403 — measured with `write-observability-clusters` on
+  u26-kind3 — so the message says both possibilities. Nothing is written until
+  every key resolves.
+- **Shared `_` entries are rejected at admission** (`_omni-pitcher`,
+  `apps/_shared`). That is intended, not a bug: shared entries are read directly by
+  every consumer and never copied into a cluster's entry (#464); the writer
+  policies deny them as well.
+
+**How the read works.** An Observe-only `generic.vault.m.upbound.io/Secret` per
+referenced entry (`<xr>-ref-<hash>`) reads `<mount>/<entry>` and publishes it to
+its connection Secret `<xr>-ref-<hash>-conn` as `attribute.data.<key>`. That copy
+holds **every key of the entry** and lives in the XR's namespace — only until each
+referenced key is adopted; then the reader is dropped and its connection Secret is
+garbage-collected with it. Measured: gone within one reconcile.
+`status.atProvider` of the reader carries no values.
 
 ### Claiming an entry
 
@@ -148,6 +192,26 @@ both cases the XR is held at `Ready=False`.
    [vault-k8s-auth](../vault-k8s-auth/README.md#cluster-preconditions).
 3. The `secretKeyRef` Secrets, in the XR's namespace.
 
+## Who may read what
+
+`secretKeyRef` and `vaultRef` both copy a value **into** a Vault entry the XR's
+writer can write — and, through the data Secret, into the XR's namespace. What
+bounds them:
+
+- `secretKeyRef` — only Secrets in the XR's own namespace (no namespace field).
+- `vaultRef` — only what the XR's `providerConfigRef` may read.
+
+So the boundary is **who sets `providerConfigRef`**:
+
+- **Composed by the Platform** (`xplane-cluster`, #464): the module sets
+  `providerConfigRef` from the environment (`writer.providerConfigName`), not the
+  order. An orderer names profiles and `secretOverrides`, never a credential — the
+  writer's policy is the limit.
+- **Created directly**: whoever may create a `VaultSecretSet` also picks the
+  `providerConfigRef`, and with it any ClusterProviderConfig on the cluster —
+  including a broad one. RBAC on `vaultsecretsets.vault.stuttgart-things.com` is the
+  boundary there, together with which ClusterProviderConfigs exist at all.
+
 ## ACL per case
 
 **Measured** on u26-kind3 against infra.sthings-vsphere, 2026-09-16 (#454 point 1),
@@ -177,6 +241,12 @@ lacks it (`write-observability-clusters` as of 2026-09-16) the update fails
 within minutes on u26-kind3. Create, observe and delete work with that policy;
 changing a value does not.
 
+**`vaultRef`** — `read` on `<mount>/data/<entry>` for the XR's own credential
+(the reader resolves kv-v2 itself). Verified with `xp-acl-test-kv-mount`: value
+adopted, hash-identical to the source. With `write-observability-clusters` a
+reference outside `observability/data/+` is not readable — reported as "does not
+exist" — and nothing is written.
+
 **`claim`** — `write-kubeconfigs` as is: create, update, delete verified.
 
 ```hcl
@@ -202,7 +272,7 @@ the data is an MR event. Measured: update requested within seconds.
 |---|---|
 | `xr-min.yaml` | one generated key — exercises every default |
 | `xr.yaml` | literal + generated + secretKeyRef (needs `source-secret.yaml`), plus a bare `claim: {}` |
-| `xr-max.yaml` | every field: composed mount, keepOnDelete, two data paths, all charsets, `regenerate`, a claim with `customMetadata` |
+| `xr-max.yaml` | every field: composed mount, keepOnDelete, two data paths, all charsets, `regenerate`, a `vaultRef`, a claim with `customMetadata` |
 
 Render fixtures (source Secret, pre-existing data Secrets that pin generated
 values) are in `tests/render/extra-resources/vault/vault-secrets/`.

@@ -7,6 +7,9 @@ metadata:
 spec:
   crossplane:
     resourceRefs:
+    - apiVersion: generic.vault.m.upbound.io/v1alpha1
+      kind: Secret
+      name: vault-secrets-max-ref-db78cbbe
     - apiVersion: v1
       kind: Secret
       name: vault-secrets-max-01973472
@@ -46,7 +49,9 @@ status:
     mount: xpv-proto-kv
     ready: false
     secrets:
-    - dataSecret: vault-secrets-max-7ef99ccb
+    - adopted:
+      - legacy-password
+      dataSecret: vault-secrets-max-7ef99ccb
       generated:
       - password
       - pin
@@ -93,11 +98,12 @@ type: Opaque
 ---
 apiVersion: v1
 data:
-  data.json: eyJhZG1pbi10b2tlbiI6IkZJWFRVUkUtQURNSU4tVE9LRU4iLCJwYXNzd29yZCI6IkZJWFRVUkUtR0VORVJBVEVELVBBU1NXT1JELTAwMDIiLCJwaW4iOiIxMjM0NTY3OCIsInVzZXJuYW1lIjoiZGVtbyJ9
+  data.json: eyJhZG1pbi10b2tlbiI6IkZJWFRVUkUtQURNSU4tVE9LRU4iLCJsZWdhY3ktcGFzc3dvcmQiOiJGSVhUVVJFLUxFR0FDWS1QQVNTV09SRCIsInBhc3N3b3JkIjoiRklYVFVSRS1HRU5FUkFURUQtUEFTU1dPUkQtMDAwMiIsInBpbiI6IjEyMzQ1Njc4IiwidXNlcm5hbWUiOiJkZW1vIn0=
 kind: Secret
 metadata:
   annotations:
     crossplane.io/composition-resource-name: vault-secrets-max-7ef99ccb
+    vault.stuttgart-things.com/holds-adopted-values: legacy-password
     vault.stuttgart-things.com/holds-generated-values: password,pin
     vault.stuttgart-things.com/on-delete: the VaultSecretSet holds at Ready=False;
       with generate.regenerate true these values are ROTATED in Vault instead
@@ -173,3 +179,34 @@ spec:
   providerConfigRef:
     kind: ClusterProviderConfig
     name: vault
+---
+apiVersion: generic.vault.m.upbound.io/v1alpha1
+kind: Secret
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vault-secrets-max-ref-db78cbbe
+    crossplane.io/external-name: xpv-proto-kv/legacy/demo
+    vault.stuttgart-things.com/path: xpv-proto-kv/legacy/demo
+  labels:
+    crossplane.io/composite: vault-secrets-max
+    vault.stuttgart-things.com/role: reader
+    vault.stuttgart-things.com/secret-set: vault-secrets-max
+  name: vault-secrets-max-ref-db78cbbe
+  namespace: default
+  ownerReferences:
+  - apiVersion: vault.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: VaultSecretSet
+    name: vault-secrets-max
+    uid: 72fe835c-1fb0-5807-b0b1-c9b18ac74ff9
+spec:
+  forProvider:
+    path: xpv-proto-kv/legacy/demo
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault
+  writeConnectionSecretToRef:
+    name: vault-secrets-max-ref-db78cbbe-conn

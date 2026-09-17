@@ -22,8 +22,8 @@ status:
     type: SourcesResolved
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     message: 'demo/min: data Secret default/vault-secrets-min-fe0d42c5 is gone but
-      Vault already holds this secret, so password would be regenerated — restore
-      the Secret, or set generate.regenerate: true to rotate'
+      Vault already holds this secret, so password would be regenerated or re-read
+      — restore the Secret, or set generate.regenerate / vaultRef.reread to true'
     reason: DataSecretMissing
     status: "False"
     type: GeneratedValuesPreserved

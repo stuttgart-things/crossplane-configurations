@@ -40,6 +40,15 @@ spec:
           secretKeyRef:
             name: demo-source # pragma: allowlist secret
             key: admin-token
+        # Adopted from an entry that already exists — e.g. seeded by Terraform for
+        # a cluster built before this one. Read once through this XR's own
+        # providerConfigRef, then kept; reread only when the data Secret is lost.
+        - key: legacy-password
+          vaultRef:
+            mount: xpv-proto-kv
+            entry: legacy/demo
+            key: password
+            reread: false
     - path: apps/demo/api
       deleteAllVersions: false
       data:
