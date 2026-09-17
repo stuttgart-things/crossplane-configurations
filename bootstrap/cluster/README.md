@@ -149,7 +149,8 @@ data:
     certManagerPolicies: [pki-issue]
     secretStores:
       homerun2-pr: [read-homerun2-pr]
-      schmetterpause: [read-schmetterpause]
+      homerun2: [read-homerun2-clusters]
+      schmetterpause: [read-schmetterpause-clusters]
       observability: [read-observability-clusters]
 ```
 
@@ -159,6 +160,28 @@ data:
 - **Cluster precondition** for rancher mode: that EnvironmentConfig. Every policy it names must exist in Vault — a role referencing a missing policy is accepted and silently grants nothing.
 
 See [`examples/xr-rancher.yaml`](examples/xr-rancher.yaml) for the complete order.
+
+### App secrets from AppSecretProfiles (v0.11.0)
+
+[#464](https://github.com/stuttgart-things/crossplane-configurations/issues/464), step 5. An app profile (`homerun2`, `tabletennis`) selects the ApplicationSet **and** its secrets: the catalog names the [`AppSecretProfile`](../../vault/app-secret-profile/)s its workloads read, and the stack fetches exactly those (function-kcl `ExtraResources`, by name).
+
+For `profiles: [..., homerun2, tabletennis]` on `rke2-rancher-1` that is:
+
+| composed / derived | |
+|---|---|
+| `VaultSecretSet rke2-rancher-1-secrets-homerun2` | `homerun2/rke2-rancher-1`: `authToken`, `redisPassword` generated |
+| `VaultSecretSet rke2-rancher-1-secrets-schmetterpause` | `schmetterpause/rke2-rancher-1`: `password`, `session-key` generated, `username` literal; `schmetterpause/rke2-rancher-1-scoreboard`: `token` |
+| stores | `homerun2`, `schmetterpause` added to `spec.secretStores` → eso policies, `kv-mounts` |
+| `homerun2-platform.stuttgart-things.com/secrets-config: "true"`, `…/secret-store: vault-homerun2` | one store serves homerun2 |
+| nothing for `tabletennis-platform` | it reads two mounts, and its ApplicationSet takes one store name (#464 step 6) |
+
+`shared` keys (`githubToken`, the backup key pair) and `reads` are **never written**: consumers read `homerun2/_git-pat`, `schmetterpause/_backup` or the owning app's entry directly. Entries are deleted with every version when the **stack** goes; `platformEnabled: false` keeps them.
+
+`spec.secretOverrides` adopts an existing value per overridable key (`vaultRef` through the writer credential, `secretKeyRef` from the XR's namespace) — the migration path for a live fleet.
+
+The environment half extends the same EnvironmentConfig: `vault.mounts` (logical → real), `vault.shared` (name → `_` entry), `vault.reservedEntries` (live hand-seeded entries no order may take), `vault.writer.providerConfigName`. **The render fails** on a missing profile, an unmapped mount or shared name, a read from an app no listed profile brings, an invalid override, a cluster name ending in an entry suffix, or a written entry that is reserved — failing is what keeps a gap from deleting generated secrets.
+
+**Cluster preconditions** for app profiles: the `AppSecretProfile`s, the extended EnvironmentConfig, the writer `ClusterProviderConfig` (`vault-cluster-secrets`, AppRole `cluster-secrets-writer`), and the Vault policies and `_` entries from stuttgart-things/stuttgart-things#3017.
 
 ## Gates: sticky, and keyed on success
 

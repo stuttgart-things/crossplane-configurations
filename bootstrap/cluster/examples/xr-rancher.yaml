@@ -48,19 +48,39 @@ spec:
   # `nodeRegistration.publish` and the machineGlobalConfig baseline come from
   # the Composition and the catalog.
   # Which app platforms run — CHOICES, one word each (xplane-cluster-catalog).
+  #
+  # homerun2 and tabletennis also bring their SECRETS: the catalog names the
+  # AppSecretProfiles they read (homerun2, schmetterpause, zaehlwerk,
+  # tabletennis), the stack composes one VaultSecretSet per app writing
+  # <mount>/rke2-rancher-1[-suffix], and adds the mounts they read to the stores
+  # below. Needs the profiles applied (vault/app-secret-profile/examples).
   profiles:
     - network
     - security
     - storage-openebs
     - observability
-  # The KV mounts this cluster's ESO opens. The eso auth with its policies, the
-  # stores, their opt-in gate, the observability secrets gate and the shared
-  # webhook-token entry all follow from this list plus platform.clusterSecrets —
-  # nothing to write by hand. Only stores the environment maps are accepted.
+    - homerun2
+    - tabletennis
+  # KV mounts this cluster's ESO opens BEYOND what the profiles derive
+  # (homerun2, schmetterpause). The eso auth with its policies, the stores,
+  # their opt-in gate, the observability secrets gate and the shared
+  # webhook-token entry all follow from this list, the profiles and
+  # platform.clusterSecrets — nothing to write by hand. Only stores the
+  # environment maps are accepted.
   secretStores:
-    - homerun2-pr
-    - schmetterpause
     - observability
+  # Adopt existing values instead of generating them — one key at a time, only
+  # keys the profile marks overridable. For MIGRATING a running fleet (its DB
+  # password keeps working because it is the same one), not for a new cluster,
+  # which should get its own:
+  #
+  # secretOverrides:
+  #   - app: schmetterpause
+  #     key: password
+  #     vaultRef: {mount: schmetterpause, entry: schmetterpause, key: password}
+  #   - app: homerun2
+  #     key: authToken
+  #     secretKeyRef: {name: homerun2-token, key: token}   # in this XR's namespace
   # Verbatim passthrough to the RancherCluster child. `name`,
   # `nodeRegistration.publish` and the machineGlobalConfig baseline come from
   # the Composition and the catalog; argocd labels/annotations from profiles and

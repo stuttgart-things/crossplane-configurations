@@ -23,9 +23,39 @@ data:
     secretStores:
       homerun2-pr:
         - read-homerun2-pr
+      # One path segment on <mount>/data/+ each — a cluster's own entries plus
+      # the shared `_` ones (stuttgart-things/stuttgart-things#2999, #3017).
+      homerun2:
+        - read-homerun2-clusters
       schmetterpause:
-        - read-schmetterpause
-      # One path segment on observability/data/+ — a cluster's own entry plus
-      # the shared _omni-pitcher (stuttgart-things/stuttgart-things#2999).
+        - read-schmetterpause-clusters
       observability:
         - read-observability-clusters
+    # --- app secrets (AppSecretProfiles, #464) -------------------------------
+    # Logical mount of a profile -> the real KV mount in this Vault.
+    mounts:
+      homerun2: homerun2
+      schmetterpause: schmetterpause
+    # Shared, externally seeded values: name used by profiles -> `_` entry.
+    # Consumers read these directly; nothing copies them into a cluster entry.
+    shared:
+      git-pat:
+        mount: homerun2
+        entry: _git-pat
+      object-store-backup:
+        mount: schmetterpause
+        entry: _backup
+    # Entries live fleets still read from hand-seeded paths. A cluster whose
+    # derived entry lands on one fails the order — the writer policy only grants
+    # read there anyway. Drop once homerun2-test1 migrates (#464 step 7).
+    reservedEntries:
+      schmetterpause:
+        - schmetterpause
+        - schmetterpause-backup
+        - schmetterpause-scoreboard
+        - zaehlwerk
+    # The provider-vault ClusterProviderConfig logging in as the
+    # cluster-secrets-writer AppRole (write-{observability,homerun2,
+    # schmetterpause}-clusters).
+    writer:
+      providerConfigName: vault-cluster-secrets
