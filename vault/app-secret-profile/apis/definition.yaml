@@ -1,8 +1,10 @@
 ---
 # What an app needs in Vault, declared once per app — #464 decision 3.
 #
-# A ClusterStack names profiles (`profiles: [homerun2]`); xplane-cluster reads the
-# AppSecretProfile of each as an extra resource and composes the VaultSecretSets.
+# A ClusterStack names catalog profiles (`profiles: [tabletennis]`); each catalog
+# profile lists the AppSecretProfiles it delivers (`appSecrets`, e.g. tabletennis →
+# schmetterpause, zaehlwerk, tabletennis), and xplane-cluster reads those as extra
+# resources and composes the VaultSecretSets. metadata.name is the APP name.
 # The ENVIRONMENT half — which real mount a logical one is, the read policies, the
 # entry behind a shared name, the writer ProviderConfig — is not here; it stays in
 # the cluster-vault-<env> EnvironmentConfig.
@@ -42,8 +44,9 @@ spec:
         openAPIV3Schema:
           type: object
           description: >-
-            The secrets an app needs per cluster. metadata.name IS the profile name
-            an order lists — one object per app.
+            The secrets an app needs per cluster, one object per app. metadata.name
+            is the APP name — what a catalog profile lists in `appSecrets` — not
+            necessarily the name of a profile an order lists.
           properties:
             metadata:
               type: object
