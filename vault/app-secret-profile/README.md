@@ -1,16 +1,23 @@
 # app-secret-profile
 
-What an app needs in Vault, declared **once per app** — #464, decision 3. A
-ClusterStack names profiles (`profiles: [homerun2, schmetterpause]`);
-`xplane-cluster` reads the `AppSecretProfile` of each as an extra resource and
-composes the [`VaultSecretSet`](../vault-secrets/)s for that cluster. Adding an
-app means adding its profile — not touching an order, a module or a chart.
+What an app needs in Vault, declared **once per app** — #464, decision 3.
+
+A ClusterStack names **catalog profiles** (`profiles: [tabletennis]`). Each catalog
+profile in `xplane-cluster-catalog` lists the `AppSecretProfile`s it delivers
+(`appSecrets`); `xplane-cluster` reads those as extra resources and composes the
+[`VaultSecretSet`](../vault-secrets/)s for that cluster. Adding an app means
+adding its `AppSecretProfile` and listing it where it is delivered — not touching
+an order, a module or a chart.
+
+**`metadata.name` is the app, not necessarily a catalog profile.** tabletennis-platform
+ships schmetterpause and zaehlwerk as well, so the catalog profile `tabletennis`
+lists `appSecrets: [schmetterpause, zaehlwerk, tabletennis]`.
 
 ```yaml
 apiVersion: secrets.stuttgart-things.com/v1alpha1
 kind: AppSecretProfile
 metadata:
-  name: schmetterpause          # = the profile name an order lists
+  name: schmetterpause          # = the APP, as listed in a catalog profile's appSecrets
 spec:
   mount: schmetterpause         # LOGICAL — resolved per environment
   entries:

@@ -3,4 +3,4 @@ kind: Configuration
 metadata:
   name: app-secret-profile
 spec:
-  package: ghcr.io/stuttgart-things/crossplane-configurations/app-secret-profile:v0.1.0
+  package: ghcr.io/stuttgart-things/crossplane-configurations/app-secret-profile:v0.1.1
