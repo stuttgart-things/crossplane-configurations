@@ -173,7 +173,7 @@ For `profiles: [..., homerun2, tabletennis]` on `rke2-rancher-1` that is:
 | `VaultSecretSet rke2-rancher-1-secrets-schmetterpause` | `schmetterpause/rke2-rancher-1`: `password`, `session-key` generated, `username` literal; `schmetterpause/rke2-rancher-1-scoreboard`: `token` |
 | stores | `homerun2`, `schmetterpause` added to `spec.secretStores` → eso policies, `kv-mounts` |
 | `homerun2-platform.stuttgart-things.com/secrets-config: "true"`, `…/secret-store: vault-homerun2` | one store serves homerun2 |
-| nothing for `tabletennis-platform` | it reads two mounts, and its ApplicationSet takes one store name (#464 step 6) |
+| `tabletennis-platform`: `secrets-config` + store and entry per owning app (`schmetterpause-*`, `shared-object-store-backup-*`, `homerun2-*`) | v0.11.1 / xplane-cluster 0.18.0 — tabletennis reads two mounts, so the facts are published per owner instead of one `secret-store` |
 
 `shared` keys (`githubToken`, the backup key pair) and `reads` are **never written**: consumers read `homerun2/_git-pat`, `schmetterpause/_backup` or the owning app's entry directly. Entries are deleted with every version when the **stack** goes; `platformEnabled: false` keeps them.
 
