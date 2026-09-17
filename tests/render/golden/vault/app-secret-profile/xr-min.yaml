@@ -1,0 +1,36 @@
+---
+apiVersion: secrets.stuttgart-things.com/v1alpha1
+kind: AppSecretProfile
+metadata:
+  name: tabletennis
+spec:
+  crossplane:
+    resourceRefs: []
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: Available
+    status: "True"
+    type: ReadsResolved
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: Available
+    status: "True"
+    type: Ready
+  resolved:
+    entries: []
+    entryCount: 0
+    readCount: 1
+    reads:
+    - app: homerun2
+      entry: <cluster>
+      key: redisPassword
+      resolved: true
+      sourceKey: redisPassword

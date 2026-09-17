@@ -1,0 +1,135 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: app-secret-profile
+  labels:
+    crossplane.io/xrd: appsecretprofiles.secrets.stuttgart-things.com
+    service: app-secret-profile
+spec:
+  compositeTypeRef:
+    apiVersion: secrets.stuttgart-things.com/v1alpha1
+    kind: AppSecretProfile
+  mode: Pipeline
+  pipeline:
+    # Composes NOTHING. A profile is a declaration an order reads; this pipeline
+    # only publishes the resolved view and checks that every `reads` reference
+    # points at a key another profile actually writes — so a broken reference is
+    # visible on the profile, before any order renders against it.
+    - step: resolve-profile
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $xr := .observed.composite.resource }}
+            {{- $name := $xr.metadata.name }}
+            {{- $spec := $xr.spec }}
+            {{- $extras := .extraResources | default dict }}
+            {{- $entries := $spec.entries | default list }}
+            {{- $reads := $spec.reads | default dict }}
+
+            {{- /* Other profiles a read points at, by name. Cluster-scoped, so no
+                   namespace. A read of this profile's own entries needs none. */}}
+            {{- $others := dict }}
+            {{- range $k, $r := $reads }}{{ if ne $r.from.app $name }}{{ $_ := set $others $r.from.app true }}{{ end }}{{ end }}
+            {{- if $others }}
+            ---
+            apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
+            kind: ExtraResources
+            requirements:
+            {{- range $app, $_ := $others }}
+              profile-{{ $app }}:
+                apiVersion: secrets.stuttgart-things.com/v1alpha1
+                kind: AppSecretProfile
+                matchName: {{ $app | quote }}
+            {{- end }}
+            {{- end }}
+
+            {{- /* ---- entries: what an order writes, per key kind ----
+                   `crossplane render` applies no XRD defaults (CLAUDE.md gotcha 5):
+                   overridable's effective default is restated here. */}}
+            {{- $outEntries := list }}
+            {{- range $e := $entries }}
+            {{-   $gen := list }}{{ $lit := list }}{{ $ovr := list }}{{ $shared := dict }}
+            {{-   range $k, $v := $e.keys }}
+            {{-     if hasKey $v "generate" }}{{ $gen = append $gen $k }}
+            {{-     else if hasKey $v "literal" }}{{ $lit = append $lit $k }}
+            {{-     else if hasKey $v "shared" }}{{ $_ := set $shared $k $v.shared }}{{ end }}
+            {{-     $o := hasKey $v "generate" }}
+            {{-     if hasKey $v "overridable" }}{{ $o = $v.overridable }}{{ end }}
+            {{-     if and $o (not (hasKey $v "shared")) }}{{ $ovr = append $ovr $k }}{{ end }}
+            {{-   end }}
+            {{-   $out := dict "suffix" $e.suffix "entry" (printf "<cluster>%s" $e.suffix) "writes" (concat $gen $lit | sortAlpha) }}
+            {{-   if $gen }}{{ $_ := set $out "generated" (sortAlpha $gen) }}{{ end }}
+            {{-   if $lit }}{{ $_ := set $out "literal" (sortAlpha $lit) }}{{ end }}
+            {{-   if $ovr }}{{ $_ := set $out "overridable" (sortAlpha $ovr) }}{{ end }}
+            {{-   if $shared }}{{ $_ := set $out "shared" $shared }}{{ end }}
+            {{-   $outEntries = append $outEntries $out }}
+            {{- end }}
+
+            {{- /* ---- reads: does the referenced key exist, and is it written? ---- */}}
+            {{- $outReads := list }}
+            {{- $broken := list }}
+            {{- range $k, $r := $reads }}
+            {{-   $suffix := $r.from.suffix | default "" }}
+            {{-   $target := dict }}
+            {{-   $why := "" }}
+            {{-   if eq $r.from.app $name }}
+            {{-     $target = $spec }}
+            {{-   else }}
+            {{-     $req := index $extras (printf "profile-%s" $r.from.app) }}
+            {{-     if and $req $req.items }}{{ $target = (index $req.items 0).resource.spec | default dict }}
+            {{-     else }}{{ $why = printf "no AppSecretProfile %q" $r.from.app }}{{ end }}
+            {{-   end }}
+            {{-   if not $why }}
+            {{-     $entry := dict }}
+            {{-     range $te := ($target.entries | default list) }}{{ if eq $te.suffix $suffix }}{{ $entry = $te }}{{ end }}{{ end }}
+            {{-     if not $entry }}
+            {{-       $why = printf "profile %q has no entry with suffix %q" $r.from.app $suffix }}
+            {{-     else if not (hasKey $entry.keys $r.from.key) }}
+            {{-       $why = printf "entry %q of profile %q has no key %q" $suffix $r.from.app $r.from.key }}
+            {{-     else if hasKey (index $entry.keys $r.from.key) "shared" }}
+            {{- /* A shared key is not in that entry — read the shared value instead. */}}
+            {{-       $why = printf "key %q of profile %q is shared, not written into its entry — declare it as shared here too" $r.from.key $r.from.app }}
+            {{-     end }}
+            {{-   end }}
+            {{-   $o := dict "key" $k "app" $r.from.app "entry" (printf "<cluster>%s" $suffix) "sourceKey" $r.from.key "resolved" (not $why) }}
+            {{-   if $why }}{{ $_ := set $o "reason" $why }}{{ $broken = append $broken (printf "%s: %s" $k $why) }}{{ end }}
+            {{-   $outReads = append $outReads $o }}
+            {{- end }}
+            ---
+            apiVersion: {{ $xr.apiVersion }}
+            kind: {{ $xr.kind }}
+            {{- if $broken }}
+            # Nothing is composed, so readiness would otherwise always be True.
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/ready: "False"
+            {{- end }}
+            status:
+              resolved:
+                {{- if $spec.mount }}
+                mount: {{ $spec.mount | quote }}
+                {{- end }}
+                entryCount: {{ len $outEntries }}
+                readCount: {{ len $outReads }}
+                entries: {{ $outEntries | toJson }}
+                reads: {{ $outReads | toJson }}
+            ---
+            apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
+            kind: ClaimConditions
+            conditions:
+              {{- if $broken }}
+              - type: ReadsResolved
+                status: "False"
+                reason: BrokenReference
+                message: {{ join "; " $broken | quote }}
+              {{- else }}
+              - type: ReadsResolved
+                status: "True"
+                reason: Available
+              {{- end }}

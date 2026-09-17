@@ -353,11 +353,17 @@ tasks:
         fi
 
         # --- apply XR ---
+        # Scope comes from the XRD, not from the example: a cluster-scoped XR
+        # (e.g. vault/app-secret-profile, see CLAUDE.md) has no namespace to
+        # create, and `trace -n` below would be wrong for it.
+        XR_SCOPE=$(yq -r '.spec.scope // "Namespaced"' "$DEFINITION")
         if [ -n "$XR" ]; then
-          XR_NS=$(yq -r '.metadata.namespace // "default"' "$XR")
-          if ! kubectl get ns "$XR_NS" >/dev/null 2>&1; then
-            gum style --foreground 4 "→ create namespace $XR_NS"
-            kubectl create namespace "$XR_NS"
+          if [ "$XR_SCOPE" = "Namespaced" ]; then
+            XR_NS=$(yq -r '.metadata.namespace // "default"' "$XR")
+            if ! kubectl get ns "$XR_NS" >/dev/null 2>&1; then
+              gum style --foreground 4 "→ create namespace $XR_NS"
+              kubectl create namespace "$XR_NS"
+            fi
           fi
           gum style --foreground 4 "→ apply XR ($(basename "$XR"))"
           kubectl apply -f "$XR"
@@ -381,7 +387,10 @@ tasks:
         if [ -n "$XR" ]; then
           XR_KIND=$(yq -r '.kind' "$XR")
           XR_NAME=$(yq -r '.metadata.name' "$XR")
-          XR_NS=$(yq -r '.metadata.namespace // "default"' "$XR")
+          TRACE_NS_ARG=""
+          if [ "$XR_SCOPE" = "Namespaced" ]; then
+            TRACE_NS_ARG="-n $(yq -r '.metadata.namespace // "default"' "$XR")"
+          fi
           TRACE_WAIT="${TRACE_WAIT:-5}"
           gum spin --title "waiting ${TRACE_WAIT}s for reconciliation..." --spinner dot -- sleep "$TRACE_WAIT"
           echo
@@ -392,7 +401,8 @@ tasks:
           # dieselbe ManagedNamespace byteweise verglichen (v2.2.1 beta trace vs.
           # v2.4.1 resource trace). Das `|| true` bleibt: der Trace ist Beiwerk,
           # kein Grund den Task scheitern zu lassen.
-          crossplane resource trace "$XR_KIND" "$XR_NAME" -n "$XR_NS" || true
+          # shellcheck disable=SC2086 — TRACE_NS_ARG is empty or "-n <ns>"
+          crossplane resource trace "$XR_KIND" "$XR_NAME" $TRACE_NS_ARG || true
         fi
 
   clean-stranded:

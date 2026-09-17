@@ -9,6 +9,7 @@ A collection of **Crossplane v2 Configuration packages**. Each subdirectory unde
 ## Crossplane v2 essentials (worth re-checking before changes)
 
 - **No more claims.** v2 promotes XRDs to `apiextensions.crossplane.io/v2` and adds `scope: Namespaced`. The XR itself is namespaced — there is no separate `Claim` kind. Don't use `claimNames:`. Don't name example files `claim.yaml`; use `xr.yaml`.
+- **`scope: Cluster` is a deliberate exception, not a mistake to "fix".** An XRD may be cluster-scoped only if it carries the annotation `stuttgart-things.com/cluster-scope-reason` stating the actual argument — the linter enforces it (at least 40 characters, so no empty or placeholder reasons). The reason lives on the XRD, not in a linter allow-list, so a review sees it in the same diff as `scope: Cluster` and it cannot drift from the XRD it excuses. First case: `vault/app-secret-profile` — a profile decides which secrets every order of an app receives, so only admins or the app's owners may change it; a namespaced profile could be rewritten by anyone with write access to its namespace.
 - **Composition stays on `/v1`.** The API group `apiextensions.crossplane.io` has `v1` and `v2` for `CompositeResourceDefinition`, but **only `v1` for `Composition`** (no `Composition/v2` exists). Mixing them in the same package is correct, not a bug.
 - **Two CRDs from provider-kubernetes are NOT interchangeable:**
   - `kubernetes.crossplane.io/v1alpha2` — legacy, cluster-scoped, supports `deletionPolicy`.
@@ -22,7 +23,7 @@ A collection of **Crossplane v2 Configuration packages**. Each subdirectory unde
 ├── crossplane.yaml               # Configuration metadata (kind: Configuration, apiVersion: meta.pkg.crossplane.io/v1)
 ├── README.md                     # human docs (also referenced from meta.crossplane.io/readme)
 ├── apis/
-│   ├── definition.yaml           # XRD — apiextensions.crossplane.io/v2, scope: Namespaced
+│   ├── definition.yaml           # XRD — apiextensions.crossplane.io/v2, scope: Namespaced (Cluster only with a stated reason, see above)
 │   └── composition.yaml          # Composition — apiextensions.crossplane.io/v1, mode: Pipeline
 └── examples/
     ├── xr-min.yaml               # only XRD-required fields — exercises defaults
@@ -114,7 +115,7 @@ spec:
 
 ### Example XR conventions
 
-- `metadata.namespace` is where the XR object lives.
+- `metadata.namespace` is where the XR object lives. **Cluster-scoped XRs have none** — their examples omit `metadata.namespace`, and `task apply-dev` reads the scope from the XRD, so it neither creates a namespace nor passes `-n` to `resource trace` for them.
 - `spec.namespace` (if the XRD has one) is the target namespace for managed resources — separate concern.
 - Provide all three variants. We've seen each catch different bugs:
   - `xr-min` validates XRD defaults.
@@ -135,7 +136,7 @@ spec:
 
 1. **`nindent` columns** in Composition templates must be the **final-output** column, not the template-file column. When the value is embedded inside an outer block scalar (e.g. `userdata: |`), don't pile extra indentation on top. For `write_files.content` inside the `userdata: |` block, the correct value was `nindent 16` (not 28, not 12).
 2. **`deletionPolicy` on `kubernetes.m.crossplane.io/v1alpha1` Object** = schema rejection. Use `managementPolicies` only.
-3. **`apply-dev` auto-creates the XR's own metadata namespace** but not its `spec.namespace`. The latter is the Composition's job — integrate it into the Composition rather than treating it as a precondition or auto-creating from the task (would couple the generic task to Configuration-specific spec fields).
+3. **`apply-dev` auto-creates the XR's own metadata namespace** (namespaced XRDs only) but not its `spec.namespace`. The latter is the Composition's job — integrate it into the Composition rather than treating it as a precondition or auto-creating from the task (would couple the generic task to Configuration-specific spec fields).
 4. **`task check` does URL-prefix matching, but Crossplane's package manager does NOT.** Switching a Configuration to `xpkg.crossplane.io` while the cluster has `xpkg.upbound.io` installed will produce a false-positive "missing" from `task check` — same bytes, different mirror. The package manager itself resolves cross-mirror `dependsOn` correctly (matches by digest, retries after an initial "missing dependencies" condition that can take 30-60s to clear). So: if `task check` reports a missing dep but the cluster has the same package under the other mirror, **install anyway** — the package will land. The `task check` mismatch is the false positive, not the actual install.
 5. **`crossplane render` does NOT apply XRD schema defaults.** No API server, no defaulting admission — a field the XRD defaults stays absent. `machinery/rancher-cluster`'s `xr-max.yaml` omitted `spec.environmentConfig` (XRD default `"default"`), so the `load-environment` selector dropped its matchLabel, `$env` rendered EMPTY, and the entire vault-pki block — gated on an env key with no in-template default — vanished from the golden with no error. The "every field set" example was exercising the no-environment path. Whether it bites depends on the selector: `mode: Single` (the default) leaves `$env` EMPTY with no error, `mode: Multiple` tolerates it. **An example XR must set every field it relies on, even a defaulted one.**
 6. **Observed state renders to nothing unless you feed it.** Composition branches gated on provider-observed resources (`{{- if and $saData (hasKey $saData "token") ... }}`) produce no output under `crossplane render`, so no golden covers them — this is how `releaseOnDelete: false` (#388) shipped. Put fixtures in `tests/render/extra-resources/<config>/*.yaml`; `render-golden.sh` passes them via `--extra-resources`. See [`tests/render/README.md`](tests/render/README.md) and [#392](https://github.com/stuttgart-things/crossplane-configurations/issues/392).

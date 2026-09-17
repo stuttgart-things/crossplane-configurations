@@ -1,0 +1,195 @@
+---
+# What an app needs in Vault, declared once per app — #464 decision 3.
+#
+# A ClusterStack names profiles (`profiles: [homerun2]`); xplane-cluster reads the
+# AppSecretProfile of each as an extra resource and composes the VaultSecretSets.
+# The ENVIRONMENT half — which real mount a logical one is, the read policies, the
+# entry behind a shared name, the writer ProviderConfig — is not here; it stays in
+# the cluster-vault-<env> EnvironmentConfig.
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: appsecretprofiles.secrets.stuttgart-things.com
+  annotations:
+    stuttgart-things.com/cluster-scope-reason: >-
+      A profile decides which secrets every cluster ordering that app receives,
+      and which of them an order may override. That is an RBAC boundary: only
+      admins or the app's owners may change it. A namespaced profile could be
+      rewritten by anyone with write access to its namespace — and an order
+      reading profiles from its own namespace could bring its own.
+spec:
+  group: secrets.stuttgart-things.com
+  scope: Cluster
+  names:
+    kind: AppSecretProfile
+    plural: appsecretprofiles
+    singular: appsecretprofile
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      additionalPrinterColumns:
+        - name: MOUNT
+          type: string
+          jsonPath: .spec.mount
+        - name: ENTRIES
+          type: integer
+          jsonPath: .status.resolved.entryCount
+        - name: READS
+          type: integer
+          jsonPath: .status.resolved.readCount
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >-
+            The secrets an app needs per cluster. metadata.name IS the profile name
+            an order lists — one object per app.
+          properties:
+            metadata:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 40
+                  pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+            spec:
+              type: object
+              x-kubernetes-validations:
+                - rule: "has(self.entries) || has(self.reads)"
+                  message: a profile must own entries or read another app's keys — a profile with neither needs no declaration at all
+                - rule: "!has(self.entries) || has(self.mount)"
+                  message: a profile that owns entries needs the logical mount they live in
+              properties:
+                mount:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+                  pattern: "^[a-z0-9][a-z0-9._-]*$"
+                  description: >-
+                    LOGICAL mount name, resolved to the real mount per environment
+                    by cluster-vault-<env> (`vault.mounts`).
+                entries:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  description: >-
+                    Entries this app OWNS, one Vault entry per cluster each at
+                    <mount>/<cluster><suffix>. Written and deleted (all versions)
+                    with the cluster.
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - suffix
+                  items:
+                    type: object
+                    required:
+                      - suffix
+                      - keys
+                    properties:
+                      suffix:
+                        type: string
+                        maxLength: 32
+                        pattern: "^(-[a-z0-9]+)*$"
+                        description: >-
+                          Appended to the cluster name: "" is the entry
+                          <cluster>, "-scoreboard" is <cluster>-scoreboard.
+                      keys:
+                        type: object
+                        minProperties: 1
+                        maxProperties: 30
+                        x-kubernetes-validations:
+                          - rule: "self.all(k, k.matches('^[A-Za-z0-9][A-Za-z0-9._-]*$'))"
+                            message: key names are letters, digits, `.`, `_` and `-`, starting with a letter or digit
+                        additionalProperties:
+                          type: object
+                          x-kubernetes-validations:
+                            - rule: "(has(self.generate) ? 1 : 0) + (has(self.literal) ? 1 : 0) + (has(self.shared) ? 1 : 0) == 1"
+                              message: each key needs exactly one source — generate, literal or shared
+                            - rule: "!has(self.shared) || !has(self.overridable) || !self.overridable"
+                              message: a shared key cannot be overridable — it is never written into a cluster's entry, so there is nothing to override
+                          properties:
+                            generate:
+                              type: object
+                              description: "Created once per cluster, then stable (VaultSecretSet generate, regenerate false)."
+                              properties:
+                                length:
+                                  type: integer
+                                  minimum: 8
+                                  maximum: 256
+                                  default: 32
+                                charset:
+                                  type: string
+                                  enum:
+                                    - alphanumeric
+                                    - ascii
+                                    - numeric
+                                  default: alphanumeric
+                            literal:
+                              type: string
+                              maxLength: 512
+                              description: "Non-sensitive only — it is stored here in clear text."
+                            shared:
+                              type: string
+                              maxLength: 64
+                              pattern: "^[a-z0-9][a-z0-9-]*$"
+                              description: >-
+                                Name of a shared, externally seeded value, resolved
+                                per environment by cluster-vault-<env>
+                                (`vault.shared.<name>` → a `_` entry). NOT written
+                                into the cluster's entry: consumers read the shared
+                                entry directly.
+                            overridable:
+                              type: boolean
+                              description: >-
+                                May an order replace this key via secretOverrides
+                                (secretKeyRef / vaultRef)? Unset means: generate
+                                yes, literal and shared no. status.resolved shows
+                                the effective value.
+                reads:
+                  type: object
+                  maxProperties: 30
+                  description: >-
+                    Keys this app uses but does NOT own: read directly from another
+                    app's entry in the same cluster, never copied. The other app's
+                    profile must be in the same order — checked when the order
+                    renders; here only that the referenced key exists.
+                  x-kubernetes-validations:
+                    - rule: "self.all(k, k.matches('^[A-Za-z0-9][A-Za-z0-9._-]*$'))"
+                      message: key names are letters, digits, `.`, `_` and `-`, starting with a letter or digit
+                  additionalProperties:
+                    type: object
+                    required:
+                      - from
+                    properties:
+                      from:
+                        type: object
+                        description: >-
+                          Structured rather than "app-suffix/key": an app name may
+                          itself contain a dash, so a string form would be
+                          ambiguous, and a typo would only surface at render.
+                        required:
+                          - app
+                          - key
+                        properties:
+                          app:
+                            type: string
+                            maxLength: 40
+                            pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                          suffix:
+                            type: string
+                            maxLength: 32
+                            pattern: "^(-[a-z0-9]+)*$"
+                            default: ""
+                          key:
+                            type: string
+                            minLength: 1
+                            maxLength: 128
+            status:
+              type: object
+              properties:
+                resolved:
+                  type: object
+                  description: >-
+                    The profile as an order will see it: entries with the keys that
+                    are written, the effective overridable set and the shared names;
+                    reads with whether the referenced key exists.
+                  x-kubernetes-preserve-unknown-fields: true

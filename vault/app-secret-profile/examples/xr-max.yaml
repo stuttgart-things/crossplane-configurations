@@ -1,0 +1,40 @@
+# Maximal AppSecretProfile — synthetic, every field set: all three key sources,
+# all charsets, overridable set both ways and left to its default, a read of
+# another profile's entry (with suffix) and a read of its own.
+#
+# For `crossplane render` the profiles it reads are fixtures in
+# tests/render/extra-resources/vault/app-secret-profile/.
+apiVersion: secrets.stuttgart-things.com/v1alpha1
+kind: AppSecretProfile
+metadata:
+  name: demo-max
+spec:
+  mount: demo
+  entries:
+    - suffix: ""
+      keys:
+        admin-password:
+          generate: {length: 48, charset: ascii}
+          overridable: true
+        pin:
+          generate: {length: 8, charset: numeric}
+          overridable: false
+        api-key:
+          generate: {length: 32, charset: alphanumeric}
+        username:
+          literal: demo
+          overridable: true
+        endpoint:
+          literal: https://demo.example.com
+        git-token:
+          shared: git-pat
+          overridable: false
+    - suffix: "-worker"
+      keys:
+        token:
+          generate: {}
+  reads:
+    scoreboard-token:
+      from: {app: schmetterpause, suffix: "-scoreboard", key: token}
+    own-api-key:
+      from: {app: demo-max, suffix: "", key: api-key}
