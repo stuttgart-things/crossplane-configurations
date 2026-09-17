@@ -1,0 +1,11 @@
+# Minimal AppSecretProfile — tabletennis. Only required fields: it owns no entry,
+# it reads homerun2's Redis password directly (#464: tabletennis and homerun2
+# use the same entry). Cluster-scoped: no metadata.namespace.
+apiVersion: secrets.stuttgart-things.com/v1alpha1
+kind: AppSecretProfile
+metadata:
+  name: tabletennis
+spec:
+  reads:
+    redisPassword:
+      from: {app: homerun2, key: redisPassword}

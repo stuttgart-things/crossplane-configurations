@@ -1,0 +1,71 @@
+---
+apiVersion: secrets.stuttgart-things.com/v1alpha1
+kind: AppSecretProfile
+metadata:
+  name: demo-max
+spec:
+  crossplane:
+    resourceRefs: []
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: Available
+    status: "True"
+    type: ReadsResolved
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: Available
+    status: "True"
+    type: Ready
+  resolved:
+    entries:
+    - entry: <cluster>
+      generated:
+      - admin-password
+      - api-key
+      - pin
+      literal:
+      - endpoint
+      - username
+      overridable:
+      - admin-password
+      - api-key
+      - username
+      shared:
+        git-token: git-pat
+      suffix: ""
+      writes:
+      - admin-password
+      - api-key
+      - endpoint
+      - pin
+      - username
+    - entry: <cluster>-worker
+      generated:
+      - token
+      overridable:
+      - token
+      suffix: -worker
+      writes:
+      - token
+    entryCount: 2
+    mount: demo
+    readCount: 2
+    reads:
+    - app: demo-max
+      entry: <cluster>
+      key: own-api-key
+      resolved: true
+      sourceKey: api-key
+    - app: schmetterpause
+      entry: <cluster>-scoreboard
+      key: scoreboard-token
+      resolved: true
+      sourceKey: token

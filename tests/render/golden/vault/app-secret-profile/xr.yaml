@@ -1,0 +1,60 @@
+---
+apiVersion: secrets.stuttgart-things.com/v1alpha1
+kind: AppSecretProfile
+metadata:
+  name: schmetterpause
+spec:
+  crossplane:
+    resourceRefs: []
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: Available
+    status: "True"
+    type: ReadsResolved
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: Available
+    status: "True"
+    type: Ready
+  resolved:
+    entries:
+    - entry: <cluster>
+      generated:
+      - password
+      - session-key
+      literal:
+      - username
+      overridable:
+      - password
+      - session-key
+      suffix: ""
+      writes:
+      - password
+      - session-key
+      - username
+    - entry: <cluster>-scoreboard
+      generated:
+      - token
+      overridable:
+      - token
+      suffix: -scoreboard
+      writes:
+      - token
+    - entry: <cluster>-backup
+      shared:
+        access_key: object-store-backup
+        secret_key: object-store-backup
+      suffix: -backup
+      writes: []
+    entryCount: 3
+    mount: schmetterpause
+    readCount: 0
+    reads: []

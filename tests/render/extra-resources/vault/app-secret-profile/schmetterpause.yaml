@@ -1,0 +1,30 @@
+# Fixture: vault/app-secret-profile/examples/xr.yaml (schmetterpause), verbatim
+# spec — xr-max reads schmetterpause-scoreboard/token. Keep in step.
+apiVersion: secrets.stuttgart-things.com/v1alpha1
+kind: AppSecretProfile
+metadata:
+  name: schmetterpause
+spec:
+  mount: schmetterpause
+  entries:
+    - suffix: ""
+      keys:
+        username:
+          literal: schmetterpause
+        password:
+          generate: {length: 32}
+          overridable: true
+        session-key:
+          generate: {length: 64}
+          overridable: true
+    - suffix: "-scoreboard"
+      keys:
+        token:
+          generate: {length: 32}
+          overridable: true
+    - suffix: "-backup"
+      keys:
+        access_key:
+          shared: object-store-backup
+        secret_key:
+          shared: object-store-backup

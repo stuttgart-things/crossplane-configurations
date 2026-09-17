@@ -84,6 +84,10 @@ REQUIRED_FILES = (
 
 LONG_FUNCTION_PREFIX = "crossplane-contrib-"
 
+# A cluster-scoped XRD must say why, on the XRD itself (see check_definition).
+CLUSTER_SCOPE_REASON = "stuttgart-things.com/cluster-scope-reason"
+CLUSTER_SCOPE_REASON_MIN = 40
+
 
 class Findings:
     def __init__(self) -> None:
@@ -179,9 +183,25 @@ def check_definition(config: str, cdir: Path, f: Findings) -> None:
         f.error(config, f"definition.yaml: XRD must be apiextensions.crossplane.io/v2 "
                         f"(got {doc.get('apiVersion')!r})")
     spec = doc.get("spec") or {}
-    if spec.get("scope") != "Namespaced":
+    scope = spec.get("scope")
+    if scope == "Cluster":
+        # The one exception, and it has to argue for itself where it is taken.
+        # An annotation on the XRD rather than an allow-list here: the reason
+        # sits next to `scope: Cluster`, a review sees both in one diff, and it
+        # cannot drift away from the XRD it excuses. The length floor only
+        # rejects the empty and the placeholder ("tbd", "needs cluster scope");
+        # whether the argument holds is the review's job.
+        reason = ((doc.get("metadata") or {}).get("annotations") or {}).get(CLUSTER_SCOPE_REASON)
+        reason = reason.strip() if isinstance(reason, str) else ""
+        if len(reason) < CLUSTER_SCOPE_REASON_MIN:
+            f.error(config, f"definition.yaml: spec.scope Cluster needs annotation "
+                            f"{CLUSTER_SCOPE_REASON} stating the actual argument "
+                            f"(at least {CLUSTER_SCOPE_REASON_MIN} characters, got "
+                            f"{len(reason)}) — v2 XRs are namespaced unless an XRD says why not")
+    elif scope != "Namespaced":
         f.error(config, f"definition.yaml: spec.scope must be Namespaced "
-                        f"(got {spec.get('scope')!r}) — v2 XRs are namespaced")
+                        f"(got {scope!r}) — v2 XRs are namespaced; Cluster only with "
+                        f"{CLUSTER_SCOPE_REASON}")
     if "claimNames" in spec:
         f.error(config, "definition.yaml: spec.claimNames set — v2 has no Claim kind")
     if "claimNames" in (spec.get("names") or {}):

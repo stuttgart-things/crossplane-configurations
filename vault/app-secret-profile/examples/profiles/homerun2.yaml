@@ -1,0 +1,20 @@
+# homerun2 — owns its per-cluster entry. The GitHub token is a shared PAT, read
+# by consumers from the shared entry cluster-vault-<env> maps `git-pat` to; it
+# is never copied into the cluster's entry (#464).
+apiVersion: secrets.stuttgart-things.com/v1alpha1
+kind: AppSecretProfile
+metadata:
+  name: homerun2
+spec:
+  mount: homerun2
+  entries:
+    - suffix: ""
+      keys:
+        redisPassword:
+          generate: {length: 32}
+          overridable: true
+        authToken:
+          generate: {length: 32}
+          overridable: true
+        githubToken:
+          shared: git-pat
