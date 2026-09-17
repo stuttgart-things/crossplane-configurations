@@ -452,8 +452,88 @@ spec:
 
                     No enum on purpose: the catalog owns the names, and a copy
                     here is the kind of mirror that drifted for cni.gatewayAPI.
+
+                    App profiles (homerun2, tabletennis) also bring their
+                    SECRETS in rancher mode: the catalog names the
+                    AppSecretProfiles their workloads read, and the stack
+                    composes one VaultSecretSet per app that owns entries
+                    (<mount>/<clusterName><suffix>, deleted with every version
+                    with the stack), adds every mount they read to the stores,
+                    and sets the platform's secrets-config gate and secret-store
+                    where one store serves it. A missing AppSecretProfile, a
+                    mount or shared name the environment does not map, or a read
+                    from an app no listed profile brings fails the render.
                   items:
                     type: string
+                secretOverrides:
+                  type: array
+                  maxItems: 50
+                  description: >-
+                    Adopt an EXISTING value for single keys of the app secrets
+                    instead of generating them — the migration path for a fleet
+                    whose values are live (#464). Only keys the AppSecretProfile
+                    marks overridable; anything else fails the render.
+
+                    vaultRef is read once through the environment's writer
+                    credential, so it reaches exactly what that writer may read.
+                    secretKeyRef reads a Secret in this XR's OWN namespace.
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - app
+                    - suffix
+                    - key
+                  items:
+                    type: object
+                    required:
+                      - app
+                      - key
+                    x-kubernetes-validations:
+                      - rule: "has(self.vaultRef) != has(self.secretKeyRef)"
+                        message: each override needs exactly one of vaultRef or secretKeyRef
+                    properties:
+                      app:
+                        type: string
+                        description: AppSecretProfile name.
+                        pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                      suffix:
+                        type: string
+                        description: 'Entry suffix as in the profile; "" is the entry named like the cluster.'
+                        pattern: "^(-[a-z0-9]+)*$"
+                        default: ""
+                      key:
+                        type: string
+                        minLength: 1
+                      vaultRef:
+                        type: object
+                        required:
+                          - mount
+                          - entry
+                          - key
+                        x-kubernetes-validations:
+                          - rule: "!self.entry.startsWith('_') && !self.entry.contains('/_')"
+                            message: vaultRef cannot point at a shared `_` entry — shared entries are read directly, never copied
+                        properties:
+                          mount:
+                            type: string
+                            minLength: 1
+                          entry:
+                            type: string
+                            minLength: 1
+                          key:
+                            type: string
+                            minLength: 1
+                          reread:
+                            type: boolean
+                      secretKeyRef:
+                        type: object
+                        required:
+                          - name
+                          - key
+                        properties:
+                          name:
+                            type: string
+                          key:
+                            type: string
                 secretStores:
                   type: array
                   description: >-

@@ -55,7 +55,12 @@ spec:
     #   AnsibleRun                          {name}-kubeconfig
     #   ClusterAccess                       {name}-access
     #   Platform                            {name}-platform
+    #   VaultSecretSet                      {name}-secrets-<app>  (rancher, app profiles)
     #   Usage x3                            teardown ordering
+    #
+    # In rancher mode it also requests the AppSecretProfiles its profiles name
+    # (function-kcl ExtraResources, by name) — cluster-scoped, so they cannot
+    # come from the order's namespace.
     #
     # Every gate is sticky and keyed on the previous stage having SUCCEEDED, not
     # merely being Ready — see the module's README.
@@ -68,7 +73,7 @@ spec:
         metadata:
           name: cluster
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-cluster?tag=0.16.0
+          source: oci://ghcr.io/stuttgart-things/xplane-cluster?tag=0.17.0
     # Propagates the composed children's readiness to the XR. status.ready is
     # set by the module itself (from the Platform child, or from ClusterAccess
     # when platformEnabled is false); this makes the XR's Ready condition track
