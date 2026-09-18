@@ -1,0 +1,27 @@
+---
+# The EnvironmentConfig rancher-mode ClusterStacks select with
+# `spec.rancher.environmentConfig: rancher-join-test` — every rancher-join-test*
+# order on u26-kind3 does. It lived only on that cluster (created by hand during
+# Stage 2 of stuttgart-things/crossplane-configurations#438); here so a rebuilt
+# machinery cluster gets it from Git (stuttgart-things/stuttgart-things#3013).
+#
+# Applied by the kind-machinery play through `extra_environment_config_manifests`
+# (stuttgart-things ansible/exec/labul/u26-kind3-machinery/vars.yaml).
+#
+# No secrets: the Rancher credential is the `rancher-mgmt` ClusterProviderConfig
+# (cluster-provider-config-rancher.yaml beside this file) over the
+# crossplane-system/rancher-mgmt-kubeconfig Secret, which comes from sops-git.
+# `providerConfigRef: in-cluster` is the provider-kubernetes config for the
+# management cluster itself.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: rancher-cluster-join-test
+  labels:
+    rancher-cluster.resources.stuttgart-things.com/environment: rancher-join-test
+data:
+  distro: k3s
+  kubernetesVersion: v1.36.4+k3s1
+  providerConfigRef: in-cluster
+  rancherNamespace: fleet-default
+  rancherProviderConfigRef: rancher-mgmt
