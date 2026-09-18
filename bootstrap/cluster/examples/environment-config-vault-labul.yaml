@@ -49,6 +49,10 @@ data:
     # derived entry lands on one fails the order — the writer policy only grants
     # read there anyway. Drop once homerun2-test1 migrates (#464 step 7).
     reservedEntries:
+      # homerun2-test1's own entry, written by a standalone VaultSecretSet
+      # (stuttgart-things crossplane/xrs/vaultsecretset), not a ClusterStack.
+      homerun2:
+        - homerun2-test1
       schmetterpause:
         - schmetterpause
         - schmetterpause-backup
