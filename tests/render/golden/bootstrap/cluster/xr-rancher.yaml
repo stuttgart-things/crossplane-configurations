@@ -315,6 +315,7 @@ spec:
       security-platform/external-secrets-stores: "true"
       storage-platform: "true"
       storage-platform/cloudnative-pg: "true"
+      storage-platform/cloudnative-pg-barman: "true"
       storage-platform/longhorn: "false"
       storage-platform/nfs-csi-install: "false"
       storage-platform/nfs-csi-storageclasses: "false"
