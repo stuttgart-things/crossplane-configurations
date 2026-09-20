@@ -1,8 +1,13 @@
 # Cluster precondition. provider-minio is a pre-v2 provider: its ProviderConfig
-# is cluster-scoped, and the referenced Secret holds the MinIO ADMIN keys —
-# `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`, the shape the provider expects.
-# In the fleet that Secret comes from Vault through ESO (entry `minio-secrets`),
-# not from a file.
+# is cluster-scoped, and the referenced Secret holds the keys it drives the
+# instance with — `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`, the shape the
+# provider expects.
+#
+# NOT the MinIO root account: `crossplane-minio-policy.json` next to this file
+# is the exact permission set this Configuration needs, measured on a lab MinIO
+# — create AND delete of buckets, policies and users all succeed with it, and
+# nothing else does. Create the user once per instance (see the README), keep
+# its keys in Vault, and let the cluster get them from there.
 apiVersion: minio.crossplane.io/v1
 kind: ProviderConfig
 metadata:
@@ -11,5 +16,5 @@ spec:
   minioURL: https://artifacts.platform.sthings-vsphere.labul.sva.de
   credentials:
     apiSecretRef:
-      name: minio-admin
+      name: minio-crossplane
       namespace: crossplane-system
