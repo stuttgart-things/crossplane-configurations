@@ -92,17 +92,27 @@ spec:
                   default: k3s
                   description: >-
                     Kubernetes distribution from the catalog
-                    (k3s | kind | rke2 | rancher-rke2). Determines the install
-                    playbooks, the required inventory groups, and WHO OWNS THE
-                    CNI — which is why `platform.cni.enabled` must not be set by
-                    hand: the k3s and rke2 roles install cilium themselves, a
-                    kind cluster is built without one.
+                    (k3s | kind | rke2 | rancher-k3s | rancher-rke2). Determines
+                    the install playbooks, the required inventory groups, and WHO
+                    OWNS THE CNI — which is why `platform.cni.enabled` must not
+                    be set by hand: the k3s and rke2 roles install cilium
+                    themselves, a kind cluster is built without one.
 
-                    `rancher-rke2` also changes the SHAPE of the stack: Rancher
-                    creates the cluster (a RancherCluster child, configured from
-                    `spec.rancher`), the VM waits for the node-registration
-                    command it publishes, and ONE join stage replaces the
-                    distribution + kubeconfig pair.
+                    The `rancher-*` entries also change the SHAPE of the stack:
+                    Rancher creates the cluster (a RancherCluster child,
+                    configured from `spec.rancher`), the VM waits for the
+                    node-registration command it publishes, and ONE join stage
+                    replaces the distribution + kubeconfig pair.
+
+                    PICK THE RANCHER ENTRY THAT MATCHES THE ENVIRONMENT'S
+                    `distro`. The two differ only in machineGlobalConfig, whose
+                    keys belong to the server Rancher provisions: k3s and rke2
+                    do not share them, and an unknown key there is IGNORED
+                    rather than refused. The wrong one therefore leaves the
+                    bundled CNI and ingress running — cilium cannot create its
+                    vxlan device, nothing reaches a ClusterIP, and the cluster
+                    never registers after looking healthy for ten minutes
+                    (kcl#282).
                 clusterName:
                   type: string
                   description: >-
