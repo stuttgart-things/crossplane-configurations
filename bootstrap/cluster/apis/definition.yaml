@@ -241,6 +241,14 @@ spec:
                     kubeconfig:
                       type: string
                       pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                    # The rancher provisioner's single stage. Named in the text
+                    # above since the provisioner shipped, and read by
+                    # xplane-cluster (runIDFor(spec, "join")) — but missing from
+                    # this list, so the API pruned it and the documented repair
+                    # silently did nothing (#479).
+                    join:
+                      type: string
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
 
                 # --- Downstream passthrough ---------------------------------
                 kubeconfig:
