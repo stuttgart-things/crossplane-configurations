@@ -21,7 +21,7 @@ spec:
         kind: GoTemplate
         source: Inline
         inline:
-          template: |
+          template: | # pragma: allowlist secret
             {{- $xr := .observed.composite.resource }}
             {{- $spec := $xr.spec | default dict }}
             {{- $xrName := $xr.metadata.name }}
