@@ -41,6 +41,34 @@ spec:
                     type: FromCompositeFieldPath
                     valueFromFieldPath: spec.environmentConfig
                     fromFieldPathPolicy: Required
+            # The RANCHER environment, and the reason it is loaded here at all:
+            # it is what decides whether the server is k3s or rke2 (`data.distro`),
+            # while the catalog entry is picked by spec.distribution. The two were
+            # set independently and nothing compared them — and machineGlobalConfig
+            # keys belong to the server, where an unknown key is IGNORED rather
+            # than refused. rancher-rke2 against a k3s environment therefore left
+            # flannel running, cilium could not create its vxlan device, and the
+            # cluster never registered, after ten minutes that looked healthy
+            # (stuttgart-things/kcl#282, #490). With `distro` in the context the
+            # module refuses the pair at render time instead.
+            #
+            # Optional and minMatch 0 throughout: the ansible path has no
+            # spec.rancher at all, and an offline render has no EnvironmentConfig
+            # to match. Both mean "not known here", which is not a mismatch.
+            #
+            # No key collision with the environment above: that one carries
+            # `vault`, this one distro, kubernetesVersion, providerConfigRef,
+            # rancherNamespace and rancherProviderConfigRef.
+            - type: Selector
+              selector:
+                mode: Multiple
+                minMatch: 0
+                maxMatch: 1
+                matchLabels:
+                  - key: rancher-cluster.resources.stuttgart-things.com/environment
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.rancher.environmentConfig
+                    fromFieldPathPolicy: Optional
     # The logic step. The logic lives in the xplane-cluster KCL module (which depends
     # on xplane-cluster-catalog) rather than inline here, for the reason
     # bootstrap/platform states: inline KCL cannot be unit-tested, and the rules
