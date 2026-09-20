@@ -1,0 +1,190 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: miniobuckets.storage.stuttgart-things.com
+  annotations:
+    stuttgart-things.com/cluster-scope-reason: >-
+      provider-minio is a pre-v2 provider: its Bucket, Policy and User are
+      cluster-scoped, and Crossplane v2 refuses to compose a cluster-scoped
+      resource from a namespaced XR ("cannot apply cluster scoped composed
+      resource ... for a namespaced composite resource", verified on 2.3.3).
+      A bucket is instance-wide anyway — its name is unique per MinIO, not per
+      namespace — so a namespaced XR would promise an isolation the object
+      does not have. The user keys still land in the namespace named by
+      access[].connectionSecret.namespace.
+spec:
+  scope: Cluster
+  group: storage.stuttgart-things.com
+  names:
+    kind: MinioBucket
+    plural: miniobuckets
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                providerConfigRef:
+                  type: object
+                  description: >-
+                    provider-minio ProviderConfig holding the admin credentials
+                    and the endpoint. Cluster-scoped: provider-minio is a
+                    pre-v2 provider, so there is no namespaced ProviderConfig
+                    kind and no `kind` field here to choose one.
+                  properties:
+                    name:
+                      type: string
+                      default: minio
+                      maxLength: 253
+                  default:
+                    name: minio
+                bucketName:
+                  type: string
+                  description: >-
+                    Bucket to create. Defaults to the XR name. S3 names are
+                    RFC 1123 and CANNOT be changed afterwards — a changed value
+                    creates a second bucket and orphans the first.
+                  maxLength: 63
+                  minLength: 3
+                  pattern: '^[a-z0-9][a-z0-9.-]*[a-z0-9]$'
+                region:
+                  type: string
+                  description: Region the bucket is created in.
+                  default: us-east-1
+                  maxLength: 63
+                deletionPolicy:
+                  type: string
+                  description: >-
+                    What deleting the XR does to the BUCKET. `Orphan` leaves it
+                    on the instance, which is the default because a bucket
+                    holds data this Configuration did not put there.
+                    `DeleteIfEmpty` removes an empty bucket and fails on a full
+                    one. `DeleteAll` removes the bucket AND every object in it.
+
+                    Policies and users are deleted in every case — they are
+                    access, not data.
+                  default: Orphan
+                  enum:
+                    - Orphan
+                    - DeleteIfEmpty
+                    - DeleteAll
+                bucketPolicy:
+                  type: string
+                  description: >-
+                    Raw S3 bucket policy, verbatim (e.g. to make a prefix
+                    public). Access for OUR OWN users belongs in `access`
+                    below, which builds the policy instead of taking it raw.
+                  maxLength: 8192
+                access:
+                  type: array
+                  description: >-
+                    Access to this bucket. Each entry is one MinIO policy and,
+                    unless `user: false`, one MinIO user carrying it, whose
+                    keys land in a Secret next to the XR.
+
+                    Policy and user are named after the bucket and the entry
+                    (`<bucket>-<name>`), so two XRs cannot collide on a shared
+                    instance.
+                  maxItems: 16
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: Entry name, e.g. `writer` or `backup`.
+                        maxLength: 32
+                        minLength: 1
+                        pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+                      scope:
+                        type: string
+                        description: >-
+                          `bucket` allows every operation on this bucket and
+                          nothing else, which covers the usual reader-writer.
+                          `custom` takes `rawPolicy` instead — provider-minio
+                          treats the two as mutually exclusive.
+                        default: bucket
+                        enum:
+                          - bucket
+                          - custom
+                      rawPolicy:
+                        type: string
+                        description: >-
+                          Raw S3 policy. Required with `scope: custom`, refused
+                          otherwise.
+                        maxLength: 8192
+                      user:
+                        type: boolean
+                        description: >-
+                          Create a user carrying this policy. `false` composes
+                          the policy alone, for a policy attached elsewhere
+                          (e.g. to an OIDC identity).
+                        default: true
+                      connectionSecret:
+                        type: object
+                        description: >-
+                          Secret that receives the user keys
+                          (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`). The
+                          XR is cluster-scoped, so the namespace is named here
+                          rather than inherited.
+                        properties:
+                          name:
+                            type: string
+                            description: Defaults to `<bucket>-<entry>`.
+                            maxLength: 253
+                          namespace:
+                            type: string
+                            default: crossplane-system
+                            maxLength: 253
+                        default:
+                          namespace: crossplane-system
+                    required:
+                      - name
+                    x-kubernetes-validations:
+                      - rule: 'self.scope != "custom" || has(self.rawPolicy)'
+                        message: 'scope: custom needs rawPolicy'
+                      - rule: 'self.scope == "custom" || !has(self.rawPolicy)'
+                        message: 'rawPolicy belongs to scope: custom'
+              x-kubernetes-validations:
+                - rule: '!has(self.access) || self.access.all(a, self.access.exists_one(b, b.name == a.name))'
+                  message: access entries need distinct names
+            status:
+              type: object
+              properties:
+                share:
+                  type: object
+                  description: >-
+                    What other resources read off this XR. Absent until the
+                    bucket is Ready, never half-filled.
+                  properties:
+                    bucket:
+                      type: string
+                      maxLength: 63
+                    region:
+                      type: string
+                      maxLength: 63
+                    policies:
+                      type: array
+                      maxItems: 16
+                      items:
+                        type: string
+                        maxLength: 96
+                    users:
+                      type: array
+                      description: "Per entry: the user and the Secret holding its keys."
+                      maxItems: 16
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                            maxLength: 96
+                          connectionSecret:
+                            type: string
+                            description: '<namespace>/<name>'
+                            maxLength: 507

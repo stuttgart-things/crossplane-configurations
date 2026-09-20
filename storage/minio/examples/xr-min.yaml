@@ -1,0 +1,9 @@
+---
+# Only what the XRD requires: the bucket is named after the XR, region,
+# deletion policy and provider config come from the defaults, and no access
+# entry means no policy and no user.
+apiVersion: storage.stuttgart-things.com/v1alpha1
+kind: MinioBucket
+metadata:
+  name: tofu-state
+spec: {}

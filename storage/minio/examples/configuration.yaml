@@ -1,0 +1,6 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: minio
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/minio:v0.1.0

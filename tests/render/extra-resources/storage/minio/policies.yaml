@@ -1,0 +1,84 @@
+---
+# Fixture: the Policy as it looks once provider-minio has created it. Without
+# it, `crossplane render` sees no Ready policy and the User branch renders to
+# nothing, so no golden would cover a user (CLAUDE.md gotcha 6).
+apiVersion: minio.crossplane.io/v1
+kind: Policy
+metadata:
+  name: tofu-state-writer
+  annotations:
+    crossplane.io/external-name: tofu-state-writer
+spec:
+  forProvider:
+    allowBucket: tofu-state
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+    - type: Synced
+      status: "True"
+      reason: ReconcileSuccess
+---
+# Fixture: the Policy as it looks once provider-minio has created it. Without
+# it, `crossplane render` sees no Ready policy and the User branch renders to
+# nothing, so no golden would cover a user (CLAUDE.md gotcha 6).
+apiVersion: minio.crossplane.io/v1
+kind: Policy
+metadata:
+  name: schmetterpause-cnpg-backup
+  annotations:
+    crossplane.io/external-name: schmetterpause-cnpg-backup
+spec:
+  forProvider:
+    allowBucket: schmetterpause-cnpg
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+    - type: Synced
+      status: "True"
+      reason: ReconcileSuccess
+---
+# Fixture: the Policy as it looks once provider-minio has created it. Without
+# it, `crossplane render` sees no Ready policy and the User branch renders to
+# nothing, so no golden would cover a user (CLAUDE.md gotcha 6).
+apiVersion: minio.crossplane.io/v1
+kind: Policy
+metadata:
+  name: schmetterpause-cnpg-auditor
+  annotations:
+    crossplane.io/external-name: schmetterpause-cnpg-auditor
+spec:
+  forProvider:
+    allowBucket: schmetterpause-cnpg
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+    - type: Synced
+      status: "True"
+      reason: ReconcileSuccess
+---
+# Fixture: the Policy as it looks once provider-minio has created it. Without
+# it, `crossplane render` sees no Ready policy and the User branch renders to
+# nothing, so no golden would cover a user (CLAUDE.md gotcha 6).
+apiVersion: minio.crossplane.io/v1
+kind: Policy
+metadata:
+  name: schmetterpause-cnpg-oidc
+  annotations:
+    crossplane.io/external-name: schmetterpause-cnpg-oidc
+spec:
+  forProvider:
+    allowBucket: schmetterpause-cnpg
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+    - type: Synced
+      status: "True"
+      reason: ReconcileSuccess

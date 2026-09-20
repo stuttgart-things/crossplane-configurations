@@ -1,0 +1,16 @@
+# provider-minio is published by VSHN only on their own registry (checked
+# 2026-09-20: neither xpkg.crossplane.io nor xpkg.upbound.io serves a
+# provider-minio).
+#
+# NAMED `vshn-provider-minio` ON PURPOSE — that is the CR name the package
+# manager derives from the dependsOn path in crossplane.yaml. A hand-installed
+# Provider under another name on the same registry becomes a second Lock node
+# with an identical source as soon as this Configuration is installed from OCI,
+# and that freezes dependency resolution for every package on the cluster
+# (CLAUDE.md, "Function CR names").
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: vshn-provider-minio
+spec:
+  package: ghcr.io/vshn/provider-minio:v0.4.5

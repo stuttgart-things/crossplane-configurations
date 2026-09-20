@@ -1,0 +1,194 @@
+---
+apiVersion: storage.stuttgart-things.com/v1alpha1
+kind: MinioBucket
+metadata:
+  name: schmetterpause-cnpg
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: minio.crossplane.io/v1
+      kind: Bucket
+      name: schmetterpause-cnpg
+    - apiVersion: minio.crossplane.io/v1
+      kind: Policy
+      name: schmetterpause-cnpg-auditor
+    - apiVersion: minio.crossplane.io/v1
+      kind: Policy
+      name: schmetterpause-cnpg-backup
+    - apiVersion: minio.crossplane.io/v1
+      kind: Policy
+      name: schmetterpause-cnpg-oidc
+    - apiVersion: minio.crossplane.io/v1
+      kind: User
+      name: schmetterpause-cnpg-auditor
+    - apiVersion: minio.crossplane.io/v1
+      kind: User
+      name: schmetterpause-cnpg-backup
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: bucket, policy-auditor, policy-backup, and 3 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+---
+apiVersion: minio.crossplane.io/v1
+kind: Bucket
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: bucket
+    crossplane.io/external-name: schmetterpause-cnpg
+  labels:
+    crossplane.io/composite: schmetterpause-cnpg
+  name: schmetterpause-cnpg
+  ownerReferences:
+  - apiVersion: storage.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: MinioBucket
+    name: schmetterpause-cnpg
+    uid: 91890360-f888-51a1-b8f9-6acf1b1a2416
+spec:
+  deletionPolicy: Delete
+  forProvider:
+    bucketDeletionPolicy: DeleteIfEmpty
+    bucketName: schmetterpause-cnpg
+    policy: |
+      {"Version":"2012-10-17","Statement":[{"Effect":"Deny","Principal":{"AWS":["*"]},"Action":["s3:DeleteBucket"],"Resource":["arn:aws:s3:::schmetterpause-cnpg"]}]}
+    region: us-east-1
+  providerConfigRef:
+    name: minio
+---
+apiVersion: minio.crossplane.io/v1
+kind: Policy
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: policy-auditor
+    crossplane.io/external-name: schmetterpause-cnpg-auditor
+  labels:
+    crossplane.io/composite: schmetterpause-cnpg
+  name: schmetterpause-cnpg-auditor
+  ownerReferences:
+  - apiVersion: storage.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: MinioBucket
+    name: schmetterpause-cnpg
+    uid: 91890360-f888-51a1-b8f9-6acf1b1a2416
+spec:
+  deletionPolicy: Delete
+  forProvider:
+    rawPolicy: |
+      {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetObject","s3:ListBucket"],"Resource":["arn:aws:s3:::schmetterpause-cnpg","arn:aws:s3:::schmetterpause-cnpg/*"]}]}
+  providerConfigRef:
+    name: minio
+---
+apiVersion: minio.crossplane.io/v1
+kind: Policy
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: policy-backup
+    crossplane.io/external-name: schmetterpause-cnpg-backup
+  labels:
+    crossplane.io/composite: schmetterpause-cnpg
+  name: schmetterpause-cnpg-backup
+  ownerReferences:
+  - apiVersion: storage.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: MinioBucket
+    name: schmetterpause-cnpg
+    uid: 91890360-f888-51a1-b8f9-6acf1b1a2416
+spec:
+  deletionPolicy: Delete
+  forProvider:
+    allowBucket: schmetterpause-cnpg
+  providerConfigRef:
+    name: minio
+---
+apiVersion: minio.crossplane.io/v1
+kind: Policy
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: policy-oidc
+    crossplane.io/external-name: schmetterpause-cnpg-oidc
+  labels:
+    crossplane.io/composite: schmetterpause-cnpg
+  name: schmetterpause-cnpg-oidc
+  ownerReferences:
+  - apiVersion: storage.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: MinioBucket
+    name: schmetterpause-cnpg
+    uid: 91890360-f888-51a1-b8f9-6acf1b1a2416
+spec:
+  deletionPolicy: Delete
+  forProvider:
+    allowBucket: schmetterpause-cnpg
+  providerConfigRef:
+    name: minio
+---
+apiVersion: minio.crossplane.io/v1
+kind: User
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: user-auditor
+    crossplane.io/external-name: schmetterpause-cnpg-auditor
+  labels:
+    crossplane.io/composite: schmetterpause-cnpg
+  name: schmetterpause-cnpg-auditor
+  ownerReferences:
+  - apiVersion: storage.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: MinioBucket
+    name: schmetterpause-cnpg
+    uid: 91890360-f888-51a1-b8f9-6acf1b1a2416
+spec:
+  deletionPolicy: Delete
+  forProvider:
+    policies:
+    - schmetterpause-cnpg-auditor
+    userName: schmetterpause-cnpg-auditor
+  providerConfigRef:
+    name: minio
+  writeConnectionSecretToRef:
+    name: schmetterpause-cnpg-auditor
+    namespace: crossplane-system
+---
+apiVersion: minio.crossplane.io/v1
+kind: User
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: user-backup
+    crossplane.io/external-name: schmetterpause-cnpg-backup
+  labels:
+    crossplane.io/composite: schmetterpause-cnpg
+  name: schmetterpause-cnpg-backup
+  ownerReferences:
+  - apiVersion: storage.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: MinioBucket
+    name: schmetterpause-cnpg
+    uid: 91890360-f888-51a1-b8f9-6acf1b1a2416
+spec:
+  deletionPolicy: Delete
+  forProvider:
+    policies:
+    - schmetterpause-cnpg-backup
+    userName: schmetterpause-cnpg-backup
+  providerConfigRef:
+    name: minio
+  writeConnectionSecretToRef:
+    name: schmetterpause-cnpg-backup
+    namespace: schmetterpause
