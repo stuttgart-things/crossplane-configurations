@@ -13,7 +13,7 @@ tasks:
         if [ -n "${CONFIG:-}" ]; then
           [ -f "$CONFIG/crossplane.yaml" ] || { gum style --foreground 1 "CONFIG=$CONFIG: missing $CONFIG/crossplane.yaml"; exit 1; }
         else
-          CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+          CONFIGS=$(find . -type d -name '.?*' -prune -o -type f -name crossplane.yaml -print \
             | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
             | sort)
           [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations found (no crossplane.yaml)"; exit 1; }
@@ -136,7 +136,7 @@ tasks:
         if [ -n "${CONFIG:-}" ]; then
           [ -f "$CONFIG/crossplane.yaml" ] || { gum style --foreground 1 "CONFIG=$CONFIG: missing $CONFIG/crossplane.yaml"; exit 1; }
         else
-          CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+          CONFIGS=$(find . -type d -name '.?*' -prune -o -type f -name crossplane.yaml -print \
             | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
             | sort)
           [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations found"; exit 1; }
@@ -242,7 +242,7 @@ tasks:
         if [ -n "${CONFIG:-}" ]; then
           [ -f "$CONFIG/crossplane.yaml" ] || { gum style --foreground 1 "CONFIG=$CONFIG: missing $CONFIG/crossplane.yaml"; exit 1; }
         else
-          CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+          CONFIGS=$(find . -type d -name '.?*' -prune -o -type f -name crossplane.yaml -print \
             | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
             | sort)
           [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
@@ -883,7 +883,7 @@ tasks:
         if [ -n "${CONFIG:-}" ]; then
           [ -f "$CONFIG/crossplane.yaml" ] || { gum style --foreground 1 "CONFIG=$CONFIG: missing $CONFIG/crossplane.yaml"; exit 1; }
         else
-          CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+          CONFIGS=$(find . -type d -name '.?*' -prune -o -type f -name crossplane.yaml -print \
             | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
             | sort)
           [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
@@ -935,7 +935,7 @@ tasks:
         if [ -n "${CONFIG:-}" ]; then
           [ -f "$CONFIG/crossplane.yaml" ] || { gum style --foreground 1 "CONFIG=$CONFIG: missing $CONFIG/crossplane.yaml"; exit 1; }
         else
-          CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+          CONFIGS=$(find . -type d -name '.?*' -prune -o -type f -name crossplane.yaml -print \
             | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
             | sort)
           [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }
@@ -1173,7 +1173,7 @@ tasks:
         if [ -n "${CONFIG:-}" ]; then
           [ -f "$CONFIG/crossplane.yaml" ] || { gum style --foreground 1 "CONFIG=$CONFIG: missing $CONFIG/crossplane.yaml"; exit 1; }
         else
-          CONFIGS=$(find . -type f -name crossplane.yaml -not -path './.git/*' \
+          CONFIGS=$(find . -type d -name '.?*' -prune -o -type f -name crossplane.yaml -print \
             | sed -e 's|/crossplane.yaml$||' -e 's|^\./||' \
             | sort)
           [ -n "$CONFIGS" ] || { gum style --foreground 1 "no configurations"; exit 1; }

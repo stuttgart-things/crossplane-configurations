@@ -115,10 +115,30 @@ def load_single(path: Path):
 
 
 def find_configs(root: Path) -> list[Path]:
+    """Every Configuration directory in the working tree.
+
+    DOT-DIRECTORIES ARE PRUNED WHOLESALE, not just `.git`. A git worktree is an
+    ordinary directory with the whole repo checked out inside it, and the
+    convention here puts them under `.claude/worktrees/<name>/` -- so a single
+    leftover worktree made the linter walk a SECOND copy of every package:
+
+      lint-configurations: 70 Configurations, 38 error(s), 52 warning(s)
+
+    Every one of those errors was about the worktree's stale checkout, which is
+    not the tree anyone is linting. Two of them were the kind that stops a push
+    on purpose ("ghcr.io has v0.11.6, repo declares v0.10.0 ... DIFFERENT
+    artifacts"), and they were false. CI never saw any of it -- a fresh
+    checkout has no worktrees -- so the noise landed only on the workstation,
+    which is exactly where the linter is supposed to be believed.
+
+    `.git` alone was never the right rule; it is one dot-directory among the
+    ones that accumulate beside a checkout (`.claude/`, `.venv/`, `.task/`).
+    None of them can hold a Configuration this repo publishes.
+    """
     configs = []
     for meta in root.rglob("crossplane.yaml"):
         parts = meta.relative_to(root).parts
-        if ".git" in parts or "examples" in parts:
+        if any(part.startswith(".") for part in parts) or "examples" in parts:
             continue
         configs.append(meta.parent)
     return sorted(configs, key=lambda p: str(p))

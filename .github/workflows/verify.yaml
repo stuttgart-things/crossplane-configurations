@@ -76,8 +76,14 @@ jobs:
         run: |
           # All Configuration directories: any crossplane.yaml that is NOT in an examples/ subtree
           # (examples/configuration.yaml is the runtime install manifest, not a Configuration package).
-          all=$(find . -type f -name crossplane.yaml \
-                  -not -path './.git/*' \
+          # Dot-directories pruned whole, same rule as the linter and
+          # render-golden.sh. CI never has one -- a fresh checkout carries no
+          # worktrees -- so this line changes nothing here. It changes anyway,
+          # because these three discover the same set and had already drifted
+          # apart once over the render image default (#393); a rule that holds
+          # in two of them and not the third is the same bug waiting.
+          all=$(find . -type d -name '.?*' -prune -o \
+                  -type f -name crossplane.yaml \
                   -not -path '*/examples/*' \
                 -printf '%h\n' \
                 | sed 's|^\./||' \
