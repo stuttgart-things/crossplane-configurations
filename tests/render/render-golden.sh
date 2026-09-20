@@ -78,8 +78,11 @@ fi
 if [ -n "${CONFIG:-}" ]; then
   CONFIGS="$CONFIG"
 else
-  CONFIGS=$(find . -type f -name crossplane.yaml \
-              -not -path './.git/*' -not -path '*/examples/*' \
+  # Dot-directories are pruned whole: a git worktree under .claude/worktrees/
+  # is a second checkout of every package, and rendering into one writes
+  # goldens nobody reads. Same rule as tests/lint/lint-configurations.py.
+  CONFIGS=$(find . -type d -name '.?*' -prune -o \
+              -type f -name crossplane.yaml -not -path '*/examples/*' \
             -printf '%h\n' | sed 's|^\./||' | sort -u)
 fi
 
