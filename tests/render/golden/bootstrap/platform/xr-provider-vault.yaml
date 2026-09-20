@@ -1,0 +1,197 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: seed-labda-1-platform
+  namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: config.stuttgart-things.com/v1alpha1
+      kind: FluxInit
+      name: seed-labda-1-platform-flux-init
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: seed-labda-1-platform-cert-manager-observe
+    - apiVersion: vault.stuttgart-things.com/v1alpha1
+      kind: VaultK8sAuth
+      name: seed-labda-1-platform-vault-auth
+status:
+  componentCount: 2
+  components:
+    cilium:
+      enabled: false
+      gatewayName: cilium-gateway
+      gatewayReady: false
+      loadBalancerReady: false
+      networkKey: ""
+      ready: false
+    clusterSecrets:
+      enabled: false
+      entry: ""
+      mount: observability
+      ready: false
+    cni:
+      enabled: false
+      provider: ""
+      ready: false
+      version: ""
+    fluxApps:
+      appCount: 0
+      enabled: false
+      pendingCount: 0
+      pendingSubstitutions: []
+      ready: false
+      readyCount: 0
+    fluxInit:
+      enabled: true
+      instanceReady: false
+      operatorReady: false
+      ready: false
+      sourceCount: 0
+      sourcesReady: false
+    ipReservation:
+      domain: ""
+      enabled: false
+      fqdn: ""
+      ipAddresses: []
+      networkKey: ""
+      ready: false
+      zone: ""
+    vaultIssuer:
+      authReady: false
+      auths: {}
+      caReady: false
+      certManagerReady: false
+      enabled: true
+      issuerReady: false
+      ready: false
+      serviceAccounts: []
+      waitingForCertManager: true
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: no components are waiting on a discovered value
+    reason: AllSupplied
+    status: "False"
+    type: PendingSubstitutions
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: seed-labda-1-platform-cert-manager-observe, seed-labda-1-platform-flux-init,
+      and seed-labda-1-platform-vault-auth'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  readyComponents: 0
+  shared:
+    clusterName: seed-labda-1
+    helmProviderConfigRef: seed-labda-1-helm
+    kubernetesProviderConfigRef: seed-labda-1
+    namespace: flux-system
+    observeProviderConfigRef: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: seed-labda-1-platform-cert-manager-observe
+  labels:
+    crossplane.io/composite: seed-labda-1-platform
+  name: seed-labda-1-platform-cert-manager-observe
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: seed-labda-1-platform
+    uid: 89cd7741-4263-5d3f-95e3-bd92cf578a27
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Endpoints
+      metadata:
+        name: cert-manager-webhook
+        namespace: cert-manager
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: seed-labda-1
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxInit
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: seed-labda-1-platform-flux-init
+  labels:
+    crossplane.io/composite: seed-labda-1-platform
+  name: seed-labda-1-platform-flux-init
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: seed-labda-1-platform
+    uid: 89cd7741-4263-5d3f-95e3-bd92cf578a27
+spec:
+  clusterName: seed-labda-1
+  helmProviderConfigRef: seed-labda-1-helm
+  kubernetesProviderConfigRef: seed-labda-1
+  namespace: flux-system
+  observeProviderConfigRef: in-cluster
+---
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultK8sAuth
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: seed-labda-1-platform-vault-auth
+  labels:
+    crossplane.io/composite: seed-labda-1-platform
+  name: seed-labda-1-platform-vault-auth
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: seed-labda-1-platform
+    uid: 89cd7741-4263-5d3f-95e3-bd92cf578a27
+spec:
+  adoption:
+    acceptDifferences: false
+    deleteOnRemoval: false
+    enabled: true
+  clusterName: seed-labda-1
+  k8sAuths:
+  - backendConfig:
+      secretName: seed-labda-1-reviewer
+    boundServiceAccountNames:
+    - cert-manager
+    boundServiceAccountNamespaces:
+    - cert-manager
+    name: certmanager
+    tokenPolicies:
+    - pki-issue
+  - backendConfig:
+      secretName: seed-labda-1-reviewer
+    boundServiceAccountNames:
+    - external-secrets
+    boundServiceAccountNamespaces:
+    - external-secrets
+    name: eso
+    tokenPolicies:
+    - read-cicd
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault
+  vaultAddr: https://vault-vsphere.tiab.labda.sva.de:8200
