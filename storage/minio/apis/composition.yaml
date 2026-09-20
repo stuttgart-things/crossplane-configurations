@@ -1,0 +1,190 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: minio-bucket
+  labels:
+    crossplane.io/xrd: miniobuckets.storage.stuttgart-things.com
+    provider-minio: "true"
+    service: minio
+spec:
+  compositeTypeRef:
+    apiVersion: storage.stuttgart-things.com/v1alpha1
+    kind: MinioBucket
+  mode: Pipeline
+  pipeline:
+    - step: render-minio-bucket
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: | # pragma: allowlist secret
+            {{- $xr := .observed.composite.resource }}
+            {{- $spec := $xr.spec | default dict }}
+            {{- $xrName := $xr.metadata.name }}
+            {{- /* `crossplane render` applies no XRD defaults (CLAUDE.md gotcha 5),
+                   so every default below restates the XRD's. */}}
+            {{- $pcName := (($spec.providerConfigRef | default dict).name) | default "minio" }}
+            {{- $bucket := $spec.bucketName | default $xrName }}
+            {{- $region := $spec.region | default "us-east-1" }}
+            {{- $delete := $spec.deletionPolicy | default "Orphan" }}
+            {{- $access := $spec.access | default list }}
+            {{- $observed := .observed.resources | default dict }}
+            {{- $extras := .extraResources | default dict }}
+
+            {{- /* The policies are requested as extra resources as well, although
+                   they are this XR's own composed objects and therefore observed:
+                   the user branch below hangs off a policy being Ready, and
+                   `crossplane render` observes nothing, so without this no golden
+                   could ever cover a User (CLAUDE.md gotcha 6). Same reason
+                   vault-k8s-auth requests its own MRs. */}}
+            {{- if $access }}
+            ---
+            apiVersion: meta.gotemplating.fn.crossplane.io/v1alpha1
+            kind: ExtraResources
+            requirements:
+            {{- range $a := $access }}
+              policy-{{ $a.name }}:
+                apiVersion: minio.crossplane.io/v1
+                kind: Policy
+                matchName: {{ printf "%s-%s" $bucket $a.name | quote }}
+            {{- end }}
+            {{- end }}
+
+            {{- /* The bucket holds data this Configuration did not write, so the
+                   XR does not delete it unless asked. Policies and users below
+                   are access, not data, and always carry Delete. */}}
+            ---
+            apiVersion: minio.crossplane.io/v1
+            kind: Bucket
+            metadata:
+              name: {{ $bucket | quote }}
+              annotations:
+                {{ setResourceNameAnnotation "bucket" }}
+                crossplane.io/external-name: {{ $bucket | quote }}
+            spec:
+              deletionPolicy: {{ if eq $delete "Orphan" }}Orphan{{ else }}Delete{{ end }}
+              providerConfigRef:
+                name: {{ $pcName | quote }}
+              forProvider:
+                bucketName: {{ $bucket | quote }}
+                region: {{ $region | quote }}
+                {{- if ne $delete "Orphan" }}
+                bucketDeletionPolicy: {{ $delete | quote }}
+                {{- end }}
+                {{- with $spec.bucketPolicy }}
+                policy: {{ . | quote }}
+                {{- end }}
+
+            {{- range $a := $access }}
+            {{- $entry := printf "%s-%s" $bucket $a.name }}
+            {{- $scope := $a.scope | default "bucket" }}
+            ---
+            apiVersion: minio.crossplane.io/v1
+            kind: Policy
+            metadata:
+              # provider-minio names the policy on the instance after THIS name and
+              # ignores crossplane.io/external-name (v0.4.5, verified on a lab MinIO:
+              # a composed Policy showed up as `tofu-state-b6ad350b4b7b`, the
+              # generated resource name, and the User referencing it was refused
+              # with "policy not found"). Policy has no name field in forProvider,
+              # so the object name IS the API. Unique per bucket and entry.
+              name: {{ $entry | quote }}
+              annotations:
+                {{ setResourceNameAnnotation (printf "policy-%s" $a.name) }}
+                crossplane.io/external-name: {{ $entry | quote }}
+            spec:
+              deletionPolicy: Delete
+              providerConfigRef:
+                name: {{ $pcName | quote }}
+              forProvider:
+                {{- if eq $scope "custom" }}
+                rawPolicy: {{ $a.rawPolicy | quote }}
+                {{- else }}
+                allowBucket: {{ $bucket | quote }}
+                {{- end }}
+            {{- end }}
+
+            {{- /* The User is composed only once its Policy is Ready. provider-minio
+                   validates in its admission webhook that the policy EXISTS on the
+                   instance and refuses the user otherwise ("policy not found"),
+                   verified on a lab MinIO. Crossplane would retry until it passes,
+                   but composing in order keeps that out of the events. */}}
+            {{- range $a := $access }}
+            {{- /* NOT `$a.user | default true`: in a Go template `false` is empty, so
+                   `default` would turn every `user: false` back into true — the same
+                   trap the tabletennis chart hit with lightCatcher.enabled. Caught by
+                   xr-max, whose `oidc` entry got a user it had switched off. */}}
+            {{- $wantUser := true }}{{ if hasKey $a "user" }}{{ $wantUser = $a.user }}{{ end }}
+            {{- if $wantUser }}
+            {{- $entry := printf "%s-%s" $bucket $a.name }}
+            {{- $pol := index $observed (printf "policy-%s" $a.name) | default dict }}
+            {{- $polReady := false }}
+            {{- range $c := (($pol.resource | default dict).status | default dict).conditions | default list }}
+            {{- if and (eq $c.type "Ready") (eq $c.status "True") }}{{ $polReady = true }}{{ end }}
+            {{- end }}
+            {{- /* ... or handed in as an extra resource, which is what a render fixture is. */}}
+            {{- $polExtra := index ($extras | default dict) (printf "policy-%s" $a.name) | default dict }}
+            {{- range $item := $polExtra.items | default list }}
+            {{- range $c := (($item.resource | default dict).status | default dict).conditions | default list }}
+            {{- if and (eq $c.type "Ready") (eq $c.status "True") }}{{ $polReady = true }}{{ end }}
+            {{- end }}
+            {{- end }}
+            {{- if $polReady }}
+            ---
+            apiVersion: minio.crossplane.io/v1
+            kind: User
+            metadata:
+              name: {{ $entry | quote }}
+              annotations:
+                {{ setResourceNameAnnotation (printf "user-%s" $a.name) }}
+                crossplane.io/external-name: {{ $entry | quote }}
+            spec:
+              deletionPolicy: Delete
+              providerConfigRef:
+                name: {{ $pcName | quote }}
+              writeConnectionSecretToRef:
+                name: {{ (($a.connectionSecret | default dict).name) | default $entry | quote }}
+                namespace: {{ (($a.connectionSecret | default dict).namespace) | default "crossplane-system" | quote }}
+              forProvider:
+                userName: {{ $entry | quote }}
+                policies:
+                  - {{ $entry | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+
+            {{- /* status.share stays absent until the bucket exists, so a consumer
+                   never reads a half-filled contract (same rule as vault-k8s-auth). */}}
+            {{- $bucketObs := index $observed "bucket" | default dict }}
+            {{- $bucketReady := false }}
+            {{- range $c := (($bucketObs.resource | default dict).status | default dict).conditions | default list }}
+            {{- if and (eq $c.type "Ready") (eq $c.status "True") }}{{ $bucketReady = true }}{{ end }}
+            {{- end }}
+            {{- if $bucketReady }}
+            ---
+            apiVersion: storage.stuttgart-things.com/v1alpha1
+            kind: MinioBucket
+            status:
+              share:
+                bucket: {{ $bucket | quote }}
+                region: {{ $region | quote }}
+                policies:
+                {{- range $a := $access }}
+                  - {{ printf "%s-%s" $bucket $a.name | quote }}
+                {{- end }}
+                users:
+                {{- range $a := $access }}
+                {{- $wantUser := true }}{{ if hasKey $a "user" }}{{ $wantUser = $a.user }}{{ end }}
+                {{- if $wantUser }}
+                  - name: {{ printf "%s-%s" $bucket $a.name | quote }}
+                    connectionSecret: {{ printf "%s/%s" ((($a.connectionSecret | default dict).namespace) | default "crossplane-system") ((($a.connectionSecret | default dict).name) | default (printf "%s-%s" $bucket $a.name)) | quote }}
+                {{- end }}
+                {{- end }}
+            {{- end }}
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

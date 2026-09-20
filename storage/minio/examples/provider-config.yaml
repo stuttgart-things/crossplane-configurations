@@ -1,0 +1,15 @@
+# Cluster precondition. provider-minio is a pre-v2 provider: its ProviderConfig
+# is cluster-scoped, and the referenced Secret holds the MinIO ADMIN keys —
+# `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`, the shape the provider expects.
+# In the fleet that Secret comes from Vault through ESO (entry `minio-secrets`),
+# not from a file.
+apiVersion: minio.crossplane.io/v1
+kind: ProviderConfig
+metadata:
+  name: minio
+spec:
+  minioURL: https://artifacts.platform.sthings-vsphere.labul.sva.de
+  credentials:
+    apiSecretRef:
+      name: minio-admin
+      namespace: crossplane-system

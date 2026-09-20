@@ -1,0 +1,14 @@
+---
+# The usual case: one bucket with one reader-writer whose keys land in a Secret
+# in crossplane-system. This is the shape the OpenTofu state bucket needs
+# (crossplane-configurations#482) — the Secret carries AWS_ACCESS_KEY_ID and
+# AWS_SECRET_ACCESS_KEY, which is what an S3 backend reads.
+apiVersion: storage.stuttgart-things.com/v1alpha1
+kind: MinioBucket
+metadata:
+  name: tofu-state
+spec:
+  bucketName: tofu-state
+  region: us-east-1
+  access:
+    - name: writer

@@ -1,0 +1,59 @@
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: minio
+  annotations:
+    # Local convention used by `task push` to bump and re-publish.
+    # Not a Crossplane-standard field — the true package version is the OCI tag.
+    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/maintainer: patrick.hermann@sva.de
+    meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      MinIO buckets, policies and users from a namespaced `MinioBucket` XR
+      (group storage.stuttgart-things.com), composed as native provider-minio
+      managed resources. Replaces the `mc` commands that created every bucket
+      in the fleet by hand. PROTOTYPE.
+    meta.crossplane.io/readme: |
+      # minio (prototype)
+
+      One XR per bucket. It composes, on the instance behind a provider-minio
+      ProviderConfig:
+
+      - `Bucket` — named `spec.bucketName` (default: the XR name), in
+        `spec.region`
+      - `Policy` per `spec.access` entry — `<bucket>-<name>`, either scoped to
+        this bucket (`scope: bucket`) or a raw S3 policy (`scope: custom`)
+      - `User` per entry with `user: true` — `<bucket>-<name>`, carrying that
+        policy, its keys written to a Secret next to the XR
+        (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
+
+      `spec.deletionPolicy` decides what deleting the XR does to the BUCKET:
+      `Orphan` (default) keeps it, `DeleteIfEmpty` removes an empty one,
+      `DeleteAll` removes it with its objects. Policies and users always go —
+      they are access, not data.
+
+      A user is composed only once its policy is Ready: provider-minio refuses
+      a user whose policy does not exist on the instance yet.
+
+      `status.share` (`bucket`, `region`, `policies`, `users`) stays absent
+      until the bucket is Ready.
+
+      ## Cluster preconditions
+
+      - a cluster-scoped `minio.crossplane.io/v1` ProviderConfig whose Secret
+        holds the MinIO admin keys (in the fleet: from Vault via ESO)
+spec:
+  crossplane:
+    version: ">=v2.1.3"
+  dependsOn:
+    # VSHN publishes provider-minio only on their own registry — neither
+    # xpkg.crossplane.io nor xpkg.upbound.io serves a provider-minio
+    # (checked 2026-09-20). v0.4.5 verified against Crossplane 2.3.3, the
+    # fleet version, on a throwaway kind cluster with its own MinIO.
+    - provider: ghcr.io/vshn/provider-minio
+      version: ">=v0.4.5,<v0.5.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-go-templating
+      version: ">=v0.12.1,<v0.13.0"
+    - function: xpkg.crossplane.io/crossplane-contrib/function-auto-ready
+      version: ">=v0.6.5,<v0.7.0"
