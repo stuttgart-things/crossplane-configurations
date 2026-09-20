@@ -116,10 +116,29 @@ status:
   package manager derives from this package's `dependsOn`. See
   `examples/provider.yaml` for why the name matters.
 - **A `minio.crossplane.io/v1` ProviderConfig** (cluster-scoped) whose Secret
-  carries the MinIO admin keys as `AWS_ACCESS_KEY_ID` /
-  `AWS_SECRET_ACCESS_KEY`. In the fleet that Secret comes from Vault through
-  ESO (entry `minio-secrets`), not from a file. See
+  carries `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`. See
   `examples/provider-config.yaml`.
+
+### The credential is a dedicated user, not root
+
+`examples/crossplane-minio-policy.json` is the exact permission set this
+Configuration needs: the `admin:` actions for users and policies, and `s3:*`
+for the buckets. Measured on a lab MinIO — with this policy a MinioBucket XR
+creates its bucket, policy and user, and deleting it removes them again;
+without the `admin:` half the user is refused.
+
+Per instance, once:
+
+```bash
+mc admin policy create <alias> crossplane-admin crossplane-minio-policy.json
+mc admin user add <alias> crossplane '<generated-password>'
+mc admin policy attach <alias> crossplane-admin --user crossplane
+```
+
+Then keep those keys where the fleet keeps credentials — a Vault entry, from
+which the cluster gets them (ESO where it runs, sops-git on a machinery
+cluster) — and point the ProviderConfig's `apiSecretRef` at the resulting
+Secret. The MinIO root account stays out of the automation.
 
 ## Putting the keys into Vault
 
