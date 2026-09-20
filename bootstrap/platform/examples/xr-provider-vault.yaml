@@ -1,0 +1,41 @@
+---
+# The vaultIssuer on the provider-vault path, mid-migration: the Vault objects
+# still belong to an OpenTofu Workspace from bootstrap/vault-auth, and this XR
+# adopts them (crossplane-configurations#482).
+#
+# `adoption.deleteOnRemoval` stays false on purpose. Until the old side has let
+# go, both own the same mount, and a delete from either removes it under the
+# other. Only once AdoptionComplete=True and the Workspace is released without
+# a destroy does deletion belong to this XR.
+#
+# What is NOT here, compared with the opentofu path: approleSecret,
+# skipTlsVerify and opentofuProviderConfigRef. Address, credentials and
+# skip_tls_verify live on the provider-vault ClusterProviderConfig named by
+# vaultProviderConfigRef.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: seed-labda-1-platform
+  namespace: crossplane-system
+spec:
+  clusterName: seed-labda-1
+  kubernetesProviderConfigRef: seed-labda-1
+  vaultIssuer:
+    enabled: true
+    authProvider: provider-vault
+    vaultProviderConfigRef: vault
+    adoption:
+      enabled: true
+      acceptDifferences: false
+      deleteOnRemoval: false
+    vaultAddr: https://vault-vsphere.tiab.labda.sva.de:8200
+    pkiMount: pki
+    pkiRole: sthings-vsphere
+    tokenPolicies: ["pki-issue"]
+    caSourceSecret: vault-pki-source-ca # pragma: allowlist secret
+    reviewerSecret: seed-labda-1-reviewer # pragma: allowlist secret
+    additionalAuths:
+      - name: eso
+        boundServiceAccountNames: ["external-secrets"]
+        boundServiceAccountNamespaces: ["external-secrets"]
+        tokenPolicies: ["read-cicd"]

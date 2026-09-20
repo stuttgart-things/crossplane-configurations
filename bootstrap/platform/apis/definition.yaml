@@ -525,6 +525,59 @@ spec:
                     opentofuProviderConfigRef:
                       type: string
                       default: in-cluster
+                    authProvider:
+                      type: string
+                      default: opentofu
+                      enum:
+                        - opentofu
+                        - provider-vault
+                      description: >-
+                        Which VaultK8sAuth drives Vault. `opentofu` composes
+                        bootstrap/vault-auth: one OpenTofu Workspace per auth, whose tfstate
+                        is a Secret on THIS cluster — state a rebuilt management cluster
+                        cannot bring back, so a fresh apply meets a mount that already
+                        exists and fails with `path is already in use`. `provider-vault`
+                        composes vault/vault-k8s-auth: native managed resources, no state,
+                        and `adoption` below to take over what the Workspace created.
+
+                        A switch and not a swap, because during a migration the same Vault
+                        objects have two owners and neither may delete while the other
+                        holds them (crossplane-configurations#482).
+                    vaultProviderConfigRef:
+                      type: string
+                      default: vault
+                      maxLength: 253
+                      description: >-
+                        provider-vault ClusterProviderConfig for `authProvider:
+                        provider-vault`. It carries the address, the credentials and
+                        skip_tls_verify, which is why those fields are not repeated per XR
+                        on that path.
+                    adoption:
+                      type: object
+                      description: >-
+                        Passed to the native VaultK8sAuth. `enabled` takes over the mount,
+                        role, config and policies an OpenTofu Workspace created for the same
+                        clusterName: every managed resource starts Observe-only, is compared
+                        with the spec, and is handed over only when they match —
+                        differences hold it and are named in AdoptionComplete. Ignored on
+                        the opentofu path.
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        acceptDifferences:
+                          type: boolean
+                          default: false
+                          description: >-
+                            Hand over despite differences, i.e. overwrite Vault with the
+                            spec. Set it after reading the AdoptionComplete message.
+                        deleteOnRemoval:
+                          type: boolean
+                          default: false
+                          description: >-
+                            Add the Delete policy. Leave false while the OpenTofu Workspace
+                            still owns the same objects — a destroy from either side would
+                            remove the mount under the other.
                 clusterSecrets:
                   type: object
                   description: >-
