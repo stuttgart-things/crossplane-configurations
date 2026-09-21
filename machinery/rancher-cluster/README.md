@@ -171,8 +171,10 @@ the opposite, and was wrong on two counts:
   `cilium-install-*` ApplicationSet for `network-platform` — only
   `cilium-install-kind`. The `network-platform/cilium-lb` / `cilium-gateway` labels
   enable AppSets that **configure** a Cilium that must already be running; set on a
-  cluster without it they fail silently
-  ([#421](https://github.com/stuttgart-things/crossplane-configurations/issues/421)).
+  cluster without it they fail silently. The Composition therefore **refuses** them
+  while `machineGlobalConfig` keeps the bundled CNI
+  ([#421](https://github.com/stuttgart-things/crossplane-configurations/issues/421)) —
+  see [below](#the-cilium-guard).
 
 The CNI therefore has to reach the cluster **past** Rancher, at the API server
 directly:
@@ -224,6 +226,29 @@ directly:
 Do not take Cilium from rke2's bundled chart (`cni: cilium`) instead — this fleet
 never installs Cilium through a Rancher helm-controller release (see
 `crossplane/knowledge/cilium-not-via-rancher-helm.md` in stuttgart-things).
+
+#### The Cilium guard
+
+A render **fails** when a `network-platform/cilium-lb`, `cilium-gateway` or
+`cilium-gateway-secondary` AppSet would select the cluster while the bundled CNI
+is still on. "Would select" mirrors the AppSets exactly: `network-platform: 'true'`,
+`argocd.reservation.enabled` (the only source of the `allocation-ip` they require),
+and the component label **not** `'false'`. A missing label counts as enabled,
+because `NotIn` matches an absent key. Labels come from the merged
+`argocd.labels`, so a `'false'` from the EnvironmentConfig's `defaultLabels` counts.
+
+"Bundled CNI off" means `cni: none` (rke2) or `flannel-backend: none` (k3s) in the
+effective `machineGlobalConfig`, which is `spec.machineGlobalConfig` merged over
+`clusterSpec.rkeConfig.machineGlobalConfig`. The guard checks that the CNI is
+**off**, not that Cilium is on, so `cni: cilium` is refused as well (see above).
+Both keys are accepted whatever the distro: a wrong one is ignored by Rancher, not
+refused, so this can't tell which one applies. The `rancher-k3s` and `rancher-rke2`
+entries of `ClusterStack`'s catalog set the right one.
+
+This is how tabletennis came up with a Gateway nobody serves and a `cilium-lb`
+reporting `Healthy` over CRs that were never created. The guard does **not** prove
+that a `Cni` follows. Gating the labels on the network actually working waits on
+[#233](https://github.com/stuttgart-things/crossplane-configurations/issues/233).
 
 ### `clusterSpec` — everything else
 

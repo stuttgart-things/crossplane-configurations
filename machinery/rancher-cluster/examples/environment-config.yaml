@@ -131,8 +131,10 @@ data:
     storage-platform/longhorn: 'false'
     # Cilium: a cluster from this Configuration is k3s with its default flannel,
     # and both AppSets assume Cilium (CiliumLoadBalancerIPPool / Cilium Gateway).
-    # A cluster rebuilt with cilium via spec.machineGlobalConfig flips these to
-    # 'true' on its own XR.
+    # A cluster built with its bundled CNI off (rke2 `cni: none`, k3s
+    # `flannel-backend: none`) and Cilium installed by a Cni XR flips these to
+    # 'true' on its own XR. With the bundled CNI still on, the Composition
+    # refuses them (#421).
     network-platform/cilium-lb: 'false'
     network-platform/cilium-gateway: 'false'
     # A second Gateway needs the fqdn-secondary annotation, which the operator
