@@ -4,6 +4,8 @@ A collection of [Crossplane](https://www.crossplane.io/) Configurations maintain
 
 Each subdirectory is a self-contained Crossplane Configuration package — an XRD (`CompositeResourceDefinition`) plus its `Composition`(s) and example namespaced XRs — that can be built and pushed as an OCI package and consumed by a Crossplane control plane.
 
+For which Configuration brings which along, see [`docs/diagrams/xr-ownership.md`](docs/diagrams/xr-ownership.md) — generated from the packages themselves (`python3 tests/lint/lint-configurations.py --write`) and linted against them, so it cannot quietly go stale.
+
 ## Configurations
 
 | Category | Name | Version | Description | OCI |
