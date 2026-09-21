@@ -145,6 +145,45 @@ same silence.
 **The AppRole needs `sys/policies/acl/*` write** for this. Without it the
 Workspace fails at apply with a permission error, which is at least loud.
 
+## Handing an auth over: `releaseOnDelete`
+
+[`vault/vault-k8s-auth`](../../vault/vault-k8s-auth/) drives the same Vault
+objects through provider-vault and keeps **no state**, which is why the fleet
+is migrating onto it
+([#482](https://github.com/stuttgart-things/crossplane-configurations/issues/482)):
+this Configuration's `Workspace` stores its tfstate as a Secret on the
+management cluster, and a cluster rebuilt from Git no longer has it — the first
+apply then meets a mount that already exists and fails with `path is already in
+use`.
+
+Its `adoption` takes over what this Configuration created. For a while both own
+the same mount, and this side then has to go **without** a `tofu destroy` —
+which would take the mount, its role and its policies with it while cert-manager
+is still using them.
+
+```yaml
+spec:
+  releaseOnDelete: true    # Workspace managementPolicies: [Observe, Create, Update]
+```
+
+Everything except `Delete`: the Workspace keeps reconciling and correcting the
+mount right up to its removal, and only the destroy is withheld.
+
+Order, one auth at a time:
+
+1. the new owner reports `AdoptionComplete=True`
+2. set `releaseOnDelete: true` here, and confirm the live Workspace's
+   `managementPolicies` no longer contains `Delete`
+3. delete this XR — the Workspace object goes, Vault is untouched
+4. `adoption.deleteOnRemoval: true` on the new owner, which now owns the
+   objects alone
+5. remove the leftover tfstate Secret
+
+A `kubectl patch` on the live Workspace is **not** a substitute for step 2:
+`managementPolicies` is owned by Crossplane's composed-resource field manager
+(the composition has always sent it, as the render goldens show), so the next
+reconcile takes the field back.
+
 ## What the XR publishes
 
 `status.share.auths[]`, lifted from the Workspace outputs:
@@ -201,6 +240,7 @@ CONFIG=bootstrap/vault-auth XR=xr.yaml task render
 | `vaultTokenSecretKey` | | `terraform.tfvars` | |
 | `providerConfigName` | | `default` | OpenTofu `(Cluster)ProviderConfig` name. |
 | `providerConfigKind` | | `ClusterProviderConfig` | Or `ProviderConfig`. |
+| `releaseOnDelete` | | `false` | Delete the Workspace but LEAVE the Vault mount, role and policies. For handing an auth to another owner — see below. |
 | `k8sAuths[]` | ✅ | — | See below. |
 
 ### `k8sAuths[]`

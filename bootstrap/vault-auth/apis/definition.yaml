@@ -28,6 +28,33 @@ spec:
                 vaultAddr:
                   type: string
                   description: "Address of the Vault server."
+                releaseOnDelete:
+                  type: boolean
+                  description: >-
+                    Let go of the Vault objects instead of destroying them: drops
+                    `Delete` from the composed Workspace's managementPolicies, so
+                    deleting this XR removes the Workspace and leaves the auth mount,
+                    its role and its policies standing in Vault.
+
+                    For handing an auth to another owner. `vault/vault-k8s-auth` drives
+                    the same objects through provider-vault and keeps no state, which is
+                    why the fleet is moving onto it
+                    (crossplane-configurations#482); its `adoption` takes over what this
+                    Configuration created, and for a while both own the mount. Removing
+                    this side normally would run `tofu destroy` and take the mount out
+                    from under the new owner and the cert-manager using it.
+
+                    Order: adopt first (`AdoptionComplete=True` on the new XR), then set
+                    this, then delete this XR, then `adoption.deleteOnRemoval: true` on
+                    the new owner. The tfstate Secret is deliberately left behind —
+                    remove it once the hand-over is confirmed.
+
+                    A `kubectl patch` on the live Workspace does NOT do this:
+                    managementPolicies is owned by Crossplane's composed-resource field
+                    manager, which holds the CRD default and takes the field back on the
+                    next reconcile.
+                  default: false
+
                 skipTlsVerify:
                   type: boolean
                   default: true

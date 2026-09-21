@@ -23,6 +23,11 @@ spec:
   vaultTokenSecret: vault # pragma: allowlist secret
   vaultTokenSecretKey: terraform.tfvars # pragma: allowlist secret
 
+  # Hand the Vault objects to another owner instead of destroying them. Set
+  # here because xr-max exists to render every field — the realistic value for
+  # a normal auth is the default (false), as in xr.yaml. See README.
+  releaseOnDelete: true
+
   k8sAuths:
     # An auth that CREATES its policies, alongside the ones it merely
     # references. Two of them, because a cluster usually wants more than one:
