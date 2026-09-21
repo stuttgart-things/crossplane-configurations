@@ -103,6 +103,72 @@ spec:
                         to force placement onto a host compatible with the template's
                         VM hardware version (the provider otherwise clones onto the
                         template's own host). Empty = provider default.
+                    tags:
+                      type: array
+                      items:
+                        type: string
+                      description: |
+                        vSphere tags to attach, as TAG IDs — not tag names.
+
+                        This is the one place the vSphere story differs from
+                        proxmoxvm's, where a tag is a free string. Here a tag is
+                        an inventory OBJECT, and the VirtualMachine resource takes
+                        its id:
+
+                          urn:vmomi:InventoryServiceTag:<uuid>:GLOBAL
+
+                        Look the ids up once per vCenter (`govc tags.ls -json`,
+                        or the tag's URL in the vSphere client) and put the ones
+                        every VM of an environment needs on the EnvironmentConfig
+                        rather than on each XR. `provider-vspherevm` has no
+                        Tag/TagCategory resource, so a tag that does not exist
+                        cannot be created from here — an unknown id fails the
+                        clone.
+
+                        MERGED with the EnvironmentConfig's `tags` by default;
+                        `tagsPolicy: Replace` takes only what is here. Emitted
+                        sorted and deduped — the CRD declares the field
+                        `x-kubernetes-list-type: set`, so a repeated entry is
+                        rejected outright and an unstable order churns the
+                        resource.
+
+                        Unset, no `tags` key is emitted and whatever is on the VM
+                        stays. Setting it makes this list the VM's whole tag set.
+                    tagsPolicy:
+                      type: string
+                      enum:
+                        - Merge
+                        - Replace
+                      default: Merge
+                      description: |
+                        How `tags` here combines with the EnvironmentConfig's
+                        `tags`. `Merge` (default) is the union of both; `Replace`
+                        takes only this XR's list.
+
+                        `Replace` exists because an empty list cannot express
+                        "none of the environment's": it is falsy in the template
+                        and falls straight through to the EnvironmentConfig.
+
+                        The render applies no XRD default (no API server), so the
+                        Composition restates this default rather than reading it
+                        from here.
+                    customAttributes:
+                      type: object
+                      additionalProperties:
+                        type: string
+                      description: |
+                        vSphere custom attributes, keyed by ATTRIBUTE ID — again
+                        an id, not the attribute's name. The ids are the numeric
+                        keys vCenter assigns (`govc fields.ls`), passed through to
+                        the VirtualMachine's `customAttributes` map.
+
+                        Merged with the EnvironmentConfig's `customAttributes`
+                        PER KEY, with this XR winning — the natural map
+                        semantics, and unlike `tags` there is no policy switch:
+                        an environment attribute can be overwritten with another
+                        value here, but not declined. Say so on the
+                        EnvironmentConfig instead if a whole environment should
+                        not carry it.
                   required:
                     - name
                 providerConfigRef:
@@ -234,9 +300,13 @@ spec:
                     `vspherevm.resources.stuttgart-things.com/environment=<value>`.
                     Supported `data` keys: templateUuid, datastoreId,
                     resourcePoolId, networkId, folder, hostSystemId, firmware,
-                    guestId, scsiType, adapterType, annotation, providerConfigName,
-                    and an optional `ansible` sub-block. Any value set explicitly on
-                    this XR's spec overrides the EnvironmentConfig.
+                    guestId, scsiType, adapterType, annotation, tags,
+                    customAttributes, providerConfigName, and an optional
+                    `ansible` sub-block. Any value set explicitly on this XR's
+                    spec overrides the EnvironmentConfig — except `tags`, which
+                    MERGES unless `vm.tagsPolicy: Replace` says otherwise (list
+                    or `;`/`,`-separated string), and `customAttributes`, which
+                    merges per key with the XR winning.
                   default: default
               required:
                 - vm

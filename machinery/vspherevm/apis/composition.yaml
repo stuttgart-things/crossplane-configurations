@@ -94,6 +94,57 @@ spec:
             # current DRS/template-host behaviour.
             _hostSystemId = _vm?.hostSystemId or _env?.hostSystemId or ""
 
+            # --- tags and custom attributes ---
+            # BOTH TAKE IDS, NOT NAMES — `urn:vmomi:InventoryServiceTag:<uuid>:GLOBAL`
+            # for a tag, the numeric vCenter field id for a custom attribute. This
+            # is the one place where the vSphere shape differs from proxmoxvm's,
+            # where a tag is a free string. Nothing here can create either object:
+            # provider-vspherevm ships only VirtualMachine, so an unknown id fails
+            # the clone rather than being resolved.
+            #
+            # Tags MERGE with the environment's (see proxmoxvm for the same
+            # reasoning: a VM that names one tag of its own must not lose its
+            # environment's), with `tagsPolicy: Replace` as the explicit opt-out —
+            # an empty list is falsy in KCL and falls through, so without the
+            # policy there is no way to decline them. Either side may be a list or
+            # a `;`/`,`-separated string; a tag URN contains neither separator.
+            _envTagsRaw = _env?.tags or []
+            _envTags = _envTagsRaw.replace(",", ";").split(";") if typeof(_envTagsRaw) == "str" else _envTagsRaw
+            _xrTagsRaw = _vm?.tags or []
+            _xrTags = _xrTagsRaw.replace(",", ";").split(";") if typeof(_xrTagsRaw) == "str" else _xrTagsRaw
+            # XRD default restated: `crossplane render` has no API server and
+            # applies no XRD default (root CLAUDE.md, gotcha 5).
+            _tagsPolicy = _vm?.tagsPolicy or "Merge"
+            _tagsAll = _xrTags if _tagsPolicy == "Replace" else _envTags + _xrTags
+            _tagsTrimmed = [str(t).strip() for t in _tagsAll]
+            # Sorted and deduped is not a preference here: the CRD declares
+            # `tags` as x-kubernetes-list-type: set, so a duplicate is rejected by
+            # the API server and an unstable order churns the resource.
+            _tagsUnique = {t: "" for t in _tagsTrimmed if t != ""}
+            _tags = sorted([t for t, v in _tagsUnique])
+
+            # Custom attributes merge PER KEY, XR over environment — the natural
+            # map semantics, and the reason they need no policy switch. Values are
+            # strings in the CRD's schema, so coerce rather than let an integer in
+            # an EnvironmentConfig fail the apply.
+            #
+            # NOT `_envCA | _xrCA`, and not a comprehension over both maps'
+            # entries either. KCL refuses to write the same key twice with
+            # DIFFERENT values, and it does not raise: the union yields nothing,
+            # the program's whole output goes EMPTY, and function-kcl composes no
+            # resources at all. Measured on kcl 0.12 while writing this —
+            # `{"101": "env"} | {"101": "xr"}` renders as nothing, while
+            # non-overlapping keys render fine, so the failure only appears once
+            # an environment and an XR name the same attribute. Building the key
+            # set first means no key is ever written twice.
+            #
+            # (The tag dedupe above is safe for the same reason inverted: every
+            # repeated key there maps to the SAME constant "".)
+            _envCA = _env?.customAttributes or {}
+            _xrCA = _vm?.customAttributes or {}
+            _caKeys = sorted([k for k, v in _envCA] + [k for k, v in _xrCA if k not in _envCA])
+            _customAttributes = {k: str(_xrCA[k] if k in _xrCA else _envCA[k]) for k in _caKeys}
+
             _providerConfigName = _spec?.providerConfigRef?.name or _env?.providerConfigName or "default"
             _providerConfigKind = _spec?.providerConfigRef?.kind or _env?.providerConfigKind or "ClusterProviderConfig"
 
@@ -184,6 +235,15 @@ spec:
                         extraConfig = {
                             "guestinfo.metadata" = _ciMeta
                         }
+                        # Both emitted only when non-empty. An empty list or map
+                        # is an explicit "this VM has none", which would strip
+                        # what the clone inherited from its template; absent, the
+                        # provider leaves them alone and every VM already built
+                        # renders byte-identical to before these fields existed.
+                        if len(_tags) > 0:
+                            tags = _tags
+                        if len(_customAttributes) > 0:
+                            customAttributes = _customAttributes
                     }
                     providerConfigRef = {
                         kind = _providerConfigKind

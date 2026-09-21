@@ -142,6 +142,13 @@ spec:
 6. **Observed state renders to nothing unless you feed it.** Composition branches gated on provider-observed resources (`{{- if and $saData (hasKey $saData "token") ... }}`) produce no output under `crossplane render`, so no golden covers them — this is how `releaseOnDelete: false` (#388) shipped. Put fixtures in `tests/render/extra-resources/<config>/*.yaml`; `render-golden.sh` passes them via `--extra-resources`. See [`tests/render/README.md`](tests/render/README.md) and [#392](https://github.com/stuttgart-things/crossplane-configurations/issues/392).
 7. **`crossplane render` output of multi-line strings** may render as quoted-with-`\n` rather than block-scalar `|` style. That's the YAML serializer's choice; both produce identical Secret data. Verify the rendered **live Secret**, not the render output, when debugging.
 
+8. **Merging two dicts in KCL with `|` empties the WHOLE render when a key collides — silently.** `{"101": "env"} | {"101": "xr"}` does not override and does not raise: the program's output goes empty, so function-kcl composes nothing and the XR simply has no resources. Non-overlapping keys merge fine, which is what makes it a trap — it appears the first time an EnvironmentConfig and an XR name the same key, long after the code was written. A dict comprehension over both maps' entries fails the same way (the duplicate key is the same conflict), and `|=` on an already-assigned variable is an `ImmutableError`. Build the key set first, then pick per key:
+   ```
+   _keys = sorted([k for k, v in _envMap] + [k for k, v in _xrMap if k not in _envMap])
+   _merged = {k: str(_xrMap[k] if k in _xrMap else _envMap[k]) for k in _keys}
+   ```
+   Measured on kcl 0.12 while wiring `vspherevm`'s `customAttributes` (#484). A dedupe dict is safe by contrast — `{t: "" for t in _list}` repeats a key only with the SAME value, and that is not a conflict.
+
 7. **`task push` packages the WORKING TREE, not a git ref — so a stale checkout publishes a version number over old content.** Hit on 2026-09-16: `cni` v0.1.1 was pushed from a shell sitting on a week-old branch, so the package carried the *old* composition (`xplane-cni?tag=0.1.0`) under a version annotation that advertised the fix. Nothing downstream says so: the Configuration installs, reports `HEALTHY=True`, and only the `CompositionRevision` on the cluster shows which module tag actually shipped —
    ```bash
    kubectl get compositionrevisions -l crossplane.io/composition-name=<name> \

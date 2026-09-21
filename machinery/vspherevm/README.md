@@ -78,6 +78,75 @@ config when `instance-id` changes, and that stays pinned to the XR name.
 > true. An explicit `vm_hostname` in `spec.ansible.varsFile` always wins. With
 > ansible disabled *and* an affected template, the guest stays `localhost`.
 
+## Tags and custom attributes
+
+`spec.vm.tags` and `spec.vm.customAttributes`, with `tags` / `customAttributes`
+as EnvironmentConfig keys, mirror what `proxmoxvm` gained in v0.16.0
+([#484](https://github.com/stuttgart-things/crossplane-configurations/issues/484)) —
+with one difference that decides how they are used.
+
+### Both take IDs, not names
+
+A Proxmox tag is a free string. A vSphere tag is an inventory **object**, and the
+`VirtualMachine` resource takes its id:
+
+```
+urn:vmomi:InventoryServiceTag:<uuid>:GLOBAL
+```
+
+Custom attributes are the same shape one level down: the map is keyed by the
+numeric vCenter **field id**, not the attribute's name.
+
+```bash
+govc tags.ls -json     # tag ids
+govc fields.ls         # custom attribute ids
+```
+
+`provider-vspherevm` ships only `VirtualMachine` — there is no `Tag` or
+`TagCategory` resource — so nothing here can create or resolve either object. An
+id that does not exist in the vCenter fails the clone. Look them up once per
+environment and put them on the EnvironmentConfig; nobody wants a URN per XR.
+
+### How the two sides combine
+
+```yaml
+# EnvironmentConfig — list or `;`/`,`-separated string (a URN contains neither)
+data:
+  tags: urn:vmomi:InventoryServiceTag:…:GLOBAL
+  customAttributes:
+    "101": stuttgart-things
+```
+
+```yaml
+# XR
+spec:
+  vm:
+    tags:
+      - urn:vmomi:InventoryServiceTag:…:GLOBAL
+    tagsPolicy: Merge      # the default; `Replace` ignores the environment's
+    customAttributes:
+      "102": crossplane
+```
+
+- **`tags` merge**, then sort and dedupe. That is not cosmetic here: the CRD
+  declares the field `x-kubernetes-list-type: set`, so a repeated entry is
+  rejected and an unstable order churns the resource. `tagsPolicy: Replace` is
+  the explicit opt-out, needed because an empty list is falsy in the template and
+  falls straight through to the EnvironmentConfig.
+- **`customAttributes` merge per key**, with the XR winning. No policy switch:
+  map semantics already let an XR overwrite one attribute without touching the
+  rest. The corollary is that a single attribute cannot be *declined* from an
+  XR — take it off the EnvironmentConfig instead.
+
+### Emitted means authoritative
+
+Neither field is emitted while it is empty, and that is deliberate: absent, the
+provider leaves whatever is attached to the VM alone, and every VM already built
+renders byte-identical to before these fields existed. From the first reconcile
+that carries them, the emitted list and map are what the VM has — including over
+tags attached by hand. `tags: []` does not clear them either; that is a
+`govc tags.detach`.
+
 ## Ansible (optional)
 
 Set `spec.ansible.enabled: true` to run base-OS provisioning. Once the VM is
