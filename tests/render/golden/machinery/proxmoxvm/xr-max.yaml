@@ -98,6 +98,11 @@ spec:
       product: crossplane-proxmoxvm
     started: true
     stopOnDestroy: true
+    tags:
+    - crossplane
+    - se-phermann
+    - stuttgart-things
+    - v5010
     vmId: 131
   providerConfigRef:
     kind: ClusterProviderConfig

@@ -109,6 +109,35 @@ spec:
             _templateVmId = _vm?.templateVmId or _env?.templateVmId or ""
             _vlanTag = _vm?.vlanTag or _env?.vlanTag or ""
 
+            # --- tags ---
+            # MERGED, not overridden: the EnvironmentConfig carries what every VM
+            # of an environment must be findable by (team, datastore), the XR adds
+            # what is specific to this one. Overriding would mean a VM loses its
+            # environment's tags the moment it names one of its own; `tagsPolicy:
+            # Replace` is the deliberate way to ask for exactly that.
+            #
+            # Either side may be a LIST or a `;`/`,`-separated STRING. The string
+            # form is not a convenience: the EnvironmentConfigs in the fleet are
+            # rendered by a Helm chart, where a scalar survives a --set and a list
+            # does not.
+            _envTagsRaw = _env?.tags or []
+            _envTags = _envTagsRaw.replace(",", ";").split(";") if typeof(_envTagsRaw) == "str" else _envTagsRaw
+            _xrTagsRaw = _vm?.tags or []
+            _xrTags = _xrTagsRaw.replace(",", ";").split(";") if typeof(_xrTagsRaw) == "str" else _xrTagsRaw
+            # XRD default, restated: `crossplane render` has no API server and so
+            # applies no XRD default (root CLAUDE.md, gotcha 5) — a Composition
+            # that read only the XRD's would take the Replace path in every
+            # golden and none on a cluster.
+            _tagsPolicy = _vm?.tagsPolicy or "Merge"
+            _tagsAll = _xrTags if _tagsPolicy == "Replace" else _envTags + _xrTags
+            _tagsTrimmed = [str(t).strip() for t in _tagsAll]
+            # SORTED AND DEDUPED, both for the same reason: Proxmox stores a tag
+            # set, returns it alphabetically, and bpg compares what it reads with
+            # what we send. An unsorted or repeating list is therefore a
+            # difference on every single reconcile, forever.
+            _tagsUnique = {t: "" for t in _tagsTrimmed if t != ""}
+            _tags = sorted([t for t, v in _tagsUnique])
+
             # Datastore the CLONE allocates into. Deliberately does NOT fall back
             # to _datastore — see the clone block below for why the default must
             # stay "no value emitted".
@@ -353,6 +382,14 @@ spec:
                 smbios = [{ manufacturer = _smbiosManufacturer, product = _smbiosProduct }]
                 if _pool != "":
                     poolId = _pool
+                # Emitted only when non-empty, and that is deliberate: an
+                # empty list is not the same as no key. `tags: []` is an
+                # explicit "this VM has no tags", which bpg would be entitled to
+                # apply by stripping the ones the clone inherited from its
+                # template. With the key absent, every VM already built renders
+                # byte-identical to before this field existed.
+                if len(_tags) > 0:
+                    tags = _tags
                 if _vm?.vmId:
                     vmId = int(_vm.vmId)
             }

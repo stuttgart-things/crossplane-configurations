@@ -144,13 +144,30 @@ Each env-sourced field has the precedence **XR spec → EnvironmentConfig → KC
 builtin**, applied inline in the `render` KCL via `_x or _env or default`
 chains. For this to work the XRD must **not** default the env-sourced fields
 (cpuType, osType, bios, diskInterface, networkModel, annotation, node, datastore,
-bridge, vlanTag, pool, templateVmId, cloudInit.username, providerConfigRef) —
-an XRD default would make the field always present, so the EnvironmentConfig
+bridge, vlanTag, pool, tags, templateVmId, cloudInit.username, providerConfigRef)
+— an XRD default would make the field always present, so the EnvironmentConfig
 value would never win. Only purely per-VM fields (cpu, memory, disk,
 agentEnabled, cloudInit.ipv4Address) carry XRD defaults.
 
+**`tags` is the one field that MERGES instead of overriding** (v0.16.0, #484). A
+VM that names one tag of its own would otherwise lose its environment's, and the
+provider cannot help — `tags` is absent from `status.atProvider`, so whatever is
+emitted is the VM's whole tag set, and the tags a full clone inherited from its
+template are replaced by it. `vm.tagsPolicy: Replace` is the explicit opt-out; it
+exists because an empty list is falsy in KCL and falls through to the
+EnvironmentConfig, the same reason `cloneDatastore` has a `none` sentinel. Either
+side may be a list or a `;`/`,`-separated string, and the result is sorted and
+deduped — Proxmox returns tags alphabetically, so an unsorted list is a diff on
+every reconcile.
+
+`tagsPolicy` is the exception to the no-defaults rule above and legitimately so:
+it is not env-sourced, no EnvironmentConfig key competes with it. Its XRD default
+is restated in the KCL because `crossplane render` applies no XRD defaults (root
+CLAUDE.md, gotcha 5) — without that, every golden would take the `Replace` path
+and no cluster would.
+
 ## EnvironmentConfig data keys
-`node, datastore, cloudInitDatastore, bridge, vlanTag, pool, templateVmId,
+`node, datastore, cloudInitDatastore, bridge, vlanTag, pool, tags, templateVmId,
 cpuType, osType, bios, diskInterface, networkModel, annotation, ciUsername,
 providerConfigName, providerConfigKind`, optional `smbiosManufacturer` /
 `smbiosProduct` (PegaProx
