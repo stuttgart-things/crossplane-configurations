@@ -56,8 +56,8 @@ spec:
     - templateUuid: 42212cd2-5060-9bc5-ac82-7fdef66efc61
       timeout: 30
     customAttributes:
-      '101': stuttgart-things
-      '102': crossplane
+      "101": stuttgart-things
+      "102": crossplane
     datastoreId: datastore-12
     disk:
     - label: disk0
