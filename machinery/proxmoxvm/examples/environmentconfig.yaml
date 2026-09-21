@@ -49,6 +49,11 @@ data:
   bridge: vmbrvlan          # VLAN-trunk bridge; template ships on vmbr0/untagged
   vlanTag: "102"            # 10.31.102.0/24
   pool: stuttgart-things
+  # Tags every VM of this environment gets, merged with the XR's `vm.tags`.
+  # List or `;`/`,`-separated string; emitted sorted and deduped. Left UNSET
+  # here on purpose — see the `labul` EnvironmentConfig below for what setting
+  # it does to VMs that already exist.
+  # tags: stuttgart-things;crossplane
   # 211, NOT 110 — because 110 ships /etc/cloud/cloud-init.disabled, so
   # cloud-init never runs and every clone keeps the hostname `ubuntu` regardless
   # of what is injected (#2432). 211 removes the file in its provisioner.
@@ -134,6 +139,19 @@ data:
   bridge: vmbrvlan
   vlanTag: "102"
   pool: stuttgart-things
+  # Tags for every VM under this environment, merged with the XR's `vm.tags`
+  # (`vm.tagsPolicy: Replace` opts out). Written as a string because that is the
+  # form a Helm-rendered EnvironmentConfig carries; a YAML list works too.
+  #
+  # SETTING THIS MAKES THE EMITTED SET AUTHORITATIVE FOR EVERY VM UNDER THE
+  # LABEL, INCLUDING THE ONES ALREADY BUILT. Until something emits `tags`, bpg
+  # leaves whatever is on the VM alone — the tags a full clone inherits from its
+  # template, and anything set by hand or by the scheduler (`plb_*`
+  # anti-affinity). From the first reconcile that carries this key, the VM's tags
+  # are exactly this list plus the XR's, and the rest are removed. So on an
+  # environment whose VMs carry `plb_*`, either name those tags on the XRs that
+  # need them or leave this unset; what is not declared is not kept.
+  tags: stuttgart-things;crossplane
   # not 110 — see above. Note 211 is NOT called `sthings-u26` any more; it is
   # `ubuntu26-base-20260731-0909`. bpg clones by VMID, so this still resolves.
   templateVmId: "211"

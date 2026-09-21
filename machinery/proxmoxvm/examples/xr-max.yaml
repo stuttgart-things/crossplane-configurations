@@ -31,6 +31,19 @@ spec:
     bridge: vmbrvlan
     vlanTag: "102"
     pool: stuttgart-things
+    # Merged with the labul EnvironmentConfig's `tags` (stuttgart-things,
+    # crossplane), then sorted and deduped — the Proxmox API returns tags
+    # alphabetically, so an unsorted list reads as a difference on every
+    # reconcile. `tagsPolicy: Replace` would drop the environment's two.
+    #
+    # Note what this does NOT do: the provider cannot merge with the tags the
+    # clone inherited from the template, because it never reads them back
+    # (`tags` is absent from status.atProvider). The list below is the VM's
+    # whole tag set once it is emitted.
+    tags:
+      - se-phermann
+      - v5010
+    tagsPolicy: Merge
     templateVmId: "110"
     # Clone straight onto the target datastore instead of allocating on the
     # template's storage and moving the disk afterwards. Opt-in: bpg's clone

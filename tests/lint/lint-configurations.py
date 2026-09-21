@@ -28,8 +28,14 @@ Rules are split by severity:
 
 Usage:
     python3 tests/lint/lint-configurations.py [--root .] [--strict] [--registry]
+    python3 tests/lint/lint-configurations.py --write
 
     --strict    treat warnings as errors too.
+    --write     regenerate the derived diagrams under docs/diagrams/ and exit.
+                They are otherwise CHECKED, like gofmt -l: a committed diagram
+                that no longer matches the repo fails the lint, so the
+                regenerated file lands in the same PR as the change that moved
+                it (#302).
     --registry  additionally compare each package against its published tags in
                 ghcr.io. OFF by default: it is the one check here that needs
                 network, and a linter that goes red when a registry has a bad
@@ -393,6 +399,244 @@ def check_readme_table(root: Path, configs: list[Path], f: Findings) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Derived diagrams (--write)
+# ---------------------------------------------------------------------------
+
+DIAGRAMS_DIR = "docs/diagrams"
+
+GENERATED_BANNER = (
+    "<!-- GENERATED FILE — do not edit by hand.\n"
+    "     Regenerate with: python3 tests/lint/lint-configurations.py --write\n"
+    "     The generator is check_diagrams() in tests/lint/lint-configurations.py. -->"
+)
+
+# Everything below is parsed, never pattern-matched out of a Composition body.
+# The first draft of this did match: it looked for a sibling XR's kind in the
+# Composition text to draw "this XR composes that one". It reported
+# `ArgocdCluster -> ClusterStack` from a COMMENT ("A ClusterStack lives in…"),
+# and missed vm-batch's real children because their kind is computed
+# (`"NativeProxmoxVM" if provider == …`). Both directions wrong, in a file that a
+# reviewer is asked to approve — which is exactly the "a wrong diagram is worse
+# than no diagram" this generator exists to prevent (#301). So the composed-
+# resource level is simply not claimed here; what the repo states exactly
+# (dependsOn, XRD, module pins) is.
+REPO_PACKAGE_PREFIX = "ghcr.io/stuttgart-things/crossplane-configurations/"
+
+
+def _mermaid_id(name: str) -> str:
+    """A Mermaid-safe node id. Package names are unique, so this is injective."""
+    return "n_" + re.sub(r"[^A-Za-z0-9_]", "_", name)
+
+
+def collect_facts(root: Path, configs: list[Path]) -> list[dict]:
+    """One record per Configuration, from parsed YAML only.
+
+    A file that cannot be parsed is SKIPPED rather than guessed at — the other
+    checks already report it as an error, and half-read facts in a committed
+    artifact are worse than a missing row.
+    """
+    facts = []
+    for cdir in configs:
+        rel = str(cdir.relative_to(root))
+        try:
+            meta = load_single(cdir / "crossplane.yaml")
+            xrd = load_single(cdir / "apis/definition.yaml")
+            comp = load_single(cdir / "apis/composition.yaml")
+        except Exception:  # noqa: BLE001
+            continue
+        annotations = (meta.get("metadata") or {}).get("annotations") or {}
+        xrd_spec = xrd.get("spec") or {}
+
+        deps_pkg, deps_ext = [], []
+        for dep in (meta.get("spec") or {}).get("dependsOn") or []:
+            ref = (dep.get("configuration") or dep.get("provider")
+                   or dep.get("function") or dep.get("package") or "")
+            if ref.startswith(REPO_PACKAGE_PREFIX):
+                deps_pkg.append(ref[len(REPO_PACKAGE_PREFIX):])
+            elif ref:
+                deps_ext.append(ref)
+
+        steps = []
+        for step in (comp.get("spec") or {}).get("pipeline") or []:
+            inp = step.get("input") or {}
+            spec = inp.get("spec")
+            source = spec.get("source") if isinstance(spec, dict) else None
+            steps.append({
+                "name": step.get("step", ""),
+                "function": (step.get("functionRef") or {}).get("name", ""),
+                "module": source.strip() if isinstance(source, str)
+                          and source.strip().startswith("oci://") else None,
+            })
+
+        facts.append({
+            "path": rel,
+            "category": rel.split("/")[0],
+            "package": (meta.get("metadata") or {}).get("name") or rel.split("/")[-1],
+            "version": annotations.get("meta.crossplane.io/version") or "—",
+            "kind": (xrd_spec.get("names") or {}).get("kind") or "?",
+            "group": xrd_spec.get("group") or "?",
+            "scope": xrd_spec.get("scope") or "?",
+            "deps": sorted(deps_pkg),
+            "deps_ext": sorted(deps_ext),
+            "steps": steps,
+        })
+    return sorted(facts, key=lambda f: (f["category"], f["package"]))
+
+
+def render_xr_ownership(facts: list[dict]) -> str:
+    known = {f["package"] for f in facts}
+    by_pkg = {f["package"]: f for f in facts}
+
+    edges = sorted({(f["package"], d) for f in facts for d in f["deps"] if d in known})
+    depended_on = {d for _, d in edges}
+    has_deps = {s for s, _ in edges}
+
+    out = [GENERATED_BANNER, "", "# XR ownership", "",
+           "Which Configuration brings which along, and what each one's XR is.",
+           "Derived from the repo, not maintained beside it: every number and every",
+           "edge below is parsed out of `*/crossplane.yaml`, `apis/definition.yaml`",
+           "and `apis/composition.yaml` at generation time. A stale copy fails the",
+           "lint rather than quietly misinforming — see *How this stays true* at the",
+           "bottom.", ""]
+
+    # --- the graph -------------------------------------------------------
+    out += ["## The chain", "",
+            "`A --> B` reads *A's package declares B in `dependsOn`*, so installing A",
+            "installs B. Only edges inside this repo are drawn; providers and",
+            "functions are listed per Configuration further down.", "",
+            "```mermaid", "graph LR"]
+    for cat in sorted({f["category"] for f in facts}):
+        members = [f for f in facts if f["category"] == cat
+                   and (f["package"] in has_deps or f["package"] in depended_on)]
+        if not members:
+            continue
+        out.append(f'  subgraph {cat}')
+        for f in members:
+            out.append(f'    {_mermaid_id(f["package"])}["{f["package"]}<br/><i>{f["kind"]}</i>"]')
+        out.append("  end")
+    for src, dst in edges:
+        out.append(f'  {_mermaid_id(src)} --> {_mermaid_id(dst)}')
+    out += ["```", ""]
+
+    standalone = sorted(f["package"] for f in facts
+                        if f["package"] not in has_deps and f["package"] not in depended_on)
+    if standalone:
+        out += [f"Not in the graph ({len(standalone)}): "
+                + ", ".join(f"`{p}`" for p in standalone)
+                + " — neither depends on a Configuration of this repo nor is"
+                  " depended on by one.", ""]
+
+    roots = sorted(p for p in has_deps if p not in depended_on)
+    if roots:
+        out += ["Entry points (nothing in this repo depends on them): "
+                + ", ".join(f"`{p}`" for p in roots) + ".", ""]
+
+    # --- the table -------------------------------------------------------
+    out += ["## What each one is", "",
+            "| category | Configuration | XR kind | group | scope | version | brings along |",
+            "|---|---|---|---|---|---|---|"]
+    for f in facts:
+        brings = ", ".join(f"`{d}`" for d in f["deps"] if d in known) or "—"
+        out.append(f'| {f["category"]} | [{f["package"]}]({"../../" + f["path"]}/) '
+                   f'| `{f["kind"]}` | `{f["group"]}` | {f["scope"]} | {f["version"]} | {brings} |')
+    out.append("")
+
+    # --- bodies ----------------------------------------------------------
+    module_bodied = [f for f in facts if any(s["module"] for s in f["steps"])]
+    out += ["## Where each Composition's body lives", "",
+            "A pipeline step whose `source` is an `oci://` reference has its logic in",
+            "a KCL module, not in this repo. That is the boundary of what these",
+            "diagrams can see.", "",
+            "| Configuration | pipeline | module pins |", "|---|---|---|"]
+    for f in facts:
+        pipeline = " → ".join(s["function"].replace("function-", "") for s in f["steps"]) or "—"
+        mods = "<br/>".join(f"`{s['module']}`" for s in f["steps"] if s["module"]) or "inline"
+        out.append(f'| `{f["package"]}` | {pipeline} | {mods} |')
+    out.append("")
+
+    # --- external deps ---------------------------------------------------
+    out += ["## Providers and functions each one requires", "",
+            "| Configuration | dependsOn (outside this repo) |", "|---|---|"]
+    for f in facts:
+        ext = "<br/>".join(f"`{d}`" for d in f["deps_ext"]) or "—"
+        out.append(f'| `{f["package"]}` | {ext} |')
+    out.append("")
+
+    # --- the honest part -------------------------------------------------
+    out += [
+        "## What this deliberately does not show", "",
+        f"**Which managed resources an XR composes.** {len(module_bodied)} of "
+        f"{len(facts)} Configurations delegate their Composition body to a KCL",
+        "module (see the table above), so their children are not in this repo at",
+        "all. For the rest the body is inline, but reading kinds out of it means",
+        "pattern-matching a template — and the first draft of this generator did",
+        "exactly that: it reported an edge that came from a **comment**, and missed",
+        "the real children of a Composition that computes its kind. Both errors",
+        "land in a file a reviewer is asked to approve. Pulling the modules over",
+        "OCI is the honest way to close this gap (#302, step 4).", "",
+        "**Runtime numbers.** How many Objects a Platform holds, which apps are",
+        "synced, what a cluster currently runs — none of it is in these files, so",
+        "none of it is here. That is the [#301](https://github.com/stuttgart-things/crossplane-configurations/issues/301)",
+        "rule: a diagram that reads as authoritative while pointing at last",
+        "month's state is worse than no diagram.", "",
+        "## How this stays true", "",
+        "`check_diagrams()` in `tests/lint/lint-configurations.py` regenerates this",
+        "file in memory on every lint run and fails when the committed copy",
+        "differs — the same shape as `gofmt -l`, and the same reason",
+        "`check_readme_table()` is an ERROR rather than a warning: the fix is one",
+        "command, and only a failing check reliably lands it in the same PR as the",
+        "change that caused it.", "",
+        "```console",
+        "$ python3 tests/lint/lint-configurations.py           # checks, red on drift",
+        "$ python3 tests/lint/lint-configurations.py --write   # regenerates docs/diagrams/",
+        "```", "",
+        "It runs in the `lint-invariants` CI job, which is ungated by `discover` —",
+        "a cross-cutting artifact can go stale from a change to any package file.",
+        "",
+    ]
+    return "\n".join(out)
+
+
+def build_diagrams(root: Path, configs: list[Path]) -> dict[str, str]:
+    """Relative path -> file content. One entry per generated diagram."""
+    facts = collect_facts(root, configs)
+    return {f"{DIAGRAMS_DIR}/xr-ownership.md": render_xr_ownership(facts)}
+
+
+def write_diagrams(root: Path, configs: list[Path]) -> list[str]:
+    """Write the generated diagrams; return the paths that actually changed."""
+    changed = []
+    for rel, content in sorted(build_diagrams(root, configs).items()):
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists() or path.read_text() != content:
+            path.write_text(content)
+            changed.append(rel)
+    return changed
+
+
+def check_diagrams(root: Path, configs: list[Path], f: Findings) -> None:
+    """The committed diagrams must equal what the repo generates right now.
+
+    Same drift pattern as check_readme_table, for the same reason: a derived
+    artifact nobody regenerates is not documentation, it is a claim about a state
+    the repo left behind. Failing here puts the regenerated file in the PR that
+    caused the change, where a reviewer sees both in one diff — a generator that
+    only runs on `main` after the merge hides the change in a bot commit.
+    """
+    for rel, content in sorted(build_diagrams(root, configs).items()):
+        path = root / rel
+        if not path.exists():
+            f.error(rel, "generated diagram missing — run "
+                         "`python3 tests/lint/lint-configurations.py --write`")
+            continue
+        if path.read_text() != content:
+            f.error(rel, "generated diagram is stale (the repo has moved on) — run "
+                         "`python3 tests/lint/lint-configurations.py --write` and "
+                         "commit the result")
+
+
+# ---------------------------------------------------------------------------
 # Registry parity (--registry)
 # ---------------------------------------------------------------------------
 
@@ -677,6 +921,10 @@ def main() -> int:
     ap.add_argument("--registry", action="store_true",
                     help="also compare declared versions against ghcr.io tags "
                          "(needs network; skipped silently if unreachable)")
+    ap.add_argument("--write", action="store_true",
+                    help="regenerate the derived diagrams under docs/diagrams/ "
+                         "instead of checking them, then exit. Offline; the other "
+                         "checks are not run.")
     args = ap.parse_args()
 
     root = Path(args.root).resolve()
@@ -684,6 +932,18 @@ def main() -> int:
     if not configs:
         print(f"no Configurations found under {root}", file=sys.stderr)
         return 1
+
+    # `--write` is the generator half of check_diagrams, and it writes rather
+    # than reports — so it exits here instead of also running the checks. A run
+    # that both rewrites files and returns 1 over an unrelated finding is a
+    # confusing thing to put in a Makefile.
+    if args.write:
+        changed = write_diagrams(root, configs)
+        for rel in changed:
+            print(f"wrote {rel}")
+        print(f"\nlint-configurations --write: {len(configs)} Configurations, "
+              f"{len(changed)} file(s) changed")
+        return 0
 
     f = Findings()
     for cdir in configs:
@@ -696,6 +956,7 @@ def main() -> int:
         check_functions(config, cdir, f)
 
     check_readme_table(root, configs, f)
+    check_diagrams(root, configs, f)
     if args.registry:
         check_registry_parity(root, configs, f)
 

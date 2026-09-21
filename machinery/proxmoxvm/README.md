@@ -27,7 +27,8 @@ The Composition is a `function-kcl` pipeline:
 2. **render** (`function-kcl`) — emits a native `EnvironmentVM`; per-VM fields
    (name/cpu/memory/disk/…) come from the XR, placement (node/datastore/bridge/
    vlanTag/pool/templateVmId) defaults from the EnvironmentConfig and is
-   overridable per XR. Cloud-init (`initialization`) replaces the legacy SSH
+   overridable per XR; `tags` MERGES the two rather than overriding (see
+   [Tags](#tags)). Cloud-init (`initialization`) replaces the legacy SSH
    remote-exec bootstrap. **Note:** Upjet encodes each Terraform block as a
    single-element list, so `cpu`/`memory`/`disk`/`networkDevice`/`clone`/
    `initialization` are lists in `forProvider`.
@@ -369,6 +370,59 @@ Templates that do NOT run cloud-init are unaffected — nothing overwrites the
 baked-in password, which is why this only surfaced once
 [stuttgart-things#2432](https://github.com/stuttgart-things/stuttgart-things/issues/2432)
 was fixed.
+
+## Tags
+
+In LabUL the tag is how a VM is attributed: `se-<kuerzel>` for the person,
+the datastore (`v5010`, `fs9100`), `plb_*` for the scheduler. Until v0.16.0 this
+Configuration emitted no tags at all, so Crossplane-built VMs had to be tagged by
+hand ([#484](https://github.com/stuttgart-things/crossplane-configurations/issues/484)).
+
+Set them per environment, per VM, or both:
+
+```yaml
+# EnvironmentConfig — list or `;`/`,`-separated string. The string form is what a
+# Helm-rendered EnvironmentConfig carries, so both are accepted.
+data:
+  tags: stuttgart-things;crossplane
+```
+
+```yaml
+# XR — MERGED with the EnvironmentConfig's by default.
+spec:
+  vm:
+    tags:
+      - se-phermann
+      - v5010
+    tagsPolicy: Merge      # the default; `Replace` ignores the environment's
+```
+
+The two are merged, then **sorted and deduped**. That is not cosmetic: Proxmox
+stores a tag set and returns it alphabetically, so an unsorted or repeating list
+is reported as a difference on every single reconcile.
+
+`tagsPolicy: Replace` exists because an empty list cannot express "none of the
+environment's" — it is falsy in the template and falls straight through to the
+EnvironmentConfig, the same reason `cloneDatastore` has its `none` sentinel.
+
+### What is emitted is the whole tag set
+
+The provider does not merge with the tags already on the VM, and cannot: `tags`
+is absent from `status.atProvider`, so it never reads them back. Two consequences
+worth knowing before rolling this out:
+
+- **A full clone inherits its template's tags.** Template 144
+  (`ubuntu26-base-os`) carries `se-phermann;stuttgart-things`, which is why VMs
+  built today come out tagged without anyone asking. From the first reconcile
+  that emits `tags`, the VM carries exactly what this Configuration sends.
+- **Hand-set and scheduler tags go the same way.** `plb_*` anti-affinity tags on
+  an existing VM survive only as long as nothing emits `tags` for it. On an
+  environment whose VMs carry them, name them on the XR or leave `tags` unset.
+
+Unset is genuinely unset: with no `tags` on either side no key is emitted, and
+every VM already built renders byte-identical. Note the corollary — `tags: []`
+does not clear a VM's tags either, since an empty list emits nothing. Clearing is
+a `qm set --delete tags` on the node.
 
 ## Ansible (optional)
 

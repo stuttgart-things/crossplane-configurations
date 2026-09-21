@@ -26,7 +26,7 @@ spec:
                   type: object
                   description: |
                     Per-VM settings. Placement fields (node, datastore, bridge,
-                    vlanTag, pool, templateVmId) and the
+                    vlanTag, pool, tags, templateVmId) and the
                     cpuType/osType/bios/diskInterface/networkModel/annotation
                     fields default from the selected EnvironmentConfig when unset
                     here; set them explicitly to override per VM.
@@ -92,6 +92,52 @@ spec:
                     pool:
                       type: string
                       description: Resource pool id (poolId).
+                    tags:
+                      type: array
+                      items:
+                        type: string
+                      description: |
+                        Proxmox tags for the VM. In LabUL these are the
+                        assignment mechanism — `se-<kuerzel>` for the person,
+                        the datastore (`v5010`, `fs9100`), `plb_*` for the
+                        scheduler — so a VM without them is unattributable.
+
+                        MERGED with the EnvironmentConfig's `tags` by default;
+                        set `tagsPolicy: Replace` to take only what is here.
+
+                        Emitted SORTED: the Proxmox API returns tags in
+                        alphabetical order, so an unsorted list is reported as a
+                        difference on every reconcile. Duplicates and empty
+                        entries are dropped for the same reason.
+
+                        WHAT IS SET HERE IS THE WHOLE SET ON THE VM. A full
+                        clone inherits the template's tags (template 144 carries
+                        `se-phermann;stuttgart-things`, which is why VMs come out
+                        tagged today without anyone setting this), and the
+                        provider writes this list over them — it cannot merge
+                        with what it does not observe (`tags` is absent from
+                        `status.atProvider`). So a VM that needs an inherited tag
+                        kept must name it here or on the EnvironmentConfig.
+                        Leaving this unset changes nothing: no `tags` is emitted
+                        and the inherited ones stay.
+                    tagsPolicy:
+                      type: string
+                      enum:
+                        - Merge
+                        - Replace
+                      default: Merge
+                      description: |
+                        How `tags` here combines with the EnvironmentConfig's
+                        `tags`. `Merge` (default) is the union of both; `Replace`
+                        takes only this XR's list and ignores the environment's.
+
+                        `Replace` exists because there is otherwise no way to
+                        decline an environment-level tag: an empty list is falsy
+                        in the template and falls straight through to the
+                        EnvironmentConfig. Same reasoning as the `none` sentinel
+                        on `cloneDatastore`, and the same caveat — the render has
+                        no API server, so this default is applied by the
+                        Composition as well, not only by the XRD.
                     templateVmId:
                       type: string
                       description: |
@@ -384,11 +430,15 @@ spec:
                     matches an EnvironmentConfig carrying the config-scoped label
                     `proxmoxvm.resources.stuttgart-things.com/environment=<value>`.
                     Supported `data` keys: node, datastore, bridge, vlanTag, pool,
-                    templateVmId, cpuType, osType, bios, diskInterface,
+                    tags, templateVmId, cpuType, osType, bios, diskInterface,
                     networkModel, annotation, ciUsername, providerConfigName,
                     providerConfigKind, and an optional `ansible` sub-block. Any
                     value set explicitly on this XR's spec overrides the
-                    EnvironmentConfig.
+                    EnvironmentConfig — except `tags`, which MERGES with the
+                    XR's unless `vm.tagsPolicy: Replace` says otherwise, and
+                    which may be written either as a list or as a
+                    `;`/`,`-separated string (a Helm-rendered EnvironmentConfig
+                    usually carries the string form).
                   default: default
               required:
                 - vm

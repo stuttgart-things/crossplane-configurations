@@ -28,6 +28,19 @@ spec:
     resourcePoolId: resgroup-8
     networkId: dvportgroup-2048
     folder: stuttgart-things/testing
+    # Tag IDs, NOT tag names — a vSphere tag is an inventory object and the
+    # VirtualMachine resource takes its URN. PLACEHOLDER: look yours up with
+    # `govc tags.ls -json`; an id that does not exist fails the clone, and
+    # nothing here can create it. Merged with the labda EnvironmentConfig's tag,
+    # then sorted and deduped (the CRD declares the field as a set).
+    tags:
+      - urn:vmomi:InventoryServiceTag:1d3f7a90-0000-0000-0000-000000000002:GLOBAL
+    tagsPolicy: Merge
+    # Custom attributes, keyed by the NUMERIC vCenter field id (`govc fields.ls`).
+    # Merged per key with the environment's, this XR winning — 101 comes from the
+    # labda EnvironmentConfig, 102 is added here.
+    customAttributes:
+      "102": crossplane
   # Optional base-OS provisioning: once the VM is Ready with an IP, an AnsibleRun
   # is emitted with the inventory auto-populated to the VM IP. Requires the
   # ansible-run cluster preconditions (Tekton, ansible-credentials Secret, an

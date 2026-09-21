@@ -30,6 +30,14 @@ data:
   scsiType: pvscsi
   adapterType: vmxnet3
   annotation: VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+  # Tags and custom attributes every VM of this environment gets, merged with
+  # the XR's. BOTH ARE IDS, not names — a tag is an inventory object
+  # (`govc tags.ls -json`), a custom attribute a numeric vCenter field
+  # (`govc fields.ls`). Left UNSET here on purpose; see the `labda`
+  # EnvironmentConfig below for what setting them does to VMs that already exist.
+  # tags: urn:vmomi:InventoryServiceTag:1d3f7a90-0000-0000-0000-000000000001:GLOBAL
+  # customAttributes:
+  #   "101": stuttgart-things
   # provider-vspherevm ProviderConfig the VirtualMachine runs through.
   providerConfigName: default
 ---
@@ -53,4 +61,21 @@ data:
   scsiType: pvscsi
   adapterType: vmxnet3
   annotation: VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+  # PLACEHOLDER IDS — unlike the MOIDs above these are not LabDA values, because
+  # no tag or custom attribute is in use there yet. Look yours up before applying
+  # this file: an id that does not exist in the vCenter fails the clone, and
+  # provider-vspherevm cannot create one (it ships only VirtualMachine).
+  #
+  # SETTING THESE MAKES THE EMITTED SET AUTHORITATIVE FOR EVERY VM UNDER THE
+  # LABEL, INCLUDING THE ONES ALREADY BUILT. Until something emits `tags`, the
+  # provider leaves whatever is attached to the VM alone; from the first
+  # reconcile that carries this key, the VM's tags are exactly this list plus the
+  # XR's, and the rest are detached.
+  #
+  # `tags` may be a list or a `;`/`,`-separated string (a tag URN contains
+  # neither separator); `customAttributes` is a map of attribute id to value and
+  # merges per key with the XR winning.
+  tags: urn:vmomi:InventoryServiceTag:1d3f7a90-0000-0000-0000-000000000001:GLOBAL
+  customAttributes:
+    "101": stuttgart-things
   providerConfigName: default
