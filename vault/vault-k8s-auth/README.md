@@ -104,46 +104,75 @@ still holds them — a `tofu destroy` from the old side removes the mount under 
 new one, and a delete from the new side removes it under the old one. Hence
 `deleteOnRemoval: false` until the old side has let go.
 
-The order:
+The order, as walked on u26-kind3 for homerun2-test1 (one auth) and
+seed-labda-1 (two auths) on 2026-09-21 — see the measurement below:
 
-1. **Keep the specs identical.** Apply the `VaultK8sAuth` (this group) with
-   `adoption.enabled: true` for the same `clusterName` and auths. Until step 3,
-   both sides reconcile: the Workspace re-applies its values on every run, this
-   XR its own — any difference between the two flaps back and forth. The
-   comparison in step 2 of the adoption is what shows there is none.
-2. **Wait for `AdoptionComplete=True`.**
-3. **Release the OpenTofu side without a destroy.** Deleting the old XR (or the
-   Platform that composes it) deletes its Workspace, and a Workspace deleted
-   with its default policies runs `tofu destroy`. Either
-   - orphan it: `kubectl delete vaultk8sauths.config.stuttgart-things.com <name> --cascade=orphan`,
-     then patch each `<cluster>-<auth>-vault-auth` Workspace to
-     `managementPolicies: ["Observe"]` and delete it — without `Delete` in its
-     policies nothing is destroyed; or
-   - `tofu state rm` every address in the Workspace's state first, so the
-     destroy has nothing to remove.
-   Policies created by bootstrap/vault-auth are named `{clusterName}-{name}`; this
-   Configuration names them `xp-{clusterName}-{name}`. On adoption the new names
-   appear as missing and are created at hand-over (listed in
-   `createOnHandOver`), and the role's `tokenPolicies` show as a difference until
-   the spec and Vault agree. The old policies are left in Vault — delete them by
-   hand once no role names them. On u26-kind3 no vault-auth XR creates policies
-   (`policies: {}` throughout), so there is nothing to rename there.
-4. **Set `deleteOnRemoval: true`.** From here this XR is the only owner, and
-   deleting it deletes the Vault objects as a fresh one would.
+1. **Switch, with the specs identical.** When the auth comes from a
+   `bootstrap/platform` `vaultIssuer` (directly, or through a ClusterStack's
+   `platform.vaultIssuer`), set `authProvider: provider-vault`,
+   `vaultProviderConfigRef` and `adoption.enabled: true` there (platform
+   ≥ v0.8.0). Both children share one composition-resource-name and differ only
+   in API group, so Crossplane drops the old `config.stuttgart-things.com`
+   child from `resourceRefs` and **orphans** it — same uid, Workspace
+   untouched, no destroy. A standalone XR of this group with the same
+   `clusterName` and auths does the same job where there is no Platform.
+   Until step 3 both sides reconcile; any difference between them flaps, which
+   is why the specs must match — compare tokenPolicies, bound service
+   accounts, `kubernetesHost` and the reviewer Secret against the Workspace's
+   vars before switching.
+2. **Wait for `AdoptionComplete=True`** (reason `HandedOver`). It holds on
+   `DifferencesFound` and names each difference instead — read them before
+   reaching for `acceptDifferences`.
+3. **Release the OpenTofu side without a destroy.** Deleting the old XR deletes
+   its Workspaces, and a Workspace deleted with its default policies runs
+   `tofu destroy`. Use `releaseOnDelete` (bootstrap/vault-auth ≥ v0.4.0):
+   ```bash
+   kubectl -n <ns> patch vaultk8sauths.config.stuttgart-things.com <name> \
+     --type=merge -p '{"spec":{"releaseOnDelete":true}}'
+   # every <cluster>-<auth>-vault-auth Workspace must now show
+   # managementPolicies [Observe, Create, Update] — check before deleting
+   kubectl -n <ns> delete vaultk8sauths.config.stuttgart-things.com <name>
+   ```
+   Patching the live Workspace's `managementPolicies` instead does **not** hold
+   while its XR exists: the composition has always sent that field, so the
+   next reconcile takes it back. Without v0.4.0, orphan first
+   (`kubectl delete … --cascade=orphan`) — with no XR left to re-apply it, a
+   patch to `managementPolicies: ["Observe"]` on each Workspace sticks — or
+   `tofu state rm` every address first.
 
-> **Measured** on u26-kind3 against infra.sthings-vsphere (#454 point 1): an XR
-> created the objects, they were released without a Vault delete, a second XR
-> with `adoption.enabled` observed them, found no difference (policy body, CA,
-> role lists included) and handed over after 60 s; with `deleteOnRemoval: true`
-> its delete removed them, confirmed by a read-only probe. Step 3 against a real
-> OpenTofu Workspace is not part of that run — walk it through on a test cluster
-> first.
+   **Prove it, don't assume it:** read each tfstate Secret's `serial` and
+   resource count before the delete and again after. A destroy empties the
+   resource list and bumps the serial; a release leaves both unchanged.
 
-A **missing policy** is recognised by its empty body: `vault_policy` reads a
-policy that does not exist as one that does, `Ready=True` with
-`atProvider.policy: ""` — measured. An Observe-only Policy MR in that state
-counts as missing and is created at hand-over, rather than reported as a body
-difference.
+   Policies created by bootstrap/vault-auth are named `{clusterName}-{name}`;
+   this Configuration names them `xp-{clusterName}-{name}`. On adoption the new
+   names appear as missing and are created at hand-over (listed in
+   `createOnHandOver`), and the role's `tokenPolicies` show as a difference
+   until the spec and Vault agree. The old policies are left in Vault — delete
+   them by hand once no role names them. On u26-kind3 no vault-auth XR created
+   policies (`policies: {}` throughout), so there was nothing to rename.
+4. **Set `deleteOnRemoval: true`,** then delete the leftover
+   `tfstate-<cluster>-<auth>-vault-auth-*` Secrets. From here this XR is the
+   only owner, and deleting it deletes the Vault objects as a fresh one would.
+
+> **Measured** on u26-kind3, 2026-09-21 — the whole sequence against real
+> OpenTofu Workspaces (#482):
+>
+> | cluster | Vault | auths | tfstate before → after the delete |
+> |---|---|---|---|
+> | homerun2-test1 | infra | certmanager | serial 3, 3 resources → unchanged |
+> | seed-labda-1 | LabDA | certmanager, eso | serial 4 / 3, 3 resources each → unchanged |
+>
+> Both handed over on the first reconcile with no differences, all MRs Ready.
+> The adoption burst (six MRs flipping policies at once) opened the XR's watch
+> circuit briefly (`Responsive=False WatchCircuitOpen`); it closes by itself
+> once the MRs stop changing.
+>
+> Earlier (#454 point 1), against infra.sthings-vsphere: an XR created the
+> objects, they were released without a Vault delete, a second XR with
+> `adoption.enabled` observed them, found no difference (policy body, CA, role
+> lists included) and handed over after 60 s; with `deleteOnRemoval: true` its
+> delete removed them, confirmed by a read-only probe.
 
 ## Who may grant what
 
