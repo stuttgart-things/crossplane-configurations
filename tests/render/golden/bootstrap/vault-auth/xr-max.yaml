@@ -208,7 +208,9 @@ spec:
     - key: policies
       value: '{}'
   managementPolicies:
-  - '*'
+  - Observe
+  - Create
+  - Update
   providerConfigRef:
     kind: ClusterProviderConfig
     name: default
@@ -471,7 +473,9 @@ spec:
     - key: disable_local_ca_jwt
       value: "true"
   managementPolicies:
-  - '*'
+  - Observe
+  - Create
+  - Update
   providerConfigRef:
     kind: ClusterProviderConfig
     name: default
@@ -643,7 +647,9 @@ spec:
         }\npath \"kv/metadata/cicd\" { capabilities = [\"read\", \"list\"] }\npath
         \"kv/metadata/cicd/*\" { capabilities = [\"read\", \"list\"] }\n"}'
   managementPolicies:
-  - '*'
+  - Observe
+  - Create
+  - Update
   providerConfigRef:
     kind: ClusterProviderConfig
     name: default
