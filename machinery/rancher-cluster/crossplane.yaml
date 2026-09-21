@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.8.1
+    meta.crossplane.io/version: v0.8.2
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -102,8 +102,14 @@ spec:
     # edge (bootstrap/platform already has one), so vault-auth must stay installed
     # under the package-manager-derived LONG name -- as it is on crossplane-mgmt
     # since #385, where the manifest says so.
+    #
+    # <v0.5.0 since vault-auth v0.4.0, which only ADDS the optional
+    # `releaseOnDelete` (default false) for handing an auth to vault-k8s-auth
+    # (#482). The old <v0.4.0 blocked that upgrade on every cluster running this
+    # package: the resolver refuses a dependency outside an installed
+    # dependent's range rather than raising or ignoring it.
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/vault-auth
-      version: ">=v0.3.2,<v0.4.0"
+      version: ">=v0.3.2,<v0.5.0"
     # Creates the provisioning Cluster, the downstream ClusterProviderConfig
     # and the downstream bootstrap Namespace as Objects.
     - provider: xpkg.crossplane.io/crossplane-contrib/provider-kubernetes
