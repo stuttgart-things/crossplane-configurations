@@ -18,5 +18,5 @@ metadata:
 spec:
   type: library
   lifecycle: production
-  owner: stuttgart-things
+  owner: platform-team
   system: machinery
