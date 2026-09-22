@@ -1,0 +1,22 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: crossplane-configurations
+  description: Crossplane v2 Configuration packages (XRD + Composition + examples) -- what the machinery clusters install
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    github.com/project-slug: stuttgart-things/crossplane-configurations
+  tags:
+    - crossplane
+    - machinery
+    - kcl
+  links:
+    - url: https://github.com/stuttgart-things/crossplane-configurations
+      title: GitHub Repository
+      icon: github
+spec:
+  type: library
+  lifecycle: production
+  owner: stuttgart-things
+  system: machinery
