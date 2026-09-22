@@ -1,0 +1,17 @@
+# TechDocs for Backstage (catalog-info.yaml: backstage.io/techdocs-ref: dir:.)
+#
+# The pages are the READMEs. docs/index.md and docs/configurations/** are
+# generated stubs (tests/lint/lint-configurations.py --write) that
+# .techdocs/hooks.py fills with the README at build time and whose
+# GitHub-relative links it rewrites. No nav: MkDocs builds it from the tree,
+# so a new Configuration shows up without touching this file.
+site_name: crossplane-configurations
+site_description: Crossplane v2 Configuration packages of stuttgart-things
+repo_url: https://github.com/stuttgart-things/crossplane-configurations
+edit_uri: edit/main/docs/
+
+plugins:
+  - techdocs-core
+
+hooks:
+  - .techdocs/hooks.py

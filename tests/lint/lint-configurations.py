@@ -597,15 +597,48 @@ def render_xr_ownership(facts: list[dict]) -> str:
     return "\n".join(out)
 
 
+DOCS_BANNER = (
+    "<!-- GENERATED FILE — do not edit by hand. The page content is the README\n"
+    "     named below, included at build time by .techdocs/hooks.py.\n"
+    "     Regenerate with: python3 tests/lint/lint-configurations.py --write -->"
+)
+
+
+def render_docs_stub(readme: str) -> str:
+    """A TechDocs page that is nothing but a pointer to its README.
+
+    The README stays the only source: the stub carries no content that could
+    drift, and the hook rewrites the README's GitHub-relative links at build
+    time. Generated rather than hand-written so that a new Configuration gets
+    its page in the same PR, and a removed one loses it -- check_diagrams()
+    fails otherwise.
+    """
+    return f"{DOCS_BANNER}\n<!-- include-readme: {readme} -->\n"
+
+
+def build_docs(root: Path, configs: list[Path]) -> dict[str, str]:
+    """TechDocs stubs: the repo README as the index, one page per Configuration."""
+    out = {"docs/index.md": render_docs_stub("README.md")}
+    for cdir in configs:
+        rel = cdir.relative_to(root).as_posix()
+        out[f"docs/configurations/{rel}.md"] = render_docs_stub(f"{rel}/README.md")
+    return out
+
+
 def build_diagrams(root: Path, configs: list[Path]) -> dict[str, str]:
-    """Relative path -> file content. One entry per generated diagram."""
+    """Relative path -> file content. Every generated file: diagrams + doc stubs."""
     facts = collect_facts(root, configs)
-    return {f"{DIAGRAMS_DIR}/xr-ownership.md": render_xr_ownership(facts)}
+    out = {f"{DIAGRAMS_DIR}/xr-ownership.md": render_xr_ownership(facts)}
+    out.update(build_docs(root, configs))
+    return out
 
 
 def write_diagrams(root: Path, configs: list[Path]) -> list[str]:
     """Write the generated diagrams; return the paths that actually changed."""
     changed = []
+    for rel in orphaned_docs(root, configs):
+        (root / rel).unlink()
+        changed.append(f"{rel} (removed)")
     for rel, content in sorted(build_diagrams(root, configs).items()):
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -627,13 +660,26 @@ def check_diagrams(root: Path, configs: list[Path], f: Findings) -> None:
     for rel, content in sorted(build_diagrams(root, configs).items()):
         path = root / rel
         if not path.exists():
-            f.error(rel, "generated diagram missing — run "
+            f.error(rel, "generated file missing — run "
                          "`python3 tests/lint/lint-configurations.py --write`")
             continue
         if path.read_text() != content:
-            f.error(rel, "generated diagram is stale (the repo has moved on) — run "
+            f.error(rel, "generated file is stale (the repo has moved on) — run "
                          "`python3 tests/lint/lint-configurations.py --write` and "
                          "commit the result")
+    for rel in orphaned_docs(root, configs):
+        f.error(rel, "doc page for a Configuration that no longer exists — run "
+                     "`python3 tests/lint/lint-configurations.py --write`")
+
+
+def orphaned_docs(root: Path, configs: list[Path]) -> list[str]:
+    """Generated stubs under docs/configurations/ with no Configuration behind them."""
+    wanted = set(build_docs(root, configs))
+    base = root / "docs" / "configurations"
+    if not base.is_dir():
+        return []
+    return sorted(p.relative_to(root).as_posix() for p in base.rglob("*.md")
+                  if p.relative_to(root).as_posix() not in wanted)
 
 
 # ---------------------------------------------------------------------------
@@ -922,7 +968,8 @@ def main() -> int:
                     help="also compare declared versions against ghcr.io tags "
                          "(needs network; skipped silently if unreachable)")
     ap.add_argument("--write", action="store_true",
-                    help="regenerate the derived diagrams under docs/diagrams/ "
+                    help="regenerate the derived files (docs/diagrams/, the TechDocs "
+                         "stubs docs/index.md + docs/configurations/) "
                          "instead of checking them, then exit. Offline; the other "
                          "checks are not run.")
     args = ap.parse_args()
