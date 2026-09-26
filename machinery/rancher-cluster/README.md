@@ -94,6 +94,7 @@ real XR is usually just `name` + per-cluster sizing + `argocd.register`.
 | `harvester.diskSize` | | `40` | Root disk per VM, GiB (per-cluster) |
 | `harvester.quantity` | | `1` | Number of VM nodes in the pool (per-cluster) |
 | `harvester.userData` | | qemu-guest-agent cloud-config | cloud-init `userData` for the VMs (base64 is handled for you) |
+| `harvester.networkData` | | — (DHCP) | cloud-init `network-config` for the VMs, e.g. a static address reserved in clusterbook (base64 is handled for you). What gives a no-CNI cluster a node address known before the VM exists |
 | `nodeRegistration.publish` | | `false` | Publish Rancher's node registration command into a Secret beside this XR |
 | `nodeRegistration.secretName` | | `<name>-node-command` | Name of that Secret |
 | `nodeRegistration.secretNamespace` | | — | Also mirror it into this namespace on the control plane (for `ansible-run`'s `extraEnvSecretName`) |

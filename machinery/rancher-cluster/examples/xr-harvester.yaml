@@ -23,5 +23,23 @@ spec:
     cpuCount: 6
     memorySize: 6
     quantity: 1
+    # Optional: a static address instead of DHCP, e.g. one reserved in
+    # clusterbook -- what lets something reach a node that has no CNI yet.
+    # ClusterStack's machine pool composes this from its reservation.
+    networkData: |
+      version: 2
+      ethernets:
+        nic0:
+          match:
+            name: en*
+          dhcp4: false
+          addresses:
+            - 192.168.10.176/24
+          routes:
+            - to: default
+              via: 192.168.10.1
+          nameservers:
+            addresses:
+              - 192.168.10.1
   argocd:
     register: true                # target + server resolved automatically

@@ -477,6 +477,7 @@ spec:
       metadata:
         name: k3s-xp-pool1
         namespace: fleet-default
+      networkData: dmVyc2lvbjogMgpldGhlcm5ldHM6CiAgbmljMDoKICAgIG1hdGNoOgogICAgICBuYW1lOiBlbioKICAgIGRoY3A0OiBmYWxzZQogICAgYWRkcmVzc2VzOgogICAgICAtIDE5Mi4xNjguMTAuMTc2LzI0CiAgICByb3V0ZXM6CiAgICAgIC0gdG86IGRlZmF1bHQKICAgICAgICB2aWE6IDE5Mi4xNjguMTAuMQogICAgbmFtZXNlcnZlcnM6CiAgICAgIGFkZHJlc3NlczoKICAgICAgICAtIDE5Mi4xNjguMTAuMQo=
       networkInfo: '{"interfaces":[{"macAddress":"","networkName":"default/vms"}]}'
       networkName: ""
       reservedMemorySize: "-1"

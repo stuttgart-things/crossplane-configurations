@@ -124,7 +124,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | machinery | [harvester-vm](../../machinery/harvester-vm/) | `HarvesterVM` | `resources.stuttgart-things.com` | Namespaced | v0.1.12 | `ansible-run`, `cloud-config`, `volume-claim` |
 | machinery | [proxmox-vm](../../machinery/proxmox-vm/) | `ProxmoxVM` | `resources.stuttgart-things.com` | Namespaced | v0.2.0 | — |
 | machinery | [proxmoxvm](../../machinery/proxmoxvm/) | `NativeProxmoxVM` | `resources.stuttgart-things.com` | Namespaced | v0.16.0 | `ansible-run` |
-| machinery | [rancher-cluster](../../machinery/rancher-cluster/) | `RancherCluster` | `resources.stuttgart-things.com` | Namespaced | v0.9.0 | `vault-auth` |
+| machinery | [rancher-cluster](../../machinery/rancher-cluster/) | `RancherCluster` | `resources.stuttgart-things.com` | Namespaced | v0.10.0 | `vault-auth` |
 | machinery | [virtual-machine](../../machinery/virtual-machine/) | `XVirtualMachine` | `resources.stuttgart-things.com` | Namespaced | v0.1.14 | `harvester-vm`, `vm-provision` |
 | machinery | [vm-batch](../../machinery/vm-batch/) | `VMBatch` | `resources.stuttgart-things.com` | Namespaced | v0.1.3 | `ansible-run`, `proxmoxvm`, `vspherevm` |
 | machinery | [vm-provision](../../machinery/vm-provision/) | `VMProvision` | `resources.stuttgart-things.com` | Namespaced | v0.1.2 | `ansible-run`, `proxmox-vm`, `vsphere-vm` |
