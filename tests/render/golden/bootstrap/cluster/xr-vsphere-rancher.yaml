@@ -1,0 +1,97 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: rancher-vsphere-1
+  namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: RancherCluster
+      name: rancher-vsphere-1-rancher
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: rancher'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  share:
+    clusterName: rancher-vsphere-1
+    cniOwnership: platform
+  stage: rancher
+  stages:
+    access:
+      emitted: false
+      ready: false
+    baseos:
+      succeeded: false
+    distribution:
+      emitted: false
+      succeeded: false
+    join:
+      emitted: false
+      succeeded: false
+    kubeconfig:
+      emitted: false
+      succeeded: false
+    managementPlane:
+      emitted: false
+      ready: false
+    platform:
+      emitted: false
+      ready: false
+    rancher:
+      emitted: true
+      nodeCommandSecret: ""
+    vm:
+      ip: ""
+      ready: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rancher
+  labels:
+    crossplane.io/composite: rancher-vsphere-1
+  name: rancher-vsphere-1-rancher
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-1
+    uid: b7bfac95-252f-5594-bc7a-2e2023f0fc9f
+spec:
+  argocd:
+    annotations:
+      clusterbook.stuttgart-things.com/vault-server: https://vault-vsphere.tiab.labda.sva.de:8200
+      clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki-k8s
+    labels:
+      network-platform/cert-manager-vault-pki: "false"
+    register: false
+  environmentConfig: rancher-labda
+  kubernetesVersion: v1.35.8+k3s1
+  machineGlobalConfig:
+    disable:
+    - traefik
+    - servicelb
+    disable-kube-proxy: true
+    disable-network-policy: true
+    flannel-backend: none
+  name: rancher-vsphere-1
+  nodeRegistration:
+    publish: true
+    secretNamespace: tekton-ci

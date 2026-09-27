@@ -1,0 +1,35 @@
+---
+# The Vault policy mapping for ClusterStacks in environment `labda`. Selected by
+# label, matched against the XR's spec.environmentConfig — the SAME value that
+# resolves the VM environment (vspherevm-labda), which is why this one has to
+# exist before a LabDA vSphere order renders in rancher mode (#508, gap 1).
+#
+# LabDA has TWO Vaults, and this file only knows one of them:
+#
+#   vault-vsphere.tiab.labda.sva.de:8200   PKI (pki/sign/4sthings.tiab.ssc.sva.de),
+#                                          cert-manager auth mounts, kubeconfigs
+#   openbao.sthings-infra.4sthings...      the KV that ESO reads (per-cluster
+#                                          mount <cluster>, policy read-<cluster>)
+#
+# The stack derives the cert-manager AND the eso auth from one vaultIssuer, i.e.
+# against one Vault. So `secretStores`, `mounts`, `shared` and `writer` stay out
+# of here on purpose: an order that names a store fails the render with "no
+# policy in the EnvironmentConfig for environment 'labda'" instead of creating an
+# eso role on the PKI Vault, where the mount it would read does not exist.
+# Splitting the two is its own change.
+#
+# Rancher mode only. The policy must exist in that Vault: a role bound to a
+# missing policy logs in green and every signing request is denied.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: cluster-vault-labda
+  labels:
+    cluster.stuttgart-things.com/environment: labda
+data:
+  vault:
+    # The cert-manager auth. Same policy the LabDA VM pipeline binds its
+    # <cluster>-certmanager roles to (stuttgart-things terraform/vsphere/labda/*/
+    # vault-auth.yaml).
+    certManagerPolicies:
+      - pki-issue-4sthings

@@ -183,6 +183,18 @@ The environment half extends the same EnvironmentConfig: `vault.mounts` (logical
 
 **Cluster preconditions** for app profiles: the `AppSecretProfile`s, the extended EnvironmentConfig, the writer `ClusterProviderConfig` (`vault-cluster-secrets`, AppRole `cluster-secrets-writer`), and the Vault policies and `_` entries from stuttgart-things/stuttgart-things#3017.
 
+## LabDA vSphere through the LabDA Rancher (v0.12.2)
+
+[`examples/xr-vsphere-rancher.yaml`](examples/xr-vsphere-rancher.yaml), [#508](https://github.com/stuttgart-things/crossplane-configurations/issues/508). The join path needed nothing: it reads `status.share.ip`, whichever VM kind wrote it. What LabDA needed is around it:
+
+- **One value, two selectors.** `spec.environmentConfig: labda` resolves both the VM environment (`vspherevm-labda`) and the Vault mapping, so [`examples/environment-config-vault-labda.yaml`](examples/environment-config-vault-labda.yaml) has to exist. It maps only the cert-manager policy (`pki-issue-4sthings`): LabDA's ESO KV lives in a second Vault (OpenBao on sthings-infra), and the stack derives both auths against one — so an order naming `secretStores` fails the render there instead of creating an eso role on the PKI Vault.
+- **Its own Rancher.** `spec.rancher.environmentConfig: rancher-labda` ([rancher-cluster](../../machinery/rancher-cluster/examples/environment-config-rancher-labda.yaml), k3s `v1.35.8+k3s1`) over the `rancher-mgmt-labda` ClusterProviderConfig — not LabUL's, which a LabDA node would register across the lab boundary.
+- **DNS before the join.** The LabDA Rancher answers only under `4sthings.tiab.ssc.sva.de`, and the lab resolver `10.100.101.5` does not reach that zone's PowerDNS (adding the missing apex NS on 2026-09-27 did not change that). So the base-OS stage runs `sthings.baseos.dns_zones` via `ansible.stages.baseos.extraPlaybooks` (xplane-cluster 0.23.0) with `dns_k3s_coredns: true` (sthings-baseos ≥ 26.927.1371): a route-only resolved drop-in for the node, and a `coredns-custom` manifest in k3s's manifests directory for the pods — `cattle-cluster-agent` has to resolve the Rancher to register, and without the second half the node joins while the cluster never becomes Active.
+- **DHCP.** The vSphere branch emits no cloudInit; the node takes an address on the portgroup (seed-labda-1 did, 2026-08-20). clusterbook in LabDA reserves the LoadBalancer address only (`platform.ipReservation`, `clusterbookProviderConfigRef: clusterbook-labda`).
+- **No Argo CD in LabDA yet**, so `profiles: []` and `argocd.register: false`; network, issuer and StorageClass come from the Platform (`apps` cert-manager/cilium/openebs, `vaultIssuer` via `provider-vault` and `vault-labda`).
+
+**Cluster preconditions** on the management cluster: the two EnvironmentConfigs above; `rancher-mgmt-labda` with its kubeconfig Secret; a clusterbook `ClusterProviderConfig` for the LabDA clusterbook, trusting the LabDA PKI root (`customCA`); `default/vault-pki-source-ca-labda` with that root; and a CoreDNS that resolves the 4sthings zone (flux `coredns-lab-zone` on rke2) — Rancher's downstream kubeconfigs and the clusterbook API are named there too.
+
 ## Gates: sticky, and keyed on success
 
 Each stage opens when the previous one **succeeded** — not when it is Ready. An `AnsibleRun` whose PipelineRun failed still reports Ready once its Object is applied; unblocking on that would upload a kubeconfig from a cluster that was never installed.

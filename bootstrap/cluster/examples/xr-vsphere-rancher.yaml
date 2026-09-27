@@ -1,0 +1,117 @@
+---
+# A Rancher custom-node k3s cluster on LabDA vSphere, from one XR (#508).
+#
+# The join path is the same as xr-rancher.yaml's: nothing in it asks which
+# hypervisor built the VM, it reads status.share.ip. What differs is the lab:
+#
+#   environmentConfig: labda    resolves BOTH the VM environment
+#                               (vspherevm-labda: template, portgroup, datastore)
+#                               and the Vault mapping (cluster-vault-labda). One
+#                               value for two selectors is why the latter had
+#                               to exist before this renders.
+#   rancher.environmentConfig   rancher-labda: the Rancher on sthings-platform,
+#                               k3s. Not the LabUL one -- a LabDA node
+#                               registering there crosses the lab boundary.
+#
+# DNS IS THE REAL PRECONDITION. The LabDA Rancher answers only under
+# 4sthings.tiab.ssc.sva.de, and the lab resolver (10.100.101.5) does not reach
+# that zone's PowerDNS. So the base-OS stage points the node at it before the
+# join runs (sthings.baseos.dns_zones): a route-only resolved drop-in for the
+# node, and a coredns-custom manifest in k3s's manifests directory for the pods
+# -- cattle-cluster-agent is an ordinary pod and has to resolve the Rancher to
+# register at all. Without the second half the node joins and the cluster never
+# becomes Active.
+#
+# No static address: the vSphere branch emits no cloudInit, the node takes DHCP
+# on the portgroup. clusterbook in LabDA hands out LoadBalancer addresses only,
+# which is what platform.ipReservation asks it for.
+#
+# No Argo CD: LabDA has none yet, so `profiles` is empty and argocd.register is
+# false. Network and storage come from the Platform's own Flux apps instead --
+# the shape seed-labda-1 was built with.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: rancher-vsphere-1
+  namespace: default
+spec:
+  provider: vsphere
+  distribution: rancher-k3s
+  size: medium
+  environmentConfig: labda
+  kubeconfig:
+    # The LabDA Vault's tekton credential; the ClusterAccess reads the entry
+    # back through vault-kubeconfigs-labda, derived from this name.
+    vaultSecretName: vault-labda  # pragma: allowlist secret
+    # OFF: the Workspace that owns kubeconfigs/<cluster> needs an approle for
+    # the LabDA Vault next to this XR, and none exists yet. The entry outlives
+    # the cluster until it does.
+    lifecycle:
+      enabled: false
+  ansible:
+    stages:
+      baseos:
+        # dns_zones with the k3s CoreDNS half needs sthings-baseos >= 26.927.1371.
+        extraCollections:
+          - https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.927.1371/sthings-baseos-26.927.1371.tar.gz
+        extraPlaybooks:
+          - sthings.baseos.dns_zones
+        # Stage extraVars REPLACE the shared ones.
+        extraVars:
+          - 'dns_forward_zones+-[{"zone": "4sthings.tiab.ssc.sva.de", "server": "10.100.136.115"}]'
+          - dns_k3s_coredns+-true
+      join:
+        pipelineNamespace: tekton-ci
+        extraCollections:
+          - https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.920.1331/sthings-rke-26.920.1331.tar.gz
+  profiles: []
+  rancher:
+    environmentConfig: rancher-labda
+    kubernetesVersion: v1.35.8+k3s1
+    argocd:
+      register: false
+  platformEnabled: true
+  platform:
+    fluxInit:
+      enabled: true
+    # The LoadBalancer address, from the LabDA clusterbook; with createDNS it
+    # also writes *.rancher-vsphere-1.4sthings.tiab.ssc.sva.de.
+    ipReservation:
+      enabled: true
+      createDNS: true
+      clusterbookProviderConfigRef: clusterbook-labda
+    apps:
+      cert-manager:
+        enabled: true
+        substitute:
+          CERT_MANAGER_NAMESPACE: cert-manager
+        components:
+          install:
+            enabled: true
+      # LB pool + L2 announcement + Gateway. The address and the domain are
+      # discovered from ipReservation; the TLS Secret name is a choice.
+      cilium:
+        enabled: true
+        substitute:
+          CILIUM_GATEWAY_TLS_SECRET: wildcard-tls  # pragma: allowlist secret
+      # The StorageClass (openebs-hostpath).
+      openebs:
+        enabled: true
+    vaultIssuer:
+      enabled: true
+      # provider-vault through the machinery's vault-labda ClusterProviderConfig
+      # (the k8sauth-bootstrap approle, which may write sys/auth). The opentofu
+      # default would need an approleSecret for this Vault next to the XR.
+      authProvider: provider-vault
+      vaultProviderConfigRef: vault-labda
+      vaultAddr: https://vault-vsphere.tiab.labda.sva.de:8200
+      pkiRole: 4sthings.tiab.ssc.sva.de
+      # The LabDA PKI root, NOT vault-pki-source-ca (that is LabUL's).
+      caSourceSecret: vault-pki-source-ca-labda  # pragma: allowlist secret
+      # No tokenPolicies: in rancher mode they are derived from the
+      # EnvironmentConfig for environment labda (pki-issue-4sthings).
+      #
+      # No wildcardCertificate: the 4sthings PKI role has allow_glob_domains
+      # false, so Vault answers a *.<cluster> request with 403. One Certificate
+      # per service works; the Gateway's wildcard-tls stays empty until the
+      # role changes.
