@@ -101,7 +101,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | bootstrap | [argocd-cluster](../../bootstrap/argocd-cluster/) | `ArgocdCluster` | `config.stuttgart-things.com` | Namespaced | v0.2.1 | — |
 | bootstrap | [capability](../../bootstrap/capability/) | `Capability` | `config.stuttgart-things.com` | Namespaced | v0.7.2 | — |
 | bootstrap | [cilium](../../bootstrap/cilium/) | `Cilium` | `config.stuttgart-things.com` | Namespaced | v0.1.0 | — |
-| bootstrap | [cluster](../../bootstrap/cluster/) | `ClusterStack` | `config.stuttgart-things.com` | Namespaced | v0.11.10 | `ansible-run`, `app-secret-profile`, `management-plane`, `platform`, `proxmoxvm`, `rancher-cluster`, `remote-cluster`, `vault-secrets`, `vspherevm` |
+| bootstrap | [cluster](../../bootstrap/cluster/) | `ClusterStack` | `config.stuttgart-things.com` | Namespaced | v0.12.0 | `ansible-run`, `app-secret-profile`, `management-plane`, `platform`, `proxmoxvm`, `rancher-cluster`, `remote-cluster`, `vault-secrets`, `vspherevm` |
 | bootstrap | [cni](../../bootstrap/cni/) | `Cni` | `config.stuttgart-things.com` | Namespaced | v0.1.4 | — |
 | bootstrap | [flux-apps](../../bootstrap/flux-apps/) | `FluxApps` | `config.stuttgart-things.com` | Namespaced | v0.1.4 | — |
 | bootstrap | [flux-init](../../bootstrap/flux-init/) | `FluxInit` | `config.stuttgart-things.com` | Namespaced | v0.3.0 | — |
@@ -146,7 +146,7 @@ diagrams can see.
 | `argocd-cluster` | kcl → kcl → auto-ready | inline |
 | `capability` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-capability?tag=0.8.2` |
 | `cilium` | kcl → kcl → auto-ready | inline |
-| `cluster` | environment-configs → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-cluster?tag=0.20.0` |
+| `cluster` | environment-configs → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-cluster?tag=0.22.0` |
 | `cni` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-cni?tag=0.3.1` |
 | `flux-apps` | environment-configs → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-flux-apps?tag=0.3.0` |
 | `flux-init` | environment-configs → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-flux-init?tag=0.3.0` |

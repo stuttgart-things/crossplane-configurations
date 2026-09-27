@@ -86,6 +86,14 @@ spec:
     #   VaultSecretSet                      {name}-secrets-<app>  (rancher, app profiles)
     #   Usage x3                            teardown ordering
     #
+    # On Harvester with a rancher distribution (0.22.0) Rancher builds the VM
+    # itself, through a machine pool, and the module emits instead of the VM,
+    # the distribution and the join:
+    #   Object (IPReservation)              {name}-node-ip   the node's address
+    #   RancherCluster                      {name}-rancher   infrastructure: harvester,
+    #                                                        static networkData
+    #   AnsibleRun                          {name}-kubeconfig  retries itself (-try<n>)
+    #
     # In rancher mode it also requests the AppSecretProfiles its profiles name
     # (function-kcl ExtraResources, by name) — cluster-scoped, so they cannot
     # come from the order's namespace.
@@ -101,7 +109,7 @@ spec:
         metadata:
           name: cluster
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-cluster?tag=0.20.0
+          source: oci://ghcr.io/stuttgart-things/xplane-cluster?tag=0.22.0
     # Propagates the composed children's readiness to the XR. status.ready is
     # set by the module itself (from the Platform child, or from ClusterAccess
     # when platformEnabled is false); this makes the XR's Ready condition track
