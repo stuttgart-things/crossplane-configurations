@@ -68,6 +68,13 @@ spec:
   rancher:
     environmentConfig: rancher-labda
     kubernetesVersion: v1.35.8+k3s1
+    # rancher-mgmt-labda is a ServiceAccount, not a Rancher user, and Rancher's
+    # webhook refuses a Cluster CREATE by anything but a Rancher user unless
+    # the Cluster opts out of creator RBAC (rancher-cluster >= v0.11.0).
+    # CREATE-TIME ONLY: never add it to an order whose Cluster already exists --
+    # the webhook refuses it on a Cluster with a creatorId, permanently.
+    clusterAnnotations:
+      field.cattle.io/no-creator-rbac: "true"
     argocd:
       register: false
   platformEnabled: true
