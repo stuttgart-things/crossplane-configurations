@@ -101,7 +101,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | bootstrap | [argocd-cluster](../../bootstrap/argocd-cluster/) | `ArgocdCluster` | `config.stuttgart-things.com` | Namespaced | v0.2.1 | — |
 | bootstrap | [capability](../../bootstrap/capability/) | `Capability` | `config.stuttgart-things.com` | Namespaced | v0.7.2 | — |
 | bootstrap | [cilium](../../bootstrap/cilium/) | `Cilium` | `config.stuttgart-things.com` | Namespaced | v0.1.0 | — |
-| bootstrap | [cluster](../../bootstrap/cluster/) | `ClusterStack` | `config.stuttgart-things.com` | Namespaced | v0.12.0 | `ansible-run`, `app-secret-profile`, `management-plane`, `platform`, `proxmoxvm`, `rancher-cluster`, `remote-cluster`, `vault-secrets`, `vspherevm` |
+| bootstrap | [cluster](../../bootstrap/cluster/) | `ClusterStack` | `config.stuttgart-things.com` | Namespaced | v0.12.1 | `ansible-run`, `app-secret-profile`, `management-plane`, `platform`, `proxmoxvm`, `rancher-cluster`, `remote-cluster`, `vault-secrets`, `vspherevm` |
 | bootstrap | [cni](../../bootstrap/cni/) | `Cni` | `config.stuttgart-things.com` | Namespaced | v0.1.4 | — |
 | bootstrap | [flux-apps](../../bootstrap/flux-apps/) | `FluxApps` | `config.stuttgart-things.com` | Namespaced | v0.1.4 | — |
 | bootstrap | [flux-init](../../bootstrap/flux-init/) | `FluxInit` | `config.stuttgart-things.com` | Namespaced | v0.3.0 | — |
