@@ -925,7 +925,7 @@ tasks:
           --progress plain
 
   push:
-    desc: "Build and push a Configuration to an OCI registry via Dagger (non-interactive: CONFIG=k8s/<name> BUMP=patch|minor|major|vX.Y.Z YES=1 task push). Refuses a package dir that is dirty or differs from origin/main unless FORCE=1."
+    desc: "Build and push a Configuration to an OCI registry via Dagger (non-interactive: CONFIG=k8s/<name> BUMP=current YES=1 task push). Refuses a package dir that is dirty or differs from origin/main, a version that is not the one origin/main carries, and a tag that is already published -- unless FORCE=1."
     silent: true
     cmds:
       - |
@@ -987,29 +987,58 @@ tasks:
         V_MINOR="v$MAJ.$((MIN+1)).0"
         V_MAJOR="v$((MAJ+1)).0.0"
 
-        # --- pick bump (env: BUMP=patch|minor|major|custom|vX.Y.Z; for custom, VERSION=vX.Y.Z) ---
+        # --- pick bump (env: BUMP=current|patch|minor|major|custom|vX.Y.Z; for custom, VERSION=vX.Y.Z) ---
+        # `current` publishes the version crossplane.yaml already carries: the
+        # bump belongs in the PR (the README row has to match it anyway), and
+        # this task publishes what main says. The others invent a number that
+        # is not on main, so the check below only lets them through with FORCE=1.
         if [ -n "${BUMP:-}" ]; then
           case "$BUMP" in
+            current) NEW="$CURRENT" ;;
             patch)   NEW="$V_PATCH" ;;
             minor)   NEW="$V_MINOR" ;;
             major)   NEW="$V_MAJOR" ;;
             custom)  [ -n "${VERSION:-}" ] || { gum style --foreground 1 "BUMP=custom requires VERSION=vX.Y.Z"; exit 1; }
                      NEW="$VERSION" ;;
             v[0-9]*) NEW="$BUMP" ;;
-            *) gum style --foreground 1 "BUMP=$BUMP not one of: patch|minor|major|custom|vX.Y.Z"; exit 1 ;;
+            *) gum style --foreground 1 "BUMP=$BUMP not one of: current|patch|minor|major|custom|vX.Y.Z"; exit 1 ;;
           esac
         else
-          BUMP=$(printf "patch  →  %s\nminor  →  %s\nmajor  →  %s\ncustom" \
-            "$V_PATCH" "$V_MINOR" "$V_MAJOR" \
+          BUMP=$(printf "current  →  %s  (the version on main)\npatch  →  %s\nminor  →  %s\nmajor  →  %s\ncustom" \
+            "$CURRENT" "$V_PATCH" "$V_MINOR" "$V_MAJOR" \
             | gum choose --header "current: $CURRENT — bump:")
           [ -n "$BUMP" ] || { gum style --foreground 3 "no selection"; exit 1; }
           case "$BUMP" in
+            current*) NEW="$CURRENT" ;;
             patch*)  NEW="$V_PATCH" ;;
             minor*)  NEW="$V_MINOR" ;;
             major*)  NEW="$V_MAJOR" ;;
             custom)  NEW=$(gum input --header "version (with leading v):" --value "$V_PATCH")
                      [ -n "$NEW" ] || { gum style --foreground 3 "no version"; exit 1; } ;;
           esac
+        fi
+
+        # --- the version must be the one main carries ---
+        # The tree guard above catches a tree that is AHEAD of main (a push from
+        # a branch). It cannot catch main being BEHIND the version about to be
+        # published: on 2026-09-27 `BUMP=v0.12.0` ran on main while the PR that
+        # bumps cluster to v0.12.0 and pins xplane-cluster 0.22.0 was still open
+        # (#505). Tree and origin/main were identical, the guard passed, and
+        # cluster:v0.12.0 shipped v0.11.10's content (#506). So the number has
+        # to come from main as well: merge the bump first, then publish it.
+        if [ "${FORCE:-}" = "1" ] || [ "${FORCE:-}" = "true" ]; then
+          gum style --foreground 3 "FORCE=$FORCE — not checking $NEW against the version on origin/main"
+        elif git rev-parse -q --verify origin/main >/dev/null 2>&1; then
+          MAIN_VERSION=$(git show "origin/main:$META" 2>/dev/null | yq -r '.metadata.annotations."meta.crossplane.io/version" // ""' || true)
+          if [ -z "$MAIN_VERSION" ]; then
+            gum style --foreground 1 "$META is not on origin/main — merge it first, or set FORCE=1 (task push-dev is the way to try a package before that)"
+            exit 1
+          fi
+          if [ "$NEW" != "$MAIN_VERSION" ]; then
+            gum style --foreground 1 "$NEW is not the version on origin/main ($MAIN_VERSION) — this would publish main's content under a number main does not carry"
+            gum style --foreground 8 "  bump meta.crossplane.io/version and the README row in the PR, merge it, then BUMP=current; or set FORCE=1"
+            exit 1
+          fi
         fi
 
         # --- auth ---
@@ -1034,6 +1063,27 @@ tasks:
           DESTINATION="$REGISTRY/$USERNAME/$PKG_NAME:$NEW"
         fi
         DAGGER_MOD="${DAGGER_MOD:-github.com/stuttgart-things/dagger/crossplane}"
+
+        # --- never overwrite a published tag ---
+        # A push to an existing tag replaces it silently, and a cluster that
+        # already pulled it keeps the old digest -- two packages under one name.
+        # Checked through the GitHub packages API (the same `gh` the visibility
+        # check below uses); a lookup that fails is reported, not fatal.
+        if [ "${FORCE:-}" = "1" ] || [ "${FORCE:-}" = "true" ]; then
+          :
+        elif [ "$REGISTRY" = "ghcr.io" ] && command -v gh >/dev/null 2>&1; then
+          TAG_PKG="$(printf '%s' "${PREFIX:-}" | sed 's|/|%2F|g')$([ -n "${PREFIX:-}" ] && printf '%%2F')$PKG_NAME"
+          # gh prints the error body on STDOUT for a 404, so a failed lookup
+          # must not leak into the tag list: keep its output only on success.
+          list_tags() { _out=$(gh api --paginate "/$1/$USERNAME/packages/container/$TAG_PKG/versions" --jq '.[].metadata.container.tags[]' 2>/dev/null) && printf '%s\n' "$_out"; }
+          TAGS=$(list_tags orgs) || TAGS=$(list_tags users) || TAGS="__lookup_failed__"
+          if [ "$TAGS" = "__lookup_failed__" ]; then
+            gum style --foreground 3 "ℹ could not list the published tags of $PKG_NAME (new package, or gh lacks read:packages) — not checking $NEW"
+          elif printf '%s\n' "$TAGS" | grep -qxF "$NEW"; then
+            gum style --foreground 1 "$DESTINATION is already published — bump the version in a PR instead, or set FORCE=1 to overwrite it"
+            exit 1
+          fi
+        fi
 
         # --- plan + confirm ---
         gum style --foreground 4 "→ push $CONFIG"
