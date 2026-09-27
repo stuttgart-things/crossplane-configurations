@@ -1,0 +1,29 @@
+---
+# The EnvironmentConfig for Rancher-mode ClusterStacks in LabDA
+# (`spec.rancher.environmentConfig: rancher-labda`). The Rancher is the one on
+# sthings-platform (https://rancher.sthings-platform.4sthings.tiab.ssc.sva.de),
+# NOT the LabUL one rancher-join-test points at — a LabDA node registering there
+# would cross the lab boundary (crossplane-configurations#508, gap 3).
+#
+# The Rancher credential is the `rancher-mgmt-labda` ClusterProviderConfig
+# (cluster-provider-config-rancher-labda.yaml beside this file) over the
+# crossplane-system/rancher-mgmt-labda-kubeconfig Secret, which comes from
+# sops-git. `providerConfigRef: in-cluster` is the provider-kubernetes config for
+# the management cluster itself.
+#
+# `distro` decides which catalog entry fits: this Rancher provisions k3s, so
+# orders against it use `distribution: rancher-k3s`. The module refuses
+# rancher-rke2 against it at render time (kcl#282, #490).
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: rancher-cluster-labda
+  labels:
+    rancher-cluster.resources.stuttgart-things.com/environment: rancher-labda
+data:
+  distro: k3s
+  # Offered by the LabDA Rancher (2.14.3).
+  kubernetesVersion: v1.35.8+k3s1
+  providerConfigRef: in-cluster
+  rancherNamespace: fleet-default
+  rancherProviderConfigRef: rancher-mgmt-labda

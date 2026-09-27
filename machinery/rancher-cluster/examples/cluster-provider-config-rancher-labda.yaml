@@ -1,0 +1,23 @@
+---
+# The LabDA twin of cluster-provider-config-rancher.yaml: provider-kubernetes on
+# the management cluster talking to the Rancher MANAGEMENT cluster in LabDA
+# (sthings-platform). Selected through environment-config-rancher-labda.yaml
+# (`rancherProviderConfigRef: rancher-mgmt-labda`).
+#
+# Its Secret holds sthings-platform's kubeconfig. On the fleet it comes from
+# sops-git (stuttgart-things secrets/rancher-mgmt-labda-kubeconfig.enc.yaml); by
+# hand:
+#
+#   kubectl -n crossplane-system create secret generic rancher-mgmt-labda-kubeconfig \
+#     --from-file=kubeconfig=$HOME/.kube/labda-sthings-platform
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: rancher-mgmt-labda
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: rancher-mgmt-labda-kubeconfig
+      key: kubeconfig
