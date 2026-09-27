@@ -118,7 +118,8 @@ spec:
       # No tokenPolicies: in rancher mode they are derived from the
       # EnvironmentConfig for environment labda (pki-issue-4sthings).
       #
-      # No wildcardCertificate: the 4sthings PKI role has allow_glob_domains
-      # false, so Vault answers a *.<cluster> request with 403. One Certificate
-      # per service works; the Gateway's wildcard-tls stays empty until the
-      # role changes.
+      # *.<cluster>.4sthings.tiab.ssc.sva.de into default/wildcard-tls, the
+      # Secret the cilium Gateway names. The 4sthings PKI role issues
+      # wildcards and requires a commonName, which the Platform sets.
+      wildcardCertificate:
+        enabled: true
