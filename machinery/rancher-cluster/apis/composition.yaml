@@ -357,6 +357,10 @@ spec:
             {{- $hQuantity := $harvester.quantity | default 1 }}
             {{- $defaultUserData := "#cloud-config\npackage_update: true\npackages:\n  - qemu-guest-agent\nruncmd:\n  - - systemctl\n    - enable\n    - '--now'\n    - qemu-guest-agent.service\n" }}
             {{- $userData := $harvester.userData | default $defaultUserData }}
+            {{- /* Optional, and emitted only when set: an unset networkData
+                   leaves the HarvesterConfig byte-identical to before the field
+                   existed, and the VM on DHCP. */}}
+            {{- $networkData := $harvester.networkData | default "" }}
             {{- $diskInfo := dict "disks" (list (dict "imageName" $hImage "bootOrder" 1 "size" $hDisk)) | toJson }}
             {{- $networkInfo := dict "interfaces" (list (dict "networkName" $hNetwork "macAddress" "")) | toJson }}
             ---
@@ -397,6 +401,9 @@ spec:
                   sshPort: "22"
                   reservedMemorySize: "-1"
                   userData: {{ $userData | b64enc }}
+                  {{- if $networkData }}
+                  networkData: {{ $networkData | b64enc }}
+                  {{- end }}
             ---
             # (1b) PROVISION (Harvester) — provisioning Cluster with one machine
             # pool backed by the HarvesterConfig above and a Harvester cloud

@@ -251,6 +251,23 @@ spec:
                         Composition base64-encodes it for HarvesterConfig).
                         Defaults to installing + enabling qemu-guest-agent,
                         which Harvester needs for IP reporting.
+                    networkData:
+                      type: string
+                      description: >-
+                        cloud-init network-config for the nodes (plain YAML,
+                        v1 or v2; the Composition base64-encodes it for
+                        HarvesterConfig, as it does userData). Unset means
+                        none: the VM takes its address from DHCP, as before.
+
+                        Set it to give a node an address that is known BEFORE
+                        the VM exists -- a static address reserved in
+                        clusterbook, say. That is what lets something other
+                        than Rancher reach the node while the cluster has no
+                        CNI yet: Rancher's proxy needs cattle-cluster-agent on
+                        a pod network, so a cluster built without one can only
+                        get its CNI through the node's own API server, at an
+                        address someone has to know. ClusterStack's machine
+                        pool (xplane-cluster 0.22.0) relies on this.
                 bootstrap:
                   type: object
                   description: >-
