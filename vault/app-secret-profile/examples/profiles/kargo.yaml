@@ -1,0 +1,23 @@
+# kargo — owns its per-cluster entry: the admin password and the token signing
+# key the chart's `kargo-admin` Secret carries (stuttgart-things/stuttgart-things#3232).
+#
+# The password is stored IN PLAIN, and that is deliberate: Kargo wants
+# ADMIN_ACCOUNT_PASSWORD_HASH as a bcrypt hash, and `generate` makes a random
+# value but cannot hash one. The ExternalSecret that renders `kargo-admin`
+# (argocd cicd/kargo) hashes it at read time. The plain value is also the one a
+# person needs to log in.
+apiVersion: secrets.stuttgart-things.com/v1alpha1
+kind: AppSecretProfile
+metadata:
+  name: kargo
+spec:
+  mount: kargo
+  entries:
+    - suffix: ""
+      keys:
+        password:
+          generate: {length: 32}
+          overridable: true
+        tokenSigningKey:
+          generate: {length: 32}
+          overridable: true
