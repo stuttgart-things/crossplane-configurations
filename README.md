@@ -58,7 +58,7 @@ Common workflows are wrapped in [`Taskfile.yaml`](Taskfile.yaml):
 | `task apply-dev` | Apply a Configuration and/or example XR from local files (dev install) |
 | `task pre-commit` | Run the repo's pre-commit hooks (file hygiene, YAML, workflows, secrets) |
 | `task verify` | Offline package + example XR validation (same dagger module the CI workflow runs) |
-| `task push` | Build and push a Configuration as an OCI package to `ghcr.io` (bumps `meta.crossplane.io/version`) |
+| `task push` | Build and push a Configuration as an OCI package to `ghcr.io` — the version `origin/main` carries, from `main`, never over a published tag |
 | `task push-dev` | Build and push to [ttl.sh](https://ttl.sh) for quick try-on-cluster dev iteration (anonymous, public, ephemeral — default 1 h TTL); no version bump, no canonical-registry touch |
 
 Each interactive task uses [`gum`](https://github.com/charmbracelet/gum) pickers by default. For CI, scripts and agents — anywhere without a TTY — every picker can be bypassed with an env var (see _Non-interactive usage_ below).
@@ -74,7 +74,7 @@ Every `gum choose` / `gum confirm` in the Taskfile has an env-var bypass. When t
 | `check`      | `KUBECONFIG=<path>`, `CONFIG=k8s/<name>` |
 | `apply-dev`  | `KUBECONFIG=<path>`, `CONFIG=k8s/<name>`, `WHAT=configuration\|xr\|both`, `XR=<file>`, `YES=1` (skip confirm) |
 | `verify`     | `CONFIG=k8s/<name>` |
-| `push`       | `CONFIG=k8s/<name>`, `BUMP=patch\|minor\|major\|custom\|vX.Y.Z` (`custom` requires `VERSION=vX.Y.Z`), `YES=1` (skip confirm), plus the existing `REGISTRY` / `USERNAME` / `PASSWORD_ENV` / `PREFIX` |
+| `push`       | `CONFIG=k8s/<name>`, `BUMP=current\|patch\|minor\|major\|custom\|vX.Y.Z` (`custom` requires `VERSION=vX.Y.Z`; anything but the version on `origin/main` needs `FORCE=1`), `YES=1` (skip confirm), `FORCE=1` (skip the main/tag guards), plus the existing `REGISTRY` / `USERNAME` / `PASSWORD_ENV` / `PREFIX` |
 | `push-dev`   | `CONFIG=k8s/<name>`, `TTL=1h\|24h\|…` (default `1h`), `TTL_PREFIX=<scope>` (default `$(whoami)/crossplane-configurations`) |
 
 Examples:
@@ -89,11 +89,12 @@ CONFIG=k8s/namespace task verify
 # dev-install everything for one Configuration onto a chosen cluster
 KUBECONFIG=~/.kube/lab.yaml CONFIG=k8s/namespace WHAT=both XR=xr.yaml YES=1 task apply-dev
 
-# tag and push without prompts (token comes from $GITHUB_TOKEN by default)
-CONFIG=k8s/namespace BUMP=patch YES=1 task push
+# publish what main carries, without prompts (token comes from $GITHUB_TOKEN by default):
+# the version bump and README row go in the PR, this runs on main after the merge
+CONFIG=k8s/namespace BUMP=current YES=1 task push
 
-# pin a specific version
-CONFIG=k8s/namespace BUMP=custom VERSION=v0.2.0 YES=1 task push
+# a number main does not carry (a pre-release, say) only with FORCE=1
+CONFIG=k8s/namespace BUMP=custom VERSION=v0.2.0-rc1 FORCE=1 YES=1 task push
 
 # dev iteration: push to ttl.sh, install on a test cluster, throw away
 CONFIG=k8s/volume-claim task push-dev   # → ttl.sh/<you>/crossplane-configurations/volume-claim:1h
