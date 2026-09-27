@@ -414,6 +414,8 @@ spec:
       apiVersion: provisioning.cattle.io/v1
       kind: Cluster
       metadata:
+        annotations:
+          field.cattle.io/no-creator-rbac: "true"
         labels:
           app.kubernetes.io/part-of: stuttgart-things
           env: prod

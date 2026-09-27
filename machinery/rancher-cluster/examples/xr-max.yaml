@@ -24,6 +24,8 @@ spec:
     env: prod
     team: platform
     app.kubernetes.io/part-of: stuttgart-things
+  clusterAnnotations:
+    field.cattle.io/no-creator-rbac: "true"
   machineGlobalConfig:
     cni: calico
     disable:

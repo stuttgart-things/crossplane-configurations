@@ -82,6 +82,7 @@ real XR is usually just `name` + per-cluster sizing + `argocd.register`.
 | `infrastructure` | | `generic` | `generic` (custom-node) or `harvester` (VM machine pool) |
 | `rancherNamespace` | | **env** → `fleet-default` | Namespace of the provisioning Cluster + kubeconfig Secret |
 | `clusterLabels` | | — | Extra labels on the `provisioning.cattle.io` Cluster |
+| `clusterAnnotations` | | — | Extra annotations on the `provisioning.cattle.io` Cluster — create-time only for `field.cattle.io/no-creator-rbac` (v0.11.0, see below) |
 | `machineGlobalConfig` | | — | Free-form `rkeConfig.machineGlobalConfig` passthrough |
 | `clusterSpec` | | — | Free-form passthrough merged **under** the whole `provisioning.cattle.io` Cluster spec — see [Cluster options](#cluster-options-machineglobalconfig-and-clusterspec) |
 | `harvester.cloudCredentialSecretName` | | **env** | Harvester cloud credential, `cattle-global-data:<name>` (Rancher UI → Cloud Credentials) |
@@ -294,8 +295,37 @@ with `spec.machineGlobalConfig` per key (the latter wins), because the two halve
 are the same distro config file and splitting them across the two fields is
 reasonable.
 
-Still not reachable: the Cluster's `metadata.annotations` (only `clusterLabels` is
-plumbed through).
+The Cluster's `metadata` is reachable through `clusterLabels` and, since
+v0.11.0, `clusterAnnotations`.
+
+### A ServiceAccount as the Rancher credential (`clusterAnnotations`, v0.11.0)
+
+Rancher's webhook wants a **Rancher user** as a cluster's creator. With a plain
+Kubernetes ServiceAccount behind `rancherProviderConfigRef` — which is what a
+credential scoped to exactly this Composition's needs is — the CREATE is refused:
+
+```
+admission webhook "rancher.cattle.io.clusters.provisioning.cattle.io" denied the request:
+creatorID annotation does not match user
+```
+
+Reads, the Observe objects and updates to an existing Cluster all work; only the
+create does not. The documented way out is to create the Cluster with
+
+```yaml
+clusterAnnotations:
+  field.cattle.io/no-creator-rbac: "true"
+```
+
+so Rancher neither records a creator nor grants one owner rights. **Create-time
+only:** on a Cluster that already has a `creatorId` (every Cluster created with an
+admin credential) the webhook refuses the annotation — *"cannot have creatorID
+annotation when no-creator-rbac is set"* — and because the Object re-applies its
+manifest on every reconcile, adding it to a live order wedges that Object for good.
+Both measured against Rancher 2.14.3 on LabDA's sthings-platform, 2026-09-27
+(#508). That is why this is a field on the order and not a key in the
+EnvironmentConfig: an environment that switches credentials still has clusters
+that were created with the old one.
 
 ## Node registration (`spec.nodeRegistration.publish`)
 

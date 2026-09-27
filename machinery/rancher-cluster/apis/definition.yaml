@@ -103,6 +103,25 @@ spec:
                   description: "Extra labels for the provisioning.cattle.io Cluster."
                   additionalProperties:
                     type: string
+                clusterAnnotations:
+                  type: object
+                  description: >-
+                    Extra annotations for the provisioning.cattle.io Cluster.
+
+                    The case it exists for: `field.cattle.io/no-creator-rbac: "true"`
+                    when the rancherProviderConfigRef credential is a Kubernetes
+                    ServiceAccount rather than a Rancher user. Rancher's webhook
+                    otherwise refuses the CREATE with "creatorID annotation does
+                    not match user" -- it wants a Rancher user as the creator
+                    (crossplane-configurations#508, LabDA).
+
+                    Set it when the cluster is CREATED, never later: the webhook
+                    also refuses adding no-creator-rbac to a Cluster that already
+                    carries a creatorId ("cannot have creatorID annotation when
+                    no-creator-rbac is set"), and since the Object re-applies its
+                    manifest on every reconcile, that refusal would be permanent.
+                  additionalProperties:
+                    type: string
                 machineGlobalConfig:
                   type: object
                   description: >-

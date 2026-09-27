@@ -436,6 +436,12 @@ spec:
                       {{ $k }}: {{ $v | quote }}
                       {{- end }}
                     {{- end }}
+                    {{- if $spec.clusterAnnotations }}
+                    annotations:
+                      {{- range $k, $v := $spec.clusterAnnotations }}
+                      {{ $k }}: {{ $v | quote }}
+                      {{- end }}
+                    {{- end }}
                   {{- /* Built as a map and merged rather than written literally, so
                          spec.clusterSpec can add anything the CRD offers without this
                          template listing it. Composed keys win the merge; the ones
@@ -477,6 +483,12 @@ spec:
                     {{- if $spec.clusterLabels }}
                     labels:
                       {{- range $k, $v := $spec.clusterLabels }}
+                      {{ $k }}: {{ $v | quote }}
+                      {{- end }}
+                    {{- end }}
+                    {{- if $spec.clusterAnnotations }}
+                    annotations:
+                      {{- range $k, $v := $spec.clusterAnnotations }}
                       {{ $k }}: {{ $v | quote }}
                       {{- end }}
                     {{- end }}
