@@ -51,9 +51,9 @@ spec:
   ansible:
     stages:
       baseos:
-        # dns_zones with the k3s CoreDNS half needs sthings-baseos >= 26.927.1371.
+        # dns_zones with the k3s CoreDNS half needs sthings-baseos >= 26.927.1372.
         extraCollections:
-          - https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.927.1371/sthings-baseos-26.927.1371.tar.gz
+          - https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.927.1372/sthings-baseos-26.927.1372.tar.gz
         extraPlaybooks:
           - sthings.baseos.dns_zones
         # Stage extraVars REPLACE the shared ones.
