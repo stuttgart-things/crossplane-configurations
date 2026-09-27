@@ -31,11 +31,15 @@ data:
         - read-schmetterpause-clusters
       observability:
         - read-observability-clusters
+      # The kargo profile's entry (stuttgart-things/stuttgart-things#3232).
+      kargo:
+        - read-kargo-clusters
     # --- app secrets (AppSecretProfiles, #464) -------------------------------
     # Logical mount of a profile -> the real KV mount in this Vault.
     mounts:
       homerun2: homerun2
       schmetterpause: schmetterpause
+      kargo: kargo
     # Shared, externally seeded values: name used by profiles -> `_` entry.
     # Consumers read these directly; nothing copies them into a cluster entry.
     shared:
@@ -60,6 +64,6 @@ data:
         - zaehlwerk
     # The provider-vault ClusterProviderConfig logging in as the
     # cluster-secrets-writer AppRole (write-{observability,homerun2,
-    # schmetterpause}-clusters).
+    # schmetterpause,kargo}-clusters).
     writer:
       providerConfigName: vault-cluster-secrets
