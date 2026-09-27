@@ -78,6 +78,21 @@ spec:
                     the storage class and image, the way proxmoxvm-labul does for
                     Proxmox. Without one the VM has nothing to boot from.
                     crossplane-configurations#258 Block B.
+
+
+                    With a rancher distribution (rancher-k3s | rancher-rke2)
+                    Harvester is a MACHINE POOL by default (xplane-cluster
+                    0.22.0): no HarvesterVM, RANCHER builds the VM through a
+                    HarvesterConfig. The node's address is reserved in
+                    clusterbook first (`{name}-node-ip`, key `<cluster>-node`)
+                    and handed to the VM as static cloud-init networkData, so
+                    the kubeconfig stage and ClusterAccess can reach a node that
+                    has no CNI yet. Needs `machinePool` (networkKey,
+                    prefixLength, gateway, nameservers,
+                    clusterbookProviderConfigRef) in the environment's
+                    EnvironmentConfig and rancher-cluster >= v0.10.0.
+                    `rancher.infrastructure: generic` keeps the custom-node
+                    HarvesterVM (crossplane-configurations#503).
                 size:
                   type: string
                   default: medium
@@ -436,6 +451,14 @@ spec:
                     (environmentConfig, kubernetesVersion, argocd, vaultAuth,
                     clusterSpec, …). Only used when the distribution's catalog
                     entry has `provisioner: rancher`.
+
+                    On a Harvester machine pool `infrastructure` and `harvester`
+                    are composed, not passed through: sizing from `size`, the
+                    static networkData from the node reservation, and
+                    `rancher.harvester` merged on top (cloud credential, image
+                    and network come from rancher-cluster's own
+                    EnvironmentConfig). `nodeRegistration` is only passed
+                    through there if the order sets it -- nothing joins by hand.
 
                     `name` and `nodeRegistration.publish` are supplied by this
                     Composition: the join stage reads the registration command
