@@ -82,6 +82,8 @@ spec:
     labels:
       network-platform/cert-manager-vault-pki: "false"
     register: false
+  clusterAnnotations:
+    field.cattle.io/no-creator-rbac: "true"
   environmentConfig: rancher-labda
   kubernetesVersion: v1.35.8+k3s1
   machineGlobalConfig:
