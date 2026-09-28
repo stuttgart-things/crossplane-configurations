@@ -1,0 +1,40 @@
+---
+# Two Vaults, LabDA's shape (#508 point 6): cert-manager signs from the PKI
+# Vault, External Secrets reads from the OpenBao on sthings-infra.
+#
+# The `eso` auth names a DIFFERENT provider config than the issuer, so it gets
+# a VaultK8sAuth of its own (labda-x-platform-vault-auth-openbao-labda) aimed at
+# the OpenBao. `ownKvMount` composes the cluster's own KV v2 mount `labda-x`
+# there -- adopted by path, never deleted -- plus the policy
+# xp-labda-x-eso-own that reads it whole, appended to the auth's tokenPolicies.
+#
+# Both need authProvider provider-vault, and a foreign auth needs its own
+# vaultAddr; the render fails otherwise.
+#
+# In a ClusterStack none of this is written by hand: xplane-cluster derives the
+# eso auth from the environment's vault.eso and the order's `secretStores: [own]`.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: labda-x-platform
+  namespace: default
+spec:
+  clusterName: labda-x
+  vaultIssuer:
+    enabled: true
+    authProvider: provider-vault
+    vaultProviderConfigRef: vault-labda
+    vaultAddr: https://vault-vsphere.tiab.labda.sva.de:8200
+    pkiMount: pki
+    pkiRole: 4sthings.tiab.ssc.sva.de
+    tokenPolicies: ["pki-issue-4sthings"]
+    caSourceSecret: vault-pki-source-ca-labda # pragma: allowlist secret
+    reviewerSecret: labda-x-reviewer # pragma: allowlist secret
+    additionalAuths:
+      - name: eso
+        vaultProviderConfigRef: openbao-labda
+        vaultAddr: https://openbao.sthings-infra.4sthings.tiab.ssc.sva.de
+        ownKvMount: true
+        boundServiceAccountNames: ["eso"]
+        boundServiceAccountNamespaces: ["external-secrets"]
+        createServiceAccounts: true
