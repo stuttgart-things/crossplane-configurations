@@ -610,6 +610,14 @@ spec:
                     the render. A Vault Kubernetes-auth role accepts ANY existing
                     policy, so whoever orders a cluster must not choose them
                     (#454).
+
+                    `own` is the cluster's OWN KV mount, named after it, for an
+                    environment that keeps one per cluster (`vault.eso.ownMount`,
+                    LabDA's OpenBao): it becomes `<clusterName>` in kv-mounts and
+                    the Platform composes the mount and its read policy. When the
+                    environment sets `vault.eso.providerConfigName`/`vaultAddr`,
+                    the eso auth and the stores go to THAT Vault while
+                    cert-manager stays on the issuer's (#508).
                   items:
                     type: string
                 platform:
