@@ -162,6 +162,13 @@ spec:
       key: token
     deleteAllVersions: true
     path: rke2-rancher-1-scoreboard
+  - data:
+    - generate:
+        charset: alphanumeric
+        length: 32
+      key: token
+    deleteAllVersions: true
+    path: rke2-rancher-1-kiosk
 ---
 apiVersion: opentofu.m.upbound.io/v1beta1
 kind: Workspace

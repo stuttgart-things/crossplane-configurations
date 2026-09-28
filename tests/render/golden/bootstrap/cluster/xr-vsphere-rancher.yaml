@@ -79,8 +79,11 @@ spec:
     annotations:
       clusterbook.stuttgart-things.com/vault-server: https://vault-vsphere.tiab.labda.sva.de:8200
       clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki-k8s
+      external-secrets.stuttgart-things.com/kv-mounts: rancher-vsphere-1
+      external-secrets.stuttgart-things.com/vault-server: https://openbao.sthings-infra.4sthings.tiab.ssc.sva.de
     labels:
       network-platform/cert-manager-vault-pki: "false"
+      security-platform/external-secrets-stores: "true"
     register: false
   clusterAnnotations:
     field.cattle.io/no-creator-rbac: "true"

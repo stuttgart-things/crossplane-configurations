@@ -39,6 +39,11 @@ spec:
   distribution: rancher-k3s
   size: medium
   environmentConfig: labda
+  # The cluster's own KV mount on the LabDA OpenBao (environment vault.eso):
+  # mount <cluster> + policy xp-<cluster>-eso-own + auth <cluster>-eso there,
+  # while cert-manager stays on the PKI Vault. Content comes from stuttgart-things
+  # sthings-infra/openbao-cluster-secrets.
+  secretStores: [own]
   kubeconfig:
     # The LabDA Vault's tekton credential; the ClusterAccess reads the entry
     # back through vault-kubeconfigs-labda, derived from this name.
