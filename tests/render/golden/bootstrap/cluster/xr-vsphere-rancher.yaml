@@ -90,6 +90,7 @@ spec:
     disable:
     - traefik
     - servicelb
+    - local-storage
     disable-kube-proxy: true
     disable-network-policy: true
     flannel-backend: none
