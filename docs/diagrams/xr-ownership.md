@@ -107,7 +107,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | bootstrap | [flux-init](../../bootstrap/flux-init/) | `FluxInit` | `config.stuttgart-things.com` | Namespaced | v0.3.0 | — |
 | bootstrap | [ip-reservation](../../bootstrap/ip-reservation/) | `XIPReservation` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
 | bootstrap | [management-plane](../../bootstrap/management-plane/) | `ManagementPlane` | `config.stuttgart-things.com` | Namespaced | v0.3.3 | — |
-| bootstrap | [platform](../../bootstrap/platform/) | `Platform` | `config.stuttgart-things.com` | Namespaced | v0.8.0 | `cni`, `flux-apps`, `flux-init`, `ip-reservation`, `vault-auth`, `vault-k8s-auth`, `vault-pki-secrets` |
+| bootstrap | [platform](../../bootstrap/platform/) | `Platform` | `config.stuttgart-things.com` | Namespaced | v0.9.0 | `cni`, `flux-apps`, `flux-init`, `ip-reservation`, `vault-auth`, `vault-k8s-auth`, `vault-pki-secrets` |
 | bootstrap | [remote-cluster](../../bootstrap/remote-cluster/) | `ClusterAccess` | `config.stuttgart-things.com` | Namespaced | v0.1.1 | — |
 | bootstrap | [vault-auth](../../bootstrap/vault-auth/) | `VaultK8sAuth` | `config.stuttgart-things.com` | Namespaced | v0.4.0 | — |
 | bootstrap | [vault-config](../../bootstrap/vault-config/) | `VaultConfig` | `config.stuttgart-things.com` | Namespaced | v0.1.0 | — |
@@ -152,7 +152,7 @@ diagrams can see.
 | `flux-init` | environment-configs → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-flux-init?tag=0.3.0` |
 | `ip-reservation` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-ip-reservation?tag=0.1.0` |
 | `management-plane` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-management-plane?tag=0.6.1` |
-| `platform` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-platform?tag=0.25.0` |
+| `platform` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-platform?tag=0.26.0` |
 | `remote-cluster` | kcl → kcl → auto-ready | inline |
 | `vault-auth` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-vault-auth?tag=0.9.0` |
 | `vault-config` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-vault-config?tag=0.5.0` |

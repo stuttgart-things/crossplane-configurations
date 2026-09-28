@@ -1,0 +1,351 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: labda-x-platform
+  namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: config.stuttgart-things.com/v1alpha1
+      kind: FluxInit
+      name: labda-x-platform-flux-init
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: labda-x-platform-auth-ns-external-secrets
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: labda-x-platform-auth-sa-external-secrets-eso
+    - apiVersion: kubernetes.m.crossplane.io/v1alpha1
+      kind: Object
+      name: labda-x-platform-cert-manager-observe
+    - apiVersion: vault.stuttgart-things.com/v1alpha1
+      kind: VaultK8sAuth
+      name: labda-x-platform-vault-auth
+    - apiVersion: vault.stuttgart-things.com/v1alpha1
+      kind: VaultK8sAuth
+      name: labda-x-platform-vault-auth-openbao-labda
+    - apiVersion: vault.vault.m.upbound.io/v1alpha1
+      kind: Mount
+      name: labda-x-platform-kv-eso
+    - apiVersion: vault.vault.m.upbound.io/v1alpha1
+      kind: Policy
+      name: labda-x-platform-kv-eso-policy
+status:
+  componentCount: 2
+  components:
+    cilium:
+      enabled: false
+      gatewayName: cilium-gateway
+      gatewayReady: false
+      loadBalancerReady: false
+      networkKey: ""
+      ready: false
+    clusterSecrets:
+      enabled: false
+      entry: ""
+      mount: observability
+      ready: false
+    cni:
+      enabled: false
+      provider: ""
+      ready: false
+      version: ""
+    fluxApps:
+      appCount: 0
+      enabled: false
+      pendingCount: 0
+      pendingSubstitutions: []
+      ready: false
+      readyCount: 0
+    fluxInit:
+      enabled: true
+      instanceReady: false
+      operatorReady: false
+      ready: false
+      sourceCount: 0
+      sourcesReady: false
+    ipReservation:
+      domain: ""
+      enabled: false
+      fqdn: ""
+      ipAddresses: []
+      networkKey: ""
+      ready: false
+      zone: ""
+    vaultIssuer:
+      authReady: false
+      auths: {}
+      caReady: false
+      certManagerReady: false
+      enabled: true
+      issuerReady: false
+      ready: false
+      serviceAccounts:
+      - external-secrets/eso
+      waitingForCertManager: true
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: no components are waiting on a discovered value
+    reason: AllSupplied
+    status: "False"
+    type: PendingSubstitutions
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: labda-x-platform-auth-ns-external-secrets, labda-x-platform-auth-sa-external-secrets-eso,
+      labda-x-platform-cert-manager-observe, and 5 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: false
+  readyComponents: 0
+  shared:
+    clusterName: labda-x
+    helmProviderConfigRef: labda-x-helm
+    kubernetesProviderConfigRef: labda-x-kubernetes
+    namespace: flux-system
+    observeProviderConfigRef: in-cluster
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: labda-x-platform-auth-ns-external-secrets
+  labels:
+    crossplane.io/composite: labda-x-platform
+  name: labda-x-platform-auth-ns-external-secrets
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: labda-x-platform
+    uid: 254de250-5abe-5c5f-a610-fb41dca62525
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: external-secrets
+  managementPolicies:
+  - Observe
+  - Create
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: labda-x-kubernetes
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: labda-x-platform-auth-sa-external-secrets-eso
+  labels:
+    crossplane.io/composite: labda-x-platform
+  name: labda-x-platform-auth-sa-external-secrets-eso
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: labda-x-platform
+    uid: 254de250-5abe-5c5f-a610-fb41dca62525
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: eso
+        namespace: external-secrets
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: labda-x-kubernetes
+---
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: labda-x-platform-cert-manager-observe
+  labels:
+    crossplane.io/composite: labda-x-platform
+  name: labda-x-platform-cert-manager-observe
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: labda-x-platform
+    uid: 254de250-5abe-5c5f-a610-fb41dca62525
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Endpoints
+      metadata:
+        name: cert-manager-webhook
+        namespace: cert-manager
+  managementPolicies:
+  - Observe
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: labda-x-kubernetes
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: FluxInit
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: labda-x-platform-flux-init
+  labels:
+    crossplane.io/composite: labda-x-platform
+  name: labda-x-platform-flux-init
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: labda-x-platform
+    uid: 254de250-5abe-5c5f-a610-fb41dca62525
+spec:
+  clusterName: labda-x
+  helmProviderConfigRef: labda-x-helm
+  kubernetesProviderConfigRef: labda-x-kubernetes
+  namespace: flux-system
+  observeProviderConfigRef: in-cluster
+---
+apiVersion: vault.vault.m.upbound.io/v1alpha1
+kind: Mount
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: labda-x-platform-kv-eso
+    crossplane.io/external-name: labda-x
+  labels:
+    crossplane.io/composite: labda-x-platform
+  name: labda-x-platform-kv-eso
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: labda-x-platform
+    uid: 254de250-5abe-5c5f-a610-fb41dca62525
+spec:
+  forProvider:
+    description: KV v2 of cluster labda-x -- read by its External Secrets
+    options:
+      version: "2"
+    path: labda-x
+    type: kv
+  managementPolicies:
+  - Observe
+  - Create
+  - Update
+  - LateInitialize
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: openbao-labda
+---
+apiVersion: vault.vault.m.upbound.io/v1alpha1
+kind: Policy
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: labda-x-platform-kv-eso-policy
+    crossplane.io/external-name: xp-labda-x-eso-own
+  labels:
+    crossplane.io/composite: labda-x-platform
+  name: labda-x-platform-kv-eso-policy
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: labda-x-platform
+    uid: 254de250-5abe-5c5f-a610-fb41dca62525
+spec:
+  forProvider:
+    name: xp-labda-x-eso-own
+    policy: |-
+      path "labda-x/data/*" { capabilities = ["read"] }
+      path "labda-x/metadata/*" { capabilities = ["read", "list"] }
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: openbao-labda
+---
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultK8sAuth
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: labda-x-platform-vault-auth
+  labels:
+    crossplane.io/composite: labda-x-platform
+  name: labda-x-platform-vault-auth
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: labda-x-platform
+    uid: 254de250-5abe-5c5f-a610-fb41dca62525
+spec:
+  clusterName: labda-x
+  k8sAuths:
+  - backendConfig:
+      secretName: labda-x-reviewer
+    boundServiceAccountNames:
+    - cert-manager
+    boundServiceAccountNamespaces:
+    - cert-manager
+    name: certmanager
+    tokenPolicies:
+    - pki-issue-4sthings
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: vault-labda
+  vaultAddr: https://vault-vsphere.tiab.labda.sva.de:8200
+---
+apiVersion: vault.stuttgart-things.com/v1alpha1
+kind: VaultK8sAuth
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: labda-x-platform-vault-auth-openbao-labda
+  labels:
+    crossplane.io/composite: labda-x-platform
+  name: labda-x-platform-vault-auth-openbao-labda
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Platform
+    name: labda-x-platform
+    uid: 254de250-5abe-5c5f-a610-fb41dca62525
+spec:
+  clusterName: labda-x
+  k8sAuths:
+  - backendConfig:
+      secretName: labda-x-reviewer
+    boundServiceAccountNames:
+    - eso
+    boundServiceAccountNamespaces:
+    - external-secrets
+    name: eso
+    tokenPolicies:
+    - xp-labda-x-eso-own
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: openbao-labda
+  vaultAddr: https://openbao.sthings-infra.4sthings.tiab.ssc.sva.de

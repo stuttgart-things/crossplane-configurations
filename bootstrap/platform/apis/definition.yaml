@@ -408,6 +408,36 @@ spec:
                             items:
                               type: string
                             description: Policies that already exist in Vault.
+                          vaultProviderConfigRef:
+                            type: string
+                            maxLength: 253
+                            description: >-
+                              A DIFFERENT provider-vault ClusterProviderConfig than the
+                              issuer's puts this auth on another Vault, in a VaultK8sAuth
+                              of its own (one per provider config) — LabDA keeps
+                              cert-manager on the PKI Vault and External Secrets on an
+                              OpenBao (#508). Needs authProvider provider-vault and
+                              vaultAddr; both are render errors otherwise. Unset or equal
+                              to the issuer's: the auth stays on the issuer's Vault.
+                          vaultAddr:
+                            type: string
+                            description: >-
+                              Address of that other Vault, published on the auth's status
+                              as the one its consumers log in to. Only read together with
+                              a foreign vaultProviderConfigRef.
+                          ownKvMount:
+                            type: boolean
+                            default: false
+                            description: >-
+                              Compose the cluster's OWN KV v2 mount — named after the
+                              cluster, never chosen — plus a policy
+                              xp-{clusterName}-{name}-own reading it whole, appended to
+                              tokenPolicies. For environments with one mount per cluster
+                              (LabDA's OpenBao), where entries sit at the mount root and
+                              vault-k8s-auth's subtree policies cannot grant them. The
+                              mount is adopted by path and never deleted (no Delete in its
+                              managementPolicies), so a teardown keeps the secrets.
+                              provider-vault only.
                           policies:
                             type: array
                             description: >-
