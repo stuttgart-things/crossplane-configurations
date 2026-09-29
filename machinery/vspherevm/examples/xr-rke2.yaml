@@ -1,0 +1,56 @@
+---
+# Single-node rke2 on a DHCP-addressed VM, base-OS and rke2 in ONE AnsibleRun.
+#
+# sthings.rke.rke2_cluster (role sthings.rke.deploy_configure_rke) branches on
+# groups['initial_master_node'] and groups['additional_master_nodes'], so the
+# default inventory `all+["<ip>"]` fails with an undefined-group error. The IP
+# comes from DHCP, so `varsInventory` cannot name it up front either.
+# `inventoryGroups` puts the VM IP into the FIRST group and emits the others
+# empty once the VM is Ready with an IP:
+#
+#   initial_master_node+["<ip>"]
+#   additional_master_nodes+[]
+#   workers+[]
+#
+# The host is still in `all`, so sthings.baseos.setup (hosts: all) runs against
+# it in the same AnsibleRun. The vars mirror the rke2 reference run
+# (stuttgart-things crossplane/xrs/examples/ansiblerun-rke2.yaml) and the
+# xplane-cluster-catalog distributions/rke2.k entry.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  name: vspherevm-rke2
+  namespace: default
+spec:
+  environmentConfig: default
+  vm:
+    name: vspherevm-rke2
+    cpu: "4"
+    ram: "8192"
+    disk: "64"
+  ansible:
+    enabled: true
+    playbooks:
+      - sthings.baseos.setup
+      - sthings.rke.rke2_cluster
+    inventoryGroups:
+      - initial_master_node
+      - additional_master_nodes
+      - workers
+    varsFile:
+      - rke_state+-present
+      # Pinned to what the fleet runs, NOT the play default (1.36.1 / rke2r2).
+      - rke2_k8s_version+-1.35.1
+      - rke2_release_kind+-rke2r1
+      - cluster_setup+-singlenode
+      # Mandatory pair: rke2 ships no CNI, the role installs cilium itself.
+      - rke2_cni+-none
+      - install_cilium+-true
+      - disableKubeProxy+-true
+      - rke2_airgapped_installation+-true
+      - prepare_rancher_ha_nodes+-true
+      - install_helm_diff+-false
+      - cluster_name+-vspherevm-rke2
+      - fetched_kubeconfig_path+-/tmp/kubeconfig
+      - ansible_become+-true
+      - ansible_become_method+-sudo
