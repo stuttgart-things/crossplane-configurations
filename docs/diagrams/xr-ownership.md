@@ -102,7 +102,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | bootstrap | [capability](../../bootstrap/capability/) | `Capability` | `config.stuttgart-things.com` | Namespaced | v0.7.2 | — |
 | bootstrap | [cilium](../../bootstrap/cilium/) | `Cilium` | `config.stuttgart-things.com` | Namespaced | v0.1.0 | — |
 | bootstrap | [cluster](../../bootstrap/cluster/) | `ClusterStack` | `config.stuttgart-things.com` | Namespaced | v0.14.0 | `ansible-run`, `app-secret-profile`, `management-plane`, `platform`, `proxmoxvm`, `rancher-cluster`, `remote-cluster`, `vault-secrets`, `vspherevm` |
-| bootstrap | [cni](../../bootstrap/cni/) | `Cni` | `config.stuttgart-things.com` | Namespaced | v0.1.4 | — |
+| bootstrap | [cni](../../bootstrap/cni/) | `Cni` | `config.stuttgart-things.com` | Namespaced | v0.1.5 | — |
 | bootstrap | [flux-apps](../../bootstrap/flux-apps/) | `FluxApps` | `config.stuttgart-things.com` | Namespaced | v0.1.4 | — |
 | bootstrap | [flux-init](../../bootstrap/flux-init/) | `FluxInit` | `config.stuttgart-things.com` | Namespaced | v0.3.0 | — |
 | bootstrap | [ip-reservation](../../bootstrap/ip-reservation/) | `XIPReservation` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
@@ -147,7 +147,7 @@ diagrams can see.
 | `capability` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-capability?tag=0.8.2` |
 | `cilium` | kcl → kcl → auto-ready | inline |
 | `cluster` | environment-configs → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-cluster?tag=0.25.1` |
-| `cni` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-cni?tag=0.3.1` |
+| `cni` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-cni?tag=0.3.2` |
 | `flux-apps` | environment-configs → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-flux-apps?tag=0.3.0` |
 | `flux-init` | environment-configs → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-flux-init?tag=0.3.0` |
 | `ip-reservation` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-ip-reservation?tag=0.1.0` |

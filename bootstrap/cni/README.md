@@ -68,6 +68,21 @@ So a `Usage` makes the CRD Release **in use by** cilium's, with `replayDeletion:
 
 On rke2 the CRDs also arrive via `rke2-traefik-crd` — but after the CNI, and at rke2's pinned version (v1.5.1 on v1.36.4, pairing with neither cilium 1.19 nor 1.20). Turn that off (`ingress-controller: none` plus the CRD chart in `disable`) and let this own them.
 
+### An installed CNI stays installed (v0.1.5)
+
+The gates order the **first** install only. Until v0.1.5 the RemoteCluster gate
+was re-evaluated on every reconcile, and a Release that is not emitted is a
+Release Crossplane deletes. On `delivery-test1` the API was unreachable for three
+minutes, the observed RemoteCluster briefly lost `clusterType`, both Releases
+dropped out of the output, and provider-helm **uninstalled cilium and the
+Gateway API CRDs from the running cluster** — about 24 minutes without a network
+on a node with `flannel-backend: none` and no kube-proxy
+([kcl#319](https://github.com/stuttgart-things/kcl/issues/319)).
+
+`xplane-cni` 0.3.2 keeps emitting every Release it has composed, whatever the
+gates say. Switching `gatewayAPI.enabled` off still removes that Release: that
+is a spec decision, not a gate flickering.
+
 ## Spec
 
 | Field | Type | Required | Default | Description |
