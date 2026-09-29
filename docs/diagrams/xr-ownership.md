@@ -123,13 +123,13 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | k8s | [volume-claim](../../k8s/volume-claim/) | `VolumeClaim` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
 | machinery | [harvester-vm](../../machinery/harvester-vm/) | `HarvesterVM` | `resources.stuttgart-things.com` | Namespaced | v0.1.12 | `ansible-run`, `cloud-config`, `volume-claim` |
 | machinery | [proxmox-vm](../../machinery/proxmox-vm/) | `ProxmoxVM` | `resources.stuttgart-things.com` | Namespaced | v0.2.0 | — |
-| machinery | [proxmoxvm](../../machinery/proxmoxvm/) | `NativeProxmoxVM` | `resources.stuttgart-things.com` | Namespaced | v0.16.0 | `ansible-run` |
+| machinery | [proxmoxvm](../../machinery/proxmoxvm/) | `NativeProxmoxVM` | `resources.stuttgart-things.com` | Namespaced | v0.17.0 | `ansible-run` |
 | machinery | [rancher-cluster](../../machinery/rancher-cluster/) | `RancherCluster` | `resources.stuttgart-things.com` | Namespaced | v0.11.0 | `vault-auth` |
 | machinery | [virtual-machine](../../machinery/virtual-machine/) | `XVirtualMachine` | `resources.stuttgart-things.com` | Namespaced | v0.1.14 | `harvester-vm`, `vm-provision` |
 | machinery | [vm-batch](../../machinery/vm-batch/) | `VMBatch` | `resources.stuttgart-things.com` | Namespaced | v0.1.3 | `ansible-run`, `proxmoxvm`, `vspherevm` |
 | machinery | [vm-provision](../../machinery/vm-provision/) | `VMProvision` | `resources.stuttgart-things.com` | Namespaced | v0.1.2 | `ansible-run`, `proxmox-vm`, `vsphere-vm` |
 | machinery | [vsphere-vm](../../machinery/vsphere-vm/) | `VsphereVM` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
-| machinery | [vspherevm](../../machinery/vspherevm/) | `NativeVsphereVM` | `resources.stuttgart-things.com` | Namespaced | v0.12.0 | `ansible-run` |
+| machinery | [vspherevm](../../machinery/vspherevm/) | `NativeVsphereVM` | `resources.stuttgart-things.com` | Namespaced | v0.13.0 | `ansible-run` |
 | storage | [minio](../../storage/minio/) | `MinioBucket` | `storage.stuttgart-things.com` | Cluster | v0.1.0 | — |
 | vault | [app-secret-profile](../../vault/app-secret-profile/) | `AppSecretProfile` | `secrets.stuttgart-things.com` | Cluster | v0.1.1 | — |
 | vault | [vault-k8s-auth](../../vault/vault-k8s-auth/) | `VaultK8sAuth` | `vault.stuttgart-things.com` | Namespaced | v0.4.2 | — |

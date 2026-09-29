@@ -173,6 +173,22 @@ on the cluster: Tekton, the ansible credentials Secret (default
 `ansible-credentials`), and an in-cluster `provider-kubernetes` config.
 `status.share.ansibleReady` reflects the run's readiness.
 
+> **Inventory: `varsInventory` > `inventoryGroups` > `all`.** By default the VM
+> IP lands only in group `all` (`all+["<ip>"]`). Plays that branch on named
+> groups need more: `sthings.rke.rke2_cluster` (role
+> `sthings.rke.deploy_configure_rke`) requires `initial_master_node`,
+> `additional_master_nodes` and `workers` to exist even on a single node, and a
+> DHCP IP is not known when the XR is written, so `varsInventory` cannot name it.
+> `inventoryGroups: [initial_master_node, additional_master_nodes, workers]` puts
+> the IP into the **first** group and emits the rest empty —
+> `initial_master_node+["<ip>"]`, `additional_master_nodes+[]`, `workers+[]` —
+> the same rendering as the ClusterStack's `renderInventory()`; an empty group
+> becomes a header-only INI section, i.e. an existing-but-empty group. The host
+> is still in `all`, so `hosts: all` plays such as `sthings.baseos.setup` run in
+> the same AnsibleRun as the rke2 play (see `examples/xr-rke2.yaml`). An explicit
+> `varsInventory` still wins and is passed verbatim. Like every AnsibleRun input
+> it is read once: after the run exists it is re-emitted unchanged.
+
 > **`extraEnvSecretName`** names a Secret in the **PipelineRun's** namespace
 > whose keys become environment variables of the same name in the ansible step,
 > for plays that read `lookup('env', 'FOO')`. It is what lets a value reach the

@@ -345,6 +345,26 @@ spec:
                       items:
                         type: string
                     varsInventory:
+                      description: >-
+                        Inventory in ansible-run `group+["host",...]` syntax, passed
+                        VERBATIM to the AnsibleRun. Wins over `inventoryGroups`; unset (and
+                        no `inventoryGroups`) the VM IP lands in `all` (`all+["<ip>"]`).
+                      type: array
+                      items:
+                        type: string
+                    inventoryGroups:
+                      description: >-
+                        Named inventory groups for the VM IP, for plays that require groups
+                        to exist (e.g. sthings.rke.rke2_cluster needs initial_master_node,
+                        additional_master_nodes and workers even on a single node). The
+                        FIRST group gets the VM IP, every other group is emitted empty:
+                        [a, b, c] renders `a+["<ip>"]`, `b+[]`, `c+[]` (an empty group
+                        becomes a header-only INI section, i.e. an existing-but-empty
+                        group). Precedence: `varsInventory` (verbatim) > `inventoryGroups` >
+                        default `all+["<ip>"]`. The host is still a member of `all`, so
+                        `hosts: all` plays such as sthings.baseos.setup run in the same
+                        AnsibleRun alongside the rke2 play. Like every AnsibleRun input it
+                        is read once: after the run exists it is re-emitted unchanged.
                       type: array
                       items:
                         type: string

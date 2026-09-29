@@ -548,7 +548,21 @@ spec:
                 # #2432 ships and the templates are rebuilt.
                 _hasHostnameVar = len([v for v in _varsFile if v.startswith("vm_hostname")]) > 0
                 _varsFileFinal = _varsFile if _hasHostnameVar else _varsFile + ["vm_hostname+-{}".format(_hostname)]
-                _varsInventory = _ansible?.varsInventory or ['all+["{}"]'.format(_vmIP)]
+                # Inventory precedence: an explicit `varsInventory` is passed
+                # verbatim; else `inventoryGroups` puts the VM IP into the FIRST
+                # group and emits every other group present-but-empty; else the
+                # IP lands in `all`. The groups form is for plays that branch on
+                # named groups — sthings.rke.deploy_configure_rke (rke2/k3s)
+                # needs `initial_master_node`, `additional_master_nodes` and
+                # `workers` to EXIST even on a single node, and a DHCP IP is not
+                # known before this point, so `varsInventory` cannot express it.
+                # Same semantics as renderInventory() in the ClusterStack KCL
+                # (kcl crossplane/xplane-cluster/logic.k): `g+[]` becomes a
+                # header-only INI section, i.e. an existing-but-empty group. The
+                # host is still in `all`, so `hosts: all` plays (baseos) run in
+                # the same AnsibleRun.
+                _inventoryGroups = _ansible?.inventoryGroups or []
+                _varsInventory = _ansible?.varsInventory or ([('{}+["{}"]'.format(g, _vmIP) if g == _inventoryGroups[0] else "{}+[]".format(g)) for g in _inventoryGroups] if len(_inventoryGroups) > 0 else ['all+["{}"]'.format(_vmIP)])
                 _pipelineRunName = "{}-ansible".format(_name)
 
                 _ansibleRun = {
