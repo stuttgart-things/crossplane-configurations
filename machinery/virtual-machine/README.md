@@ -59,6 +59,13 @@ For `provider: harvester` the EnvironmentConfig `harvester` sub-block supplies:
 Ansible can reach the VM). `qemu-guest-agent` — required for the VM to report
 its IP — comes from the `HarvesterVM` XRD default, so it is not set here.
 
+**The image is fixed at creation.** Once the `HarvesterVM` exists, `imageId`
+and the image's `storageClassName` are taken from its observed spec, not from
+the `images` map. A pin change in the EnvironmentConfig therefore only affects
+NEW VMs, and changing `spec.os` on an existing VM does nothing: recreate the VM
+to move it to another image. (A PVC's storage class is immutable; following the
+pin on an existing VM left its disk `Synced=False` for ever, harvester#344.)
+
 ## Usage
 
 - **Minimum** — [`examples/xr-min.yaml`](examples/xr-min.yaml): just `size`, `provider`, `environment`; `os`/`count`/`ansible` default, topology from the EnvironmentConfig.

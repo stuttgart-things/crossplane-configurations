@@ -116,6 +116,12 @@ and is only populated by the **in-guest QEMU guest agent**. So:
   `status.atProvider.manifest.status.interfaces[0].ipAddress` via Sprig `dig`
   (nil-safe). It stays `[]` on the first reconcile, offline `render`, and until
   the guest boots + the agent reports — by design, no template error.
+- The VMI Object carries **`watch: true`** (v0.1.13, harvester#345). The first
+  snapshot is taken before the agent reports; without a watch,
+  provider-kubernetes re-reads it only on `--poll` (default 10m), so the IP
+  showed up ~10 min after Ready. The field needs provider-kubernetes started
+  with `--enable-watches` (DeploymentRuntimeConfig); without it, it is ignored
+  and the poll applies as before.
 - `status.share.ip` deliberately mirrors the OpenTofu leaves' convention so a
   `HarvesterVM` can later feed the shared `vm-provision` / Ansible layer.
 

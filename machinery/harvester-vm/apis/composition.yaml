@@ -524,6 +524,14 @@ spec:
                 kind: ClusterProviderConfig
               managementPolicies:
                 - Observe
+              # Re-read the VMI when it CHANGES, not only once per poll. The
+              # first snapshot is taken before the guest agent reports, and
+              # without a watch provider-kubernetes looks again only after
+              # --poll (default 10m): status.share.ip stayed [] for ~10 min
+              # after Ready (harvester#345). Needs provider-kubernetes started
+              # with --enable-watches; without that flag the field is ignored
+              # and the poll applies as before.
+              watch: true
               forProvider:
                 manifest:
                   apiVersion: kubevirt.io/v1

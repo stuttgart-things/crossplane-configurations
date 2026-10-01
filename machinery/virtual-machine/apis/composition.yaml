@@ -192,8 +192,23 @@ spec:
             # cloud-init user + ssh key come from the sub-block.
             _hvImages = _env?.images or {}
             _imgEntry = _hvImages[_os] if _os in _hvImages else {}
-            _imageId = _imgEntry?.imageId or ""
-            _imageSC = _imgEntry?.storageClassName or (_env?.storageClassName or "")
+
+            # STICKY image + storage class. The lookup above follows the
+            # EnvironmentConfig on EVERY reconcile, so a pin change (a new
+            # image for spec.os) rewrote the disk of every EXISTING VM -- and a
+            # PVC's storageClassName is immutable: the disk Object went
+            # Synced=False for ever ("spec is immutable after creation") while
+            # the VM kept running and the XR stayed Ready (harvester#344). A
+            # new image is for NEW VMs; an existing one keeps its own until it
+            # is rebuilt. So once the HarvesterVM exists, both values are
+            # re-emitted from its observed spec -- the same idea as the sticky
+            # AnsibleRun in harvester-vm. Changing spec.os on an existing VM
+            # therefore changes nothing: recreate the VM for another image.
+            _ocds = option("params").ocds or {}
+            _prevHV = _ocds["harvester-vm"]?.Resource if "harvester-vm" in _ocds else {}
+            _prevVolume = _prevHV?.spec?.volume or {}
+            _imageId = _prevVolume?.imageId or (_imgEntry?.imageId or "")
+            _imageSC = _prevVolume?.storageClassName or (_imgEntry?.storageClassName or (_env?.storageClassName or ""))
             _hvNamespace = _env?.namespace or "vms"
             _hvUser = _env?.user or "sthings"
             _hvSshKey = _env?.sshKey or ""

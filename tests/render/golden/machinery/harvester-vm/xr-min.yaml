@@ -268,6 +268,7 @@ spec:
   providerConfigRef:
     kind: ClusterProviderConfig
     name: default
+  watch: true
 ---
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: VolumeClaim
