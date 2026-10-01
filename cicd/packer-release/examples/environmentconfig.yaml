@@ -1,5 +1,6 @@
 ---
-# Per-environment defaults for the TEST VM of a PackerRelease.
+# Per-environment defaults for the TEST VM and the promotion of a
+# PackerRelease — the LabUL environment, which builds on PROXMOX.
 #
 # Selected by the config-scoped label
 # `packer-release.resources.stuttgart-things.com/environment`, matched against
@@ -8,11 +9,16 @@
 # one Selector match, and sibling Configurations ship EnvironmentConfigs whose
 # value is also "default".
 #
-# This environment covers ONLY the test VM. Build settings come from the
-# packer-build EnvironmentConfig, and any placement field left unset here falls
-# back to the vsphere-vm one. Set a field in exactly one of the three.
+# Two environments ship: this one (LabUL, Proxmox) and
+# environmentconfig-labda.yaml (LabDA, vSphere). LabUL vSphere is gone, so its
+# vCenter placement, govc folders and Vault path were removed here in v0.5.0.
+# An XR on this environment sets `test.provider: proxmox` (the XRD default is
+# still vsphere).
 #
-# Values below describe LabUL, verified 2026-07-21.
+# Build settings come from the packer-build EnvironmentConfig. Proxmox test-VM
+# placement (node, datastore, network) is deliberately NOT set here: it falls
+# back to the ProxmoxVM EnvironmentConfig, which owns it. Set a field in exactly
+# one place.
 apiVersion: apiextensions.crossplane.io/v1beta1
 kind: EnvironmentConfig
 metadata:
@@ -20,60 +26,33 @@ metadata:
   labels:
     packer-release.resources.stuttgart-things.com/environment: default
 data:
-  # Test VM placement. `folderPath` is deliberately a scratch folder: these VMs
-  # are created and destroyed per release and must not sit among real ones.
-  folderPath: stuttgart-things/testing
-  datacenter: /LabUL
-  datastore: /LabUL/datastore/UL-ESX-SAS-02
-  resourcePool: /LabUL/host/Cluster-V6.7/Resources
-  network: /LabUL/network/LAB-10.31.102
-
   # Must match the firmware the template was built with, or it will not boot.
   firmware: bios
 
-  # Hypervisor credentials, as tfvars, pre-created in the XR's namespace.
-  tfvarsSecretName: vsphere-tfvars # pragma: allowlist secret
+  # Hypervisor credentials as tfvars. NOT named here on purpose: the lookup is
+  # test.tfvars.secretName -> here -> "<provider>-tfvars", so leaving it unset
+  # gives a Proxmox test `proxmox-tfvars`. Naming `vsphere-tfvars` here (as
+  # this file did while LabUL had vSphere) handed vSphere credentials to every
+  # Proxmox test that did not restate it.
   tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
 
   # The OPENTOFU provider config the test VM's Workspace runs through -- NOT
   # the provider-kubernetes one that ansible-run/packer-build call
   # `crossplaneProviderConfig`. This name is a per-cluster choice; check it
   # with `kubectl get clusterproviderconfigs.opentofu.m.upbound.io` before
-  # trusting the value below.
-  #
-  # It said `default` until 2026-08-06, and that was never a value any fleet
-  # cluster served: kind1 has exactly one OpenTofu ClusterProviderConfig and it
-  # is called `in-cluster`. The live EnvironmentConfig there has always carried
-  # `in-cluster`, so this file was the stale copy -- and the way it fails is the
-  # expensive kind, `cannot get provider config: ClusterProviderConfig …
-  # "default" not found` at the test VM, after the build has already run.
-  # environmentconfig-labda.yaml documents the same trap.
+  # trusting the value below. A copied "default" fails the test VM with
+  # `cannot get provider config: ClusterProviderConfig … "default" not found`
+  # after the build has already run.
   providerConfigName: in-cluster
   providerConfigKind: ClusterProviderConfig
 
-  # Promotion of a tested template to the golden image. Everything here is
-  # environment, not release: the folders, the CA bundle and the pipeline pin
-  # are properties of LabUL. What is NOT here is `goldenName` -- which image a
-  # given build supersedes is a per-release decision, so it lives on the XR.
+  # Promotion of a tested template. On Proxmox that is a pull request against
+  # the config repo that moves the capability chart's templateVmId; merging it
+  # is the promotion (see xr-promote-proxmox.yaml). What is NOT here is
+  # anything per-release.
   #
   # None of this takes effect unless an XR sets `spec.promote.enabled: true`.
   promote:
-    # Where packer builds land, and where golden images live. Full inventory
-    # paths, since govc addresses objects by path.
-    buildFolder: /LabUL/vm/stuttgart-things/packer
-    goldenFolder: /LabUL/vm/stuttgart-things/vm-templates
-    previousSuffix: "-previous"
-    datacenter: /LabUL
-    insecureSkipVerify: "true"
-
-    # Vault holds the vCenter credentials and sits behind the lab's private CA,
-    # so the CA bundle is not optional here despite the pipeline treating the
-    # workspace as optional. Without it the run fails at the Vault call, and
-    # the error mentions neither TLS nor this ConfigMap.
-    caCertsConfigMapName: packer-ca-certs
-    vaultSecretName: vault # pragma: allowlist secret
-    vaultSecretPath: cloud/data/vsphere # pragma: allowlist secret
-
     # Namespace the promote PipelineRun runs in, and the provider-KUBERNETES
     # ClusterProviderConfig the wrapping Object targets -- not the OpenTofu one
     # above. Per-cluster: check with
@@ -81,13 +60,17 @@ data:
     namespace: tekton-ci
     crossplaneProviderConfig: in-cluster
 
-    # Must be a stage-time tag CONTAINING promote-packer-template.yaml, i.e.
-    # >= v0.10.0. Pinned rather than "main" because the git resolver fetches at
-    # render time, so an unpinned revision silently changes what runs.
-    pipelineRevision: v0.10.0
-
-    # govc ships in the packer image from 2.0.0 onwards.
     workingImage: ghcr.io/stuttgart-things/sthings-packer:2.0.0
+
+    proxmox:
+      # The golden pointer for THIS lab, as a yq path into the capability
+      # chart values. It names the environment block, which is why it lives in
+      # the per-lab EnvironmentConfig and nowhere has a default.
+      valuePath: .environments.labul.templateVmId
+      # Must be a stage-time tag CONTAINING promote-proxmox-template.yaml,
+      # >= v0.13.2 (v0.13.0/v0.13.1 could not re-run a promotion). Its own key,
+      # not promote.pipelineRevision, which pins the vSphere promoter.
+      pipelineRevision: v0.13.6
 
   # Ansible run against the test VM. Overridable per environment so a host
   # without an LVM data disk expresses that here rather than by editing an XR.

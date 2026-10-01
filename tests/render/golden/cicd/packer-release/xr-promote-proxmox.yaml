@@ -56,7 +56,6 @@ spec:
   hypervisor: proxmox
   osVersion: ubuntu26
   packerTemplate: ubuntu26-base-os.pkr.hcl
-  pipelineRevision: v0.12.0
   pipelineRunName: ubuntu26-labul-proxmox-release-build
   provisioning: base-os
   vaultSecretName: vault-infra

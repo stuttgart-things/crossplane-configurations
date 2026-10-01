@@ -1,26 +1,34 @@
 ---
-# Realistic usage: build ubuntu24 base-os in LabUL and verify the result by
-# cloning it and running the base-OS playbook against the clone.
+# Realistic usage: build ubuntu26 base-os in LabUL on Proxmox and verify the
+# result by cloning it and running the base-OS playbook against the clone.
 #
 # The test VM is named <xr-name>-test and exists only while the smoke test
 # runs; it is destroyed by the Composition ceasing to render it once the test
 # passes. A test that FAILS leaves the VM up on purpose, for inspection.
+#
+# On Proxmox the status carries both handles of the template: templateVmId
+# (what bpg clones and a promotion writes) and templateName (the name the build
+# reports through its packer manifest, stage-time >= v0.13.6). The test VM is
+# cloned by that name, because VMProvision's Proxmox path clones by name.
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: PackerRelease
 metadata:
-  name: ubuntu24-labul
+  name: ubuntu26-labul
   namespace: default
 spec:
   environmentConfig: default
   build:
     environmentConfig: default
-    osVersion: ubuntu24
+    osVersion: ubuntu26
     provisioning: base-os
-    packerTemplate: ubuntu24-base-os.pkr.hcl
+    packerTemplate: ubuntu26-base-os.pkr.hcl
     gitRevision: main
+    # The infra Vault: the build reads cicd-proxmox-labul/data/default and the
+    # base-os playbook ssh/data/sthings, both there, with one AppRole login.
+    vaultSecretName: vault-infra # pragma: allowlist secret
   test:
     enabled: true
-    provider: vsphere
+    provider: proxmox
     cpu: "4"
     ram: "4096"
     disk: "64"

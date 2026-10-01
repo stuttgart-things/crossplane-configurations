@@ -14,11 +14,14 @@
 #
 # osVersion + provisioning are set here because they identify THIS build;
 # lab and hypervisor come from the EnvironmentConfig. Together they compose
-# gitWorkspaceSubdirectory = packer/builds/ubuntu24-labul-vsphere-base-os.
+# gitWorkspaceSubdirectory = packer/builds/ubuntu26-labul-proxmox-base-os.
 #
-# packerTemplate is named explicitly rather than left at the default ".":
-# that build dir contains two byte-identical *.pkr.hcl files, so "." fails
-# with "Duplicate local definition".
+# packerTemplate is named explicitly rather than left at the default ".", so
+# a second *.pkr.hcl landing in the build dir cannot break the build with
+# "Duplicate local definition".
+#
+# vaultSecretName is left at its default (`vault`) because this file pins only
+# what it must. A real LabUL Proxmox build names `vault-infra` -- see xr.yaml.
 #
 # On a cluster the API server also applies the XRD defaults
 # (wrapInCrossplane=true, crossplaneProviderConfig=in-cluster), so there
@@ -31,7 +34,7 @@ metadata:
   name: packer-build-min
   namespace: default
 spec:
-  pipelineRunName: build-ubuntu24-min
+  pipelineRunName: build-ubuntu26-min
   # Set explicitly for the same reason as wrapInCrossplane: `crossplane render`
   # does not apply XRD defaults, so without it spec.environmentConfig is absent,
   # the Selector matcher is skipped (fromFieldPathPolicy: Optional) and NO
@@ -39,7 +42,7 @@ spec:
   # gitWorkspaceSubdirectory rendering as "". On a cluster the XRD default
   # ("default") applies and this line is redundant.
   environmentConfig: default
-  osVersion: ubuntu24
+  osVersion: ubuntu26
   provisioning: base-os
-  packerTemplate: ubuntu24-base-os.pkr.hcl
+  packerTemplate: ubuntu26-base-os.pkr.hcl
   wrapInCrossplane: true

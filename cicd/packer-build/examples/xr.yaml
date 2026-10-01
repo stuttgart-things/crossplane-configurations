@@ -1,38 +1,41 @@
 ---
-# Representative example: the shape a real vSphere base-OS build takes.
+# Representative example: the shape a real LabUL Proxmox base-OS build takes.
 #
-# This mirrors the PipelineRun that was validated end to end against the LabUL
-# vCenter (template ubuntu24-base-20260720-1118, ~22 minutes), expressed as an
-# XR instead of a hand-written PipelineRun.
+# The same build ran end to end through Crossplane/Tekton and produced template
+# 211 (crossplane-configurations#214). On Proxmox the XR status then carries
+# both handles: status.templateVmId (211, what bpg clones and the promotion
+# writes) and status.templateName (the template_name, which the build reports
+# through its packer manifest post-processor from stage-time v0.13.6).
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: PackerBuild
 metadata:
-  name: packer-build-ubuntu24-labul
+  name: packer-build-ubuntu26-labul
   namespace: default
 spec:
-  pipelineRunName: build-ubuntu24-labul-base-os
+  pipelineRunName: build-ubuntu26-labul-proxmox-base-os
   environmentConfig: default
 
   # Build selection. lab + hypervisor come from the EnvironmentConfig, so the
-  # composed subdirectory is packer/builds/ubuntu24-labul-vsphere-base-os.
-  osVersion: ubuntu24
+  # composed subdirectory is packer/builds/ubuntu26-labul-proxmox-base-os.
+  osVersion: ubuntu26
   provisioning: base-os
 
-  # NOT "." — that build dir ships two byte-identical templates and packer
-  # init fails with "Duplicate local definition".
-  packerTemplate: ubuntu24-base-os.pkr.hcl
+  # Named explicitly rather than "." so a second *.pkr.hcl in the build dir
+  # cannot fail packer init with "Duplicate local definition".
+  packerTemplate: ubuntu26-base-os.pkr.hcl
   packerAction: build
 
   # A real base-OS build runs ~20 minutes and pulls a full guest ISO.
   storageSize: 5Gi
 
-  # Vault: the templates call packer's vault() function, which needs
-  # VAULT_ADDR + VAULT_TOKEN. VAULT_ROLE_ID/VAULT_SECRET_ID are inert here —
-  # packer never performs an AppRole login.
-  vaultSecretName: vault # pragma: allowlist secret
+  # Vault: the template reads cicd-proxmox-labul/data/default and the base-os
+  # playbook ssh/data/sthings, both on the infra Vault. `vault-infra` carries
+  # VAULT_ADDR + an AppRole and deliberately no VAULT_TOKEN: execute-packer logs
+  # in itself from stage-time v0.12.0 (the EnvironmentConfig pins v0.13.6).
+  vaultSecretName: vault-infra # pragma: allowlist secret
 
   wrapInCrossplane: true
-  crossplaneObjectName: packer-build-ubuntu24-labul
+  crossplaneObjectName: packer-build-ubuntu26-labul
   crossplaneNamespace: default
   crossplaneProviderConfig: in-cluster
   # Ready only once the build actually succeeds, not when the Object applies.

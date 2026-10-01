@@ -53,6 +53,7 @@ spec:
   deriveReadiness: true
   environmentConfig: default
   gitRevision: main
+  hypervisor: vsphere
   lab: labda
   osVersion: ubuntu26
   packerTemplate: ubuntu26-base-os.pkr.hcl

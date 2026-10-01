@@ -1,8 +1,8 @@
 ---
 # The full release on Proxmox: build, smoke-test, and — only if the test passes
 # — promote. Promotion here does NOT look like the vSphere sibling
-# (xr-promote.yaml), and the difference is worth understanding before enabling
-# it.
+# (xr-promote-labda.yaml), and the difference is worth understanding before
+# enabling it.
 #
 # On vSphere, promotion renames the golden image aside and the fresh build in.
 # That works because consumers resolve templates by inventory name/path, so the
@@ -27,6 +27,10 @@
 #   * no PVE API call happens at all, so this needs no node access (unavailable
 #     in LabUL anyway) and no Proxmox API token
 #
+# The status names the build twice: status.templateVmId is the VMID the
+# promotion writes, status.templateName the name the test VM was cloned from
+# (reported by the build's packer manifest, stage-time >= v0.13.6).
+#
 # Precondition that is NOT part of this package: a Secret holding a token that
 # may push a branch and open a pull request on the config repo. The read-only
 # clone credential the build pipelines use is not sufficient. Name it via
@@ -48,14 +52,11 @@ spec:
     # The infra Vault, not the default `vault` Secret: the Proxmox build reads
     # cicd-proxmox-labul/data/default, and the base-os playbook reads
     # ssh/data/sthings — both live there, and one AppRole login covers both.
+    # vault-infra deliberately carries no VAULT_TOKEN, only an AppRole, which
+    # execute-packer logs in with from stage-time v0.12.0. The packer-build
+    # EnvironmentConfig pins v0.13.6, so build.pipelineRevision is no longer
+    # needed here (it was, at v0.12.0, while the environment sat on v0.9.0).
     vaultSecretName: vault-infra # pragma: allowlist secret
-    # Goes WITH the line above, and the pair is the whole reason this field
-    # exists (v0.4.0). vault-infra deliberately carries no VAULT_TOKEN, only an
-    # AppRole, and execute-packer learned to log in at stage-time v0.12.0. On the
-    # environment's older pin the build dies on "Must set VAULT_TOKEN env var in
-    # order to use vault template function" — naming the Vault is not enough.
-    # Drop this once packer-build's EnvironmentConfig is bumped fleet-wide.
-    pipelineRevision: v0.12.0
   test:
     enabled: true
     provider: proxmox
@@ -99,4 +100,4 @@ spec:
       # Floor v0.13.2: v0.13.0/v0.13.1 could open a promotion but not re-run one
       # (the push died on "stale info"), and since a PackerRelease reconciles
       # repeatedly that turned every promotion after the first into PromoteFailed.
-      pipelineRevision: v0.13.2
+      pipelineRevision: v0.13.6

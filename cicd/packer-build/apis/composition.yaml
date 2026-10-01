@@ -73,8 +73,8 @@ spec:
     # composed resources) and patches the composite status. Returning only
     # the desired XR (dxr) leaves the rendered Object from the previous
     # step untouched — function-kcl carries forward prior desired state.
-    # Identical to ansible-run's: it reads only generic PipelineRun status, so
-    # nothing here is packer-specific.
+    # Generic like ansible-run's (it reads only PipelineRun status), plus one
+    # packer-specific lift: templateName / templateVmId, see below.
     - step: derive-status
       functionRef:
         name: function-kcl
@@ -115,6 +115,32 @@ spec:
                 if r?.name and typeof(r?.value) == "str"
             ]
 
+            # The template a build produced, by name AND -- on Proxmox -- by
+            # VMID. execute-packer's `template-name` is packer's artifact ID:
+            # the template name on vsphere-iso, the numeric VMID on
+            # proxmox-iso, where packer prints the name nowhere. Since
+            # stage-time v0.13.6 the pipeline also emits
+            # `template-display-name`, which a Proxmox build fills from its
+            # manifest post-processor (stuttgart-things packer/builds) and which
+            # otherwise falls back to the artifact ID. A Proxmox release needs
+            # both: the VMID is what clones and the promotion address, the name
+            # is what a human and a name-based clone read (#214, #525).
+            #
+            # The hypervisor resolves exactly like the KCL module's own:
+            # XR spec -> EnvironmentConfig -> "vsphere".
+            _spec = _params?.oxr?.spec or {}
+            _env = _params?.ctx?["apiextensions.crossplane.io/environment"] or {}
+            _isProxmox = (_spec?.hypervisor or _env?.hypervisor or "vsphere") == "proxmox"
+            _artifactIds = [r.value for r in _results if r.name == "template-name"]
+            _displayNames = [r.value for r in _results if r.name == "template-display-name"]
+            _artifactId = _artifactIds[0] if _artifactIds else ""
+            _displayName = _displayNames[0] if _displayNames else ""
+            # On Proxmox a display name equal to the VMID is the fallback, not a
+            # name, so it is left out rather than reported as one.
+            _proxmoxName = _displayName if _displayName != _artifactId else ""
+            _templateName = _proxmoxName if _isProxmox else (_displayName or _artifactId)
+            _templateVmId = _artifactId if _isProxmox else ""
+
             _statusPatch = {
                 installed = True if _manifest else False
                 succeeded = _sc?.status or "Unknown"
@@ -128,6 +154,8 @@ spec:
                     for c in _children
                 ]
                 results = _results
+                if _templateName: templateName = _templateName
+                if _templateVmId: templateVmId = _templateVmId
             }
 
             _dxr = _params?.dxr or {}

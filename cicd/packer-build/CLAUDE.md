@@ -71,16 +71,17 @@ These are build-time-only failures — `packer validate` does NOT catch them:
   (any template using `cd_files`) or on the `community.hashi_vault` lookup.
   Installing the packer ansible *plugin* does not help — it is a shim that
   shells out to the ansible-playbook *binary*.
-- **`vaultSecretName` must hold `VAULT_TOKEN`**, not just AppRole creds.
-  Packer's `vault()` builds a client from `VAULT_ADDR` + `VAULT_TOKEN` and
-  never performs an AppRole login; `VAULT_ROLE_ID`/`VAULT_SECRET_ID` are
-  injected but inert. Symptom:
+- **`vaultSecretName` needs `VAULT_TOKEN` OR an AppRole, and AppRole needs
+  stage-time >= v0.12.0.** Packer's `vault()` only reads `VAULT_TOKEN`; from
+  v0.12.0 `execute-packer` logs in via `VAULT_ROLE_ID`/`VAULT_SECRET_ID` itself
+  when the Secret has no token (`vault-infra`, LabUL Proxmox, is AppRole-only).
+  On an older `pipelineRevision` the symptom is
   `Must set VAULT_TOKEN env var in order to use vault template function`.
 - **A private-CA Vault endpoint needs `caCertsConfigMapName`**, or the run
   dies with `x509: certificate signed by unknown authority`. The CA is
   downloadable unauthenticated from Vault itself at `/v1/pki/ca/pem`. The KCL
   module emitted no `caCerts` workspace at all before 0.4.0, so the XR path
-  could not build against the LabUL Vault.
+  could not build against a private-CA Vault.
 - **`packerTemplate: "."`** (the default) fails on build dirs holding more
   than one template: `packer init` reports `Duplicate local definition`.
   Several stuttgart-things dirs ship byte-identical duplicates, so naming a
@@ -103,3 +104,12 @@ task render   # then pick this configuration
 ```
 `crossplane render` does NOT apply XRD defaults, so examples set
 `wrapInCrossplane: true` explicitly (the KCL module's own default is `false`).
+
+## Template name vs. VMID (Proxmox)
+`template-name` (the pipeline result) is packer's artifact ID: the template
+name on vsphere-iso, the numeric VMID on proxmox-iso. `derive-status` sorts it
+into `status.templateName` / `status.templateVmId` by `hypervisor` (XR spec,
+then EnvironmentConfig, then `vsphere` — the KCL module's own resolution). On
+Proxmox the name comes from `template-display-name` (stage-time >= v0.13.6,
+filled from the build's packer manifest post-processor); a display name equal
+to the VMID is execute-packer's fallback and is NOT reported as a name.

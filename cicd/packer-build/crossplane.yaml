@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.4.1
+    meta.crossplane.io/version: v0.5.0
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -41,7 +41,8 @@ metadata:
         Object (which mirrors the live PipelineRun under
         `status.atProvider.manifest`) and surfaces the PipelineRun's
         `Succeeded` condition, reason/message, start/completion times and
-        child TaskRuns onto the `PackerBuild` status.
+        child TaskRuns onto the `PackerBuild` status, plus the template
+        the build produced: `templateName` and, on Proxmox, `templateVmId`.
       - `function-auto-ready` marks the XR ready once the composed Object
         reports ready. With `spec.deriveReadiness: true` (default) the
         Object's readiness is derived from the PipelineRun's `Succeeded`
@@ -63,7 +64,8 @@ metadata:
       - A `ClusterProviderConfig` for `provider-kubernetes` whose name
         matches `spec.crossplaneProviderConfig` on the XR.
       - The pipeline namespace (`spec.namespace`, default `tekton-ci`)
-        containing: a `vault` Secret with `VAULT_ADDR` + `VAULT_TOKEN`, a
+        containing: a vault Secret with `VAULT_ADDR` plus `VAULT_TOKEN` or
+        an AppRole (stage-time >= v0.12.0 logs in itself), a
         basic-auth Secret for cloning the private template repo, and — if
         the Vault endpoint uses a private CA — a ConfigMap holding that CA
         for the `caCerts` workspace.

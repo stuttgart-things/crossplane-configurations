@@ -2,14 +2,14 @@
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: PackerRelease
 metadata:
-  name: ubuntu24-labul-max
+  name: ubuntu26-labda-max
   namespace: default
 spec:
   crossplane:
     resourceRefs:
     - apiVersion: resources.stuttgart-things.com/v1alpha1
       kind: PackerBuild
-      name: ubuntu24-labul-max-build
+      name: ubuntu26-labda-max-build
 status:
   buildSucceeded: Unknown
   conditions:
@@ -22,12 +22,12 @@ status:
     status: "True"
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: ubuntu24-labul-max-build'
+    message: 'Unready resources: ubuntu26-labda-max-build'
     reason: Creating
     status: "False"
     type: Ready
   phase: Building
-  promotePipelineRunName: ubuntu24-labul-max-promote
+  promotePipelineRunName: ubuntu26-labda-max-promote
   promoteSucceeded: Unknown
   promoted: false
   tested: false
@@ -36,30 +36,31 @@ apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: PackerBuild
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: ubuntu24-labul-max-build
+    crossplane.io/composition-resource-name: ubuntu26-labda-max-build
   labels:
-    crossplane.io/composite: ubuntu24-labul-max
-  name: ubuntu24-labul-max-build
+    crossplane.io/composite: ubuntu26-labda-max
+  name: ubuntu26-labda-max-build
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
     blockOwnerDeletion: true
     controller: true
     kind: PackerRelease
-    name: ubuntu24-labul-max
-    uid: b5b0d263-1c03-5a14-ba9e-cd5d9d2f1d75
+    name: ubuntu26-labda-max
+    uid: 7152fd85-f0f3-5d32-94ff-0355d5d4f93e
 spec:
-  crossplaneObjectName: ubuntu24-labul-max-build-run
+  crossplaneObjectName: ubuntu26-labda-max-build-run
   deriveReadiness: true
   environmentConfig: default
   gitRevision: main
-  gitWorkspaceSubdirectory: packer/builds/ubuntu24-labul-vsphere-base-os
+  gitWorkspaceSubdirectory: packer/builds/ubuntu26-labda-vsphere-base-os
   hypervisor: vsphere
-  lab: labul
+  lab: labda
   namespace: tekton-ci
-  osVersion: ubuntu24
-  packerTemplate: ubuntu24-base-os.pkr.hcl
-  pipelineRunName: ubuntu24-labul-max-build
+  osVersion: ubuntu26
+  packerTemplate: ubuntu26-base-os.pkr.hcl
+  pipelineRevision: v0.13.6
+  pipelineRunName: ubuntu26-labda-max-build
   provisioning: base-os
   storageClass: openebs-hostpath
-  vaultSecretName: vault
+  vaultSecretName: vault-labda

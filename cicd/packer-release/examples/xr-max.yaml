@@ -2,54 +2,58 @@
 # Every spec field set — the maximal vSphere release: build, smoke-test, and
 # promote, with every build/test/promote knob pinned rather than resolved from
 # the three EnvironmentConfigs (packer-release, packer-build, vsphere-vm).
+# Values are LabDA's, the only vSphere lab that builds images (see
+# environmentconfig-labda.yaml for where each one was verified).
 #
 # Provider is vsphere, so the vSphere placement + promote fields are the ones
 # exercised here; the Proxmox test/promote sub-blocks are mutually exclusive
 # with vsphere at admission (see the XRD's x-kubernetes-validations) and are
 # covered by xr-promote-proxmox.yaml instead. This file is the vSphere super-set
-# — it catches templating breakage in fields xr/xr-promote never set (build
-# placement overrides, test.vsphere/tfvars/providerRef, promote folders/CA).
+# — it catches templating breakage in fields the other examples never set
+# (build placement overrides, test.vsphere/tfvars/providerRef, promote
+# folders/CA).
 #
 # `crossplane render` does not apply XRD defaults, so every defaulted field is
 # also stated explicitly here.
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: PackerRelease
 metadata:
-  name: ubuntu24-labul-max
+  name: ubuntu26-labda-max
   namespace: default
 spec:
-  environmentConfig: default
+  environmentConfig: labda
 
   build:
     environmentConfig: default
-    pipelineRunName: ubuntu24-labul-max-build
-    osVersion: ubuntu24
+    pipelineRunName: ubuntu26-labda-max-build
+    osVersion: ubuntu26
     provisioning: base-os
-    packerTemplate: ubuntu24-base-os.pkr.hcl
+    packerTemplate: ubuntu26-base-os.pkr.hcl
     gitRevision: main
-    lab: labul
+    lab: labda
     hypervisor: vsphere
-    gitWorkspaceSubdirectory: packer/builds/ubuntu24-labul-vsphere-base-os
+    gitWorkspaceSubdirectory: packer/builds/ubuntu26-labda-vsphere-base-os
     namespace: tekton-ci
     storageClass: openebs-hostpath
-    vaultSecretName: vault # pragma: allowlist secret
+    vaultSecretName: vault-labda # pragma: allowlist secret
+    pipelineRevision: v0.13.6
 
   test:
     enabled: true
     provider: vsphere
-    environmentConfig: default
+    environmentConfig: labda
     cpu: "4"
     ram: "4096"
     disk: "64"
     firmware: bios
     vsphere:
-      folderPath: /LabUL/vm/stuttgart-things/packer
-      datacenter: /LabUL
-      datastore: /LabUL/datastore/UL-ESX-SAS-01
-      resourcePool: /LabUL/host/UL-ESX-01/Resources
-      network: /LabUL/network/MGMT
+      folderPath: stuttgart-things/testing
+      datacenter: /NetApp-HCI-Datacenter
+      datastore: /NetApp-HCI-Datacenter/datastore/DatastoreCluster/NetApp-HCI-Datastore-02
+      resourcePool: /NetApp-HCI-Datacenter/host/NetApp-HCI-Cluster-01/Resources
+      network: /NetApp-HCI-Datacenter/network/tiab-prod
     tfvars:
-      secretName: vsphere-tfvars # pragma: allowlist secret
+      secretName: vsphere-tfvars-labda # pragma: allowlist secret
       secretKey: tfvars # pragma: allowlist secret
     providerRef:
       name: opentofu-vsphere
@@ -66,16 +70,16 @@ spec:
 
   promote:
     enabled: true
-    goldenName: sthings-u24
-    buildFolder: /LabUL/vm/stuttgart-things/packer
-    goldenFolder: /LabUL/vm/stuttgart-things/vm-templates
+    goldenName: sthings-u26
+    buildFolder: /NetApp-HCI-Datacenter/vm/stuttgart-things/packer
+    goldenFolder: /NetApp-HCI-Datacenter/vm/stuttgart-things/vm-templates
     previousSuffix: "-previous"
-    datacenter: /LabUL
+    datacenter: /NetApp-HCI-Datacenter
     insecureSkipVerify: "true"
-    pipelineRunName: ubuntu24-labul-max-promote
+    pipelineRunName: ubuntu26-labda-max-promote
     namespace: tekton-ci
     caCertsConfigMapName: packer-ca-certs
-    vaultSecretName: vault # pragma: allowlist secret
-    vaultSecretPath: vsphere/labul # pragma: allowlist secret
+    vaultSecretName: vault-labda # pragma: allowlist secret
+    vaultSecretPath: cloud/data/vsphere-labda # pragma: allowlist secret
     workingImage: ghcr.io/stuttgart-things/sthings-packer:2.0.0
     crossplaneProviderConfig: in-cluster

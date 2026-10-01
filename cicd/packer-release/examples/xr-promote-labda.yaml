@@ -1,12 +1,16 @@
 ---
-# The LabDA counterpart of xr-promote.yaml — and a transcript rather than a
-# sketch: this is the release that first carried an image through build, smoke
-# test and promotion in LabDA (ubuntu26-base-20260804-1537 →
+# The full vSphere release: build, smoke-test, and — only if the test passes —
+# replace the golden image every other consumer clones from. A transcript
+# rather than a sketch: this is the release that first carried an image through
+# build, smoke test and promotion in LabDA (ubuntu26-base-20260804-1537 →
 # /NetApp-HCI-Datacenter/vm/stuttgart-things/vm-templates/sthings-u26).
 #
-# It exists because vSphere image builds are moving here from LabUL, and three
-# of these fields cannot be copied from the LabUL example. Each is called out
-# below with what it costs to get wrong.
+# LabDA is the only vSphere lab that builds images (LabUL vSphere is gone).
+# Promotion renames the golden image aside and the fresh build in; it is not
+# undone by deleting this XR, and exactly one previous generation is kept as
+# `<goldenName>-previous`. Several fields below cannot be left to the defaults,
+# which describe LabUL Proxmox; each is called out with what it costs to get
+# wrong.
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: PackerRelease
 metadata:
@@ -20,16 +24,19 @@ spec:
   build:
     # NOT "labda". Build placement lives in the packer template itself, so the
     # build reads the packer-build EnvironmentConfig, which is the default one.
-    # The lab is chosen by `lab` just below.
+    # The lab and hypervisor are chosen just below: that EnvironmentConfig
+    # defaults to LabUL Proxmox, and without them the build would compose
+    # packer/builds/ubuntu26-labda-proxmox-base-os, which does not exist.
     environmentConfig: default
     lab: labda
+    hypervisor: vsphere
     osVersion: ubuntu26
     provisioning: base-os
     packerTemplate: ubuntu26-base-os.pkr.hcl
     gitRevision: main
     # The build reads its vCenter credentials from the LabDA Vault too. Separate
     # key from the promote-side one and it has its own default ("vault"), so it
-    # must be named here — a build left on the default runs against LabUL.
+    # must be named here — a build left on the default reads the wrong Vault.
     vaultSecretName: vault-labda # pragma: allowlist secret
 
   test:

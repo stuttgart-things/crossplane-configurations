@@ -1,19 +1,27 @@
 ---
-# Minimum: build a template and smoke-test it. Everything else — repos,
-# pipeline revision, CA, credentials, placement — comes from the three
-# EnvironmentConfigs (packer-release, packer-build, vsphere-vm).
+# Minimum: build a template and smoke-test it, in LabUL on Proxmox. Everything
+# else — repos, pipeline revision, CA, placement — comes from the
+# EnvironmentConfigs (packer-release, packer-build, proxmox-vm).
 #
 # `environmentConfig` is set explicitly because `crossplane render` does not
 # apply XRD defaults, so leaving it out makes an offline render skip the
 # selector and silently lose every environment value.
+#
+# Two fields beyond the build selectors cannot be left out on Proxmox:
+#   * test.provider — the XRD default is still `vsphere`.
+#   * build.vaultSecretName — the XRD defaults it to `vault`, and the Proxmox
+#     build reads the infra Vault (`vault-infra`, AppRole only).
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: PackerRelease
 metadata:
-  name: ubuntu24-labul
+  name: ubuntu26-labul
   namespace: default
 spec:
   environmentConfig: default
   build:
-    osVersion: ubuntu24
+    osVersion: ubuntu26
     provisioning: base-os
-    packerTemplate: ubuntu24-base-os.pkr.hcl
+    packerTemplate: ubuntu26-base-os.pkr.hcl
+    vaultSecretName: vault-infra # pragma: allowlist secret
+  test:
+    provider: proxmox
