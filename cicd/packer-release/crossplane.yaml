@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.4.2
+    meta.crossplane.io/version: v0.5.0
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -45,9 +45,9 @@ metadata:
         promote PipelineRun, but only when `spec.promote.enabled` is set
         AND the `tested` latch is closed — the golden image is replaced
         only by a template a VM actually booted from.
-      - `function-kcl` (`derive-status`) lifts the template name, build
-        state, test-VM IP and promotion result onto the XR status and
-        sets the latches.
+      - `function-kcl` (`derive-status`) lifts the template (name, and
+        on Proxmox also the VMID), build state, test-VM IP and promotion
+        result onto the XR status and sets the latches.
       - `function-auto-ready` marks the XR Ready. Because the test VM
         stops being composed once the latch is set, Ready means "built
         AND verified" — and with promotion enabled, also promoted.
@@ -77,8 +77,10 @@ metadata:
 
       Promotion additionally needs a provider-KUBERNETES
       `ClusterProviderConfig` (a different object from the OpenTofu one
-      the test VM uses) and a stage-time pipeline revision >= v0.10.0 —
-      the tag that first contains `promote-packer-template.yaml`.
+      the test VM uses) and a stage-time pipeline revision containing the
+      provider's promote pipeline: >= v0.10.0 for
+      `promote-packer-template.yaml` (vSphere), >= v0.13.2 for
+      `promote-proxmox-template.yaml`. Both default to v0.13.6.
 spec:
   crossplane:
     version: ">=v2.1.3"

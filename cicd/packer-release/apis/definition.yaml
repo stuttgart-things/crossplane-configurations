@@ -73,7 +73,7 @@ spec:
                         re-running a build means recreating this XR.
                     osVersion:
                       type: string
-                      description: OS segment of the build directory, e.g. "ubuntu24"
+                      description: OS segment of the build directory, e.g. "ubuntu26"
                     provisioning:
                       type: string
                       description: Provisioning segment of the build directory, e.g. "base-os"
@@ -81,7 +81,7 @@ spec:
                       type: string
                       description: |
                         Packer template file to build, e.g.
-                        "ubuntu24-base-os.pkr.hcl". Name a single FILE — "."
+                        "ubuntu26-base-os.pkr.hcl". Name a single FILE — "."
                         fails with "Duplicate local definition" on any build
                         directory holding more than one template.
                     gitRevision:
@@ -307,7 +307,7 @@ spec:
                       type: string
                       description: |
                         Name the golden image is published under, e.g.
-                        "sthings-u24". No default and not derivable from
+                        "sthings-u26". No default and not derivable from
                         osVersion — the mapping is a platform convention, so
                         set it here or in the EnvironmentConfig's `promote`
                         block. Missing when promotion is enabled is a hard
@@ -316,12 +316,12 @@ spec:
                       type: string
                       description: |
                         Inventory path packer builds into, e.g.
-                        "/LabUL/vm/stuttgart-things/packer".
+                        "/NetApp-HCI-Datacenter/vm/stuttgart-things/packer".
                     goldenFolder:
                       type: string
                       description: |
                         Inventory path golden images live in, e.g.
-                        "/LabUL/vm/stuttgart-things/vm-templates".
+                        "/NetApp-HCI-Datacenter/vm/stuttgart-things/vm-templates".
                     previousSuffix:
                       type: string
                       description: |
@@ -331,7 +331,7 @@ spec:
                       default: "-previous"
                     datacenter:
                       type: string
-                      description: vCenter datacenter, e.g. "/LabUL"
+                      description: vCenter datacenter, e.g. "/NetApp-HCI-Datacenter"
                     insecureSkipVerify:
                       type: string
                       description: Skip vCenter TLS verification (self-signed lab certs)
@@ -419,6 +419,8 @@ spec:
                             pipelineRef naming promote-proxmox-template.yaml at a
                             tag that does not contain it. Floor is v0.13.2 — v0.13.0/v0.13.1
                             could not re-run a promotion (stale-info push).
+                            Unset: the EnvironmentConfig's promote.proxmox
+                            value, else v0.13.6.
                         pipelinePath:
                           type: string
                           description: |
@@ -445,7 +447,8 @@ spec:
                     vaultSecretName:
                       type: string
                       description: |
-                        Secret carrying VAULT_ADDR / VAULT_TOKEN. Normally unset —
+                        Secret carrying VAULT_ADDR plus VAULT_TOKEN or an
+                        AppRole. Normally unset —
                         the EnvironmentConfig names the lab's Vault, and that is
                         the level the answer belongs at.
 
@@ -459,9 +462,8 @@ spec:
                         only Vault holding cloud/data/vsphere-labda.
 
                         Empty is not a hole — the param is only emitted when
-                        non-empty, so the pipeline's own default survives, and
-                        LabUL keeps resolving to `vault` through
-                        packer-release-defaults.
+                        non-empty, so the pipeline's own default (`vault`)
+                        survives.
                     vaultSecretPath:
                       type: string
                       description: Vault KV v2 path holding the vCenter credentials
@@ -553,10 +555,21 @@ spec:
                 templateName:
                   type: string
                   description: |
-                    The template the build produced, lifted from the nested
-                    PackerBuild's `template-name` pipeline result. This is the
-                    handle every later step needs — it is what the test VM is
-                    cloned from and what a promote step would rename.
+                    Name of the template the build produced. vSphere: the
+                    nested PackerBuild's `template-name` result — the handle the
+                    test VM is cloned from and the promote step renames.
+                    Proxmox: the `template-display-name` result (the build's
+                    manifest custom_data.template_name, stage-time >= v0.13.6),
+                    which the test VM is cloned from. Absent on Proxmox when the
+                    build reports no name; templateVmId then still carries the
+                    build. Until v0.5.0 this field held the VMID on Proxmox.
+                templateVmId:
+                  type: string
+                  description: |
+                    Proxmox only: VMID of the template the build produced (the
+                    `template-name` result). This is what bpg clones and what
+                    the Proxmox promotion writes to the capability chart's
+                    templateVmId.
                 buildSucceeded:
                   type: string
                   description: '"True", "False" or "Unknown" from the build PipelineRun'
@@ -626,6 +639,10 @@ spec:
         - name: TEMPLATE
           type: string
           jsonPath: .status.templateName
+        - name: VMID
+          type: string
+          jsonPath: .status.templateVmId
+          priority: 1
         - name: BUILT
           type: string
           jsonPath: .status.buildSucceeded

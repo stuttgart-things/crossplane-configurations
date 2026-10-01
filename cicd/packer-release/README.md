@@ -5,9 +5,9 @@ by composing two existing XRs rather than re-implementing either.
 
 ```
 PackerRelease XR
-  ├─ PackerBuild        (cicd/packer-build)   -> status.results[template-name]
+  ├─ PackerBuild        (cicd/packer-build)   -> status.results[template-name, template-display-name]
   ├─ VMProvision        (machinery/vm-provision)
-  │    ├─ VsphereVM     clone that template
+  │    ├─ VsphereVM / ProxmoxVM   clone that template (by name)
   │    └─ AnsibleRun    run playbooks against the clone
   └─ Object             promote PipelineRun (govc) — opt-in, gated on tested
 ```
@@ -25,21 +25,51 @@ The only way to find out is to clone it and drive it.
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: PackerRelease
 metadata:
-  name: ubuntu24-labul
+  name: ubuntu26-labul
   namespace: default
 spec:
   environmentConfig: default
   build:
-    osVersion: ubuntu24
+    osVersion: ubuntu26
     provisioning: base-os
-    packerTemplate: ubuntu24-base-os.pkr.hcl
+    packerTemplate: ubuntu26-base-os.pkr.hcl
+    vaultSecretName: vault-infra
+  test:
+    provider: proxmox
 ```
 
 ```
-$ kubectl get packerrelease
-NAME             PHASE     TEMPLATE                      BUILT   TESTED
-ubuntu24-labul   Tested    ubuntu24-base-20260721-1131   True    true
+$ kubectl get packerrelease -o wide
+NAME             PHASE    TEMPLATE                      VMID   BUILT   GOLDEN   TESTED
+ubuntu26-labul   Tested   ubuntu26-base-20261001-1200   211    True             true
 ```
+
+Two environments ship, one per lab that still builds images:
+
+| `spec.environmentConfig` | Lab | Hypervisor | Example |
+|---|---|---|---|
+| `default` | LabUL | Proxmox | `xr.yaml`, `xr-min.yaml`, `xr-build-only.yaml`, `xr-promote-proxmox.yaml` |
+| `labda` | LabDA | vSphere | `xr-promote-labda.yaml`, `xr-max.yaml` |
+
+LabUL vSphere is gone; its placement, govc folders and Vault path were removed
+from the examples in v0.5.0.
+
+### Template name and VMID
+
+On vSphere packer's artifact ID is the template name. On Proxmox it is the
+VMID, and packer prints the name nowhere, so the build reports the name
+separately: its packer manifest post-processor writes `template_name`, and
+stage-time `execute-packer` (>= v0.13.6) emits it as `template-display-name`.
+
+| Status field | vSphere | Proxmox |
+|---|---|---|
+| `templateName` | template name | template name if the build reports it, else absent |
+| `templateVmId` | — | VMID |
+
+The test VM is cloned by **name** on both providers (the Proxmox test path,
+VMProvision → ProxmoxVM, clones by name), which is what the identifier
+mismatch in #214 was about. The Proxmox **promotion** writes the **VMID**.
+Until v0.5.0 `templateName` held the VMID on Proxmox.
 
 See [`examples/`](examples/) for the full and build-only variants.
 
@@ -127,14 +157,14 @@ cannot address.
 ```yaml
   promote:
     enabled: true
-    goldenName: sthings-u24
+    goldenName: sthings-u26
 ```
 
 Everything else — build and golden folders, datacenter, CA bundle, Vault path,
-the pipeline pin — is environment, and lives in the EnvironmentConfig.
-`goldenName` does not: which image a build supersedes is a per-release
-decision, and it is not derivable from `osVersion` (the `ubuntu24` →
-`sthings-u24` mapping is a naming convention, not a rule).
+the pipeline pin — is environment, and lives in the EnvironmentConfig
+(`labda` for vSphere). `goldenName` does not: which image a build supersedes
+is a per-release decision, and it is not derivable from `osVersion` (the
+`ubuntu26` → `sthings-u26` mapping is a naming convention, not a rule).
 
 Exactly one previous generation is kept, as `<goldenName>-previous`, so a bad
 promotion is one rename away from rollback. `status.previousTemplate` holds its
@@ -175,8 +205,8 @@ prints the diff and opens nothing, which is how you prove the path matches
 before a release ever touches the config repo.
 
 Re-running is safe. The branch name is deterministic, so a second run updates
-its own open pull request instead of opening another. Requires stage-time
-**>= v0.13.2**: v0.13.0 and v0.13.1 could open a promotion but not re-run one
+its own open pull request instead of opening another. Defaults to stage-time
+v0.13.6; requires **>= v0.13.2**: v0.13.0 and v0.13.1 could open a promotion but not re-run one
 (the push died on `stale info`), and since a `PackerRelease` reconciles
 repeatedly, that turned every promotion after the first into `PromoteFailed`.
 
@@ -308,9 +338,10 @@ tag able to read it, which made Proxmox releases unexpressible: their
 credentials are only on the infra Vault, so they need both settings at once.
 
 Not the lever for moving the fleet forward — bumping the EnvironmentConfig is
-that change, and it is a fleet decision affecting every build including the
-vSphere golden ones. This is for one release that needs a different pin than
-its environment.
+that change, and it is a fleet decision affecting every build. The shipped
+packer-build EnvironmentConfig pins v0.13.6, so a Proxmox release no longer
+needs this. It is for one release that needs a different pin than its
+environment.
 
 ## Preconditions
 
@@ -332,7 +363,7 @@ On the target cluster, additionally:
   (`kubectl get clusterproviderconfigs.kubernetes.m.crossplane.io`), and a
   stage-time pin containing the pipeline for the provider in use — `>= v0.10.0`
   for `promote-packer-template.yaml` (vSphere), `>= v0.13.2` for
-  `promote-proxmox-template.yaml` (Proxmox). The two pins are separate keys:
+  `promote-proxmox-template.yaml` (Proxmox); both default to v0.13.6. The two pins are separate keys:
   `promote.pipelineRevision` is the vSphere one and predates Proxmox, so
   applying it there pins a tag that does not contain the file — use
   `promote.proxmox.pipelineRevision`.

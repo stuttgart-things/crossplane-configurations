@@ -12,18 +12,21 @@
 # path), complementing xr.yaml which composes it from osVersion/lab/hypervisor/
 # provisioning. osVersion/lab/hypervisor/provisioning are still set so the
 # compose inputs are exercised even though the explicit value wins.
+#
+# The LabDA vSphere build, so that between xr.yaml (LabUL Proxmox) and this
+# file both labs that still build images are covered.
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: PackerBuild
 metadata:
   name: packer-build-max
   namespace: default
 spec:
-  pipelineRunName: build-ubuntu24-labul-base-os-max
+  pipelineRunName: build-ubuntu26-labda-base-os-max
   namespace: tekton-ci
 
   # Pipeline DEFINITION location (stage-time).
   pipelineRepoUrl: https://github.com/stuttgart-things/stage-time.git
-  pipelineRevision: v0.9.0
+  pipelineRevision: v0.13.6
   pipelinePath: pipelines/build-packer-template.yaml
 
   # Template SOURCE repo.
@@ -33,9 +36,9 @@ spec:
   caCertsConfigMapName: packer-ca-certs
 
   # Build selection — explicit subdir (direct path) plus the compose inputs.
-  gitWorkspaceSubdirectory: packer/builds/ubuntu24-labul-vsphere-base-os
-  osVersion: ubuntu24
-  lab: labul
+  gitWorkspaceSubdirectory: packer/builds/ubuntu26-labda-vsphere-base-os
+  osVersion: ubuntu26
+  lab: labda
   hypervisor: vsphere
   provisioning: base-os
 
@@ -46,14 +49,14 @@ spec:
 
   # Packer run configuration.
   packerAction: build
-  packerTemplate: ubuntu24-base-os.pkr.hcl
-  packerOnly: vsphere-iso.ubuntu
+  packerTemplate: ubuntu26-base-os.pkr.hcl
+  packerOnly: vsphere-iso.ubuntu26_base
   packerForce: "false"
   packerRunInit: "true"
   packerVars:
-    - vm_name=ubuntu24-base
+    - vm_name=ubuntu26-base
     - disk_size=40960
-  packerVarsFile: vars/labul.pkrvars.hcl
+  packerVarsFile: vars/labda.pkrvars.hcl
   packerInitExtraArgs: -upgrade
   packerBuildExtraArgs: -timestamp-ui
   packerLog: "1"
@@ -61,7 +64,9 @@ spec:
 
   # Credentials.
   credentialsSecretName: packer-credentials # pragma: allowlist secret
-  vaultSecretName: vault # pragma: allowlist secret
+  # The LabDA Vault: the template reads cloud/data/vsphere-labda, which exists
+  # only there.
+  vaultSecretName: vault-labda # pragma: allowlist secret
 
   # Runtime.
   userHome: /home/nonroot

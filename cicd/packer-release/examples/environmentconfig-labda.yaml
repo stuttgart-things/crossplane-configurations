@@ -2,11 +2,11 @@
 # LabDA counterpart of environmentconfig.yaml, selected with
 # `spec.environmentConfig: labda` on the XR.
 #
-# It exists because LabUL vSphere is being decommissioned and its data migrated
-# to Proxmox: the u26 templates' datastore there is already empty, so vSphere
-# image builds move here. Only the TEST VM and the promotion read this — build
-# placement lives in the packer template itself, and the lab is selected with
-# `spec.build.lab: labda`.
+# LabDA is the only vSphere lab that builds images: LabUL vSphere is gone, and
+# LabUL builds on Proxmox (environmentconfig.yaml). Only the TEST VM and the
+# promotion read this — build placement lives in the packer template itself,
+# and the lab is selected with `spec.build.lab: labda` plus
+# `spec.build.hypervisor: vsphere`.
 #
 # Placement values are vCenter object PATHS, resolved from the IDs the fleet's
 # native vspherevm path uses (datastore-12 / resgroup-8 / dvportgroup-2048),
@@ -38,8 +38,8 @@ data:
 
   # LabDA hypervisor credentials as tfvars. Naming this is not optional: the
   # lookup order is test.tfvars.secretName -> here -> "<provider>-tfvars", and
-  # that last fallback is `vsphere-tfvars` — the LabUL Secret. A LabDA release
-  # that leaves this unset builds its test VM in LabUL and does not complain.
+  # that last fallback is `vsphere-tfvars` — the old LabUL Secret. A LabDA
+  # release that leaves this unset does not get LabDA credentials.
   tfvarsSecretName: vsphere-tfvars-labda # pragma: allowlist secret
   tfvarsSecretKey: terraform.tfvars # pragma: allowlist secret
 
@@ -75,13 +75,11 @@ data:
     # NOTE what is deliberately NOT here: goldenName. It is per-OS-VERSION
     # (sthings-u24 vs sthings-u26), while this file is per-LAB — one value here
     # would force every LabDA release onto the same golden image regardless of
-    # what it built. It stays on the XR, exactly as in the LabUL examples; see
-    # xr-promote-labda.yaml. packer-release-defaults omits it for the same
-    # reason.
+    # what it built. It stays on the XR; see xr-promote-labda.yaml.
 
-    # The bundle must carry the tiab CA (labda-vault-ca.crt), not only the LabUL
-    # one — the Vault call runs against a private CA and fails with an error
-    # that mentions neither TLS nor this ConfigMap.
+    # The bundle must carry the tiab CA (labda-vault-ca.crt) — the Vault call
+    # runs against a private CA and fails with an error that mentions neither
+    # TLS nor this ConfigMap.
     caCertsConfigMapName: packer-ca-certs
 
     namespace: tekton-ci
@@ -89,4 +87,5 @@ data:
 
     # Must be a stage-time tag CONTAINING promote-packer-template.yaml, i.e.
     # >= v0.10.0. Pinned because the git resolver fetches at render time.
-    pipelineRevision: v0.10.0
+    # v0.13.6: the packer pipelines there resolve their tasks at one tag.
+    pipelineRevision: v0.13.6

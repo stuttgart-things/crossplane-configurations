@@ -19,21 +19,26 @@ metadata:
 data:
   # Pipeline DEFINITION location (stage-time).
   # pipelineRevision is a PINNED TAG, not a branch: the git resolver fetches
-  # at render time, so "main" would silently change what runs.
+  # at render time, so "main" would silently change what runs. v0.13.6 is the
+  # first tag whose packer pipelines resolve their tasks at one tag, with the
+  # AppRole login (v0.12.0+) and the template-display-name result. Below
+  # v0.12.0 a Proxmox (vault-infra, AppRole-only) build dies with
+  # "Must set VAULT_TOKEN".
   pipelineRepoUrl: https://github.com/stuttgart-things/stage-time.git
-  pipelineRevision: v0.9.0
+  pipelineRevision: v0.13.6
   pipelinePath: pipelines/build-packer-template.yaml
 
   # Template SOURCE repo (private — hence gitBasicAuthSecretName)
   gitRepoUrl: https://github.com/stuttgart-things/stuttgart-things.git
   gitBasicAuthSecretName: packer-git-basicauth # pragma: allowlist secret
 
-  # ConfigMap holding the Vault CA. The LabUL Vault is behind a private CA, so
-  # without this the build dies at "x509: certificate signed by unknown
-  # authority". Populate it with:
-  #   curl -sk https://vault-vsphere.labul.sva.de:8200/v1/pki/ca/pem \
-  #     -o labul-vsphere-ca.crt
-  #   kubectl create configmap packer-ca-certs --from-file=labul-vsphere-ca.crt
+  # ConfigMap holding the Vault CAs. Both Vaults a build talks to sit behind a
+  # private CA -- the infra Vault (LabUL Proxmox, `vault-infra`) and the LabDA
+  # Vault (`vault-labda`) -- so without this the build dies at
+  # "x509: certificate signed by unknown authority". One bundle with every CA
+  # the cluster's builds need; each Vault serves its CA unauthenticated:
+  #   curl -sk "$VAULT_ADDR/v1/pki/ca/pem" -o <lab>-vault-ca.crt
+  #   kubectl create configmap packer-ca-certs --from-file=<lab>-vault-ca.crt ...
   caCertsConfigMapName: packer-ca-certs
 
   # Infra defaults
@@ -41,9 +46,12 @@ data:
   namespace: tekton-ci
 
   # Build-directory segments that are properties of the ENVIRONMENT rather
-  # than of an individual build.
+  # than of an individual build. Two labs build images: LabUL on Proxmox (the
+  # default here) and LabDA on vSphere (an XR sets `lab: labda` +
+  # `hypervisor: vsphere`). LabUL vSphere is gone, so there is no
+  # `*-labul-vsphere-*` build to compose any more.
   lab: labul
-  hypervisor: vsphere
+  hypervisor: proxmox
 
   # Working image. Must provide packer, xorriso, ansible-playbook and the
   # hashi_vault python deps (hvac) — a plain alpine packer image fails at

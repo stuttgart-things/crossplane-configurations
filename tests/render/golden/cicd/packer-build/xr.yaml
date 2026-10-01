@@ -2,14 +2,14 @@
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: PackerBuild
 metadata:
-  name: packer-build-ubuntu24-labul
+  name: packer-build-ubuntu26-labul
   namespace: default
 spec:
   crossplane:
     resourceRefs:
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
-      name: packer-build-ubuntu24-labul
+      name: packer-build-ubuntu26-labul
 status:
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
@@ -21,7 +21,7 @@ status:
     status: "True"
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: packer-build-ubuntu24-labul'
+    message: 'Unready resources: packer-build-ubuntu26-labul'
     reason: Creating
     status: "False"
     type: Ready
@@ -34,33 +34,33 @@ apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: packer-build-ubuntu24-labul
+    crossplane.io/composition-resource-name: packer-build-ubuntu26-labul
     uptest.upbound.io/timeout: "120"
   labels:
-    crossplane.io/composite: packer-build-ubuntu24-labul
-  name: packer-build-ubuntu24-labul
+    crossplane.io/composite: packer-build-ubuntu26-labul
+  name: packer-build-ubuntu26-labul
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
     blockOwnerDeletion: true
     controller: true
     kind: PackerBuild
-    name: packer-build-ubuntu24-labul
-    uid: e7de49e1-33dd-51cb-9ba3-36422e830795
+    name: packer-build-ubuntu26-labul
+    uid: 388c4297-a773-5f93-9029-f2fb30e195b5
 spec:
   forProvider:
     manifest:
       apiVersion: tekton.dev/v1
       kind: PipelineRun
       metadata:
-        name: build-ubuntu24-labul-base-os
+        name: build-ubuntu26-labul-proxmox-base-os
         namespace: tekton-ci
       spec:
         params:
         - name: packerAction
           value: build
         - name: packerTemplate
-          value: ubuntu24-base-os.pkr.hcl
+          value: ubuntu26-base-os.pkr.hcl
         - name: packerOnly
           value: ""
         - name: packerForce
@@ -82,7 +82,7 @@ spec:
         - name: credentialsSecretName
           value: packer-credentials
         - name: vaultSecretName
-          value: vault
+          value: vault-infra
         - name: userHome
           value: /home/nonroot
         - name: gitRepoUrl
@@ -90,13 +90,13 @@ spec:
         - name: gitRevision
           value: main
         - name: gitWorkspaceSubdirectory
-          value: packer/builds/ubuntu24-labul-vsphere-base-os
+          value: packer/builds/ubuntu26-labul-proxmox-base-os
         pipelineRef:
           params:
           - name: url
             value: https://github.com/stuttgart-things/stage-time.git
           - name: revision
-            value: v0.9.0
+            value: v0.13.6
           - name: pathInRepo
             value: pipelines/build-packer-template.yaml
           resolver: git

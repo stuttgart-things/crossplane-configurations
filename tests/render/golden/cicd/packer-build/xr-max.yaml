@@ -53,26 +53,26 @@ spec:
       apiVersion: tekton.dev/v1
       kind: PipelineRun
       metadata:
-        name: build-ubuntu24-labul-base-os-max
+        name: build-ubuntu26-labda-base-os-max
         namespace: tekton-ci
       spec:
         params:
         - name: packerAction
           value: build
         - name: packerTemplate
-          value: ubuntu24-base-os.pkr.hcl
+          value: ubuntu26-base-os.pkr.hcl
         - name: packerOnly
-          value: vsphere-iso.ubuntu
+          value: vsphere-iso.ubuntu26_base
         - name: packerForce
           value: "false"
         - name: packerRunInit
           value: "true"
         - name: packerVars
           value:
-          - vm_name=ubuntu24-base
+          - vm_name=ubuntu26-base
           - disk_size=40960
         - name: packerVarsFile
-          value: vars/labul.pkrvars.hcl
+          value: vars/labda.pkrvars.hcl
         - name: packerInitExtraArgs
           value: -upgrade
         - name: packerBuildExtraArgs
@@ -84,7 +84,7 @@ spec:
         - name: credentialsSecretName
           value: packer-credentials
         - name: vaultSecretName
-          value: vault
+          value: vault-labda
         - name: userHome
           value: /home/nonroot
         - name: gitRepoUrl
@@ -92,13 +92,13 @@ spec:
         - name: gitRevision
           value: main
         - name: gitWorkspaceSubdirectory
-          value: packer/builds/ubuntu24-labul-vsphere-base-os
+          value: packer/builds/ubuntu26-labda-vsphere-base-os
         pipelineRef:
           params:
           - name: url
             value: https://github.com/stuttgart-things/stage-time.git
           - name: revision
-            value: v0.9.0
+            value: v0.13.6
           - name: pathInRepo
             value: pipelines/build-packer-template.yaml
           resolver: git

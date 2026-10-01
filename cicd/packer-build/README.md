@@ -20,18 +20,24 @@ PackerBuild XR
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: PackerBuild
 metadata:
-  name: packer-build-ubuntu24-labul
+  name: packer-build-ubuntu26-labul
   namespace: default
 spec:
-  pipelineRunName: build-ubuntu24-labul-base-os
-  osVersion: ubuntu24
+  pipelineRunName: build-ubuntu26-labul-proxmox-base-os
+  osVersion: ubuntu26
   provisioning: base-os
-  packerTemplate: ubuntu24-base-os.pkr.hcl
+  packerTemplate: ubuntu26-base-os.pkr.hcl
+  vaultSecretName: vault-infra
 ```
 
 With the shipped EnvironmentConfig that builds
-`packer/builds/ubuntu24-labul-vsphere-base-os` from the stuttgart-things repo,
-using the `v0.9.0` pipeline from stage-time.
+`packer/builds/ubuntu26-labul-proxmox-base-os` from the stuttgart-things repo,
+using the `v0.13.6` pipeline from stage-time.
+
+Two labs build images: **LabUL on Proxmox** (the EnvironmentConfig default)
+and **LabDA on vSphere** (`lab: labda`, `hypervisor: vsphere`,
+`vaultSecretName: vault-labda` on the XR, see `examples/xr-max.yaml`). LabUL
+vSphere is gone.
 
 See [`examples/`](examples/) for minimal and full XRs.
 
@@ -106,35 +112,40 @@ kubectl apply -f examples/environmentconfig.yaml
 ```
 
 Adjust `storageClass` first if the cluster's differs (e.g. `local-path`,
-`standard`), and `lab` / `hypervisor` if you are not building for LabUL
-vSphere.
+`standard`). The shipped `lab` / `hypervisor` build for LabUL Proxmox; a
+LabDA vSphere build overrides both on the XR.
 
 ### 3. Create the Vault CA ConfigMap
 
-Only needed when the Vault endpoint uses a private CA — which LabUL does.
-Vault serves its own CA unauthenticated:
+Only needed when the Vault endpoint uses a private CA — which both the infra
+Vault (LabUL Proxmox builds) and the LabDA Vault do. Bundle every CA the
+cluster's builds need into one ConfigMap. Vault serves its own CA
+unauthenticated:
 
 ```bash
-curl -sk https://vault-vsphere.labul.sva.de:8200/v1/pki/ca/pem \
-  -o labul-vsphere-ca.crt
+# once per Vault the cluster's builds use (VAULT_ADDR from the vault Secret)
+curl -sk "$VAULT_ADDR/v1/pki/ca/pem" -o <lab>-vault-ca.crt
 
 # Verify the CA actually validates the endpoint BEFORE trusting it --
 # note the absence of -k here. Using -k at this step hides exactly the
 # failure this ConfigMap exists to prevent.
-curl -s --cacert labul-vsphere-ca.crt -o /dev/null -w '%{http_code}\n' \
-  https://vault-vsphere.labul.sva.de:8200/v1/sys/health   # expect 200
+curl -s --cacert <lab>-vault-ca.crt -o /dev/null -w '%{http_code}\n' \
+  "$VAULT_ADDR/v1/sys/health"   # expect 200
 
 kubectl create configmap packer-ca-certs -n tekton-ci \
-  --from-file=labul-vsphere-ca.crt
+  --from-file=<lab>-vault-ca.crt   # repeat --from-file per CA
 ```
 
 The ConfigMap name must match `caCertsConfigMapName` in the EnvironmentConfig.
 
 ### 4. Create the Vault Secret
 
-`VAULT_TOKEN` is **required** — packer's `vault()` builds a client from
-`VAULT_ADDR` + `VAULT_TOKEN` and never performs an AppRole login, so
-`VAULT_ROLE_ID` / `VAULT_SECRET_ID` alone will fail with
+The Secret carries `VAULT_ADDR` plus **either** `VAULT_TOKEN` **or** an
+AppRole (`VAULT_ROLE_ID` + `VAULT_SECRET_ID`). packer's `vault()` only reads
+`VAULT_TOKEN`, but from stage-time **v0.12.0** `execute-packer` performs the
+AppRole login itself when the Secret has no token, and revokes the token on
+exit. `vault-infra` (LabUL Proxmox) is AppRole-only on purpose. On a
+`pipelineRevision` below v0.12.0 an AppRole-only Secret fails with
 `Must set VAULT_TOKEN env var in order to use vault template function`.
 
 Template: `templates/packer-vault-secret.yaml` in
@@ -201,13 +212,13 @@ kubectl get packerbuild -w
 Watch it progress:
 
 ```bash
-kubectl describe packerbuild packer-build-ubuntu24-labul
+kubectl describe packerbuild packer-build-ubuntu26-labul
 kubectl get pipelinerun -n tekton-ci
 kubectl logs -n tekton-ci -l tekton.dev/pipelineRun=<name> \
   -c step-packer-action -f
 ```
 
-A real vSphere base-OS build takes roughly 20 minutes. With
+A real base-OS build takes roughly 20 minutes. With
 `deriveReadiness: true` (the default) the XR reports Ready only once the
 build has actually succeeded.
 
@@ -220,7 +231,7 @@ build has actually succeeded.
 | `could not find a supported CD ISO creation command` | working image lacks `xorriso` (needed by any template using `cd_files`) |
 | `exec: "ansible-playbook": executable file not found` | working image lacks ansible — the packer ansible *plugin* is only a shim around the binary |
 | `Failed to import the required Python library (hvac)` | working image lacks the hashi_vault python deps |
-| `Must set VAULT_TOKEN env var…` | the vault Secret has AppRole creds only; packer's `vault()` never performs an AppRole login |
+| `Must set VAULT_TOKEN env var…` | the vault Secret has AppRole creds only and `pipelineRevision` is below stage-time v0.12.0, which added the AppRole login |
 | `x509: certificate signed by unknown authority` | Vault behind a private CA and no `caCertsConfigMapName`; fetch the CA from Vault itself at `/v1/pki/ca/pem` |
 | `Duplicate local definition` | `packerTemplate: "."` on a dir with more than one template — name a single file |
 
@@ -232,24 +243,36 @@ the image these examples assume.
 The XR surfaces the live PipelineRun:
 
 ```
-$ kubectl get packerbuild packer-build-ubuntu24-labul
+$ kubectl get packerbuild packer-build-ubuntu26-labul
 NAME                          SYNCED   READY   SUCCEEDED
-packer-build-ubuntu24-labul   True     True    True
+packer-build-ubuntu26-labul   True     True    True
 ```
 
 plus `pipelineRunName`, `reason`, `message`, `startTime`, `completionTime` and
 the child `taskRuns`. With `deriveReadiness: true` (default) the XR is Ready
-only once the build actually succeeds — a real vSphere base-OS build takes
+only once the build actually succeeds — a real base-OS build takes
 roughly 20 minutes.
 
-`status.results` carries the PipelineRun's results. The one that matters is
-`template-name` — the vSphere template the build produced:
+The template the build produced is on the status by name and, on Proxmox, by
+VMID:
+
+| Field | vSphere | Proxmox |
+|---|---|---|
+| `status.templateName` | template name (the artifact ID) | `template_name` from the build's packer manifest post-processor; absent if the build or the stage-time pin (< v0.13.6) does not report it |
+| `status.templateVmId` | — | VMID (the artifact ID), what bpg clones and a promotion writes |
 
 ```bash
-kubectl get packerbuild packer-build-ubuntu24-labul \
-  -o jsonpath='{.status.results[?(@.name=="template-name")].value}'
-# ubuntu24-base-20260721-0742
+kubectl get packerbuild packer-build-ubuntu26-labul \
+  -o jsonpath='{.status.templateName}{" "}{.status.templateVmId}'
+# ubuntu26-base-20261001-1200 211
 ```
+
+Which one is Proxmox follows `hypervisor` (XR, then EnvironmentConfig, then
+`vsphere`), exactly as the build directory does.
+
+`status.results` carries the raw PipelineRun results the two fields are taken
+from: `template-name` (packer's artifact ID) and, from stage-time v0.13.6,
+`template-display-name`.
 
 Without this the name only exists inside the PipelineRun, so nothing composing
 this XR could know which template to smoke-test or promote. Only string-valued

@@ -229,11 +229,15 @@ spec:
                 vaultSecretName:
                   type: string
                   description: |
-                    Secret holding VAULT_ADDR and VAULT_TOKEN. VAULT_TOKEN is
-                    REQUIRED when templates call packer's vault() function: it
-                    builds a Vault client from VAULT_ADDR + VAULT_TOKEN directly
-                    and never performs an AppRole login, so VAULT_ROLE_ID /
-                    VAULT_SECRET_ID are injected but inert.
+                    Secret holding VAULT_ADDR plus EITHER VAULT_TOKEN OR an
+                    AppRole (VAULT_ROLE_ID + VAULT_SECRET_ID). packer's vault()
+                    function only reads VAULT_TOKEN, but from stage-time v0.12.0
+                    execute-packer logs in via AppRole itself when the Secret
+                    carries no token (and revokes the token on exit). On an
+                    older pipelineRevision the AppRole keys are inert and the
+                    build dies on "Must set VAULT_TOKEN". LabUL Proxmox builds
+                    use `vault-infra` (AppRole only), LabDA vSphere builds
+                    `vault-labda`.
                   default: vault
 
                 # Runtime
@@ -362,10 +366,13 @@ spec:
                   type: array
                   description: |
                     The PipelineRun's results. `build-packer-template` emits
-                    `template-name` — the vSphere template the build produced
-                    (e.g. `ubuntu24-base-20260721-0742`). That is what a
-                    downstream smoke-test or promote step consumes, so it has
-                    to leave the PipelineRun and land on the XR.
+                    `template-name` — packer's artifact ID: the template name
+                    on vSphere (e.g. `ubuntu26-base-20260804-1537`), the VMID on
+                    Proxmox (e.g. `211`) — and, from stage-time v0.13.6,
+                    `template-display-name`. That is what a downstream
+                    smoke-test or promote step consumes, so it has to leave the
+                    PipelineRun and land on the XR. templateName / templateVmId
+                    below are the same values, already sorted by hypervisor.
 
                     Only string-valued results appear here; Tekton also allows
                     array- and object-typed results, which this schema cannot
@@ -379,3 +386,19 @@ spec:
                       value:
                         type: string
                         description: Result value
+                templateName:
+                  type: string
+                  description: |
+                    Name of the template the build produced. vSphere: the
+                    `template-name` result (the artifact ID is the name).
+                    Proxmox: the `template-display-name` result, which the
+                    build fills from its packer manifest post-processor
+                    (custom_data.template_name); absent when the build or the
+                    stage-time pin (< v0.13.6) does not report one, because the
+                    artifact ID is a VMID there, not a name.
+                templateVmId:
+                  type: string
+                  description: |
+                    Proxmox only: VMID of the template the build produced
+                    (the `template-name` result). This is what bpg clones and
+                    what a Proxmox promotion writes to the capability chart.

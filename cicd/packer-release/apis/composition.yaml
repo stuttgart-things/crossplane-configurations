@@ -90,6 +90,22 @@ spec:
             _templateName = _tplNames[0] if _tplNames else ""
             _buildSucceeded = _pbStatus?.succeeded or "Unknown"
 
+            # `template-name` is packer's artifact ID: the name on vSphere, the
+            # VMID on Proxmox. Read from the results rather than packer-build's
+            # own templateName/templateVmId so any packer-build >= v0.3.0 works.
+            # `template-display-name` (stage-time >= v0.13.6) carries the real
+            # name on Proxmox when the build reports one; equal to the VMID it
+            # is the fallback, not a name. The test VM path below still clones
+            # by NAME on Proxmox (VMProvision -> ProxmoxVM, OpenTofu), so it
+            # gets the name when there is one -- handing it the VMID is the
+            # mismatch #214 describes.
+            _displayNames = [
+                r.value for r in (_pbStatus?.results or []) if r?.name == "template-display-name"
+            ]
+            _displayName = _displayNames[0] if _displayNames else ""
+            _proxmoxName = _displayName if _displayName != _templateName else ""
+            _testTemplate = (_proxmoxName or _templateName) if _provider == "proxmox" else _templateName
+
             # --- Gate --------------------------------------------------------
             # `tested` is a LATCH read back off this XR's own observed status
             # (written by the derive-status step on an earlier reconcile). It is
@@ -269,9 +285,10 @@ spec:
                         disk = _test?.disk or "64"
                         firmware = _test?.firmware or _env?.firmware or "bios"
                         # The whole point: clone the template this XR just built,
-                        # not whatever the environment calls current.
-                        template = _templateName
-                        annotation = "PACKER RELEASE SMOKE TEST for {} -- managed by PackerRelease/{}".format(_templateName, _name)
+                        # not whatever the environment calls current. By name on
+                        # both providers (see _testTemplate above).
+                        template = _testTemplate
+                        annotation = "PACKER RELEASE SMOKE TEST for {} -- managed by PackerRelease/{}".format(_testTemplate, _name)
                     }
                     if _provider == "vsphere":
                         vsphere = _vsphereBlock
@@ -338,9 +355,10 @@ spec:
                 {name = "workingImage", value = _promote?.workingImage or _promoteEnv?.workingImage or ""}
             ]
 
-            # templateName carries the VMID here, not a name: build-packer-template's
-            # `template-name` result is what packer reported ("A template was
-            # created: 211"), which on the proxmox-iso builder is the numeric id.
+            # The pipeline param is still called templateName but takes the VMID:
+            # build-packer-template's `template-name` result is what packer
+            # reported ("A template was created: 211"), which on the proxmox-iso
+            # builder is the numeric id -- the value the chart's templateVmId holds.
             _proxmoxRequired = [
                 {name = "templateName", value = _templateName}
                 {name = "valuePath", value = _proxmoxValuePath}
@@ -367,11 +385,13 @@ spec:
             # a different tag: promote-packer-template needs >= v0.10.0,
             # promote-proxmox-template needs >= v0.13.2 (v0.13.0 and v0.13.1
             # could not re-run a promotion -- the push died on "stale info").
+            # Both default to v0.13.6, the first tag at which every packer
+            # pipeline resolves its task at one tag (stage-time #96).
             #
             # The EnvironmentConfig's promote.pipelineRevision is NOT consulted
             # on the Proxmox path, and that is deliberate rather than an
             # oversight. That key predates this provider and pins the vSphere
-            # promoter (v0.10.0 in the shipped example). Letting it apply here
+            # promoter (v0.10.0 in the example until v0.5.0). Letting it apply here
             # produced exactly the failure it looks designed to prevent: a
             # pipelineRef naming promote-proxmox-template.yaml at v0.10.0, a tag
             # that does not contain the file. Caught by rendering with observed
@@ -381,7 +401,7 @@ spec:
             # A Proxmox pin therefore lives at promote.proxmox.pipelineRevision,
             # per provider, so bumping one cannot move the other.
             _promoteDefaultPath = "pipelines/promote-proxmox-template.yaml" if _isProxmox else "pipelines/promote-packer-template.yaml"
-            _promoteDefaultRevision = "v0.13.2" if _isProxmox else "v0.10.0"
+            _promoteDefaultRevision = "v0.13.6"
             _proxmoxRevision = _promoteProxmox?.pipelineRevision or _promoteEnvProxmox?.pipelineRevision or _promoteDefaultRevision
             _vsphereRevision = _promoteEnv?.pipelineRevision or _promoteDefaultRevision
             _promotePinnedRevision = _proxmoxRevision if _isProxmox else _vsphereRevision
@@ -499,6 +519,17 @@ spec:
             ]
             _templateName = _tplNames[0] if _tplNames else ""
             _buildSucceeded = _pbStatus?.succeeded or "Unknown"
+            # Same split as the render step: on Proxmox `template-name` is the
+            # VMID and the name, if the build reported one, comes from
+            # `template-display-name`. MUST stay in step with the render step.
+            _isProxmox = _provider == "proxmox"
+            _displayNames = [
+                r.value for r in (_pbStatus?.results or []) if r?.name == "template-display-name"
+            ]
+            _displayName = _displayNames[0] if _displayNames else ""
+            _proxmoxName = _displayName if _displayName != _templateName else ""
+            _templateNameOut = _proxmoxName if _isProxmox else (_displayName or _templateName)
+            _templateVmId = _templateName if _isProxmox else ""
 
             _vms = [v.Resource for _, v in _ocds if v?.Resource?.kind == "VMProvision"]
             _vm = _vms[0] if _vms else {}
@@ -594,7 +625,8 @@ spec:
                 phase = _phase
                 buildSucceeded = _buildSucceeded
                 tested = _tested
-                if _templateName: templateName = _templateName
+                if _templateNameOut: templateName = _templateNameOut
+                if _templateVmId: templateVmId = _templateVmId
                 if _pbStatus?.pipelineRunName: buildPipelineRunName = _pbStatus.pipelineRunName
                 # Retained after teardown on purpose: once the test VM is gone
                 # its IP is the only trace of what was actually verified.
