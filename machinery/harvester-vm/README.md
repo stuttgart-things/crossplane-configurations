@@ -88,6 +88,8 @@ kubectl apply -f examples/provider.yaml
 kubectl apply -f examples/cluster-provider-config.yaml
 ```
 
+Start provider-kubernetes with **`--enable-watches`** (a DeploymentRuntimeConfig `args` entry). The VMI Object is `watch: true`, so the VM's IP reaches `status.share.ip` as soon as the guest agent reports it; without the flag it arrives only on the next `--poll` (default 10 minutes).
+
 The `ClusterProviderConfig` name must match `providerConfigRef` / EnvironmentConfig `providerConfigRef` (default `default`). `InjectedIdentity` assumes Crossplane runs on the same Harvester / KubeVirt cluster the VMs are created on; target a remote cluster by switching to a kubeconfig Secret.
 
 ### 2. Dependency Configurations
