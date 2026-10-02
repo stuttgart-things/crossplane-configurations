@@ -196,7 +196,7 @@ spec:
                   - mountPath: /work
                     name: work
                 restartPolicy: Never
-                serviceAccountName: scheduled-run
+                serviceAccountName: scheduled-run-min
                 volumes:
                 - configMap:
                     name: scheduled-run-min-manifest
@@ -232,7 +232,7 @@ spec:
       apiVersion: rbac.authorization.k8s.io/v1
       kind: Role
       metadata:
-        name: scheduled-run-run
+        name: scheduled-run-min-run-scheduled-run-min
         namespace: crossplane-system
       rules:
       - apiGroups:
@@ -270,15 +270,15 @@ spec:
       apiVersion: rbac.authorization.k8s.io/v1
       kind: RoleBinding
       metadata:
-        name: scheduled-run-run
+        name: scheduled-run-min-run-scheduled-run-min
         namespace: crossplane-system
       roleRef:
         apiGroup: rbac.authorization.k8s.io
         kind: Role
-        name: scheduled-run-run
+        name: scheduled-run-min-run-scheduled-run-min
       subjects:
       - kind: ServiceAccount
-        name: scheduled-run
+        name: scheduled-run-min
         namespace: crossplane-system
   providerConfigRef:
     kind: ClusterProviderConfig
@@ -306,7 +306,7 @@ spec:
       apiVersion: v1
       kind: ServiceAccount
       metadata:
-        name: scheduled-run
+        name: scheduled-run-min
         namespace: crossplane-system
   providerConfigRef:
     kind: ClusterProviderConfig

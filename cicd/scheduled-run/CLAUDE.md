@@ -34,8 +34,12 @@ core/batch/rbac objects no other consumer shares.
 2. **`render-scheduler`** (`function-kcl`, inline) — ServiceAccount, RBAC,
    ConfigMap (target manifest via `yaml.encode`), CronJob. Wraps each in an
    Object. RBAC group is parsed from the manifest's `apiVersion`; namespaced
-   scope → Role in `targetNamespace`, cluster scope → ClusterRole named
-   `<sa>-run-<xrName>` (XR-name-suffixed to avoid cluster-wide collisions).
+   scope → Role in `targetNamespace`, cluster scope → ClusterRole, both named
+   `<sa>-run-<xrName>`. The SA defaults to the XR name (v0.2.0): before, the
+   XRD defaulted every XR to `scheduled-run` and the namespaced Role was
+   `<sa>-run`, so two XRs composed the same SA and Role through two Objects —
+   deleting one XR pulled the SA out from under the other. Keep every name
+   these four objects get XR-unique.
 3. **`derive-status`** (`function-kcl`, inline) — reads the observed CronJob
    Object and surfaces `cronJobName`, `lastScheduleTime`, `lastSuccessfulTime`,
    `targetKind`.

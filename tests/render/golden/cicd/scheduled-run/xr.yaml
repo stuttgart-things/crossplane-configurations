@@ -200,7 +200,7 @@ spec:
                   - mountPath: /work
                     name: work
                 restartPolicy: Never
-                serviceAccountName: scheduled-run
+                serviceAccountName: nightly-baseos
                 volumes:
                 - configMap:
                     name: nightly-baseos-manifest
@@ -236,7 +236,7 @@ spec:
       apiVersion: rbac.authorization.k8s.io/v1
       kind: Role
       metadata:
-        name: scheduled-run-run
+        name: nightly-baseos-run-nightly-baseos
         namespace: tekton-ci
       rules:
       - apiGroups:
@@ -274,15 +274,15 @@ spec:
       apiVersion: rbac.authorization.k8s.io/v1
       kind: RoleBinding
       metadata:
-        name: scheduled-run-run
+        name: nightly-baseos-run-nightly-baseos
         namespace: tekton-ci
       roleRef:
         apiGroup: rbac.authorization.k8s.io
         kind: Role
-        name: scheduled-run-run
+        name: nightly-baseos-run-nightly-baseos
       subjects:
       - kind: ServiceAccount
-        name: scheduled-run
+        name: nightly-baseos
         namespace: crossplane-system
   providerConfigRef:
     kind: ClusterProviderConfig
@@ -310,7 +310,7 @@ spec:
       apiVersion: v1
       kind: ServiceAccount
       metadata:
-        name: scheduled-run
+        name: nightly-baseos
         namespace: crossplane-system
   providerConfigRef:
     kind: ClusterProviderConfig

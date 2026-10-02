@@ -25,8 +25,8 @@ Each tick then produces a genuinely new run. A field whose value is absent is sk
 
 `ScheduledRun` composes, through `provider-kubernetes`:
 
-- a **ServiceAccount** (in `spec.namespace`),
-- a **Role/RoleBinding** (or **ClusterRole/ClusterRoleBinding** for `targetScope: Cluster`) scoped to the target's **own API group only** — `create, get, list, delete`,
+- a **ServiceAccount** (in `spec.namespace`), named `spec.serviceAccountName` or, by default, **after the XR** — every ScheduledRun owns its own. Don't give two XRs the same `serviceAccountName`: both would compose that one ServiceAccount, and deleting either XR deletes it for the other (until v0.1.1 the default was a shared `scheduled-run`, which did exactly that),
+- a **Role/RoleBinding** (or **ClusterRole/ClusterRoleBinding** for `targetScope: Cluster`), both named `<sa>-run-<xr-name>`, scoped to the target's **own API group only** — `create, get, list, delete`,
 - a **ConfigMap** holding `spec.manifest`,
 - a **CronJob** (`spec.schedule`) whose single container (kubectl + yq, `alpine/k8s`) on each tick:
   1. suffixes every `uniqueFields` path with the tick timestamp,
