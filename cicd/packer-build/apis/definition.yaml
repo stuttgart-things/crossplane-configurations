@@ -52,6 +52,20 @@ spec:
                     authoritative; precedence is explicit XR value >
                     EnvironmentConfig > KCL module default
                     ("https://github.com/stuttgart-things/stage-time.git").
+                templateLookupVaultPath:
+                  type: string
+                  description: |
+                    vSphere only: Vault KV v2 path holding the vCenter login
+                    (keys username / password / ip) that execute-packer uses to
+                    read the built template's config.uuid with govc
+                    (stage-time >= v0.13.8) -> status.templateUuid. Usually set
+                    in the EnvironmentConfig (LabDA: cloud/data/vsphere-labda).
+                    Skipped for Proxmox builds; a failed lookup only warns.
+                templateLookupInsecure:
+                  type: string
+                  description: |
+                    "true" skips TLS verification for the govc template lookup
+                    (lab vCenters with self-signed certificates).
                 pipelineRevision:
                   type: string
                   description: |
@@ -414,3 +428,13 @@ spec:
                     Proxmox only: VMID of the template the build produced
                     (the `template-name` result). This is what bpg clones and
                     what a Proxmox promotion writes to the capability chart.
+                templateUuid:
+                  type: string
+                  description: |
+                    vSphere only: config.uuid (BIOS UUID) of the template the
+                    build produced -- the `template-uuid` result, which
+                    execute-packer reads back from vCenter with govc
+                    (stage-time >= v0.13.8, pipeline param
+                    `templateLookupVaultPath` set). What NativeVsphereVM
+                    clones by (`vm.templateUuid`). Absent when the lookup is
+                    not configured or failed; the build does not fail then.

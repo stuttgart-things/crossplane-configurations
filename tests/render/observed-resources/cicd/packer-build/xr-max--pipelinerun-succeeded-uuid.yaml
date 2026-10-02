@@ -1,0 +1,44 @@
+# Observed state of a SUCCEEDED LabDA vSphere build whose execute-packer read
+# the template's config.uuid back from vCenter (stage-time >= v0.13.8, #529):
+# the template-uuid result becomes status.templateUuid. UUID as checked by hand
+# with govc on 2026-10-02.
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  name: packer-build-max
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: packer-build-max
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2026-10-02T07:52:00Z"
+    - type: Synced
+      status: "True"
+      reason: ReconcileSuccess
+      lastTransitionTime: "2026-10-02T07:25:00Z"
+  atProvider:
+    manifest:
+      apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        name: build-ubuntu26-labda-base-os-max
+        namespace: tekton-ci
+      status:
+        startTime: "2026-10-02T07:25:03Z"
+        completionTime: "2026-10-02T07:51:40Z"
+        conditions:
+          - type: Succeeded
+            status: "True"
+            reason: Succeeded
+            message: "Tasks Completed: 2 (Failed: 0, Cancelled 0), Skipped: 0"
+            lastTransitionTime: "2026-10-02T07:51:40Z"
+        results:
+          - name: template-name
+            value: ubuntu26-base-20261002-0725
+          - name: template-display-name
+            value: ubuntu26-base-20261002-0725
+          - name: template-uuid
+            value: 42214876-2bab-c371-813d-fcf6ab656046

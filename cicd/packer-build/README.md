@@ -290,6 +290,17 @@ VMID:
 |---|---|---|
 | `status.templateName` | template name (the artifact ID) | `template_name` from the build's packer manifest post-processor; absent if the build or the stage-time pin (< v0.13.6) does not report it |
 | `status.templateVmId` | — | VMID (the artifact ID), what bpg clones and a promotion writes |
+| `status.templateUuid` | `config.uuid` (BIOS UUID), what NativeVsphereVM clones by (`vm.templateUuid`) | — |
+
+`templateUuid` comes from the `template-uuid` result. execute-packer reads it
+back from vCenter with govc after the build (packer reports it nowhere), which
+needs stage-time **>= v0.13.8** and the pipeline param `templateLookupVaultPath`
+set to the Vault path the template reads its vCenter credentials from (e.g.
+`cloud/data/vsphere-labda`; `templateLookupInsecure: "true"` for a vCenter the
+template reaches with `insecure_connection`). Passing that param needs
+`kcl-tekton-pr-packer` >= 0.7.0 in `render-pipelinerun`. The lookup is best
+effort: when it is not configured or fails, the field is absent and the build
+still succeeds (#529).
 
 ```bash
 kubectl get packerbuild packer-build-ubuntu26-labul \

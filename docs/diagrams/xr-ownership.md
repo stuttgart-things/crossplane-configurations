@@ -114,7 +114,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | bootstrap | [vault-pki-secrets](../../bootstrap/vault-pki-secrets/) | `VaultPkiSecret` | `config.stuttgart-things.com` | Namespaced | v0.1.5 | — |
 | cicd | [ansible-run](../../cicd/ansible-run/) | `AnsibleRun` | `resources.stuttgart-things.com` | Namespaced | v0.3.2 | — |
 | cicd | [cluster-backup](../../cicd/cluster-backup/) | `ClusterBackup` | `resources.stuttgart-things.com` | Namespaced | v0.2.0 | — |
-| cicd | [packer-build](../../cicd/packer-build/) | `PackerBuild` | `resources.stuttgart-things.com` | Namespaced | v0.6.0 | — |
+| cicd | [packer-build](../../cicd/packer-build/) | `PackerBuild` | `resources.stuttgart-things.com` | Namespaced | v0.7.0 | — |
 | cicd | [packer-release](../../cicd/packer-release/) | `PackerRelease` | `resources.stuttgart-things.com` | Namespaced | v0.6.0 | `packer-build`, `vm-provision` |
 | cicd | [scheduled-run](../../cicd/scheduled-run/) | `ScheduledRun` | `resources.stuttgart-things.com` | Namespaced | v0.1.1 | — |
 | cicd | [tofu-run](../../cicd/tofu-run/) | `TofuRun` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
@@ -159,7 +159,7 @@ diagrams can see.
 | `vault-pki-secrets` | environment-configs → go-templating → auto-ready | inline |
 | `ansible-run` | environment-configs → kcl → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/kcl-tekton-pr?tag=0.15.1` |
 | `cluster-backup` | environment-configs → kcl → kcl → auto-ready | inline |
-| `packer-build` | environment-configs → kcl → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/kcl-tekton-pr-packer?tag=0.6.1` |
+| `packer-build` | environment-configs → kcl → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/kcl-tekton-pr-packer?tag=0.7.0` |
 | `packer-release` | environment-configs → kcl → kcl → auto-ready | inline |
 | `scheduled-run` | environment-configs → kcl → kcl → auto-ready | inline |
 | `tofu-run` | environment-configs → kcl → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/kcl-tofu-pr?tag=0.1.0` |
