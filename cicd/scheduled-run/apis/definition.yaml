@@ -117,8 +117,13 @@ spec:
                     "alpine/k8s:1.31.0" (ships kubectl, yq and busybox).
                 serviceAccountName:
                   type: string
-                  default: scheduled-run
-                  description: ServiceAccount created for the job.
+                  description: |
+                    ServiceAccount created for the CronJob. Defaults to the
+                    XR's name, so every ScheduledRun owns its own. Do not give
+                    two XRs the same name here: both would compose the same
+                    ServiceAccount, and deleting either XR deletes it for the
+                    other. (Until v0.1.1 this defaulted to `scheduled-run` for
+                    every XR -- exactly that collision.)
                 namespace:
                   type: string
                   default: crossplane-system

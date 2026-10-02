@@ -71,7 +71,10 @@ spec:
             _schedule = _spec?.schedule or _env?.schedule or "0 * * * *"
             _image = _spec?.image or _env?.image or "alpine/k8s:1.31.0"
             _namespace = _spec?.namespace or _env?.namespace or "crossplane-system"
-            _sa = _spec?.serviceAccountName or "scheduled-run"
+            # Per XR by default. A shared name (the old XRD default
+            # `scheduled-run`) puts one ServiceAccount under several XRs'
+            # Objects: deleting any one of them deletes it for all the others.
+            _sa = _spec?.serviceAccountName or _xrName
             _scope = _spec?.targetScope or "Namespaced"
             _targetNs = _spec?.targetNamespace or _env?.targetNamespace or _namespace
             _pc = _spec?.crossplaneProviderConfig or "in-cluster"
@@ -176,17 +179,17 @@ spec:
                 {
                     apiVersion = "rbac.authorization.k8s.io/v1"
                     kind = "Role"
-                    metadata = {name = _sa + "-run", namespace = _targetNs}
+                    metadata = {name = _sa + "-run-" + _xrName, namespace = _targetNs}
                     rules = _rules
                 }
                 {
                     apiVersion = "rbac.authorization.k8s.io/v1"
                     kind = "RoleBinding"
-                    metadata = {name = _sa + "-run", namespace = _targetNs}
+                    metadata = {name = _sa + "-run-" + _xrName, namespace = _targetNs}
                     roleRef = {
                         apiGroup = "rbac.authorization.k8s.io"
                         kind = "Role"
-                        name = _sa + "-run"
+                        name = _sa + "-run-" + _xrName
                     }
                     subjects = [{kind = "ServiceAccount", name = _sa, namespace = _namespace}]
                 }
