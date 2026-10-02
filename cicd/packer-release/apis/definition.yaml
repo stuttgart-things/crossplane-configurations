@@ -573,6 +573,19 @@ spec:
                 buildSucceeded:
                   type: string
                   description: '"True", "False" or "Unknown" from the build PipelineRun'
+                buildReason:
+                  type: string
+                  description: |
+                    Reason of the build PipelineRun's Succeeded condition, from
+                    the nested PackerBuild (Running, Succeeded, Failed,
+                    PipelineRunTimeout, ...). Also the reason of the
+                    `BuildSucceeded` condition.
+                buildMessage:
+                  type: string
+                  description: |
+                    Message of the build PipelineRun's Succeeded condition, e.g.
+                    "Tasks Completed: 2 (Failed: 1, Cancelled 0), Skipped: 0" --
+                    with phase BuildFailed, how the build failed.
                 buildPipelineRunName:
                   type: string
                   description: Name of the build PipelineRun

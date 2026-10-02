@@ -621,9 +621,21 @@ spec:
 
             _phase = _phaseDone if _buildDone else _phaseNotDone
 
+            # Why a build failed, lifted off the nested PackerBuild (#527).
+            # BuildFailed alone said THAT it is over; the PipelineRun's reason and
+            # message say how ("Tasks Completed: 2 (Failed: 1, ...)",
+            # PipelineRunTimeout, ...), so nobody has to walk down to the child
+            # XR to find out. reason/message are on packer-build's status since
+            # its first release, so this needs no new dependency floor.
+            _buildReason = _pbStatus?.reason or ""
+            _buildMessage = _pbStatus?.message or ""
+            _pbName = _pb?.metadata?.name or "{}-build".format(oxr.metadata.name)
+
             _statusPatch = {
                 phase = _phase
                 buildSucceeded = _buildSucceeded
+                if _buildReason: buildReason = _buildReason
+                if _buildMessage: buildMessage = _buildMessage
                 tested = _tested
                 if _templateNameOut: templateName = _templateNameOut
                 if _templateVmId: templateVmId = _templateVmId
@@ -640,8 +652,34 @@ spec:
                     if _promotionPR: promotionPullRequest = _promotionPR
             }
 
+            # The build verdict as a condition, same type packer-build >= v0.6.0
+            # sets on itself, so `kubectl wait --for=condition=...` works on the
+            # release too. Ready cannot say "failed": Crossplane core owns it and
+            # keeps it False/Creating while the nested PackerBuild is unready --
+            # forever, once its PipelineRun failed. BuildSucceeded=False is what
+            # tells a consumer to stop waiting.
+            _bsStatus = _buildSucceeded if _buildSucceeded in ["True", "False"] else "Unknown"
+            _bsDefaultReason = "Failed" if _bsStatus == "False" else "Succeeded" if _bsStatus == "True" else "Building"
+            _bsReason = _buildReason or _bsDefaultReason
+            _bsPr = " (PipelineRun {})".format(_pbStatus.pipelineRunName) if _pbStatus?.pipelineRunName else ""
+            _bsMessage = "PackerBuild {}{}: {}".format(_pbName, _bsPr, _buildMessage or _bsReason)
+            _conditions = {
+                apiVersion = "meta.krm.kcl.dev/v1alpha1"
+                kind = "Conditions"
+                conditions = [{
+                    target = "Composite"
+                    force = True
+                    condition = {
+                        type = "BuildSucceeded"
+                        status = _bsStatus
+                        reason = _bsReason
+                        message = _bsMessage
+                    }
+                }]
+            }
+
             _dxr = _params?.dxr or {}
-            items = [_dxr | {status = (_dxr?.status or {}) | _statusPatch}]
+            items = [_conditions, _dxr | {status = (_dxr?.status or {}) | _statusPatch}]
 
     # -------------------------------------------------------------------------
     # Step 3: readiness falls out of the composed set without extra logic.

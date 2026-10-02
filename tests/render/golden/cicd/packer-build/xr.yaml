@@ -17,6 +17,11 @@ status:
     status: "True"
     type: Responsive
   - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: No PipelineRun observed yet
+    reason: Pending
+    status: Unknown
+    type: PipelineRunSucceeded
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
     reason: ReconcileSuccess
     status: "True"
     type: Synced
@@ -26,6 +31,7 @@ status:
     status: "False"
     type: Ready
   installed: false
+  phase: Pending
   results: []
   succeeded: Unknown
   taskRuns: []

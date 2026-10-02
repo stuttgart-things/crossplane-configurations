@@ -1,0 +1,32 @@
+# Observed state of a release whose nested build FAILED (#527): the
+# PackerBuild as packer-build >= v0.6.0 reports a Succeeded=False PipelineRun.
+# The release must say BuildFailed, carry the build's reason/message and set
+# BuildSucceeded=False -- not sit in a state that reads like "still building".
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerBuild
+metadata:
+  name: ubuntu26-labul-build
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: ubuntu26-labul-build
+status:
+  conditions:
+    - type: PipelineRunSucceeded
+      status: "False"
+      reason: Failed
+      message: "PipelineRun ubuntu26-labul-build: Tasks Completed: 2 (Failed: 1, Cancelled 0), Skipped: 0"
+      lastTransitionTime: "2026-10-02T08:11:58Z"
+    - type: Ready
+      status: "False"
+      reason: Creating
+      message: "Unready resources: ubuntu26-labul-build-run"
+      lastTransitionTime: "2026-10-02T07:50:00Z"
+  phase: Failed
+  installed: true
+  succeeded: "False"
+  reason: Failed
+  message: "Tasks Completed: 2 (Failed: 1, Cancelled 0), Skipped: 0"
+  pipelineRunName: ubuntu26-labul-build
+  startTime: "2026-10-02T07:50:03Z"
+  completionTime: "2026-10-02T08:11:58Z"
+  results: []

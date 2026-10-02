@@ -95,7 +95,23 @@ The two terminal failure phases exist because nothing here retries. A failed
 build leaves a PipelineRun in `Failed`, the gate never opens and no test VM is
 created — correct behaviour, but for a while it reported as `Building`, so the
 one column you would watch claimed work was still in flight. `BuildFailed`
-says otherwise; `buildPipelineRunName` points at the logs.
+says otherwise; `buildPipelineRunName` points at the logs, and since v0.6.0
+`buildReason` / `buildMessage` carry the PipelineRun's own verdict
+(`Failed` / `Tasks Completed: 2 (Failed: 1, ...)`, `PipelineRunTimeout`, ...).
+
+The same verdict is the `BuildSucceeded` condition (`Unknown` while building,
+`False` once the build failed), so a consumer can stop waiting on it:
+
+```bash
+kubectl get packerrelease ubuntu26-labul \
+  -o jsonpath='{.status.conditions[?(@.type=="BuildSucceeded")].status}'
+# False
+```
+
+`Ready` stays `False` with reason `Creating` on a failed build. That reason is
+Crossplane core's, not this Configuration's: functions cannot set `Ready`, and
+core reports `Creating` while the nested PackerBuild is unready — which, after
+a failed PipelineRun, it is for good (#527).
 
 `BuildIncomplete` is the narrower case the `packer-build >=v0.3.0` dependency
 floor guards: the build genuinely succeeded, but its status carries no

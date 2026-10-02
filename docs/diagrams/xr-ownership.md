@@ -114,8 +114,8 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | bootstrap | [vault-pki-secrets](../../bootstrap/vault-pki-secrets/) | `VaultPkiSecret` | `config.stuttgart-things.com` | Namespaced | v0.1.5 | — |
 | cicd | [ansible-run](../../cicd/ansible-run/) | `AnsibleRun` | `resources.stuttgart-things.com` | Namespaced | v0.3.2 | — |
 | cicd | [cluster-backup](../../cicd/cluster-backup/) | `ClusterBackup` | `resources.stuttgart-things.com` | Namespaced | v0.2.0 | — |
-| cicd | [packer-build](../../cicd/packer-build/) | `PackerBuild` | `resources.stuttgart-things.com` | Namespaced | v0.5.0 | — |
-| cicd | [packer-release](../../cicd/packer-release/) | `PackerRelease` | `resources.stuttgart-things.com` | Namespaced | v0.5.0 | `packer-build`, `vm-provision` |
+| cicd | [packer-build](../../cicd/packer-build/) | `PackerBuild` | `resources.stuttgart-things.com` | Namespaced | v0.6.0 | — |
+| cicd | [packer-release](../../cicd/packer-release/) | `PackerRelease` | `resources.stuttgart-things.com` | Namespaced | v0.6.0 | `packer-build`, `vm-provision` |
 | cicd | [scheduled-run](../../cicd/scheduled-run/) | `ScheduledRun` | `resources.stuttgart-things.com` | Namespaced | v0.1.1 | — |
 | cicd | [tofu-run](../../cicd/tofu-run/) | `TofuRun` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
 | k8s | [cloud-config](../../k8s/cloud-config/) | `CloudInit` | `resources.stuttgart-things.com` | Namespaced | v0.5.5 | — |

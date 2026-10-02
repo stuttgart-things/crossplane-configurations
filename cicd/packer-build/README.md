@@ -253,6 +253,36 @@ the child `taskRuns`. With `deriveReadiness: true` (default) the XR is Ready
 only once the build actually succeeds — a real base-OS build takes
 roughly 20 minutes.
 
+### Running vs. failed
+
+`status.phase` and the `PipelineRunSucceeded` condition say whether the build
+is still going or over (#527):
+
+| PipelineRun `Succeeded` | `status.phase` | `PipelineRunSucceeded` |
+|---|---|---|
+| not observed yet | `Pending` | `Unknown` / `Pending` |
+| `Unknown` | `Running` | `Unknown` / Tekton's reason (`Running`, ...) |
+| `True` | `Succeeded` | `True` / `Succeeded` |
+| `False` | `Failed` | `False` / Tekton's reason (`Failed`, `PipelineRunTimeout`, `Cancelled`, ...) |
+
+```bash
+kubectl wait packerbuild/packer-build-ubuntu26-labul \
+  --for=condition=PipelineRunSucceeded --timeout=60m   # returns on True only
+kubectl get packerbuild packer-build-ubuntu26-labul -o jsonpath='{.status.phase}'
+# Failed
+```
+
+A failed build still shows `Ready=False, reason=Creating`. That is not this
+Configuration's choice: Crossplane core owns `Ready` (functions cannot set the
+system conditions) and reports `Creating` for as long as a composed resource is
+unready — the failed PipelineRun's Object is, permanently. Read `phase` or the
+condition instead. Its message carries the PipelineRun's own
+(`Tasks Completed: 2 (Failed: 1, ...)`) plus a `tkn pr describe` hint: Tekton's
+PipelineRun status does not name the failed task, so the TaskRun has to be
+looked up there (`status.taskRuns` lists the candidates).
+
+### Template
+
 The template the build produced is on the status by name and, on Proxmox, by
 VMID:
 

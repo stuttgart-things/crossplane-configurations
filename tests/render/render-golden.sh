@@ -167,6 +167,43 @@ for c in $CONFIGS; do
     rendered=$((rendered + 1))
   done
 
+  # Observed-COMPOSED-state scenarios: tests/render/observed-resources/<config>/
+  # <xr>--<scenario>.yaml renders examples/<xr>.yaml once more with that file as
+  # --observed-resources, into golden <xr>--<scenario>.yaml. --extra-resources
+  # cannot reach `ocds` (see README), and branches that read a composed
+  # resource's observed status -- a failed PipelineRun (#527), a Ready VM --
+  # otherwise render in no snapshot at all.
+  for obs in $(find "tests/render/observed-resources/$c" -maxdepth 1 -type f \
+                 -name '*--*.yaml' 2>/dev/null | sort); do
+    obase=$(basename "$obs" .yaml)
+    xr="$c/examples/${obase%%--*}.yaml"
+    if [ ! -f "$xr" ]; then
+      echo "render-golden: FAILED $obs names no example XR ($xr)" >&2
+      [ -n "$extra_dir" ] && rm -rf "$extra_dir"
+      exit 1
+    fi
+    out="$GOLDEN_ROOT/$c/${obase}.yaml"
+    mkdir -p "$(dirname "$out")"
+    extra_arg=""
+    [ -n "$extra_dir" ] && extra_arg="--extra-resources $extra_dir"
+    set +e
+    # shellcheck disable=SC2086
+    crossplane render "$xr" "$comp" "$funcs" --observed-resources "$obs" $extra_arg $IMAGE_ARG > "$out.tmp" 2>"$out.err"
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ]; then
+      echo "render-golden: FAILED $obs (rc=$rc)" >&2
+      sed 's/^/    /' "$out.err" >&2 || true
+      rm -f "$out.tmp" "$out.err"
+      [ -n "$extra_dir" ] && rm -rf "$extra_dir"
+      exit "$rc"
+    fi
+    mv "$out.tmp" "$out"
+    rm -f "$out.err"
+    echo "render-golden: wrote $out"
+    rendered=$((rendered + 1))
+  done
+
   [ -n "$extra_dir" ] && rm -rf "$extra_dir"
 done
 

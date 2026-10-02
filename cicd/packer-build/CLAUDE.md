@@ -105,6 +105,17 @@ task render   # then pick this configuration
 `crossplane render` does NOT apply XRD defaults, so examples set
 `wrapInCrossplane: true` explicitly (the KCL module's own default is `false`).
 
+## Failed builds: phase + condition, not Ready
+`derive-status` sets `status.phase` (Pending/Running/Succeeded/Failed) and a
+custom `PipelineRunSucceeded` condition from the PipelineRun's `Succeeded`
+condition (#527). Do not try to put the failure on `Ready`: Crossplane core
+drops function-set system conditions (`IsSystemConditionType`) and writes
+`Ready=False, reason=Creating` whenever a composed resource is unready, and the
+Object of a failed PipelineRun is unready forever. Tekton's PipelineRun status
+does not name the failed TaskRun (childReferences have no status), hence the
+`tkn pr describe` hint in the condition message. Golden coverage:
+`tests/render/observed-resources/cicd/packer-build/xr--pipelinerun-*.yaml`.
+
 ## Template name vs. VMID (Proxmox)
 `template-name` (the pipeline result) is packer's artifact ID: the template
 name on vsphere-iso, the numeric VMID on proxmox-iso. `derive-status` sorts it
