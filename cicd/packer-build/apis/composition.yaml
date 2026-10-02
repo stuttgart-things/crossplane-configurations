@@ -141,7 +141,23 @@ spec:
             _templateName = _proxmoxName if _isProxmox else (_displayName or _artifactId)
             _templateVmId = _artifactId if _isProxmox else ""
 
+            # Phase: one word that tells "still building" from "failed 20
+            # minutes ago" (#527). Without it a failed build sat at
+            # Ready=False/Creating, indistinguishable from a running one.
+            #   Pending   -- no PipelineRun observed yet, or no Succeeded condition
+            #   Running   -- Succeeded=Unknown (Running, ResolvingPipelineRef, ...)
+            #   Succeeded -- Succeeded=True
+            #   Failed    -- Succeeded=False (Failed, PipelineRunTimeout,
+            #                Cancelled, CouldntGetPipeline, ...): terminal
+            _scStatus = _sc?.status or ""
+            _phase = "Succeeded" if _scStatus == "True" else \
+                "Failed" if _scStatus == "False" else \
+                "Running" if _scStatus == "Unknown" else "Pending"
+            _prName = _manifest?.metadata?.name or ""
+            _prNs = _manifest?.metadata?.namespace or ""
+
             _statusPatch = {
+                phase = _phase
                 installed = True if _manifest else False
                 succeeded = _sc?.status or "Unknown"
                 if _sc?.reason: reason = _sc.reason
@@ -158,8 +174,40 @@ spec:
                 if _templateVmId: templateVmId = _templateVmId
             }
 
+            # The same verdict as a custom condition, because `kubectl wait
+            # --for=condition=...` and every generic consumer read conditions,
+            # not status fields. Ready itself CANNOT carry it: Crossplane core
+            # owns Ready (and Synced/Healthy) -- it drops function-set system
+            # conditions (IsSystemConditionType) and writes Ready=False with
+            # reason Creating whenever a composed resource is unready, which a
+            # failed PipelineRun's Object stays forever. Checked in the
+            # composite reconciler of crossplane v2.4.0. So Ready stays
+            # False/Creating on a failed build; PipelineRunSucceeded=False with
+            # reason Failed (or PipelineRunTimeout, ...) is what says it is over.
+            #
+            # Tekton's PipelineRun status names no failed task (childReferences
+            # carry names only, the message reads "Tasks Completed: 2
+            # (Failed: 1, ...)"), so the message points at tkn for the TaskRun.
+            _condReason = _sc?.reason or ("Pending" if _phase == "Pending" else _phase)
+            _failHint = " -- inspect: tkn pr describe {} -n {}".format(_prName, _prNs) if _phase == "Failed" and _prName and _prNs else ""
+            _condMessage = "PipelineRun {}: {}{}".format(_prName, _sc?.message or _condReason, _failHint) if _prName else "No PipelineRun observed yet"
+            _conditions = {
+                apiVersion = "meta.krm.kcl.dev/v1alpha1"
+                kind = "Conditions"
+                conditions = [{
+                    target = "Composite"
+                    force = True
+                    condition = {
+                        type = "PipelineRunSucceeded"
+                        status = _scStatus if _scStatus in ["True", "False"] else "Unknown"
+                        reason = _condReason
+                        message = _condMessage
+                    }
+                }]
+            }
+
             _dxr = _params?.dxr or {}
-            items = [_dxr | {status = (_dxr?.status or {}) | _statusPatch}]
+            items = [_conditions, _dxr | {status = (_dxr?.status or {}) | _statusPatch}]
     - step: ready
       functionRef:
         name: function-auto-ready

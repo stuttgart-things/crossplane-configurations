@@ -1,0 +1,49 @@
+# Observed state of a SUCCEEDED Proxmox build: the results the derive-status
+# step sorts into templateVmId / templateName, and phase Succeeded.
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  name: packer-build-ubuntu26-labul
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: packer-build-ubuntu26-labul
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2026-10-02T08:12:00Z"
+    - type: Synced
+      status: "True"
+      reason: ReconcileSuccess
+      lastTransitionTime: "2026-10-02T07:50:00Z"
+  atProvider:
+    manifest:
+      apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        name: build-ubuntu26-labul-proxmox-base-os
+        namespace: tekton-ci
+      status:
+        startTime: "2026-10-02T07:50:03Z"
+        completionTime: "2026-10-02T08:11:58Z"
+        conditions:
+          - type: Succeeded
+            status: "True"
+            reason: Succeeded
+            message: "Tasks Completed: 2 (Failed: 0, Cancelled 0), Skipped: 0"
+            lastTransitionTime: "2026-10-02T08:11:58Z"
+        childReferences:
+          - apiVersion: tekton.dev/v1
+            kind: TaskRun
+            name: build-ubuntu26-labul-proxmox-base-os-fetch-repository
+            pipelineTaskName: fetch-repository
+          - apiVersion: tekton.dev/v1
+            kind: TaskRun
+            name: build-ubuntu26-labul-proxmox-base-os-execute-packer
+            pipelineTaskName: execute-packer
+        results:
+          - name: template-name
+            value: "211"
+          - name: template-display-name
+            value: ubuntu26-base-20261002-0750

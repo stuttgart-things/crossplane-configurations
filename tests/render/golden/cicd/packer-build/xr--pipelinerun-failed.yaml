@@ -2,64 +2,75 @@
 apiVersion: resources.stuttgart-things.com/v1alpha1
 kind: PackerBuild
 metadata:
-  name: packer-build-max
+  name: packer-build-ubuntu26-labul
   namespace: default
 spec:
   crossplane:
     resourceRefs:
     - apiVersion: kubernetes.m.crossplane.io/v1alpha1
       kind: Object
-      name: packer-build-max
+      name: packer-build-ubuntu26-labul
 status:
+  completionTime: "2026-10-02T08:11:58Z"
   conditions:
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     reason: WatchCircuitClosed
     status: "True"
     type: Responsive
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: No PipelineRun observed yet
-    reason: Pending
-    status: Unknown
+    message: 'PipelineRun build-ubuntu26-labul-proxmox-base-os: Tasks Completed: 2
+      (Failed: 1, Cancelled 0), Skipped: 0 -- inspect: tkn pr describe build-ubuntu26-labul-proxmox-base-os
+      -n tekton-ci'
+    reason: Failed
+    status: "False"
     type: PipelineRunSucceeded
   - lastTransitionTime: "2024-01-01T00:00:00Z"
     reason: ReconcileSuccess
     status: "True"
     type: Synced
   - lastTransitionTime: "2024-01-01T00:00:00Z"
-    message: 'Unready resources: packer-build-max'
+    message: 'Unready resources: packer-build-ubuntu26-labul'
     reason: Creating
     status: "False"
     type: Ready
-  installed: false
-  phase: Pending
+  installed: true
+  message: 'Tasks Completed: 2 (Failed: 1, Cancelled 0), Skipped: 0'
+  phase: Failed
+  pipelineRunName: build-ubuntu26-labul-proxmox-base-os
+  reason: Failed
   results: []
-  succeeded: Unknown
-  taskRuns: []
+  startTime: "2026-10-02T07:50:03Z"
+  succeeded: "False"
+  taskRuns:
+  - name: build-ubuntu26-labul-proxmox-base-os-fetch-repository
+    pipelineTaskName: fetch-repository
+  - name: build-ubuntu26-labul-proxmox-base-os-execute-packer
+    pipelineTaskName: execute-packer
 ---
 apiVersion: kubernetes.m.crossplane.io/v1alpha1
 kind: Object
 metadata:
   annotations:
-    crossplane.io/composition-resource-name: packer-build-max
+    crossplane.io/composition-resource-name: packer-build-ubuntu26-labul
     uptest.upbound.io/timeout: "120"
   labels:
-    crossplane.io/composite: packer-build-max
-  name: packer-build-max
+    crossplane.io/composite: packer-build-ubuntu26-labul
+  name: packer-build-ubuntu26-labul
   namespace: default
   ownerReferences:
   - apiVersion: resources.stuttgart-things.com/v1alpha1
     blockOwnerDeletion: true
     controller: true
     kind: PackerBuild
-    name: packer-build-max
-    uid: 30d90f42-5493-5df3-b77f-3e2268115763
+    name: packer-build-ubuntu26-labul
+    uid: 388c4297-a773-5f93-9029-f2fb30e195b5
 spec:
   forProvider:
     manifest:
       apiVersion: tekton.dev/v1
       kind: PipelineRun
       metadata:
-        name: build-ubuntu26-labda-base-os-max
+        name: build-ubuntu26-labul-proxmox-base-os
         namespace: tekton-ci
       spec:
         params:
@@ -68,29 +79,27 @@ spec:
         - name: packerTemplate
           value: ubuntu26-base-os.pkr.hcl
         - name: packerOnly
-          value: vsphere-iso.ubuntu26_base
+          value: ""
         - name: packerForce
           value: "false"
         - name: packerRunInit
           value: "true"
         - name: packerVars
-          value:
-          - vm_name=ubuntu26-base
-          - disk_size=40960
+          value: []
         - name: packerVarsFile
-          value: vars/labda.pkrvars.hcl
+          value: ""
         - name: packerInitExtraArgs
-          value: -upgrade
+          value: ""
         - name: packerBuildExtraArgs
-          value: -timestamp-ui
+          value: ""
         - name: packerLog
-          value: "1"
+          value: ""
         - name: packerWorkingImage
           value: ghcr.io/stuttgart-things/sthings-packer:2.0.0
         - name: credentialsSecretName
           value: packer-credentials
         - name: vaultSecretName
-          value: vault-labda
+          value: vault-infra
         - name: userHome
           value: /home/nonroot
         - name: gitRepoUrl
@@ -98,7 +107,7 @@ spec:
         - name: gitRevision
           value: main
         - name: gitWorkspaceSubdirectory
-          value: packer/builds/ubuntu26-labda-vsphere-base-os
+          value: packer/builds/ubuntu26-labul-proxmox-base-os
         pipelineRef:
           params:
           - name: url
@@ -120,7 +129,7 @@ spec:
               - ReadWriteOnce
               resources:
                 requests:
-                  storage: 10Gi
+                  storage: 5Gi
               storageClassName: openebs-hostpath
         - name: basicAuth
           secret:

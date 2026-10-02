@@ -324,6 +324,18 @@ spec:
             status:
               type: object
               properties:
+                phase:
+                  type: string
+                  enum: [Pending, Running, Succeeded, Failed]
+                  description: |
+                    Where the build is, from the PipelineRun's Succeeded
+                    condition: Pending (no PipelineRun observed yet), Running
+                    (Unknown), Succeeded (True) or Failed (False -- terminal:
+                    Failed, PipelineRunTimeout, Cancelled, ...). The same
+                    verdict is the `PipelineRunSucceeded` condition. `Ready`
+                    cannot carry it: Crossplane core owns Ready and keeps it
+                    False/Creating while the PipelineRun's Object is unready,
+                    which on a failed build is forever.
                 installed:
                   type: boolean
                   description: Whether the PackerBuild has been installed

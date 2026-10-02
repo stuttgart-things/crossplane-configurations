@@ -151,7 +151,19 @@ the two Rancher generations: `xr.yaml` has a raw command with the token embedded
 (2.14), `xr-max.yaml` one with a literal `{token}` (2.15+), which is what makes the
 token Object and the substitution show up in a golden at all.
 
-### What fixtures cannot reach: observed COMPOSED resources
+### Observed COMPOSED resources: `tests/render/observed-resources/`
+
+`tests/render/observed-resources/<config>/<xr>--<scenario>.yaml` renders
+`examples/<xr>.yaml` once more with that file passed as
+`crossplane render --observed-resources`, into the golden
+`<config>/<xr>--<scenario>.yaml`. This is what feeds `ocds`. First users
+(#527): `cicd/packer-build` with a failed and a succeeded PipelineRun Object,
+`cicd/packer-release` with a failed nested PackerBuild. A fixture must carry the
+`crossplane.io/composition-resource-name` annotation of the composed resource it
+stands in for. The `machinery/proxmoxvm` / `vspherevm` gap below can be closed
+the same way.
+
+### What extra-resources fixtures cannot reach: observed COMPOSED resources
 
 `--extra-resources` answers a Composition's `ExtraResources` requirements, which
 are looked up on the control-plane API server. It does **not** supply `ocds` —
