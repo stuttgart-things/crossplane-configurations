@@ -124,3 +124,9 @@ then EnvironmentConfig, then `vsphere` — the KCL module's own resolution). On
 Proxmox the name comes from `template-display-name` (stage-time >= v0.13.6,
 filled from the build's packer manifest post-processor); a display name equal
 to the VMID is execute-packer's fallback and is NOT reported as a name.
+
+On vSphere `template-uuid` (stage-time >= v0.13.8) becomes `status.templateUuid`
+(config.uuid, what NativeVsphereVM clones by). It is ignored on Proxmox. The
+lookup only runs when the PipelineRun carries `templateLookupVaultPath`, which
+needs `kcl-tekton-pr-packer` >= 0.7.0 -- the pin here is still 0.6.1 until that
+module is pushed (#529).

@@ -414,3 +414,13 @@ spec:
                     Proxmox only: VMID of the template the build produced
                     (the `template-name` result). This is what bpg clones and
                     what a Proxmox promotion writes to the capability chart.
+                templateUuid:
+                  type: string
+                  description: |
+                    vSphere only: config.uuid (BIOS UUID) of the template the
+                    build produced -- the `template-uuid` result, which
+                    execute-packer reads back from vCenter with govc
+                    (stage-time >= v0.13.8, pipeline param
+                    `templateLookupVaultPath` set). What NativeVsphereVM
+                    clones by (`vm.templateUuid`). Absent when the lookup is
+                    not configured or failed; the build does not fail then.

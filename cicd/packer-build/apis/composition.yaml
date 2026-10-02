@@ -140,6 +140,13 @@ spec:
             _proxmoxName = _displayName if _displayName != _artifactId else ""
             _templateName = _proxmoxName if _isProxmox else (_displayName or _artifactId)
             _templateVmId = _artifactId if _isProxmox else ""
+            # vSphere: the template's config.uuid (BIOS UUID), what
+            # NativeVsphereVM clones by (vm.templateUuid). execute-packer reads
+            # it back with govc after the build (stage-time >= v0.13.8, with
+            # templateLookupVaultPath set); empty on Proxmox, on older pins and
+            # when the lookup failed, and then left out (#529).
+            _uuids = [r.value for r in _results if r.name == "template-uuid"]
+            _templateUuid = _uuids[0] if _uuids and not _isProxmox else ""
 
             # Phase: one word that tells "still building" from "failed 20
             # minutes ago" (#527). Without it a failed build sat at
@@ -172,6 +179,7 @@ spec:
                 results = _results
                 if _templateName: templateName = _templateName
                 if _templateVmId: templateVmId = _templateVmId
+                if _templateUuid: templateUuid = _templateUuid
             }
 
             # The same verdict as a custom condition, because `kubectl wait
