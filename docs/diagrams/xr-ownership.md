@@ -159,7 +159,7 @@ diagrams can see.
 | `vault-pki-secrets` | environment-configs → go-templating → auto-ready | inline |
 | `ansible-run` | environment-configs → kcl → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/kcl-tekton-pr?tag=0.15.1` |
 | `cluster-backup` | environment-configs → kcl → kcl → auto-ready | inline |
-| `packer-build` | environment-configs → kcl → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/kcl-tekton-pr-packer?tag=0.6.1` |
+| `packer-build` | environment-configs → kcl → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/kcl-tekton-pr-packer?tag=0.7.0` |
 | `packer-release` | environment-configs → kcl → kcl → auto-ready | inline |
 | `scheduled-run` | environment-configs → kcl → kcl → auto-ready | inline |
 | `tofu-run` | environment-configs → kcl → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/kcl-tofu-pr?tag=0.1.0` |
