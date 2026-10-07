@@ -32,6 +32,15 @@ via the sub-block `images` map; and reuses `_ansibleSpec` (its `enabled`/
 **not** set `cloudInit.packages` — the `qemu-guest-agent` default lives in the
 `harvester-vm` XRD. `count` is ignored for harvester (single VM).
 
+**`imageId` + `storageClassName` are STICKY (v0.1.15, harvester#344).** Once
+`ocds["harvester-vm"]` exists, both are re-emitted from its observed
+`spec.volume`, not from the `images` lookup. A pin change used to rewrite every
+existing VM's disk, and a PVC's `storageClassName` is immutable, so the disk
+Object went `Synced=False` for ever while the VM ran and the XR stayed Ready.
+The fallback chain is observed -> `images[os]` -> sub-block `storageClassName`.
+`crossplane render` has no observed state, so the goldens only cover the fresh
+path.
+
 `patch-status` reads either a `VMProvision` or a `HarvesterVM` from `ocds`
 (`kind in [...]`); VM readiness is `vmReady` (VMProvision) or `vm.ready`
 (HarvesterVM): `_vmStatus?.vmReady or (_vmStatus?.vm?.ready or False)`.
