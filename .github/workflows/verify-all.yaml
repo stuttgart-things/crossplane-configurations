@@ -12,8 +12,11 @@ name: Verify All Configurations (nightly)
 # xpkg build) against all of them on a nightly schedule, so latent drift surfaces
 # on its own instead of waiting for the next unrelated edit to that package.
 #
-# Also runnable on demand (workflow_dispatch) — e.g. right after bumping the
-# crossplane module version pin — to re-verify the whole set before merging.
+# Also runnable on demand (workflow_dispatch) — e.g. right after the crossplane
+# module version moves — to re-verify the whole set. That version is the
+# crossplane-module-version default of call-crossplane-verify in
+# stuttgart-things/github-workflow-templates, which Renovate keeps current
+# (#201 there); this repo no longer overrides it.
 
 on:
   schedule:
@@ -60,9 +63,4 @@ jobs:
     with:
       src: ${{ matrix.config }}
       runs-on: dagger-labda
-      # v0.132.0: render gets every non-XR manifest from examples/ as an extra
-      # resource, not only EnvironmentConfigs (stuttgart-things/dagger#388) —
-      # the cluster Configuration fetches AppSecretProfiles by name and fails
-      # the render without them (#470). The template default is still v0.122.0.
-      crossplane-module-version: v0.132.0
     secrets: inherit # pragma: allowlist secret
