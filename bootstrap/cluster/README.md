@@ -197,6 +197,43 @@ The environment half extends the same EnvironmentConfig: `vault.mounts` (logical
 
 **Cluster preconditions** on the management cluster: the two EnvironmentConfigs above; `rancher-mgmt-labda` with its kubeconfig Secret; a clusterbook `ClusterProviderConfig` for the LabDA clusterbook, trusting the LabDA PKI root (`customCA`); `default/vault-pki-source-ca-labda` with that root; and a CoreDNS that resolves the 4sthings zone (flux `coredns-lab-zone` on rke2) — Rancher's downstream kubeconfigs and the clusterbook API are named there too.
 
+## Multi-node: three all-role nodes on the Rancher path (v0.15.0)
+
+[`examples/xr-vsphere-rancher-ha.yaml`](examples/xr-vsphere-rancher-ha.yaml), [#170](https://github.com/stuttgart-things/crossplane-configurations/issues/170). A size with `masters > 1` (`medium-ha` 4/8192/64, `app-ha` 4/12288/100; xplane-cluster-catalog 0.11.0) now builds that many VMs on the **Rancher custom-node path** (`rancher-k3s` / `rancher-rke2`, provider `proxmox` or `vsphere`). Each node is **etcd + control-plane + worker**. xplane-cluster 0.26.0 implements it.
+
+```
+ClusterStack  size: app-ha, distribution: rancher-rke2
+├─ RancherCluster          {name}-rancher    publishes the node command, as before
+├─ NativeVsphereVM         {name}-vm         node 1: base-OS stage, then ...
+├─ AnsibleRun              {name}-join       ... join + kubeconfig -> Vault (unchanged)
+├─ NativeVsphereVM ×2      {name}-vm-2, -3   after {name}-join SUCCEEDED: base OS + join in one run,
+│                                            rancher_upload_kubeconfig false, all three roles
+├─ ClusterAccess, Platform                   talk to node 1, do not wait for nodes 2..N
+└─ Usage                                     + rancher/access/platform/mgmt-uses-vm-<i> per extra node
+```
+
+- **Node 1 is the single-node path, byte for byte.** Every single-node order renders the same children as on v0.14.0. That was checked against all example XRs and the two live orders on machinery (app-dev, homerun2-dev2), across every build state. Nodes 2..N are added only when the size asks for them.
+- **Nodes 2..N** run `sthings.baseos.setup`, the base-OS `extraPlaybooks` and `sthings.rke.rancher_register` in **one** run from their own VM XR's `spec.ansible`. That run uses node 1's base-OS vars with its own `vm_hostname` (`<cluster>-<i>`), the join vars with the upload off and the three role vars stated, base-OS ∪ join `extraCollections`, and the node-command Secret as `extraEnvSecretName`. The VM XRs keep that run sticky themselves and publish `share.ansibleSucceeded`, so nodes 2..N need no `_reemit`/`_sealed` of their own. They also have no `runIDs` lever: a failed extra node is rebuilt by deleting its VM XR.
+- **Order.** Nodes 2..N register only after node 1's join succeeded, which means node 1's API server answered. Node 1 is therefore Rancher's init node, and the kubeconfig in Vault points at the etcd that bootstrapped.
+- **Ready means all nodes.** `status.ready` waits for every extra node's run. `status.stage` reads `nodes` once platform and management plane are done and a node is still missing. `status.stages.nodes` shows `total`, `ready`, `pending` and `members` (name, ip, joined). ClusterAccess and the Platform do not wait, because cilium is what lets the other nodes go Ready.
+- **Teardown.** Each extra VM outlives the RancherCluster, ClusterAccess, Platform and ManagementPlane, the same as node 1. Losing two of three etcd members takes node 1's API server down with them. Node 1's Usage labels are unchanged.
+- **Refused at render**, so only ever on a new order (`size` is immutable):
+  - a multi-node size on the ansible path (catalog `multiNode = False`);
+  - a Harvester machine pool (Rancher sizes it);
+  - `provider: harvester` with `infrastructure: generic` (`HarvesterVM` has no `extraEnvSecretName`);
+  - a static `vm.ipv4Address`.
+- **Needs** vspherevm ≥ v0.10.0 / proxmoxvm ≥ v0.14.0 (`spec.ansible.extraEnvSecretName`). `dependsOn` says so.
+
+**DNS on rke2 in LabDA.** `dns_k3s_coredns` writes a k3s manifest and does nothing on rke2. The example sends the pod half through Rancher instead: `rancher.clusterSpec.rkeConfig.chartValues.rke2-coredns`, which rancher-cluster merges into the provisioning Cluster's `rkeConfig`. It holds two server blocks, modeled on flux `infra/coredns/components/lab-zone`: the zone `4sthings.tiab.ssc.sva.de.` forwarded to `10.100.136.115`, and the chart's default `.` block copied verbatim, because `servers` is a list and **replaces** the chart's. The node half (`sthings.baseos.dns_zones`) runs on every node, since the extra nodes inherit the base-OS hooks. `rancher.environmentConfig: rancher-labda-rke2` must be an environment with `distro: rke2` and a `kubernetesVersion`. The module refuses `rancher-rke2` against the k3s `rancher-labda`.
+
+**Limits.**
+
+- The kubeconfig, ClusterAccess and Argo CD point at **node 1's IP** ([#171](https://github.com/stuttgart-things/crossplane-configurations/issues/171)): three etcd members behind one address.
+- There is **no resize** ([#172](https://github.com/stuttgart-things/crossplane-configurations/issues/172)).
+- Addresses come from **DHCP** on vSphere, so a changed lease breaks that node's etcd peer URL.
+- A successful join play means the Rancher **agent** runs on the node. Whether Rancher finished adding the etcd member shows in Rancher's cluster status.
+- **No three-node reference run yet.** The first LabDA order is that run.
+
 ## Gates: sticky, and keyed on success
 
 Each stage opens when the previous one **succeeded** — not when it is Ready. An `AnsibleRun` whose PipelineRun failed still reports Ready once its Object is applied; unblocking on that would upload a kubeconfig from a cluster that was never installed.
@@ -375,8 +412,11 @@ A `ClusterStack` with `platformEnabled: false` from the start tears down cleanly
 
 ## Not supported yet
 
-- **Multi-node.** `size: medium-ha` renders an error, by design: no distribution in the catalog declares a verified multi-node path. Tracked as [#170](https://github.com/stuttgart-things/crossplane-configurations/issues/170) (static addressing + aggregate gate) and [#171](https://github.com/stuttgart-things/crossplane-configurations/issues/171) (the API endpoint is a single node IP, so three masters would be HA in name only).
-- **Multi-node rke2.** The single-node path exists as of v0.3.0, but the catalog entry declares `multiNode = False` — not a statement about rke2 upstream (the fleet runs multinode rke2 through ansible today), but about this path: a `ClusterStack` composes one VM child, so N masters need N VMs, static addressing and an aggregate ready gate. Same open item as k3s, [#170](https://github.com/stuttgart-things/crossplane-configurations/issues/170).
+- **Multi-node outside the Rancher custom-node path.** Since v0.15.0, `medium-ha` / `app-ha` build N all-role nodes with `rancher-k3s` / `rancher-rke2` on proxmox or vsphere (see above). Other shapes still fail the render:
+  - k3s, kind and rke2 through ansible: their catalog entries declare `multiNode = False`, because deploy_configure_rke would need the master inventory groups across N VMs;
+  - a Harvester machine pool;
+  - worker-only nodes, which need an API address every node can reach ([#171](https://github.com/stuttgart-things/crossplane-configurations/issues/171)).
+- **An API endpoint that is not node 1's IP** — [#171](https://github.com/stuttgart-things/crossplane-configurations/issues/171).
 - **Day-2 scaling** — [#172](https://github.com/stuttgart-things/crossplane-configurations/issues/172).
 
 ## Local render

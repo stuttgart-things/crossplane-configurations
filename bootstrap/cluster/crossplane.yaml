@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.14.0
+    meta.crossplane.io/version: v0.15.0
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -44,8 +44,11 @@ metadata:
 
       Distributions: k3s, kind and — since v0.3.0 — single-node rke2, plus
       the rancher provisioner as rancher-k3s / rancher-rke2 (v0.11.7 adds
-      the k3s twin). Multi-node and day-2 scaling remain deliberately
-      unsupported.
+      the k3s twin). Since v0.15.0 the rancher pair builds multi-node sizes
+      (medium-ha, app-ha): N all-role nodes on proxmox or vsphere, nodes 2..N
+      joining after the first, the stack ready only when all joined. The API
+      endpoint stays node 1's IP (#171); day-2 scaling remains unsupported
+      (#172).
 
       Since v0.12.1 `provider: harvester` with a rancher distribution is a
       Harvester MACHINE POOL by default: Rancher builds the VM, at an address
@@ -67,10 +70,14 @@ spec:
     # The wrapped Configurations. This package composes only child XRs — it
     # talks to no provider itself, so no provider is listed here; they come
     # transitively from these.
+    # >=v0.14.0 / >=v0.10.0: spec.ansible.extraEnvSecretName, which nodes 2..N
+    # of a multi-node rancher size read the registration command through
+    # (xplane-cluster 0.26.0). An older XRD prunes the field, and the extra
+    # node's join fails on an empty nodeCommand.
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/proxmoxvm
-      version: ">=v0.4.1"
+      version: ">=v0.14.0"
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/vspherevm
-      version: ">=v0.7.1"
+      version: ">=v0.10.0"
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/ansible-run
       version: ">=v0.3.2"
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/remote-cluster

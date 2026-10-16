@@ -94,6 +94,11 @@ spec:
     #                                                        static networkData
     #   AnsibleRun                          {name}-kubeconfig  retries itself (-try<n>)
     #
+    # A multi-node size on the rancher custom-node path (0.26.0) adds, once
+    # {name}-join succeeded, one VM per extra node with base OS + join in its
+    # own spec.ansible, and node 1's Usages for each:
+    #   NativeProxmoxVM | NativeVsphereVM   {name}-vm-2 .. {name}-vm-N
+    #
     # In rancher mode it also requests the AppSecretProfiles its profiles name
     # (function-kcl ExtraResources, by name) — cluster-scoped, so they cannot
     # come from the order's namespace.
@@ -109,7 +114,7 @@ spec:
         metadata:
           name: cluster
         spec:
-          source: oci://ghcr.io/stuttgart-things/xplane-cluster?tag=0.25.1
+          source: oci://ghcr.io/stuttgart-things/xplane-cluster?tag=0.26.0
     # Propagates the composed children's readiness to the XR. status.ready is
     # set by the module itself (from the Platform child, or from ClusterAccess
     # when platformEnabled is false); this makes the XR's Ready condition track
