@@ -1,0 +1,342 @@
+# All three nodes of the stack have joined, and ClusterAccess and Platform are
+# ready: status.ready true, stage `ready`, stages.nodes ready 3/3, and every
+# extra node carries node 1's Usages (rancher-, access-, platform-uses-vm-<i>; no
+# management plane on this order) (xplane-cluster 0.26.0, #170).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: rancher-vsphere-ha-rancher
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: rancher
+spec:
+  environmentConfig: rancher-labda-rke2
+  clusterAnnotations:
+    field.cattle.io/no-creator-rbac: 'true'
+  clusterSpec:
+    rkeConfig:
+      chartValues:
+        rke2-coredns:
+          servers:
+          - zones:
+            - zone: 4sthings.tiab.ssc.sva.de.
+            port: 53
+            plugins:
+            - name: errors
+            - name: cache
+              parameters: 30
+              configBlock: serve_stale 24h
+            - name: template
+              parameters: ANY HINFO
+              configBlock: rcode NOERROR
+            - name: forward
+              parameters: . 10.100.136.115
+          - zones:
+            - zone: .
+              use_tcp: true
+            port: 53
+            plugins:
+            - name: errors
+            - name: health
+              configBlock: lameduck 10s
+            - name: ready
+            - name: kubernetes
+              parameters: in-addr.arpa ip6.arpa
+              configBlock: 'pods insecure
+
+                fallthrough in-addr.arpa ip6.arpa
+
+                ttl 30'
+            - name: prometheus
+              parameters: 0.0.0.0:9153
+            - name: forward
+              parameters: . /etc/resolv.conf
+            - name: cache
+              parameters: 30
+              configBlock: serve_stale 24h
+            - name: loop
+            - name: reload
+            - name: loadbalance
+  argocd:
+    register: true
+    reservation:
+      enabled: true
+      networkKey: 10.100.136
+    labels:
+      network-platform: 'true'
+      network-platform/cert-manager-vault-pki: 'false'
+      network-platform/cilium-gateway-secondary: 'false'
+      storage-platform: 'true'
+      storage-platform/longhorn: 'false'
+      storage-platform/nfs-csi-install: 'false'
+      storage-platform/nfs-csi-storageclasses: 'false'
+      security-platform: 'true'
+      auto-project: 'true'
+      security-platform/external-secrets-stores: 'true'
+      env: LabDA
+    annotations:
+      observability-platform.stuttgart-things.com/storage-class: openebs-hostpath
+      homerun2-platform.stuttgart-things.com/storage-class: openebs-hostpath
+      clusterbook.stuttgart-things.com/vault-server: https://vault-vsphere.tiab.labda.sva.de:8200
+      clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki-k8s
+      external-secrets.stuttgart-things.com/kv-mounts: rancher-vsphere-ha
+      external-secrets.stuttgart-things.com/vault-server: https://openbao.sthings-infra.4sthings.tiab.ssc.sva.de
+  name: rancher-vsphere-ha
+  machineGlobalConfig:
+    cni: none
+    disable-kube-proxy: true
+    ingress-controller: none
+    disable:
+    - rke2-traefik-crd
+    - rke2-gateway-api-crd
+  nodeRegistration:
+    publish: true
+    secretNamespace: tekton-ci  # pragma: allowlist secret
+status:
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  nodeCommandSecret: rancher-vsphere-ha-node-command  # pragma: allowlist secret
+---
+apiVersion: opentofu.m.upbound.io/v1beta1
+kind: Workspace
+metadata:
+  name: rancher-vsphere-ha-kubeconfig-vault
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: kubeconfig-vault
+spec:
+  providerConfigRef:
+    name: in-cluster
+    kind: ClusterProviderConfig
+  forProvider:
+    source: Inline
+    module: "terraform {\n  required_providers {\n    vault = {\n      source  = \"\
+      hashicorp/vault\"\n      version = \"~> 3.25\"\n    }\n  }\n}\n\nvariable \"\
+      vault_addr\" {\n  type = string\n}\n\nvariable \"metadata_path\" {\n  type =\
+      \ string\n}\n\nvariable \"cluster_name\" {\n  type = string\n}\n\nvariable \"\
+      vault_role_id\" {\n  type = string\n}\n\nvariable \"vault_secret_id\" {\n  type\
+      \      = string\n  sensitive = true\n}\n\nprovider \"vault\" {\n  address  \
+      \        = var.vault_addr\n  skip_tls_verify  = true\n  skip_child_token = true\n\
+      \n  auth_login {\n    path = \"auth/approle/login\"\n    parameters = {\n  \
+      \    role_id   = var.vault_role_id\n      secret_id = var.vault_secret_id\n\
+      \    }\n  }\n}\n\n# Owns the ENTRY, never its content: the join play writes\
+      \ the kubeconfig into\n# <mount>/data/<cluster> and keeps writing new versions.\
+      \ Writing custom_metadata\n# is what marks the entry as Crossplane-owned; destroying\
+      \ this resource DELETEs\n# the metadata path, and with it every version.\n#\n\
+      # disable_read: a GET on the metadata path returns a different shape than the\n\
+      # POST takes, so reading it back would diff forever.\nresource \"vault_generic_endpoint\"\
+      \ \"kubeconfig_metadata\" {\n  path                 = var.metadata_path\n  disable_read\
+      \         = true\n  ignore_absent_fields = true\n\n  data_json = jsonencode({\n\
+      \    custom_metadata = {\n      \"managed-by\" = \"crossplane\"\n      \"cluster\"\
+      \    = var.cluster_name\n    }\n  })\n}\n"
+    vars:
+    - key: vault_addr
+      value: https://vault-vsphere.tiab.labda.sva.de:8200
+    - key: metadata_path
+      value: kubeconfigs/metadata/rancher-vsphere-ha
+    - key: cluster_name
+      value: rancher-vsphere-ha
+    varFiles:
+    - source: SecretKey
+      format: HCL
+      secretKeyRef:
+        name: vault-kubeconfig-writer-labda
+        key: terraform.tfvars
+status:
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  name: rancher-vsphere-ha-vm
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: vm
+spec:
+  environmentConfig: labda
+  vm:
+    name: rancher-vsphere-ha
+    cpu: '4'
+    ram: '12288'
+    disk: '100'
+  ansible:
+    enabled: true
+    playbooks:
+    - sthings.baseos.setup
+    - sthings.baseos.dns_zones
+    varsFile:
+    - manage_filesystem+-true
+    - update_packages+-true
+    - vm_hostname+-rancher-vsphere-ha
+    - 'dns_forward_zones+-[{"zone": "4sthings.tiab.ssc.sva.de", "server": "10.100.136.115"}]'
+    crossplaneProviderConfig: in-cluster
+    pipelineNamespace: tekton-ci
+    extraCollections:
+    - https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.927.1372/sthings-baseos-26.927.1372.tar.gz
+status:
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  share:
+    ip:
+    - 10.100.136.121
+    moid: vm-1
+    powerState: poweredOn
+    ansibleReady: true
+    ansibleSucceeded: 'True'
+    ansibleCompletionTime: '2026-10-16T08:00:00Z'
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: AnsibleRun
+metadata:
+  name: rancher-vsphere-ha-join
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: join
+spec:
+  pipelineRunName: rancher-vsphere-ha-join
+  namespace: tekton-ci
+  ansiblePlaybooks:
+  - sthings.rke.rancher_register
+  ansibleVarsFile:
+  - rancher_upload_kubeconfig+-true
+  - rancher_kubeconfig_path+-
+  - cluster_name+-rancher-vsphere-ha
+  ansibleVarsInventory:
+  - all+["10.0.0.11"]
+  crossplaneObjectName: rancher-vsphere-ha-join
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
+  vaultSecretName: vault-labda  # pragma: allowlist secret
+  extraEnvSecretName: rancher-vsphere-ha-node-command  # pragma: allowlist secret
+  ansibleExtraCollections:
+  - https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.920.1331/sthings-rke-26.920.1331.tar.gz
+  installExtraCollections: 'true'
+status:
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  succeeded: 'True'
+  completionTime: '2026-10-16T08:00:00Z'
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  name: rancher-vsphere-ha-vm-2
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: vm-2
+spec: {}
+status:
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  share:
+    ip:
+    - 10.100.136.122
+    moid: vm-1
+    powerState: poweredOn
+    ansibleReady: true
+    ansibleSucceeded: 'True'
+    ansibleCompletionTime: '2026-10-16T08:00:00Z'
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  name: rancher-vsphere-ha-vm-3
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: vm-3
+spec: {}
+status:
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  share:
+    ip:
+    - 10.100.136.123
+    moid: vm-1
+    powerState: poweredOn
+    ansibleReady: true
+    ansibleSucceeded: 'True'
+    ansibleCompletionTime: '2026-10-16T08:00:00Z'
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterAccess
+metadata:
+  name: rancher-vsphere-ha-access
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: access
+status:
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  ready: true
+  share:
+    apiEndpoint: https://10.100.136.121:6443
+    clusterType: rke2
+    serverVersion: v1.35.8+rke2r1
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  name: rancher-vsphere-ha-platform
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: platform
+status:
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+    lastTransitionTime: '2026-10-16T08:00:00Z'
+  - type: Synced
+    status: 'True'
+    reason: ReconcileSuccess
+    lastTransitionTime: '2026-10-16T08:00:00Z'

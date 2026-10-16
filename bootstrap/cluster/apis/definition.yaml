@@ -98,10 +98,21 @@ spec:
                   default: medium
                   description: >-
                     T-shirt size from the xplane-cluster-catalog module
-                    (small | medium | large | medium-ha). Resolves to cpu,
-                    memory, disk and the node counts. An unknown name fails the
-                    render with the list of known sizes rather than silently
+                    (small | medium | large | medium-ha | app-ha). Resolves to
+                    cpu, memory, disk and the node counts. An unknown name fails
+                    the render with the list of known sizes rather than silently
                     building a default.
+
+
+                    medium-ha (4/8192/64) and app-ha (4/12288/100) carry three
+                    masters (xplane-cluster 0.26.0). They build three all-role
+                    nodes (etcd + control-plane + worker) on the Rancher
+                    custom-node path only: rancher-k3s / rancher-rke2 with
+                    provider proxmox or vsphere. Node 1 is `{name}-vm` with its
+                    `{name}-join`, and nodes 2..N are `{name}-vm-2`.. joining
+                    after it. Every other shape fails the render: the ansible
+                    distributions, a Harvester machine pool, and a static
+                    vm.ipv4Address. The kubeconfig points at node 1's IP (#171).
                 distribution:
                   type: string
                   default: k3s
@@ -173,9 +184,10 @@ spec:
                         Static address in CIDR form, or `dhcp`. PROXMOX ONLY —
                         NativeVsphereVM has no cloudInit block at all (its
                         cloud-init is baked into the template's guestinfo), so
-                        on vSphere this is ignored. Multi-node will require
-                        static addressing, which is why the asymmetry is called
-                        out here rather than discovered later (issue #170).
+                        on vSphere this is ignored. A static address is ONE
+                        node's: a multi-node size (medium-ha, app-ha) with a
+                        static address fails the render, because every node
+                        would get it (issue #170).
                 ansible:
                   type: object
                   description: >-
@@ -646,9 +658,12 @@ spec:
                 stage:
                   type: string
                   description: >-
-                    The stage the stack is currently waiting on — vm, baseos,
-                    distribution, kubeconfig, access, platform, or ready. The
-                    single field to look at when a build is stuck.
+                    The stage the stack is currently waiting on — rancher,
+                    node-ip, vm, baseos, distribution, kubeconfig, join, access,
+                    platform, management-plane, nodes, or ready. The single field
+                    to look at when a build is stuck. `nodes` means only nodes
+                    2..N of a multi-node size are missing; status.stages.nodes
+                    names them (`pending`).
                 share:
                   type: object
                   description: Facts, resolved or discovered, republished for consumers.

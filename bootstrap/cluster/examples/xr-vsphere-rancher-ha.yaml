@@ -1,0 +1,171 @@
+---
+# A THREE-NODE Rancher custom-node rke2 cluster on LabDA vSphere, from one XR
+# (#170, #508). The LabDA app-cluster shape.
+#
+# size: app-ha               4 vCPU / 12288 MB / 100 GB, masters 3 (catalog
+#                            0.11.0). Every node is etcd + control-plane +
+#                            worker, so etcd holds quorum with one node down.
+#
+# How the three nodes come up (xplane-cluster >= 0.26.0):
+#
+#   node 1   {name}-vm, base-OS stage, then {name}-join -- the single-node path
+#            unchanged. It registers first, so Rancher makes it the init node,
+#            and it uploads the admin kubeconfig to kubeconfigs/<cluster>.
+#   node 2+3 {name}-vm-2 / -vm-3, emitted once node 1's join SUCCEEDED. Each
+#            runs base OS (incl. extraPlaybooks below) and the join in ONE run,
+#            with rancher_upload_kubeconfig false and all three roles.
+#
+# status.stages.nodes counts them (ready/total, pending), and the stack is
+# ready only when all three joined. ClusterAccess and the Platform do NOT wait
+# for nodes 2+3 -- they talk to node 1, and cilium is what lets every node go
+# Ready in the first place.
+#
+# LIMITS, read before ordering:
+#   - the kubeconfig (and so ClusterAccess, Argo CD) points at NODE 1's IP
+#     (#171). Three etcd members, one address: node 1 down = no API for the
+#     fleet, though the cluster itself keeps running.
+#   - size is immutable (#172): no growing to five, no shrinking to one.
+#   - DHCP: the vSphere branch has no static addressing; each node keeps its
+#     lease. A changed lease on reboot breaks that node's etcd peer URL.
+#
+# rancher.environmentConfig: rancher-labda-rke2 -- the LabDA Rancher on
+# sthings-platform, an environment with `distro: rke2` (the module refuses
+# rancher-rke2 against the k3s one, rancher-labda). It also carries the
+# kubernetesVersion, which is why this order names none.
+#
+# DNS IS THE REAL PRECONDITION, as in xr-vsphere-rancher.yaml: the LabDA Rancher
+# answers only under 4sthings.tiab.ssc.sva.de, which the lab resolver cannot
+# reach. Two halves:
+#   - the NODES: sthings.baseos.dns_zones in the base-OS stage (route-only
+#     resolved drop-in). Runs on all three nodes -- the extra nodes inherit
+#     baseos extraPlaybooks/extraVars/extraCollections.
+#   - the PODS: rke2's own CoreDNS, configured through Rancher
+#     (rancher.clusterSpec.rkeConfig.chartValues.rke2-coredns, below) -- NOT
+#     dns_k3s_coredns, which writes a k3s manifest and does nothing on rke2.
+#     cattle-cluster-agent is an ordinary pod and has to resolve the Rancher to
+#     register at all.
+#
+# Based on labda-rancher-2 (stuttgart-things, before 6b2dcc35e): Argo CD
+# registration with a clusterbook address, profiles, secretStores [own].
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: rancher-vsphere-ha
+  namespace: default
+spec:
+  provider: vsphere
+  distribution: rancher-rke2
+  size: app-ha
+  environmentConfig: labda
+  kubeconfig:
+    vaultSecretName: vault-labda  # pragma: allowlist secret
+    lifecycle:
+      enabled: true
+      vaultAddr: https://vault-vsphere.tiab.labda.sva.de:8200
+      credentialSecret: vault-kubeconfig-writer-labda  # pragma: allowlist secret
+  ansible:
+    stages:
+      baseos:
+        extraCollections:
+          - https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.927.1372/sthings-baseos-26.927.1372.tar.gz
+        extraPlaybooks:
+          - sthings.baseos.dns_zones
+        # The node half only. No dns_k3s_coredns on rke2: the pod half is the
+        # rke2-coredns chartValues below.
+        extraVars:
+          - 'dns_forward_zones+-[{"zone": "4sthings.tiab.ssc.sva.de", "server": "10.100.136.115"}]'
+      join:
+        pipelineNamespace: tekton-ci
+        extraCollections:
+          - https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.920.1331/sthings-rke-26.920.1331.tar.gz
+  # The platform AppSets: cert-manager, cilium LB + Gateway, trust-manager
+  # (network); openebs-hostpath (storage-openebs); external-secrets (security).
+  profiles:
+    - network
+    - storage-openebs
+    - security
+  # This cluster's own KV mount on the LabDA OpenBao (environment vault.eso).
+  secretStores: [own]
+  rancher:
+    environmentConfig: rancher-labda-rke2
+    # rancher-mgmt-labda is a ServiceAccount, not a Rancher user. CREATE-TIME
+    # ONLY: never add it to an order whose Cluster already exists.
+    clusterAnnotations:
+      field.cattle.io/no-creator-rbac: "true"
+    # Passed through to the provisioning Cluster by rancher-cluster (merged
+    # into rkeConfig next to the catalog's machineGlobalConfig).
+    clusterSpec:
+      rkeConfig:
+        chartValues:
+          # The zone forward for the PODS, modeled on stuttgart-things/flux
+          # infra/coredns/components/lab-zone/helmchartconfig.yaml with its
+          # defaults filled in. `servers` IS A LIST AND REPLACES the chart's
+          # own: the second block is rke2-coredns's default, verbatim but for
+          # serve_stale. Drop it and the cluster loses cluster.local, service
+          # discovery and upstream DNS at the next CoreDNS restart.
+          rke2-coredns:
+            servers:
+              # ---- the forwarded zone (trailing dot required) ----
+              - zones:
+                  - zone: 4sthings.tiab.ssc.sva.de.
+                port: 53
+                plugins:
+                  - name: errors
+                  - name: cache
+                    parameters: 30
+                    configBlock: |-
+                      serve_stale 24h
+                  # HINFO: the lab-zone component's no-op default for its
+                  # optional NODATA rewrite (COREDNS_ZONE_NODATA_TYPE).
+                  - name: template
+                    parameters: ANY HINFO
+                    configBlock: |-
+                      rcode NOERROR
+                  - name: forward
+                    parameters: . 10.100.136.115
+              # ---- the chart default, verbatim but for serve_stale ----
+              - zones:
+                  - zone: .
+                    use_tcp: true
+                port: 53
+                plugins:
+                  - name: errors
+                  - name: health
+                    configBlock: |-
+                      lameduck 10s
+                  - name: ready
+                  - name: kubernetes
+                    parameters: in-addr.arpa ip6.arpa
+                    configBlock: |-
+                      pods insecure
+                      fallthrough in-addr.arpa ip6.arpa
+                      ttl 30
+                  - name: prometheus
+                    parameters: 0.0.0.0:9153
+                  - name: forward
+                    parameters: . /etc/resolv.conf
+                  - name: cache
+                    parameters: 30
+                    configBlock: |-
+                      serve_stale 24h
+                  - name: loop
+                  - name: reload
+                  - name: loadbalance
+    argocd:
+      register: true
+      reservation:
+        enabled: true
+        networkKey: '10.100.136'
+      labels:
+        env: LabDA
+  platformEnabled: true
+  platform:
+    fluxInit:
+      enabled: false
+    vaultIssuer:
+      enabled: true
+      authProvider: provider-vault
+      vaultProviderConfigRef: vault-labda
+      vaultAddr: https://vault-vsphere.tiab.labda.sva.de:8200
+      pkiRole: 4sthings.tiab.ssc.sva.de
+      caSourceSecret: vault-pki-source-ca-labda  # pragma: allowlist secret
