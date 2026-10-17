@@ -297,6 +297,8 @@ spec:
       homerun2-platform.stuttgart-things.com/secret-store: vault-homerun2
       homerun2-platform.stuttgart-things.com/shared-git-pat-secret-key: _git-pat
       homerun2-platform.stuttgart-things.com/shared-git-pat-secret-store: vault-homerun2
+      homerun2-platform.stuttgart-things.com/shared-teams-webhook-secret-key: _teams-webhook
+      homerun2-platform.stuttgart-things.com/shared-teams-webhook-secret-store: vault-homerun2
       homerun2-platform.stuttgart-things.com/storage-class: openebs-hostpath
       observability-platform.stuttgart-things.com/alert-webhook-secret-key: _omni-pitcher
       observability-platform.stuttgart-things.com/alert-webhook-url: https://omni.platform.sthings-vsphere.labul.sva.de/pitch/grafana
