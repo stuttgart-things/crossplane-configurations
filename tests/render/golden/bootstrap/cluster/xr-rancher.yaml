@@ -115,6 +115,10 @@ spec:
         charset: alphanumeric
         length: 32
       key: redisPassword
+    - generate:
+        charset: alphanumeric
+        length: 32
+      key: schedulePitcherAuthToken
     deleteAllVersions: true
     path: rke2-rancher-1
 ---
@@ -297,6 +301,8 @@ spec:
       homerun2-platform.stuttgart-things.com/secret-store: vault-homerun2
       homerun2-platform.stuttgart-things.com/shared-git-pat-secret-key: _git-pat
       homerun2-platform.stuttgart-things.com/shared-git-pat-secret-store: vault-homerun2
+      homerun2-platform.stuttgart-things.com/shared-openrouter-secret-key: _openrouter
+      homerun2-platform.stuttgart-things.com/shared-openrouter-secret-store: vault-homerun2
       homerun2-platform.stuttgart-things.com/shared-teams-webhook-secret-key: _teams-webhook
       homerun2-platform.stuttgart-things.com/shared-teams-webhook-secret-store: vault-homerun2
       homerun2-platform.stuttgart-things.com/storage-class: openebs-hostpath
