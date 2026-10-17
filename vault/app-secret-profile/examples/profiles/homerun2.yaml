@@ -18,3 +18,8 @@ spec:
           overridable: true
         githubToken:
           shared: git-pat
+        # The notification-catcher's MS Teams webhook: one per lab, read by
+        # every catcher from the shared entry `teams-webhook` maps to
+        # (stuttgart-things/stuttgart-things#3715).
+        teamsWebhookUrl:
+          shared: teams-webhook
