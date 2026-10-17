@@ -52,6 +52,9 @@ data:
       teams-webhook:
         mount: homerun2
         entry: _teams-webhook
+      openrouter:
+        mount: homerun2
+        entry: _openrouter
     # Entries live fleets still read from hand-seeded paths. A cluster whose
     # derived entry lands on one fails the order — the writer policy only grants
     # read there anyway. Drop once homerun2-test1 migrates (#464 step 7).

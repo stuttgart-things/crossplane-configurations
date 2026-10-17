@@ -175,7 +175,7 @@ For `profiles: [..., homerun2, tabletennis]` on `rke2-rancher-1` that is:
 | `homerun2-platform.stuttgart-things.com/secrets-config: "true"`, `…/secret-store: vault-homerun2` | one store serves homerun2 |
 | `tabletennis-platform`: `secrets-config` + store and entry per owning app (`schmetterpause-*`, `shared-object-store-backup-*`, `homerun2-*`) | v0.11.1 / xplane-cluster 0.18.0 — tabletennis reads two mounts, so the facts are published per owner instead of one `secret-store` |
 
-`shared` keys (`githubToken`, `teamsWebhookUrl`, the backup key pair) and `reads` are **never written**: consumers read `homerun2/_git-pat`, `homerun2/_teams-webhook`, `schmetterpause/_backup` or the owning app's entry directly. Entries are deleted with every version when the **stack** goes; `platformEnabled: false` keeps them.
+`shared` keys (`githubToken`, `teamsWebhookUrl`, `openrouterApiKey`, the backup key pair) and `reads` are **never written**: consumers read `homerun2/_git-pat`, `homerun2/_teams-webhook`, `homerun2/_openrouter`, `schmetterpause/_backup` or the owning app's entry directly. Entries are deleted with every version when the **stack** goes; `platformEnabled: false` keeps them.
 
 `spec.secretOverrides` adopts an existing value per overridable key (`vaultRef` through the writer credential, `secretKeyRef` from the XR's namespace) — the migration path for a live fleet.
 
