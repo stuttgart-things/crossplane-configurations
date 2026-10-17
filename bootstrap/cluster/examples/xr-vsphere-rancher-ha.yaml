@@ -2,9 +2,14 @@
 # A THREE-NODE Rancher custom-node rke2 cluster on LabDA vSphere, from one XR
 # (#170, #508). The LabDA app-cluster shape.
 #
-# size: app-ha               4 vCPU / 12288 MB / 100 GB, masters 3 (catalog
-#                            0.11.0). Every node is etcd + control-plane +
+# size: medium-mem           ONE node: 4 vCPU / 12288 MiB / 100 GiB (catalog
+#                            0.12.0).
+# nodes: 3                   three of them, each etcd + control-plane +
 #                            worker, so etcd holds quorum with one node down.
+#                            Until cluster v0.15.0 this was `size: app-ha`,
+#                            which still resolves as a deprecated alias and
+#                            renders the same bytes -- see
+#                            xr-vsphere-rancher-ha-alias.yaml.
 #
 # How the three nodes come up (xplane-cluster >= 0.26.0):
 #
@@ -24,7 +29,8 @@
 #   - the kubeconfig (and so ClusterAccess, Argo CD) points at NODE 1's IP
 #     (#171). Three etcd members, one address: node 1 down = no API for the
 #     fleet, though the cluster itself keeps running.
-#   - size is immutable (#172): no growing to five, no shrinking to one.
+#   - size and nodes are immutable (#172): no growing to five, no
+#     shrinking to one.
 #   - DHCP: the vSphere branch has no static addressing; each node keeps its
 #     lease. A changed lease on reboot breaks that node's etcd peer URL.
 #
@@ -55,7 +61,8 @@ metadata:
 spec:
   provider: vsphere
   distribution: rancher-rke2
-  size: app-ha
+  size: medium-mem
+  nodes: 3
   environmentConfig: labda
   kubeconfig:
     vaultSecretName: vault-labda  # pragma: allowlist secret
