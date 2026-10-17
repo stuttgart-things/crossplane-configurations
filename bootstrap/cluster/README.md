@@ -197,12 +197,41 @@ The environment half extends the same EnvironmentConfig: `vault.mounts` (logical
 
 **Cluster preconditions** on the management cluster: the two EnvironmentConfigs above; `rancher-mgmt-labda` with its kubeconfig Secret; a clusterbook `ClusterProviderConfig` for the LabDA clusterbook, trusting the LabDA PKI root (`customCA`); `default/vault-pki-source-ca-labda` with that root; and a CoreDNS that resolves the 4sthings zone (flux `coredns-lab-zone` on rke2) — Rancher's downstream kubeconfigs and the clusterbook API are named there too.
 
+## Sizes and node count (v0.16.0)
+
+`size` is the shape of **one** node, `nodes` is how many (xplane-cluster-catalog 0.12.0, xplane-cluster 0.27.0):
+
+| `size` | vCPU | memory | disk |
+|---|---|---|---|
+| `small` | 2 | 4096 MiB | 40 GiB |
+| `medium` (default) | 4 | 8192 MiB | 64 GiB |
+| `medium-mem` | 4 | 12288 MiB | 100 GiB |
+| `large` | 8 | 16384 MiB | 100 GiB |
+
+| `nodes` | |
+|---|---|
+| unset / `1` | one node — every distribution |
+| `3`, `5` | that many all-role nodes — `rancher-k3s` / `rancher-rke2` on proxmox or vsphere only (below) |
+
+Any other count is refused by the XRD enum (an even count cannot hold etcd quorum).
+
+**Deprecated aliases.** Up to v0.15.0 the multi-node shapes were sizes of their own. They still resolve, because `size` is immutable and a live order uses one (`labda-apps-test1`, `app-ha`):
+
+| deprecated | write instead |
+|---|---|
+| `size: medium-ha` | `size: medium`, `nodes: 3` |
+| `size: app-ha` | `size: medium-mem`, `nodes: 3` |
+
+The two spellings render **byte-identical** children: [`examples/xr-vsphere-rancher-ha.yaml`](examples/xr-vsphere-rancher-ha.yaml) uses the new one and [`examples/xr-vsphere-rancher-ha-alias.yaml`](examples/xr-vsphere-rancher-ha-alias.yaml) the alias, and their goldens (`tests/render/golden/bootstrap/cluster/xr-vsphere-rancher-ha*.yaml`, including the `--all-joined` state) are the same bytes. An alias next to a `nodes` that agrees is accepted (`app-ha` + `nodes: 3`); a contradiction (`app-ha` + `nodes: 1`) fails the render and names the replacement.
+
+`nodes` has **no XRD default**, on purpose. The API server applies schema defaults when it reads an object back, so `default: 1` would turn the live `app-ha` order into `app-ha` + `nodes: 1` — a contradiction — on its next reconcile. Unset means 1 for a t-shirt, 3 for an alias; the module decides.
+
 ## Multi-node: three all-role nodes on the Rancher path (v0.15.0)
 
-[`examples/xr-vsphere-rancher-ha.yaml`](examples/xr-vsphere-rancher-ha.yaml), [#170](https://github.com/stuttgart-things/crossplane-configurations/issues/170). A size with `masters > 1` (`medium-ha` 4/8192/64, `app-ha` 4/12288/100; xplane-cluster-catalog 0.11.0) now builds that many VMs on the **Rancher custom-node path** (`rancher-k3s` / `rancher-rke2`, provider `proxmox` or `vsphere`). Each node is **etcd + control-plane + worker**. xplane-cluster 0.26.0 implements it.
+[`examples/xr-vsphere-rancher-ha.yaml`](examples/xr-vsphere-rancher-ha.yaml), [#170](https://github.com/stuttgart-things/crossplane-configurations/issues/170). `nodes: 3` or `5` (until v0.15.0: the sizes `medium-ha` / `app-ha`) builds that many VMs on the **Rancher custom-node path** (`rancher-k3s` / `rancher-rke2`, provider `proxmox` or `vsphere`). Each node is **etcd + control-plane + worker**. xplane-cluster 0.26.0 implements it.
 
 ```
-ClusterStack  size: app-ha, distribution: rancher-rke2
+ClusterStack  size: medium-mem, nodes: 3, distribution: rancher-rke2
 ├─ RancherCluster          {name}-rancher    publishes the node command, as before
 ├─ NativeVsphereVM         {name}-vm         node 1: base-OS stage, then ...
 ├─ AnsibleRun              {name}-join       ... join + kubeconfig -> Vault (unchanged)
@@ -212,13 +241,13 @@ ClusterStack  size: app-ha, distribution: rancher-rke2
 └─ Usage                                     + rancher/access/platform/mgmt-uses-vm-<i> per extra node
 ```
 
-- **Node 1 is the single-node path, byte for byte.** Every single-node order renders the same children as on v0.14.0. That was checked against all example XRs and the two live orders on machinery (app-dev, homerun2-dev2), across every build state. Nodes 2..N are added only when the size asks for them.
+- **Node 1 is the single-node path, byte for byte.** Every single-node order renders the same children as on v0.14.0. That was checked against all example XRs and the two live orders on machinery (app-dev, homerun2-dev2), across every build state. Nodes 2..N are added only when the order asks for them.
 - **Nodes 2..N** run `sthings.baseos.setup`, the base-OS `extraPlaybooks` and `sthings.rke.rancher_register` in **one** run from their own VM XR's `spec.ansible`. That run uses node 1's base-OS vars with its own `vm_hostname` (`<cluster>-<i>`), the join vars with the upload off and the three role vars stated, base-OS ∪ join `extraCollections`, and the node-command Secret as `extraEnvSecretName`. The VM XRs keep that run sticky themselves and publish `share.ansibleSucceeded`, so nodes 2..N need no `_reemit`/`_sealed` of their own. They also have no `runIDs` lever: a failed extra node is rebuilt by deleting its VM XR.
 - **Order.** Nodes 2..N register only after node 1's join succeeded, which means node 1's API server answered. Node 1 is therefore Rancher's init node, and the kubeconfig in Vault points at the etcd that bootstrapped.
 - **Ready means all nodes.** `status.ready` waits for every extra node's run. `status.stage` reads `nodes` once platform and management plane are done and a node is still missing. `status.stages.nodes` shows `total`, `ready`, `pending` and `members` (name, ip, joined). ClusterAccess and the Platform do not wait, because cilium is what lets the other nodes go Ready.
 - **Teardown.** Each extra VM outlives the RancherCluster, ClusterAccess, Platform and ManagementPlane, the same as node 1. Losing two of three etcd members takes node 1's API server down with them. Node 1's Usage labels are unchanged.
-- **Refused at render**, so only ever on a new order (`size` is immutable):
-  - a multi-node size on the ansible path (catalog `multiNode = False`);
+- **Refused at render**, so only ever on a new order (`size` and `nodes` are immutable):
+  - `nodes > 1` on the ansible path (catalog `multiNode = False`);
   - a Harvester machine pool (Rancher sizes it);
   - `provider: harvester` with `infrastructure: generic` (`HarvesterVM` has no `extraEnvSecretName`);
   - a static `vm.ipv4Address`.
@@ -299,7 +328,9 @@ The name is set in **both** ansible stages. `upload_kubeconfig_vault` derives `k
 
 ## Immutable fields
 
-`provider`, `clusterName`, `distribution` and `size` are rejected on update by CEL. The first three are obvious; `size` is blunt on purpose — a size carries a control-plane node count, and CEL cannot see the catalog to tell a cpu change (in place) from a node-count change (a rebuild). Day-2 scaling is [#172](https://github.com/stuttgart-things/crossplane-configurations/issues/172).
+`provider`, `clusterName`, `distribution`, `size` and `nodes` are rejected on update by CEL. The first three are obvious; `size` is blunt on purpose — a deprecated alias still carries a node count, and CEL cannot see the catalog to tell a cpu change (in place) from a node-count change (a rebuild). Day-2 scaling is [#172](https://github.com/stuttgart-things/crossplane-configurations/issues/172).
+
+`nodes` (v0.16.0) is stricter than `size`: it cannot be **added** to an existing order, changed or removed (`has(self.nodes) == has(oldSelf.nodes) && …`). `size` always carries its default, `nodes` has none, so the lenient `!has(oldSelf…)` form would have let a single-node order grow by adding `nodes: 3`. The rule is two `has()` and an integer compare — constant CEL cost (unlike the unbounded string that overran the budget in v0.11.0, #473). Checked on a throwaway kind API server with a CRD built from this XRD: the CRD establishes; an `app-ha` order without `nodes` updates normally and refuses an added `nodes: 3`; `nodes: 3 → 5` and removing `nodes` are refused; `nodes: 2` is refused by the enum.
 
 `vm.templateVmId` / `vm.templateUuid` are create-only in the underlying providers: changing either forces delete+recreate rather than a re-clone.
 
@@ -412,7 +443,7 @@ A `ClusterStack` with `platformEnabled: false` from the start tears down cleanly
 
 ## Not supported yet
 
-- **Multi-node outside the Rancher custom-node path.** Since v0.15.0, `medium-ha` / `app-ha` build N all-role nodes with `rancher-k3s` / `rancher-rke2` on proxmox or vsphere (see above). Other shapes still fail the render:
+- **Multi-node outside the Rancher custom-node path.** Since v0.15.0, `nodes: 3|5` (until v0.15.0: `medium-ha` / `app-ha`) builds N all-role nodes with `rancher-k3s` / `rancher-rke2` on proxmox or vsphere (see above). Other shapes still fail the render:
   - k3s, kind and rke2 through ansible: their catalog entries declare `multiNode = False`, because deploy_configure_rke would need the master inventory groups across N VMs;
   - a Harvester machine pool;
   - worker-only nodes, which need an API address every node can reach ([#171](https://github.com/stuttgart-things/crossplane-configurations/issues/171)).

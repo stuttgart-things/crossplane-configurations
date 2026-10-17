@@ -51,6 +51,17 @@ spec:
                 # change (a rebuild). Relaxing this is crossplane-configurations#172.
                 - rule: "!has(self.size) || !has(oldSelf.size) || self.size == oldSelf.size"
                   message: size is immutable in v0.1.0 — a size carries a node count, and day-2 scaling is not supported yet (see issue #172)
+                # nodes: the same reason, minus the excuse -- it IS the node
+                # count. Stricter than the size rule on purpose: size always
+                # carries a default, nodes has none (see the field), so the
+                # lenient `!has(oldSelf...)` form would let an existing
+                # single-node order ADD `nodes: 3` and grow by two nodes. Adding,
+                # removing or changing it is refused alike. An int compare and
+                # two has() -- constant cost, no string length to estimate
+                # (the v0.11.0 budget overrun, #473, came from an unbounded
+                # string).
+                - rule: "has(self.nodes) == has(oldSelf.nodes) && (!has(self.nodes) || self.nodes == oldSelf.nodes)"
+                  message: nodes is immutable — it is the node count, and day-2 scaling is not supported yet (see issue #172); it cannot be added to, changed on or removed from an existing ClusterStack
               properties:
                 # --- What the user actually chooses -------------------------
                 provider:
@@ -97,18 +108,41 @@ spec:
                   type: string
                   default: medium
                   description: >-
-                    T-shirt size from the xplane-cluster-catalog module
-                    (small | medium | large | medium-ha | app-ha). Resolves to
-                    cpu, memory, disk and the node counts. An unknown name fails
-                    the render with the list of known sizes rather than silently
-                    building a default.
+                    T-shirt size of ONE node, from the xplane-cluster-catalog
+                    module (catalog 0.12.0): small (2 vCPU / 4096 MiB / 40 GiB),
+                    medium (4 / 8192 / 64), medium-mem (4 / 12288 / 100), large
+                    (8 / 16384 / 100). How many nodes is `nodes`. An unknown name
+                    fails the render with the list of known sizes rather than
+                    silently building a default.
 
 
-                    medium-ha (4/8192/64) and app-ha (4/12288/100) carry three
-                    masters (xplane-cluster 0.26.0). They build three all-role
-                    nodes (etcd + control-plane + worker) on the Rancher
-                    custom-node path only: rancher-k3s / rancher-rke2 with
-                    provider proxmox or vsphere. Node 1 is `{name}-vm` with its
+                    DEPRECATED aliases, kept because size is immutable and live
+                    orders use them: medium-ha = medium with nodes 3, app-ha =
+                    medium-mem with nodes 3. They render exactly what the new
+                    spelling renders. Combined with `nodes`, the two must agree
+                    (app-ha + nodes 3); a contradiction fails the render. New
+                    orders write size + nodes.
+                nodes:
+                  type: integer
+                  enum:
+                    - 1
+                    - 3
+                    - 5
+                  description: >-
+                    Number of nodes, each etcd + control-plane + worker. 1, 3 or
+                    5 -- odd, so etcd keeps quorum. Unset means 1 (or the
+                    alias's 3 for medium-ha / app-ha). Immutable, like size.
+
+
+                    Deliberately NO schema default: the API server applies
+                    defaults when it reads an object back, so a default of 1
+                    would turn a live `size: app-ha` order into app-ha +
+                    nodes 1 -- a contradiction the render refuses.
+
+
+                    More than one node only on the Rancher custom-node path:
+                    rancher-k3s / rancher-rke2 with provider proxmox or vsphere
+                    (xplane-cluster >= 0.26.0). Node 1 is `{name}-vm` with its
                     `{name}-join`, and nodes 2..N are `{name}-vm-2`.. joining
                     after it. Every other shape fails the render: the ansible
                     distributions, a Harvester machine pool, and a static

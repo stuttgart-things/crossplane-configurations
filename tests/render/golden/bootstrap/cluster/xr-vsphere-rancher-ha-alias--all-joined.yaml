@@ -1,0 +1,938 @@
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: rancher-vsphere-ha
+  namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: config.stuttgart-things.com/v1alpha1
+      kind: ClusterAccess
+      name: rancher-vsphere-ha-access
+    - apiVersion: config.stuttgart-things.com/v1alpha1
+      kind: Platform
+      name: rancher-vsphere-ha-platform
+    - apiVersion: opentofu.m.upbound.io/v1beta1
+      kind: Workspace
+      name: rancher-vsphere-ha-kubeconfig-vault
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rancher-vsphere-ha-access-uses-kubeconfig-vault
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rancher-vsphere-ha-access-uses-vm
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rancher-vsphere-ha-access-uses-vm-2
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rancher-vsphere-ha-access-uses-vm-3
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rancher-vsphere-ha-platform-uses-access
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rancher-vsphere-ha-platform-uses-vm
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rancher-vsphere-ha-platform-uses-vm-2
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rancher-vsphere-ha-platform-uses-vm-3
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rancher-vsphere-ha-rancher-uses-vm
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rancher-vsphere-ha-rancher-uses-vm-2
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rancher-vsphere-ha-rancher-uses-vm-3
+    - apiVersion: protection.crossplane.io/v1beta1
+      kind: Usage
+      name: rancher-vsphere-ha-stack-uses-platform
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: AnsibleRun
+      name: rancher-vsphere-ha-join
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeVsphereVM
+      name: rancher-vsphere-ha-vm
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeVsphereVM
+      name: rancher-vsphere-ha-vm-2
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: NativeVsphereVM
+      name: rancher-vsphere-ha-vm-3
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: RancherCluster
+      name: rancher-vsphere-ha-rancher
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: access-uses-kubeconfig-vault, access-uses-vm, access-uses-vm-2,
+      and 9 more'
+    reason: Creating
+    status: "False"
+    type: Ready
+  ready: true
+  share:
+    apiEndpoint: https://10.100.136.121:6443
+    clusterName: rancher-vsphere-ha
+    clusterType: rke2
+    cniOwnership: platform
+    ip: 10.100.136.121
+    serverVersion: v1.35.8+rke2r1
+  stage: ready
+  stages:
+    access:
+      emitted: true
+      ready: true
+    baseos:
+      succeeded: true
+    distribution:
+      emitted: false
+      succeeded: false
+    join:
+      emitted: true
+      succeeded: true
+    kubeconfig:
+      emitted: false
+      succeeded: false
+    kubeconfigVault:
+      emitted: true
+      ready: true
+    managementPlane:
+      emitted: false
+      ready: false
+    nodes:
+      emitted: true
+      members:
+      - ip: 10.100.136.121
+        joined: true
+        name: rancher-vsphere-ha-vm
+      - ip: 10.100.136.122
+        joined: true
+        name: rancher-vsphere-ha-vm-2
+      - ip: 10.100.136.123
+        joined: true
+        name: rancher-vsphere-ha-vm-3
+      pending: []
+      ready: 3
+      total: 3
+    platform:
+      emitted: true
+      ready: true
+    rancher:
+      emitted: true
+      nodeCommandSecret: rancher-vsphere-ha-node-command
+    vm:
+      ip: 10.100.136.121
+      ready: true
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterAccess
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: access
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-access
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  clusterName: rancher-vsphere-ha
+  kubeconfigProviderConfigRef: vault-kubeconfigs-labda
+  secretNamespace: crossplane-system
+  source:
+    key: kubeconfig
+    path: rancher-vsphere-ha
+    type: vault
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: access-uses-kubeconfig-vault
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-access-uses-kubeconfig-vault
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  by:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: ClusterAccess
+    resourceRef:
+      name: rancher-vsphere-ha-access
+  of:
+    apiVersion: opentofu.m.upbound.io/v1beta1
+    kind: Workspace
+    resourceRef:
+      name: rancher-vsphere-ha-kubeconfig-vault
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: access-uses-vm
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-access-uses-vm
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  by:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: ClusterAccess
+    resourceRef:
+      name: rancher-vsphere-ha-access
+  of:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: NativeVsphereVM
+    resourceRef:
+      name: rancher-vsphere-ha-vm
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: access-uses-vm-2
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-access-uses-vm-2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  by:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: ClusterAccess
+    resourceRef:
+      name: rancher-vsphere-ha-access
+  of:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: NativeVsphereVM
+    resourceRef:
+      name: rancher-vsphere-ha-vm-2
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: access-uses-vm-3
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-access-uses-vm-3
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  by:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: ClusterAccess
+    resourceRef:
+      name: rancher-vsphere-ha-access
+  of:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: NativeVsphereVM
+    resourceRef:
+      name: rancher-vsphere-ha-vm-3
+  replayDeletion: true
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: AnsibleRun
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: join
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-join
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  ansibleExtraCollections:
+  - https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.920.1331/sthings-rke-26.920.1331.tar.gz
+  ansiblePlaybooks:
+  - sthings.rke.rancher_register
+  ansibleVarsFile:
+  - rancher_upload_kubeconfig+-true
+  - rancher_kubeconfig_path+-
+  - cluster_name+-rancher-vsphere-ha
+  ansibleVarsInventory:
+  - all+["10.0.0.11"]
+  crossplaneNamespace: default
+  crossplaneObjectName: rancher-vsphere-ha-join
+  crossplaneProviderConfig: in-cluster
+  extraEnvSecretName: rancher-vsphere-ha-node-command
+  installExtraCollections: "true"
+  namespace: tekton-ci
+  pipelineRunName: rancher-vsphere-ha-join
+  vaultSecretName: vault-labda
+---
+apiVersion: opentofu.m.upbound.io/v1beta1
+kind: Workspace
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: kubeconfig-vault
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-kubeconfig-vault
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  forProvider:
+    module: |
+      terraform {
+        required_providers {
+          vault = {
+            source  = "hashicorp/vault"
+            version = "~> 3.25"
+          }
+        }
+      }
+
+      variable "vault_addr" {
+        type = string
+      }
+
+      variable "metadata_path" {
+        type = string
+      }
+
+      variable "cluster_name" {
+        type = string
+      }
+
+      variable "vault_role_id" {
+        type = string
+      }
+
+      variable "vault_secret_id" {
+        type      = string
+        sensitive = true
+      }
+
+      provider "vault" {
+        address          = var.vault_addr
+        skip_tls_verify  = true
+        skip_child_token = true
+
+        auth_login {
+          path = "auth/approle/login"
+          parameters = {
+            role_id   = var.vault_role_id
+            secret_id = var.vault_secret_id
+          }
+        }
+      }
+
+      # Owns the ENTRY, never its content: the join play writes the kubeconfig into
+      # <mount>/data/<cluster> and keeps writing new versions. Writing custom_metadata
+      # is what marks the entry as Crossplane-owned; destroying this resource DELETEs
+      # the metadata path, and with it every version.
+      #
+      # disable_read: a GET on the metadata path returns a different shape than the
+      # POST takes, so reading it back would diff forever.
+      resource "vault_generic_endpoint" "kubeconfig_metadata" {
+        path                 = var.metadata_path
+        disable_read         = true
+        ignore_absent_fields = true
+
+        data_json = jsonencode({
+          custom_metadata = {
+            "managed-by" = "crossplane"
+            "cluster"    = var.cluster_name
+          }
+        })
+      }
+    source: Inline
+    varFiles:
+    - format: HCL
+      secretKeyRef:
+        key: terraform.tfvars
+        name: vault-kubeconfig-writer-labda
+      source: SecretKey
+    vars:
+    - key: vault_addr
+      value: https://vault-vsphere.tiab.labda.sva.de:8200
+    - key: metadata_path
+      value: kubeconfigs/metadata/rancher-vsphere-ha
+    - key: cluster_name
+      value: rancher-vsphere-ha
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+---
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: Platform
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: platform
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-platform
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  clusterName: rancher-vsphere-ha
+  cni:
+    cilium:
+      k8sServiceHost: 127.0.0.1
+      k8sServicePort: 6443
+      kubeProxyReplacement: true
+    enabled: true
+    gatewayAPI:
+      enabled: true
+    values:
+      externalIPs:
+        enabled: true
+      hubble:
+        enabled: true
+        relay:
+          enabled: true
+        ui:
+          enabled: true
+      l2announcements:
+        enabled: true
+  fluxInit:
+    enabled: false
+  vaultIssuer:
+    additionalAuths:
+    - boundServiceAccountNames:
+      - eso
+      boundServiceAccountNamespaces:
+      - external-secrets
+      createServiceAccounts: true
+      name: eso
+      ownKvMount: true
+      tokenPolicies: []
+      vaultAddr: https://openbao.sthings-infra.4sthings.tiab.ssc.sva.de
+      vaultProviderConfigRef: openbao-labda
+    authProvider: provider-vault
+    caSourceSecret: vault-pki-source-ca-labda
+    enabled: true
+    kubernetesHost: https://10.100.136.121:6443
+    pkiRole: 4sthings.tiab.ssc.sva.de
+    tokenPolicies:
+    - pki-issue-4sthings
+    vaultAddr: https://vault-vsphere.tiab.labda.sva.de:8200
+    vaultProviderConfigRef: vault-labda
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: platform-uses-access
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-platform-uses-access
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  by:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: Platform
+    resourceRef:
+      name: rancher-vsphere-ha-platform
+  of:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: ClusterAccess
+    resourceRef:
+      name: rancher-vsphere-ha-access
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: platform-uses-vm
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-platform-uses-vm
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  by:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: Platform
+    resourceRef:
+      name: rancher-vsphere-ha-platform
+  of:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: NativeVsphereVM
+    resourceRef:
+      name: rancher-vsphere-ha-vm
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: platform-uses-vm-2
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-platform-uses-vm-2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  by:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: Platform
+    resourceRef:
+      name: rancher-vsphere-ha-platform
+  of:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: NativeVsphereVM
+    resourceRef:
+      name: rancher-vsphere-ha-vm-2
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: platform-uses-vm-3
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-platform-uses-vm-3
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  by:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: Platform
+    resourceRef:
+      name: rancher-vsphere-ha-platform
+  of:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: NativeVsphereVM
+    resourceRef:
+      name: rancher-vsphere-ha-vm-3
+  replayDeletion: true
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rancher
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-rancher
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  argocd:
+    annotations:
+      clusterbook.stuttgart-things.com/vault-server: https://vault-vsphere.tiab.labda.sva.de:8200
+      clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki-k8s
+      external-secrets.stuttgart-things.com/kv-mounts: rancher-vsphere-ha
+      external-secrets.stuttgart-things.com/vault-server: https://openbao.sthings-infra.4sthings.tiab.ssc.sva.de
+      homerun2-platform.stuttgart-things.com/storage-class: openebs-hostpath
+      observability-platform.stuttgart-things.com/storage-class: openebs-hostpath
+    labels:
+      auto-project: "true"
+      env: LabDA
+      network-platform: "true"
+      network-platform/cert-manager-vault-pki: "false"
+      network-platform/cilium-gateway-secondary: "false"
+      security-platform: "true"
+      security-platform/external-secrets-stores: "true"
+      storage-platform: "true"
+      storage-platform/longhorn: "false"
+      storage-platform/nfs-csi-install: "false"
+      storage-platform/nfs-csi-storageclasses: "false"
+    register: true
+    reservation:
+      enabled: true
+      networkKey: 10.100.136
+  clusterAnnotations:
+    field.cattle.io/no-creator-rbac: "true"
+  clusterSpec:
+    rkeConfig:
+      chartValues:
+        rke2-coredns:
+          servers:
+          - plugins:
+            - name: errors
+            - configBlock: serve_stale 24h
+              name: cache
+              parameters: 30
+            - configBlock: rcode NOERROR
+              name: template
+              parameters: ANY HINFO
+            - name: forward
+              parameters: . 10.100.136.115
+            port: 53
+            zones:
+            - zone: 4sthings.tiab.ssc.sva.de.
+          - plugins:
+            - name: errors
+            - configBlock: lameduck 10s
+              name: health
+            - name: ready
+            - configBlock: |-
+                pods insecure
+                fallthrough in-addr.arpa ip6.arpa
+                ttl 30
+              name: kubernetes
+              parameters: in-addr.arpa ip6.arpa
+            - name: prometheus
+              parameters: 0.0.0.0:9153
+            - name: forward
+              parameters: . /etc/resolv.conf
+            - configBlock: serve_stale 24h
+              name: cache
+              parameters: 30
+            - name: loop
+            - name: reload
+            - name: loadbalance
+            port: 53
+            zones:
+            - use_tcp: true
+              zone: .
+  environmentConfig: rancher-labda-rke2
+  machineGlobalConfig:
+    cni: none
+    disable:
+    - rke2-traefik-crd
+    - rke2-gateway-api-crd
+    disable-kube-proxy: true
+    ingress-controller: none
+  name: rancher-vsphere-ha
+  nodeRegistration:
+    publish: true
+    secretNamespace: tekton-ci
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rancher-uses-vm
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-rancher-uses-vm
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  by:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: RancherCluster
+    resourceRef:
+      name: rancher-vsphere-ha-rancher
+  of:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: NativeVsphereVM
+    resourceRef:
+      name: rancher-vsphere-ha-vm
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rancher-uses-vm-2
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-rancher-uses-vm-2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  by:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: RancherCluster
+    resourceRef:
+      name: rancher-vsphere-ha-rancher
+  of:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: NativeVsphereVM
+    resourceRef:
+      name: rancher-vsphere-ha-vm-2
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: rancher-uses-vm-3
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-rancher-uses-vm-3
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  by:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: RancherCluster
+    resourceRef:
+      name: rancher-vsphere-ha-rancher
+  of:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: NativeVsphereVM
+    resourceRef:
+      name: rancher-vsphere-ha-vm-3
+  replayDeletion: true
+---
+apiVersion: protection.crossplane.io/v1beta1
+kind: Usage
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: stack-uses-platform
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-stack-uses-platform
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  by:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: Platform
+    resourceRef:
+      name: rancher-vsphere-ha-platform
+  of:
+    apiVersion: config.stuttgart-things.com/v1alpha1
+    kind: ClusterStack
+    resourceRef:
+      name: rancher-vsphere-ha
+  replayDeletion: false
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-vm
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  ansible:
+    crossplaneProviderConfig: in-cluster
+    enabled: true
+    extraCollections:
+    - https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.927.1372/sthings-baseos-26.927.1372.tar.gz
+    pipelineNamespace: tekton-ci
+    playbooks:
+    - sthings.baseos.setup
+    - sthings.baseos.dns_zones
+    varsFile:
+    - manage_filesystem+-true
+    - update_packages+-true
+    - vm_hostname+-rancher-vsphere-ha
+    - 'dns_forward_zones+-[{"zone": "4sthings.tiab.ssc.sva.de", "server": "10.100.136.115"}]'
+  environmentConfig: labda
+  vm:
+    cpu: "4"
+    disk: "100"
+    name: rancher-vsphere-ha
+    ram: "12288"
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm-2
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-vm-2
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  ansible:
+    crossplaneProviderConfig: in-cluster
+    enabled: true
+    extraCollections:
+    - https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.927.1372/sthings-baseos-26.927.1372.tar.gz
+    - https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.920.1331/sthings-rke-26.920.1331.tar.gz
+    extraEnvSecretName: rancher-vsphere-ha-node-command
+    pipelineNamespace: tekton-ci
+    playbooks:
+    - sthings.baseos.setup
+    - sthings.baseos.dns_zones
+    - sthings.rke.rancher_register
+    varsFile:
+    - manage_filesystem+-true
+    - update_packages+-true
+    - vm_hostname+-rancher-vsphere-ha-2
+    - 'dns_forward_zones+-[{"zone": "4sthings.tiab.ssc.sva.de", "server": "10.100.136.115"}]'
+    - rancher_upload_kubeconfig+-false
+    - rancher_node_etcd+-true
+    - rancher_node_controlplane+-true
+    - rancher_node_worker+-true
+    - cluster_name+-rancher-vsphere-ha
+  environmentConfig: labda
+  vm:
+    cpu: "4"
+    disk: "100"
+    name: rancher-vsphere-ha-2
+    ram: "12288"
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vm-3
+  labels:
+    crossplane.io/composite: rancher-vsphere-ha
+  name: rancher-vsphere-ha-vm-3
+  namespace: default
+  ownerReferences:
+  - apiVersion: config.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ClusterStack
+    name: rancher-vsphere-ha
+    uid: 7b0ddcbf-e01c-5bb7-8747-5e43725b88b9
+spec:
+  ansible:
+    crossplaneProviderConfig: in-cluster
+    enabled: true
+    extraCollections:
+    - https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.927.1372/sthings-baseos-26.927.1372.tar.gz
+    - https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.920.1331/sthings-rke-26.920.1331.tar.gz
+    extraEnvSecretName: rancher-vsphere-ha-node-command
+    pipelineNamespace: tekton-ci
+    playbooks:
+    - sthings.baseos.setup
+    - sthings.baseos.dns_zones
+    - sthings.rke.rancher_register
+    varsFile:
+    - manage_filesystem+-true
+    - update_packages+-true
+    - vm_hostname+-rancher-vsphere-ha-3
+    - 'dns_forward_zones+-[{"zone": "4sthings.tiab.ssc.sva.de", "server": "10.100.136.115"}]'
+    - rancher_upload_kubeconfig+-false
+    - rancher_node_etcd+-true
+    - rancher_node_controlplane+-true
+    - rancher_node_worker+-true
+    - cluster_name+-rancher-vsphere-ha
+  environmentConfig: labda
+  vm:
+    cpu: "4"
+    disk: "100"
+    name: rancher-vsphere-ha-3
+    ram: "12288"

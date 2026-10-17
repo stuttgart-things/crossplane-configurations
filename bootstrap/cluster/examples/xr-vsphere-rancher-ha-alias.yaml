@@ -1,0 +1,139 @@
+---
+# THE DEPRECATED SPELLING of xr-vsphere-rancher-ha.yaml: `size: app-ha`
+# instead of `size: medium-mem` + `nodes: 3`. Everything else is the same
+# order, down to metadata.name.
+#
+# Kept as an example for one reason: it is the regression test that the
+# alias and the new spelling compose the SAME children. Its goldens
+# (tests/render/golden/bootstrap/cluster/xr-vsphere-rancher-ha-alias*.yaml)
+# must stay byte-identical to xr-vsphere-rancher-ha*.yaml -- compare with
+#
+#   diff tests/render/golden/bootstrap/cluster/xr-vsphere-rancher-ha.yaml \
+#        tests/render/golden/bootstrap/cluster/xr-vsphere-rancher-ha-alias.yaml
+#
+# The alias exists because `size` is immutable (#172) and a live order uses it
+# (labda-apps-test1 on machinery). Do not copy this file for a new order.
+# `app-ha` + `nodes: 3` would also be accepted; `app-ha` + `nodes: 1` fails the
+# render as a contradiction.
+apiVersion: config.stuttgart-things.com/v1alpha1
+kind: ClusterStack
+metadata:
+  name: rancher-vsphere-ha
+  namespace: default
+spec:
+  provider: vsphere
+  distribution: rancher-rke2
+  size: app-ha
+  environmentConfig: labda
+  kubeconfig:
+    vaultSecretName: vault-labda  # pragma: allowlist secret
+    lifecycle:
+      enabled: true
+      vaultAddr: https://vault-vsphere.tiab.labda.sva.de:8200
+      credentialSecret: vault-kubeconfig-writer-labda  # pragma: allowlist secret
+  ansible:
+    stages:
+      baseos:
+        extraCollections:
+          - https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.927.1372/sthings-baseos-26.927.1372.tar.gz
+        extraPlaybooks:
+          - sthings.baseos.dns_zones
+        # The node half only. No dns_k3s_coredns on rke2: the pod half is the
+        # rke2-coredns chartValues below.
+        extraVars:
+          - 'dns_forward_zones+-[{"zone": "4sthings.tiab.ssc.sva.de", "server": "10.100.136.115"}]'
+      join:
+        pipelineNamespace: tekton-ci
+        extraCollections:
+          - https://github.com/stuttgart-things/ansible/releases/download/sthings-rke-26.920.1331/sthings-rke-26.920.1331.tar.gz
+  # The platform AppSets: cert-manager, cilium LB + Gateway, trust-manager
+  # (network); openebs-hostpath (storage-openebs); external-secrets (security).
+  profiles:
+    - network
+    - storage-openebs
+    - security
+  # This cluster's own KV mount on the LabDA OpenBao (environment vault.eso).
+  secretStores: [own]
+  rancher:
+    environmentConfig: rancher-labda-rke2
+    # rancher-mgmt-labda is a ServiceAccount, not a Rancher user. CREATE-TIME
+    # ONLY: never add it to an order whose Cluster already exists.
+    clusterAnnotations:
+      field.cattle.io/no-creator-rbac: "true"
+    # Passed through to the provisioning Cluster by rancher-cluster (merged
+    # into rkeConfig next to the catalog's machineGlobalConfig).
+    clusterSpec:
+      rkeConfig:
+        chartValues:
+          # The zone forward for the PODS, modeled on stuttgart-things/flux
+          # infra/coredns/components/lab-zone/helmchartconfig.yaml with its
+          # defaults filled in. `servers` IS A LIST AND REPLACES the chart's
+          # own: the second block is rke2-coredns's default, verbatim but for
+          # serve_stale. Drop it and the cluster loses cluster.local, service
+          # discovery and upstream DNS at the next CoreDNS restart.
+          rke2-coredns:
+            servers:
+              # ---- the forwarded zone (trailing dot required) ----
+              - zones:
+                  - zone: 4sthings.tiab.ssc.sva.de.
+                port: 53
+                plugins:
+                  - name: errors
+                  - name: cache
+                    parameters: 30
+                    configBlock: |-
+                      serve_stale 24h
+                  # HINFO: the lab-zone component's no-op default for its
+                  # optional NODATA rewrite (COREDNS_ZONE_NODATA_TYPE).
+                  - name: template
+                    parameters: ANY HINFO
+                    configBlock: |-
+                      rcode NOERROR
+                  - name: forward
+                    parameters: . 10.100.136.115
+              # ---- the chart default, verbatim but for serve_stale ----
+              - zones:
+                  - zone: .
+                    use_tcp: true
+                port: 53
+                plugins:
+                  - name: errors
+                  - name: health
+                    configBlock: |-
+                      lameduck 10s
+                  - name: ready
+                  - name: kubernetes
+                    parameters: in-addr.arpa ip6.arpa
+                    configBlock: |-
+                      pods insecure
+                      fallthrough in-addr.arpa ip6.arpa
+                      ttl 30
+                  - name: prometheus
+                    parameters: 0.0.0.0:9153
+                  - name: forward
+                    parameters: . /etc/resolv.conf
+                  - name: cache
+                    parameters: 30
+                    configBlock: |-
+                      serve_stale 24h
+                  - name: loop
+                  - name: reload
+                  - name: loadbalance
+    argocd:
+      register: true
+      reservation:
+        enabled: true
+        networkKey: '10.100.136'
+      labels:
+        env: LabDA
+  platformEnabled: true
+  platform:
+    fluxInit:
+      enabled: false
+    vaultIssuer:
+      enabled: true
+      authProvider: provider-vault
+      vaultProviderConfigRef: vault-labda
+      vaultAddr: https://vault-vsphere.tiab.labda.sva.de:8200
+      pkiRole: 4sthings.tiab.ssc.sva.de
+      caSourceSecret: vault-pki-source-ca-labda  # pragma: allowlist secret
