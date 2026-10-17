@@ -84,7 +84,7 @@ real XR is usually just `name` + per-cluster sizing + `argocd.register`.
 | `clusterLabels` | | — | Extra labels on the `provisioning.cattle.io` Cluster |
 | `clusterAnnotations` | | — | Extra annotations on the `provisioning.cattle.io` Cluster — create-time only for `field.cattle.io/no-creator-rbac` (v0.11.0, see below) |
 | `machineGlobalConfig` | | — | Free-form `rkeConfig.machineGlobalConfig` passthrough |
-| `clusterSpec` | | — | Free-form passthrough merged **under** the whole `provisioning.cattle.io` Cluster spec — see [Cluster options](#cluster-options-machineglobalconfig-and-clusterspec) |
+| `clusterSpec` | | **env** | Free-form passthrough merged **under** the whole `provisioning.cattle.io` Cluster spec; the EnvironmentConfig's `clusterSpec` is merged under it (v0.12.0) — see [Cluster options](#cluster-options-machineglobalconfig-and-clusterspec) |
 | `harvester.cloudCredentialSecretName` | | **env** | Harvester cloud credential, `cattle-global-data:<name>` (Rancher UI → Cloud Credentials) |
 | `harvester.imageName` | | **env** | Harvester VM image, `<namespace>/<image>` (e.g. `default/sthings-u26-k3s`) |
 | `harvester.networkName` | | **env** | Harvester network, `<namespace>/<network>` (e.g. `default/vms`) |
@@ -297,6 +297,25 @@ reasonable.
 
 The Cluster's `metadata` is reachable through `clusterLabels` and, since
 v0.11.0, `clusterAnnotations`.
+
+### `clusterSpec` from the EnvironmentConfig (v0.12.0)
+
+The EnvironmentConfig may carry a `clusterSpec` of the same shape. It is merged
+**under** the XR's `spec.clusterSpec`: per key the XR wins, nested maps merge,
+and a list (such as `chartValues.rke2-coredns.servers`) is taken whole from
+whichever side sets it — never appended. The guards above see the merged map,
+so `kubernetesVersion` & co. are refused there too.
+
+That is the place for lab constants. Every rke2 cluster in LabDA needs CoreDNS to
+forward `4sthings.tiab.ssc.sva.de` to the lab DNS from the first boot; the
+`rancher-labda-rke2` environment carries it once instead of fifty lines on each
+XR — see
+[`examples/environment-config-rancher-labda-rke2.yaml`](examples/environment-config-rancher-labda-rke2.yaml)
+and [`examples/xr-env-clusterspec.yaml`](examples/xr-env-clusterspec.yaml).
+
+A change to the environment's `clusterSpec` reaches **every** cluster that
+selects it on the next reconcile — for chartValues that means Rancher re-rolls
+the bundled chart on each of them.
 
 ### A ServiceAccount as the Rancher credential (`clusterAnnotations`, v0.11.0)
 
@@ -556,7 +575,8 @@ built-in default**.
 `vaultPkiSourceTokenNamespace`, `vaultPkiSourceTokenKey`, `vaultPkiSourceCaName`,
 `vaultPkiSourceCaNamespace`, `vaultPkiSourceCaKey`, `vaultPkiTargetNamespace`,
 `vaultPkiCaSecretName`, `vaultPkiCaSecretKey`, `vaultPkiTokenSecretKey`, plus the
-two maps `defaultLabels` / `defaultAnnotations` (see
+maps `clusterSpec` (see [above](#clusterspec-from-the-environmentconfig-v0120)) and
+`defaultLabels` / `defaultAnnotations` (see
 [Platform profile labels + annotations](#platform-profile-labels--annotations-the-argo-cd-contract)).
 See [`examples/environment-config.yaml`](examples/environment-config.yaml).
 

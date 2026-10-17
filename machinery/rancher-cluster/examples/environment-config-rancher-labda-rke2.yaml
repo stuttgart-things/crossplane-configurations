@@ -1,0 +1,79 @@
+---
+# The EnvironmentConfig for rke2 Rancher-mode ClusterStacks in LabDA
+# (`spec.rancher.environmentConfig: rancher-labda-rke2`), beside the k3s one in
+# environment-config-rancher-labda.yaml. Same Rancher (sthings-platform), same
+# credential (`rancher-mgmt-labda`), rke2 instead of k3s.
+#
+# `clusterSpec` is merged UNDER every XR's spec.clusterSpec (the XR wins per
+# key). Here it carries the one thing every rke2 cluster in LabDA needs and none
+# should restate: CoreDNS forwarding the lab zone 4sthings.tiab.ssc.sva.de to the
+# lab DNS (10.100.136.115), set through the bundled chart's values so it is in
+# place from the first boot -- the same Corefile the flux component
+# infra/coredns/components/lab-zone writes on k3s.
+apiVersion: apiextensions.crossplane.io/v1beta1
+kind: EnvironmentConfig
+metadata:
+  name: rancher-cluster-labda-rke2
+  labels:
+    rancher-cluster.resources.stuttgart-things.com/environment: rancher-labda-rke2
+data:
+  distro: rke2
+  kubernetesVersion: v1.35.9+rke2r1
+  providerConfigRef: in-cluster
+  rancherNamespace: fleet-default
+  rancherProviderConfigRef: rancher-mgmt-labda
+  clusterSpec:
+    rkeConfig:
+      # The example XR overrides the retention, keeps the schedule.
+      etcd:
+        snapshotScheduleCron: '0 */6 * * *'
+        snapshotRetention: 5
+      chartValues:
+        rke2-coredns:
+          servers:
+            # ---- the forwarded zone (trailing dot required) ----
+            - zones:
+                - zone: 4sthings.tiab.ssc.sva.de.
+              port: 53
+              plugins:
+                - name: errors
+                - name: cache
+                  parameters: 30
+                  configBlock: |-
+                    serve_stale 24h
+                # HINFO: the lab-zone component's no-op default for its
+                # optional NODATA rewrite (COREDNS_ZONE_NODATA_TYPE).
+                - name: template
+                  parameters: ANY HINFO
+                  configBlock: |-
+                    rcode NOERROR
+                - name: forward
+                  parameters: . 10.100.136.115
+            # ---- the chart default, verbatim but for serve_stale ----
+            - zones:
+                - zone: .
+                  use_tcp: true
+              port: 53
+              plugins:
+                - name: errors
+                - name: health
+                  configBlock: |-
+                    lameduck 10s
+                - name: ready
+                - name: kubernetes
+                  parameters: in-addr.arpa ip6.arpa
+                  configBlock: |-
+                    pods insecure
+                    fallthrough in-addr.arpa ip6.arpa
+                    ttl 30
+                - name: prometheus
+                  parameters: 0.0.0.0:9153
+                - name: forward
+                  parameters: . /etc/resolv.conf
+                - name: cache
+                  parameters: 30
+                  configBlock: |-
+                    serve_stale 24h
+                - name: loop
+                - name: reload
+                - name: loadbalance

@@ -88,18 +88,29 @@ spec:
                    rkeConfig.machineGlobalConfig is the deliberate exception: it deep-
                    merges with spec.machineGlobalConfig (per key, spec wins), because
                    both halves are the same distro config file and splitting them is
-                   reasonable. */}}
-            {{- $clusterSpecExtra := $spec.clusterSpec | default dict }}
+                   reasonable.
+
+                   The EnvironmentConfig may carry a `clusterSpec` too, merged UNDER
+                   the XR's (per key, the XR wins; a list such as chartValues'
+                   `servers` is replaced whole, not appended). That is where a
+                   lab-constant belongs -- LabDA's CoreDNS zone forward in
+                   chartValues.rke2-coredns is the same on every rke2 cluster there,
+                   and fifty lines of it on each XR is how one of them drifts. Both
+                   are deep-copied first: sprig merge writes into nested maps of the
+                   first source, and neither the XR nor the environment is ours to
+                   change. The guards below see the merged map, so a key the
+                   Composition owns is refused wherever it came from. */}}
+            {{- $clusterSpecExtra := merge (dict) (deepCopy ($spec.clusterSpec | default dict)) (deepCopy ($env.clusterSpec | default dict)) }}
             {{- $extraRke := $clusterSpecExtra.rkeConfig | default dict }}
             {{- if hasKey $clusterSpecExtra "kubernetesVersion" }}
-            {{- fail (printf "clusterSpec.kubernetesVersion is set on %s, but the Composition owns that key -- use spec.kubernetesVersion (or the EnvironmentConfig) instead" $name) }}
+            {{- fail (printf "clusterSpec.kubernetesVersion is set on %s (XR or its EnvironmentConfig), but the Composition owns that key -- use spec.kubernetesVersion (or the EnvironmentConfig) instead" $name) }}
             {{- end }}
             {{- if eq ($spec.infrastructure | default "generic") "harvester" }}
             {{- if hasKey $clusterSpecExtra "cloudCredentialSecretName" }}
-            {{- fail (printf "clusterSpec.cloudCredentialSecretName is set on %s, but the harvester path owns that key -- use spec.harvester.cloudCredentialSecretName instead" $name) }}
+            {{- fail (printf "clusterSpec.cloudCredentialSecretName is set on %s (XR or its EnvironmentConfig), but the harvester path owns that key -- use spec.harvester.cloudCredentialSecretName instead" $name) }}
             {{- end }}
             {{- if hasKey $extraRke "machinePools" }}
-            {{- fail (printf "clusterSpec.rkeConfig.machinePools is set on %s, but the harvester path composes the machine pool from spec.harvester -- set sizing there, or use infrastructure: generic to bring your own nodes" $name) }}
+            {{- fail (printf "clusterSpec.rkeConfig.machinePools is set on %s (XR or its EnvironmentConfig), but the harvester path composes the machine pool from spec.harvester -- set sizing there, or use infrastructure: generic to bring your own nodes" $name) }}
             {{- end }}
             {{- end }}
             {{- /* NODE REGISTRATION (spec.nodeRegistration.publish) — see #422.
