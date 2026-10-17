@@ -1,0 +1,23 @@
+---
+# clusterSpec from the EnvironmentConfig (rancher-labda-rke2, beside this file)
+# merged under the XR's own. Expected in the rendered Cluster spec:
+#   - rkeConfig.chartValues.rke2-coredns  -> from the environment (XR sets none)
+#   - rkeConfig.etcd.snapshotRetention: 10 -> the XR wins over the environment's 5
+#   - rkeConfig.etcd.snapshotScheduleCron  -> from the environment
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: RancherCluster
+metadata:
+  name: rke2-env-clusterspec
+  namespace: default
+spec:
+  # Explicit: crossplane render applies no XRD defaults.
+  environmentConfig: rancher-labda-rke2
+  name: rke2-env-clusterspec
+  infrastructure: generic
+  machineGlobalConfig:
+    cni: none
+    disable-kube-proxy: true
+  clusterSpec:
+    rkeConfig:
+      etcd:
+        snapshotRetention: 10
