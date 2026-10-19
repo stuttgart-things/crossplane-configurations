@@ -415,6 +415,7 @@ metadata:
 spec:
   argocd:
     annotations:
+      cicd-platform.stuttgart-things.com/storage-class: openebs-hostpath
       clusterbook.stuttgart-things.com/vault-server: https://vault-vsphere.tiab.labda.sva.de:8200
       clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki-k8s
       external-secrets.stuttgart-things.com/kv-mounts: rancher-vsphere-ha

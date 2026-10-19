@@ -293,6 +293,7 @@ metadata:
 spec:
   argocd:
     annotations:
+      cicd-platform.stuttgart-things.com/storage-class: openebs-hostpath
       clusterbook.stuttgart-things.com/vault-server: https://vault.infra.sthings-vsphere.labul.sva.de
       clusterbook.stuttgart-things.com/wildcard-issuer-name: vault-pki-k8s
       external-secrets.stuttgart-things.com/kv-mounts: observability,homerun2,schmetterpause
