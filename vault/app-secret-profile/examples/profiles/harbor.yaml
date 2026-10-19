@@ -1,0 +1,36 @@
+# harbor -- the cicd platform's registry from the official goharbor chart
+# (stuttgart-things/argocd cicd/harbor, #3798).
+#
+# Every key is a random string, and that is what makes Harbor work under Argo
+# CD at all: the chart generates these at render time otherwise, and Argo
+# renders on every refresh -- a new key each time. The two values that are NOT
+# random strings are derived elsewhere: the registry htpasswd line by the
+# ExternalSecret (htpasswd ... "bcrypt" over registryPassword), the token
+# signing key pair by cert-manager.
+#
+# Lengths are Harbor's: secretKey, coreSecret, jobserviceSecret and
+# registryHttpSecret exactly 16, xsrfKey exactly 32.
+apiVersion: secrets.stuttgart-things.com/v1alpha1
+kind: AppSecretProfile
+metadata:
+  name: harbor
+spec:
+  mount: cicd
+  entries:
+    - suffix: "-harbor"
+      keys:
+        admin_password:
+          generate: {length: 24}
+          overridable: true
+        secret_key:
+          generate: {length: 16}
+        core_secret:
+          generate: {length: 16}
+        xsrf_key:
+          generate: {length: 32}
+        jobservice_secret:
+          generate: {length: 16}
+        registry_http_secret:
+          generate: {length: 16}
+        registry_password:
+          generate: {length: 24}

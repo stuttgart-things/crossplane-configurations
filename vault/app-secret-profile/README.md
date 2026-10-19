@@ -109,6 +109,9 @@ can be granted its own profile. Crossplane aggregates this XRD's roles into
 | `examples/xr.yaml` | **schmetterpause** — generated, literal and shared keys, three entries |
 | `examples/profiles/homerun2.yaml` | **homerun2** — owns its entry, GitHub PAT shared |
 | `examples/profiles/zaehlwerk.yaml` | **zaehlwerk** — owns nothing, reads homerun2 and schmetterpause |
+| `examples/profiles/dapr-workflows.yaml` | **dapr-workflows** — mount `cicd`, suffix `-dapr-workflows`: owns the redis password, four tokens shared |
+| `examples/profiles/harbor.yaml` | **harbor** — mount `cicd`, suffix `-harbor`: seven generated keys; htpasswd and token key are derived elsewhere |
+| `examples/profiles/zot.yaml` | **zot** — mount `cicd`, suffix `-zot`: the admin password |
 | `examples/xr-max.yaml` | synthetic `demo-max` — every field |
 
 Render fixtures (the profiles `xr-min` and `xr-max` read) are in

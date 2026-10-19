@@ -1,0 +1,15 @@
+# zot -- the cicd platform's lightweight registry (stuttgart-things/argocd
+# cicd/zot, #3798). One user, `admin`; the ExternalSecret turns the plain
+# password into the htpasswd line zot reads (htpasswd ... "bcrypt").
+apiVersion: secrets.stuttgart-things.com/v1alpha1
+kind: AppSecretProfile
+metadata:
+  name: zot
+spec:
+  mount: cicd
+  entries:
+    - suffix: "-zot"
+      keys:
+        admin_password:
+          generate: {length: 24}
+          overridable: true
