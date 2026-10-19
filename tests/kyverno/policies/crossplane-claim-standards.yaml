@@ -58,6 +58,8 @@ spec:
                   # resources.stuttgart-things.com
                   - AnsibleRun
                   - CloudInit
+                  - GithubArcController
+                  - GithubRunnerSet
                   - HarvesterVM
                   - ManagedNamespace
                   - ProxmoxVM

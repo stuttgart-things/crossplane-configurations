@@ -1,0 +1,31 @@
+---
+# The LabDA sthings-runner shape, one of the ~18 repository runner sets that
+# clusters/labda/vsphere/sthings-runner/github/runners.yaml declares today:
+# Crossplane installs into its own cluster through `in-cluster`, kubernetes
+# container mode on openebs-hostpath, jobs without a `container:` run inside
+# the runner pod.
+#
+# clusterName `in-cluster` keeps the old scale set name
+# `ghr-ansible-in-cluster`, which is the `runs-on:` label workflows use.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: GithubRunnerSet
+metadata:
+  name: ansible-in-cluster
+  namespace: crossplane-system
+spec:
+  clusterName: in-cluster
+  helmProviderConfigRef: in-cluster
+  namespace: arc-runners
+  # Same version as the GithubArcController on this cluster (lockstep).
+  version: "0.15.0"
+  organization: stuttgart-things
+  repository: ansible
+  # PAT secret with key `github_token`, materialised by an ExternalSecret.
+  githubConfigSecret: github-arc # pragma: allowlist secret
+  runnerImage:
+    tag: "2.338.0"
+  containerMode:
+    type: kubernetes
+    requireJobContainer: false
+    storageClassName: openebs-hostpath
+    storage: 50Mi

@@ -1,0 +1,107 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: GithubRunnerSet
+metadata:
+  name: dagger-labda-max
+  namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: dagger-labda-max-47e899bc4669
+status:
+  chartVersion: 0.15.0
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: runner-set'
+    reason: Creating
+    status: "False"
+    type: Ready
+  githubConfigUrl: https://github.com/stuttgart-things/dagger
+  namespace: arc-runners
+  runnerScaleSetName: dagger-labda
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: runner-set
+    crossplane.io/external-name: dagger-labda
+  generateName: dagger-labda-max-
+  labels:
+    app.kubernetes.io/instance: dagger-labda-max
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: github-runner-set
+    crossplane.io/composite: dagger-labda-max
+  name: dagger-labda-max-47e899bc4669
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: GithubRunnerSet
+    name: dagger-labda-max
+    uid: 89f58737-d146-59a6-91e3-fd1630c8dea9
+spec:
+  forProvider:
+    chart:
+      name: gha-runner-scale-set
+      repository: oci://ghcr.io/actions/actions-runner-controller-charts
+      version: 0.15.0
+    namespace: arc-runners
+    skipCRDs: true
+    skipCreateNamespace: false
+    values:
+      containerMode:
+        kubernetesModeWorkVolumeClaim:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi
+          storageClassName: openebs-hostpath
+        type: kubernetes
+      controllerServiceAccount:
+        name: github-controller-gha-rs-controller
+        namespace: arc-systems
+      githubConfigSecret: github-app-arc
+      githubConfigUrl: https://github.com/stuttgart-things/dagger
+      listenerTemplate:
+        spec:
+          containers:
+          - name: listener
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+      maxRunners: 5
+      minRunners: 1
+      runnerGroup: labda
+      runnerScaleSetName: dagger-labda
+      scaleSetLabels:
+      - labda
+      - linux-x64
+      template:
+        spec:
+          containers:
+          - command:
+            - /home/runner/run.sh
+            env:
+            - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
+              value: "true"
+            image: ghcr.io/actions/actions-runner:2.338.0
+            name: runner
+    wait: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: labda-runner-helm
+  rollbackLimit: 3

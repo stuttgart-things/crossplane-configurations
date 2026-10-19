@@ -90,7 +90,7 @@ graph LR
   n_vspherevm --> n_ansible_run
 ```
 
-Not in the graph (9): `argocd-cluster`, `capability`, `cilium`, `cluster-backup`, `minio`, `namespace`, `scheduled-run`, `tofu-run`, `vault-config` — neither depends on a Configuration of this repo nor is depended on by one.
+Not in the graph (11): `argocd-cluster`, `capability`, `cilium`, `cluster-backup`, `github-arc-controller`, `github-runner-set`, `minio`, `namespace`, `scheduled-run`, `tofu-run`, `vault-config` — neither depends on a Configuration of this repo nor is depended on by one.
 
 Entry points (nothing in this repo depends on them): `cluster`, `packer-release`, `virtual-machine`, `vm-batch`.
 
@@ -114,6 +114,8 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | bootstrap | [vault-pki-secrets](../../bootstrap/vault-pki-secrets/) | `VaultPkiSecret` | `config.stuttgart-things.com` | Namespaced | v0.1.5 | — |
 | cicd | [ansible-run](../../cicd/ansible-run/) | `AnsibleRun` | `resources.stuttgart-things.com` | Namespaced | v0.3.2 | — |
 | cicd | [cluster-backup](../../cicd/cluster-backup/) | `ClusterBackup` | `resources.stuttgart-things.com` | Namespaced | v0.2.0 | — |
+| cicd | [github-arc-controller](../../cicd/github-arc-controller/) | `GithubArcController` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
+| cicd | [github-runner-set](../../cicd/github-runner-set/) | `GithubRunnerSet` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
 | cicd | [packer-build](../../cicd/packer-build/) | `PackerBuild` | `resources.stuttgart-things.com` | Namespaced | v0.7.0 | — |
 | cicd | [packer-release](../../cicd/packer-release/) | `PackerRelease` | `resources.stuttgart-things.com` | Namespaced | v0.6.0 | `packer-build`, `vm-provision` |
 | cicd | [scheduled-run](../../cicd/scheduled-run/) | `ScheduledRun` | `resources.stuttgart-things.com` | Namespaced | v0.2.0 | — |
@@ -159,6 +161,8 @@ diagrams can see.
 | `vault-pki-secrets` | environment-configs → go-templating → auto-ready | inline |
 | `ansible-run` | environment-configs → kcl → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/kcl-tekton-pr?tag=0.15.1` |
 | `cluster-backup` | environment-configs → kcl → kcl → auto-ready | inline |
+| `github-arc-controller` | go-templating → auto-ready | inline |
+| `github-runner-set` | go-templating → auto-ready | inline |
 | `packer-build` | environment-configs → kcl → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/kcl-tekton-pr-packer?tag=0.7.0` |
 | `packer-release` | environment-configs → kcl → kcl → auto-ready | inline |
 | `scheduled-run` | environment-configs → kcl → kcl → auto-ready | inline |
@@ -200,6 +204,8 @@ diagrams can see.
 | `vault-pki-secrets` | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready`<br/>`xpkg.crossplane.io/crossplane-contrib/function-environment-configs`<br/>`xpkg.crossplane.io/crossplane-contrib/function-go-templating`<br/>`xpkg.crossplane.io/crossplane-contrib/provider-kubernetes` |
 | `ansible-run` | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready`<br/>`xpkg.crossplane.io/crossplane-contrib/function-environment-configs`<br/>`xpkg.crossplane.io/crossplane-contrib/function-kcl`<br/>`xpkg.crossplane.io/crossplane-contrib/provider-kubernetes` |
 | `cluster-backup` | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready`<br/>`xpkg.crossplane.io/crossplane-contrib/function-environment-configs`<br/>`xpkg.crossplane.io/crossplane-contrib/function-kcl`<br/>`xpkg.crossplane.io/crossplane-contrib/provider-kubernetes` |
+| `github-arc-controller` | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready`<br/>`xpkg.crossplane.io/crossplane-contrib/function-go-templating`<br/>`xpkg.crossplane.io/crossplane-contrib/provider-helm` |
+| `github-runner-set` | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready`<br/>`xpkg.crossplane.io/crossplane-contrib/function-go-templating`<br/>`xpkg.crossplane.io/crossplane-contrib/provider-helm` |
 | `packer-build` | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready`<br/>`xpkg.crossplane.io/crossplane-contrib/function-environment-configs`<br/>`xpkg.crossplane.io/crossplane-contrib/function-kcl`<br/>`xpkg.crossplane.io/crossplane-contrib/provider-kubernetes` |
 | `packer-release` | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready`<br/>`xpkg.crossplane.io/crossplane-contrib/function-environment-configs`<br/>`xpkg.crossplane.io/crossplane-contrib/function-kcl`<br/>`xpkg.crossplane.io/crossplane-contrib/provider-kubernetes` |
 | `scheduled-run` | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready`<br/>`xpkg.crossplane.io/crossplane-contrib/function-environment-configs`<br/>`xpkg.crossplane.io/crossplane-contrib/function-kcl`<br/>`xpkg.crossplane.io/crossplane-contrib/provider-kubernetes` |
@@ -223,7 +229,7 @@ diagrams can see.
 
 ## What this deliberately does not show
 
-**Which managed resources an XR composes.** 13 of 36 Configurations delegate their Composition body to a KCL
+**Which managed resources an XR composes.** 13 of 38 Configurations delegate their Composition body to a KCL
 module (see the table above), so their children are not in this repo at
 all. For the rest the body is inline, but reading kinds out of it means
 pattern-matching a template — and the first draft of this generator did

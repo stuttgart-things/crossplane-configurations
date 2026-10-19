@@ -1,0 +1,26 @@
+---
+# Every spec field set. `values` is merged last and overrides the modelled
+# fields — here it raises the log level set above back to info and adds
+# controller resources, which the XRD does not model.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: GithubArcController
+metadata:
+  name: labda-runner-max
+  namespace: crossplane-system
+spec:
+  clusterName: labda-runner
+  helmProviderConfigRef: labda-runner-helm
+  namespace: arc-systems
+  releaseName: arc
+  version: "0.15.0"
+  replicaCount: 2
+  logLevel: debug
+  values:
+    flags:
+      logLevel: info
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 512Mi

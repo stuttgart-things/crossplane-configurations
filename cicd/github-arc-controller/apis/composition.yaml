@@ -1,0 +1,89 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: github-arc-controller
+  labels:
+    crossplane.io/xrd: githubarccontrollers.resources.stuttgart-things.com
+    provider-helm: "true"
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: GithubArcController
+  mode: Pipeline
+  pipeline:
+    - step: render-controller
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $xr      := .observed.composite.resource }}
+            {{- $spec    := $xr.spec }}
+            {{- $cluster := $spec.clusterName }}
+            {{- /* Defaults repeated here on purpose: `crossplane render` does
+                   not apply XRD defaults (root CLAUDE.md, gotcha 5). */}}
+            {{- $pcr     := $spec.helmProviderConfigRef | default (printf "%s-helm" $cluster) }}
+            {{- $ns      := $spec.namespace | default "arc-systems" }}
+            {{- $release := $spec.releaseName | default "github-controller" }}
+            {{- $version := $spec.version | default "0.15.0" }}
+
+            {{- $values := dict }}
+            {{- with $spec.replicaCount }}
+            {{- $_ := set $values "replicaCount" . }}
+            {{- end }}
+            {{- with $spec.logLevel }}
+            {{- $_ := set $values "flags" (dict "logLevel" .) }}
+            {{- end }}
+            {{- /* Raw values merged LAST; deepCopy keeps the observed XR
+                   untouched by mergeOverwrite. */}}
+            {{- with $spec.values }}
+            {{- $values = mergeOverwrite $values (deepCopy .) }}
+            {{- end }}
+            ---
+            # The controller Release. External name = Helm release name; without
+            # it the release would be named after the generated MR name.
+            #
+            # skipCRDs: false installs the ARC CRDs, but only on the FIRST
+            # install — Helm never upgrades files under crds/. A chart bump
+            # therefore needs the CRDs applied by hand (README, "Upgrading").
+            apiVersion: helm.m.crossplane.io/v1beta1
+            kind: Release
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation "arc-controller" }}
+                crossplane.io/external-name: {{ $release }}
+              labels:
+                app.kubernetes.io/name: github-arc-controller
+                app.kubernetes.io/instance: {{ $xr.metadata.name }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $pcr }}
+                kind: ClusterProviderConfig
+              rollbackLimit: 3
+              forProvider:
+                chart:
+                  name: gha-runner-scale-set-controller
+                  repository: oci://ghcr.io/actions/actions-runner-controller-charts
+                  version: {{ $version | quote }}
+                namespace: {{ $ns }}
+                skipCreateNamespace: false
+                skipCRDs: false
+                wait: true
+                values:
+                  {{- toYaml $values | nindent 6 }}
+            ---
+            apiVersion: resources.stuttgart-things.com/v1alpha1
+            kind: GithubArcController
+            status:
+              chartVersion: {{ $version | quote }}
+              releaseName: {{ $release }}
+              namespace: {{ $ns }}
+
+    - step: ready
+      functionRef:
+        name: function-auto-ready

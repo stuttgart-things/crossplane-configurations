@@ -1,0 +1,67 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: GithubArcController
+metadata:
+  name: sthings-runner
+  namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: sthings-runner-33efcd37c5d3
+status:
+  chartVersion: 0.15.0
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: arc-controller'
+    reason: Creating
+    status: "False"
+    type: Ready
+  namespace: arc-systems
+  releaseName: github-controller
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: arc-controller
+    crossplane.io/external-name: github-controller
+  generateName: sthings-runner-
+  labels:
+    app.kubernetes.io/instance: sthings-runner
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: github-arc-controller
+    crossplane.io/composite: sthings-runner
+  name: sthings-runner-33efcd37c5d3
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: GithubArcController
+    name: sthings-runner
+    uid: f3191dbf-b3e6-575b-8c10-e7d6a183e5f4
+spec:
+  forProvider:
+    chart:
+      name: gha-runner-scale-set-controller
+      repository: oci://ghcr.io/actions/actions-runner-controller-charts
+      version: 0.15.0
+    namespace: arc-systems
+    skipCRDs: false
+    skipCreateNamespace: false
+    values: {}
+    wait: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: sthings-runner-helm
+  rollbackLimit: 3

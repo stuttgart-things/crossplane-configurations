@@ -1,0 +1,67 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: GithubArcController
+metadata:
+  name: gha-controller
+  namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: gha-controller-14c8328e87f7
+status:
+  chartVersion: 0.15.0
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: arc-controller'
+    reason: Creating
+    status: "False"
+    type: Ready
+  namespace: arc-systems
+  releaseName: github-controller
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: arc-controller
+    crossplane.io/external-name: github-controller
+  generateName: gha-controller-
+  labels:
+    app.kubernetes.io/instance: gha-controller
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: github-arc-controller
+    crossplane.io/composite: gha-controller
+  name: gha-controller-14c8328e87f7
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: GithubArcController
+    name: gha-controller
+    uid: 3cac84b4-4a68-5cbc-9039-ab35f57b3c78
+spec:
+  forProvider:
+    chart:
+      name: gha-runner-scale-set-controller
+      repository: oci://ghcr.io/actions/actions-runner-controller-charts
+      version: 0.15.0
+    namespace: arc-systems
+    skipCRDs: false
+    skipCreateNamespace: false
+    values: {}
+    wait: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+  rollbackLimit: 3
