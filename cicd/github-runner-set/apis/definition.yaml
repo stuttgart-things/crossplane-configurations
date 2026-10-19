@@ -1,0 +1,201 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: githubrunnersets.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: GithubRunnerSet
+    plural: githubrunnersets
+    singular: githubrunnerset
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      additionalPrinterColumns:
+        - name: RUNS-ON
+          type: string
+          jsonPath: .status.runnerScaleSetName
+        - name: URL
+          type: string
+          jsonPath: .status.githubConfigUrl
+        - name: READY
+          type: string
+          jsonPath: .status.conditions[?(@.type=='Ready')].status
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >-
+            One GitHub Actions runner scale set (gha-runner-scale-set chart) on
+            a target cluster that already runs the ARC controller
+            (GithubArcController). The scale set name is the `runs-on:` label
+            workflows use.
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - clusterName
+                - githubConfigSecret
+              properties:
+                clusterName:
+                  type: string
+                  description: >-
+                    Target cluster name. The Helm provider config ref defaults
+                    to {clusterName}-helm, and the default scale set name is
+                    ghr-{repository|organization}-{clusterName}.
+                helmProviderConfigRef:
+                  type: string
+                  description: >-
+                    provider-helm ClusterProviderConfig for the target cluster.
+                    Defaults to {clusterName}-helm.
+                namespace:
+                  type: string
+                  default: arc-runners
+                  description: >-
+                    Namespace of the scale set (listener config, runner pods).
+                    The githubConfigSecret must exist HERE. Upstream recommends
+                    a namespace separate from the controller's.
+                version:
+                  type: string
+                  default: "0.15.0"
+                  description: >-
+                    gha-runner-scale-set chart version. Must equal the
+                    GithubArcController chart version on the same cluster.
+                organization:
+                  type: string
+                  default: stuttgart-things
+                  description: GitHub organization (or user) owning the runners.
+                repository:
+                  type: string
+                  description: >-
+                    Repository the runners register with. Leave empty for
+                    organization-level runners (then add the repository to the
+                    runner group's access list on GitHub).
+                githubConfigUrl:
+                  type: string
+                  description: >-
+                    Full registration URL. Overrides organization/repository,
+                    e.g. for an enterprise
+                    (https://github.com/enterprises/<name>) or GHES.
+                githubConfigSecret:
+                  type: string
+                  minLength: 1
+                  description: >-
+                    Name of an EXISTING Secret in `namespace` on the target
+                    cluster — provided by External Secrets, never by this XR.
+                    PAT: key `github_token`. GitHub App: keys `github_app_id`,
+                    `github_app_installation_id`, `github_app_private_key`.
+                    Handed to the chart by name, so the credential never passes
+                    through Crossplane or the Helm release values.
+                runnerScaleSetName:
+                  type: string
+                  maxLength: 53
+                  pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                  description: >-
+                    Scale set name = Helm release name = the `runs-on:` label.
+                    Defaults to ghr-{repository|organization}-{clusterName},
+                    the naming the old github-runner package used. At most 53
+                    characters (Helm release name limit); the computed default
+                    is not checked here, so keep repository + clusterName short
+                    or set this explicitly.
+                runnerGroup:
+                  type: string
+                  description: Runner group on GitHub (default group if unset).
+                scaleSetLabels:
+                  type: array
+                  description: >-
+                    Additional labels a workflow can target besides the scale
+                    set name (chart >= 0.14).
+                  items:
+                    type: string
+                minRunners:
+                  type: integer
+                  minimum: 0
+                  description: Idle runners kept warm (chart default 0).
+                maxRunners:
+                  type: integer
+                  minimum: 0
+                  description: Upper bound for runners (chart default unbounded).
+                runnerImage:
+                  type: object
+                  properties:
+                    repository:
+                      type: string
+                      default: ghcr.io/actions/actions-runner
+                    tag:
+                      type: string
+                      default: "2.338.0"
+                      description: >-
+                        Keep current — GitHub deprecates runner versions
+                        server-side, and a deprecated runner exits 7 on every
+                        start (ARC phase `Outdated`, retried forever).
+                containerMode:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      default: kubernetes
+                      enum:
+                        - kubernetes
+                        - kubernetes-novolume
+                        - dind
+                        - none
+                      description: >-
+                        `kubernetes` runs job containers as separate pods on an
+                        ephemeral work volume; `dind` adds a Docker daemon
+                        sidecar (privileged); `none` leaves the runner pod as
+                        defined by the template only.
+                    requireJobContainer:
+                      type: boolean
+                      default: false
+                      description: >-
+                        kubernetes modes only — when false, jobs without a
+                        `container:` run inside the runner pod itself
+                        (ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER).
+                    storageClassName:
+                      type: string
+                      description: >-
+                        kubernetes mode work-volume StorageClass. Unset = the
+                        cluster default.
+                    storage:
+                      type: string
+                      default: 1Gi
+                      description: kubernetes mode work-volume size.
+                controllerServiceAccount:
+                  type: object
+                  description: >-
+                    The controller's ServiceAccount. Unset, the chart discovers
+                    it by label at install time, which fails when there is no
+                    controller or more than one.
+                  required:
+                    - namespace
+                    - name
+                  properties:
+                    namespace:
+                      type: string
+                    name:
+                      type: string
+                values:
+                  type: object
+                  description: >-
+                    Raw Helm values, merged LAST — they win over everything
+                    computed above. Lists are replaced, not merged: setting
+                    `template` here replaces the runner container wholesale.
+                  x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              properties:
+                runnerScaleSetName:
+                  type: string
+                  description: The `runs-on:` label of this scale set
+                githubConfigUrl:
+                  type: string
+                chartVersion:
+                  type: string
+                namespace:
+                  type: string

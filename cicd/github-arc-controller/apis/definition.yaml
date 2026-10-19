@@ -1,0 +1,106 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: githubarccontrollers.resources.stuttgart-things.com
+spec:
+  group: resources.stuttgart-things.com
+  defaultCompositeDeletePolicy: Foreground
+  scope: Namespaced
+  names:
+    kind: GithubArcController
+    plural: githubarccontrollers
+    singular: githubarccontroller
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      additionalPrinterColumns:
+        - name: CLUSTER
+          type: string
+          jsonPath: .spec.clusterName
+        - name: CHART
+          type: string
+          jsonPath: .status.chartVersion
+        - name: READY
+          type: string
+          jsonPath: .status.conditions[?(@.type=='Ready')].status
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Installs the GitHub Actions Runner Controller (ARC,
+            gha-runner-scale-set-controller) on a target cluster. One per
+            cluster: runner scale sets (GithubRunnerSet) discover it by label.
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - clusterName
+              properties:
+                clusterName:
+                  type: string
+                  description: >-
+                    Target cluster name. The Helm provider config ref defaults
+                    to {clusterName}-helm (same derivation as cni / flux-init).
+                helmProviderConfigRef:
+                  type: string
+                  description: >-
+                    provider-helm ClusterProviderConfig for the target cluster.
+                    Defaults to {clusterName}-helm; set it explicitly for an
+                    in-cluster config such as `in-cluster`.
+                namespace:
+                  type: string
+                  default: arc-systems
+                  description: >-
+                    Namespace the controller is installed into (created by Helm
+                    if missing).
+                releaseName:
+                  type: string
+                  default: github-controller
+                  description: >-
+                    Helm release name. The default matches the release the old
+                    stuttgart-things/crossplane github-controller package
+                    created, so an existing install is adopted, not duplicated.
+                version:
+                  type: string
+                  default: "0.15.0"
+                  description: >-
+                    gha-runner-scale-set-controller chart version. Keep it in
+                    lockstep with the GithubRunnerSet chart version — ARC
+                    releases both charts together and supports only matching
+                    pairs. Helm does NOT upgrade CRDs on a version bump, see
+                    the README.
+                replicaCount:
+                  type: integer
+                  minimum: 1
+                  description: Controller replicas (chart default 1).
+                logLevel:
+                  type: string
+                  enum:
+                    - debug
+                    - info
+                    - warn
+                    - error
+                  description: Controller log level (chart default debug).
+                values:
+                  type: object
+                  description: >-
+                    Raw Helm values, merged LAST — they win over everything
+                    computed above. The escape hatch for anything not modelled
+                    (resources, metrics, watchSingleNamespace, ...).
+                  x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              properties:
+                chartVersion:
+                  type: string
+                  description: Chart version the Release was rendered with
+                releaseName:
+                  type: string
+                  description: Helm release name on the target cluster
+                namespace:
+                  type: string
+                  description: Namespace the controller runs in

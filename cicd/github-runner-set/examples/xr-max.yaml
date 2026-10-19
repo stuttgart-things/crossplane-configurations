@@ -1,0 +1,49 @@
+---
+# Every spec field set. githubConfigUrl overrides organization/repository, the
+# explicit runnerScaleSetName overrides the ghr-<repo>-<cluster> default, and
+# `values` (merged last) adds listener/runner settings the XRD does not model.
+#
+# The secret here is a GitHub App secret (keys github_app_id,
+# github_app_installation_id, github_app_private_key) — same field, the chart
+# tells PAT from App by the keys it finds.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: GithubRunnerSet
+metadata:
+  name: dagger-labda-max
+  namespace: crossplane-system
+spec:
+  clusterName: labda-runner
+  helmProviderConfigRef: labda-runner-helm
+  namespace: arc-runners
+  version: "0.15.0"
+  organization: stuttgart-things
+  repository: dagger
+  githubConfigUrl: https://github.com/stuttgart-things/dagger
+  githubConfigSecret: github-app-arc # pragma: allowlist secret
+  runnerScaleSetName: dagger-labda
+  runnerGroup: labda
+  scaleSetLabels:
+    - labda
+    - linux-x64
+  minRunners: 1
+  maxRunners: 5
+  runnerImage:
+    repository: ghcr.io/actions/actions-runner
+    tag: "2.338.0"
+  containerMode:
+    type: kubernetes
+    requireJobContainer: true
+    storageClassName: openebs-hostpath
+    storage: 2Gi
+  controllerServiceAccount:
+    namespace: arc-systems
+    name: github-controller-gha-rs-controller
+  values:
+    listenerTemplate:
+      spec:
+        containers:
+          - name: listener
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi

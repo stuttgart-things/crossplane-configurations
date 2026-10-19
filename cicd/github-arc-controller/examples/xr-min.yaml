@@ -1,0 +1,11 @@
+---
+# Only the required field. The Helm provider config resolves to
+# `{clusterName}-helm` (here `sthings-runner-helm`), namespace `arc-systems`,
+# release `github-controller`, chart 0.15.0 — all composition defaults.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: GithubArcController
+metadata:
+  name: sthings-runner
+  namespace: crossplane-system
+spec:
+  clusterName: sthings-runner

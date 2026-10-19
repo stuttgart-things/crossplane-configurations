@@ -1,0 +1,7 @@
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: github-arc-controller
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/github-arc-controller:v0.1.0

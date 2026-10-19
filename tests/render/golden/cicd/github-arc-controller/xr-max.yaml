@@ -1,0 +1,76 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: GithubArcController
+metadata:
+  name: labda-runner-max
+  namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: labda-runner-max-9ed2a8d51042
+status:
+  chartVersion: 0.15.0
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: arc-controller'
+    reason: Creating
+    status: "False"
+    type: Ready
+  namespace: arc-systems
+  releaseName: arc
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: arc-controller
+    crossplane.io/external-name: arc
+  generateName: labda-runner-max-
+  labels:
+    app.kubernetes.io/instance: labda-runner-max
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: github-arc-controller
+    crossplane.io/composite: labda-runner-max
+  name: labda-runner-max-9ed2a8d51042
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: GithubArcController
+    name: labda-runner-max
+    uid: e6ab50e6-de53-560a-9f20-3fcba895b84e
+spec:
+  forProvider:
+    chart:
+      name: gha-runner-scale-set-controller
+      repository: oci://ghcr.io/actions/actions-runner-controller-charts
+      version: 0.15.0
+    namespace: arc-systems
+    skipCRDs: false
+    skipCreateNamespace: false
+    values:
+      flags:
+        logLevel: info
+      replicaCount: 2
+      resources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    wait: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: labda-runner-helm
+  rollbackLimit: 3

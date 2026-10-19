@@ -1,0 +1,18 @@
+---
+# The LabDA sthings-runner shape: Crossplane runs ON the runner cluster and
+# installs into itself through the `in-cluster` ClusterProviderConfig.
+# Release name `github-controller` is what the old stuttgart-things/crossplane
+# package created there, so this XR adopts that release instead of installing a
+# second controller next to it.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: GithubArcController
+metadata:
+  name: gha-controller
+  namespace: crossplane-system
+spec:
+  clusterName: in-cluster
+  helmProviderConfigRef: in-cluster
+  namespace: arc-systems
+  releaseName: github-controller
+  # Same version as every GithubRunnerSet on this cluster (lockstep).
+  version: "0.15.0"

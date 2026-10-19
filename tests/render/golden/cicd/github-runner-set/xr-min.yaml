@@ -1,0 +1,89 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: GithubRunnerSet
+metadata:
+  name: stuttgart-things-org
+  namespace: crossplane-system
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: helm.m.crossplane.io/v1beta1
+      kind: Release
+      name: stuttgart-things-org-166d6e70858e
+status:
+  chartVersion: 0.15.0
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: runner-set'
+    reason: Creating
+    status: "False"
+    type: Ready
+  githubConfigUrl: https://github.com/stuttgart-things
+  namespace: arc-runners
+  runnerScaleSetName: ghr-stuttgart-things-sthings-runner
+---
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: runner-set
+    crossplane.io/external-name: ghr-stuttgart-things-sthings-runner
+  generateName: stuttgart-things-org-
+  labels:
+    app.kubernetes.io/instance: stuttgart-things-org
+    app.kubernetes.io/managed-by: crossplane
+    app.kubernetes.io/name: github-runner-set
+    crossplane.io/composite: stuttgart-things-org
+  name: stuttgart-things-org-166d6e70858e
+  namespace: crossplane-system
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: GithubRunnerSet
+    name: stuttgart-things-org
+    uid: 3b587779-9914-503f-b975-221aea6d02c2
+spec:
+  forProvider:
+    chart:
+      name: gha-runner-scale-set
+      repository: oci://ghcr.io/actions/actions-runner-controller-charts
+      version: 0.15.0
+    namespace: arc-runners
+    skipCRDs: true
+    skipCreateNamespace: false
+    values:
+      containerMode:
+        kubernetesModeWorkVolumeClaim:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+        type: kubernetes
+      githubConfigSecret: github-arc
+      githubConfigUrl: https://github.com/stuttgart-things
+      runnerScaleSetName: ghr-stuttgart-things-sthings-runner
+      template:
+        spec:
+          containers:
+          - command:
+            - /home/runner/run.sh
+            env:
+            - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
+              value: "false"
+            image: ghcr.io/actions/actions-runner:2.338.0
+            name: runner
+    wait: true
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: sthings-runner-helm
+  rollbackLimit: 3

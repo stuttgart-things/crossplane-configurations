@@ -1,0 +1,135 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: github-runner-set
+  labels:
+    crossplane.io/xrd: githubrunnersets.resources.stuttgart-things.com
+    provider-helm: "true"
+spec:
+  compositeTypeRef:
+    apiVersion: resources.stuttgart-things.com/v1alpha1
+    kind: GithubRunnerSet
+  mode: Pipeline
+  pipeline:
+    - step: render-runner-set
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $xr      := .observed.composite.resource }}
+            {{- $spec    := $xr.spec }}
+            {{- $cluster := $spec.clusterName }}
+            {{- /* Defaults repeated here on purpose: `crossplane render` does
+                   not apply XRD defaults (root CLAUDE.md, gotcha 5). */}}
+            {{- $pcr     := $spec.helmProviderConfigRef | default (printf "%s-helm" $cluster) }}
+            {{- $ns      := $spec.namespace | default "arc-runners" }}
+            {{- $version := $spec.version | default "0.15.0" }}
+            {{- $org     := $spec.organization | default "stuttgart-things" }}
+            {{- $repo    := $spec.repository | default "" }}
+
+            {{- /* Registration URL: explicit > org/repo > org. */}}
+            {{- $url := $spec.githubConfigUrl | default "" }}
+            {{- if not $url }}
+            {{- if $repo }}
+            {{- $url = printf "https://github.com/%s/%s" $org $repo }}
+            {{- else }}
+            {{- $url = printf "https://github.com/%s" $org }}
+            {{- end }}
+            {{- end }}
+
+            {{- /* Scale set name = release name = `runs-on:` label. The default
+                   reproduces the old github-runner package's ghr-<repo>-<cluster>,
+                   so workflows keep their runs-on labels across the move. */}}
+            {{- $name := $spec.runnerScaleSetName | default (printf "ghr-%s-%s" ($repo | default $org) $cluster) }}
+
+            {{- $img      := $spec.runnerImage | default dict }}
+            {{- $image    := printf "%s:%s" ($img.repository | default "ghcr.io/actions/actions-runner") ($img.tag | default "2.338.0") }}
+            {{- $cm       := $spec.containerMode | default dict }}
+            {{- $modeType := $cm.type | default "kubernetes" }}
+            {{- $kubeMode := or (eq $modeType "kubernetes") (eq $modeType "kubernetes-novolume") }}
+
+            {{- /* Runner container. In the kubernetes modes the chart adds the
+                   container-hooks env, the pod-name env and the work mount
+                   itself; we only pin ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER, which
+                   the chart would otherwise force to "true". */}}
+            {{- $runner := dict "name" "runner" "image" $image "command" (list "/home/runner/run.sh") }}
+            {{- if $kubeMode }}
+            {{- $req := "false" }}
+            {{- if $cm.requireJobContainer }}{{ $req = "true" }}{{ end }}
+            {{- $_ := set $runner "env" (list (dict "name" "ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER" "value" $req)) }}
+            {{- end }}
+
+            {{- /* githubConfigSecret is a STRING: the name of a Secret that
+                   already exists in $ns (External Secrets). The chart then
+                   neither renders nor stores the credential. */}}
+            {{- $values := dict
+                  "githubConfigUrl" $url
+                  "githubConfigSecret" $spec.githubConfigSecret
+                  "runnerScaleSetName" $name
+                  "template" (dict "spec" (dict "containers" (list $runner))) }}
+            {{- if hasKey $spec "minRunners" }}{{ $_ := set $values "minRunners" $spec.minRunners }}{{ end }}
+            {{- if hasKey $spec "maxRunners" }}{{ $_ := set $values "maxRunners" $spec.maxRunners }}{{ end }}
+            {{- with $spec.runnerGroup }}{{ $_ := set $values "runnerGroup" . }}{{ end }}
+            {{- with $spec.scaleSetLabels }}{{ $_ := set $values "scaleSetLabels" . }}{{ end }}
+            {{- with $spec.controllerServiceAccount }}{{ $_ := set $values "controllerServiceAccount" (dict "namespace" .namespace "name" .name) }}{{ end }}
+
+            {{- if eq $modeType "kubernetes" }}
+            {{- $claim := dict "accessModes" (list "ReadWriteOnce") "resources" (dict "requests" (dict "storage" ($cm.storage | default "1Gi"))) }}
+            {{- with $cm.storageClassName }}{{ $_ := set $claim "storageClassName" . }}{{ end }}
+            {{- $_ := set $values "containerMode" (dict "type" "kubernetes" "kubernetesModeWorkVolumeClaim" $claim) }}
+            {{- else if ne $modeType "none" }}
+            {{- $_ := set $values "containerMode" (dict "type" $modeType) }}
+            {{- end }}
+
+            {{- /* Raw values merged LAST; deepCopy keeps the observed XR
+                   untouched by mergeOverwrite. */}}
+            {{- with $spec.values }}
+            {{- $values = mergeOverwrite $values (deepCopy .) }}
+            {{- end }}
+            ---
+            # One scale set. skipCRDs: true — the CRDs belong to the controller
+            # chart (GithubArcController); this chart ships none of its own
+            # that it should manage.
+            apiVersion: helm.m.crossplane.io/v1beta1
+            kind: Release
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation "runner-set" }}
+                crossplane.io/external-name: {{ $name }}
+              labels:
+                app.kubernetes.io/name: github-runner-set
+                app.kubernetes.io/instance: {{ $xr.metadata.name }}
+                app.kubernetes.io/managed-by: crossplane
+            spec:
+              providerConfigRef:
+                name: {{ $pcr }}
+                kind: ClusterProviderConfig
+              rollbackLimit: 3
+              forProvider:
+                chart:
+                  name: gha-runner-scale-set
+                  repository: oci://ghcr.io/actions/actions-runner-controller-charts
+                  version: {{ $version | quote }}
+                namespace: {{ $ns }}
+                skipCreateNamespace: false
+                skipCRDs: true
+                wait: true
+                values:
+                  {{- toYaml $values | nindent 6 }}
+            ---
+            apiVersion: resources.stuttgart-things.com/v1alpha1
+            kind: GithubRunnerSet
+            status:
+              runnerScaleSetName: {{ $name }}
+              githubConfigUrl: {{ $url }}
+              chartVersion: {{ $version | quote }}
+              namespace: {{ $ns }}
+
+    - step: ready
+      functionRef:
+        name: function-auto-ready

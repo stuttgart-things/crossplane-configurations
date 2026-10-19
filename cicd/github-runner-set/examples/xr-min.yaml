@@ -1,0 +1,16 @@
+---
+# Only the required fields: repository-less, so these are ORGANIZATION-level
+# runners for stuttgart-things (composition default), registered as
+# `ghr-stuttgart-things-sthings-runner` in namespace `arc-runners`, kubernetes
+# container mode on the cluster's default StorageClass.
+#
+# The Secret `github-arc` must already exist in `arc-runners` on the target
+# cluster (External Secrets) — see the README.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: GithubRunnerSet
+metadata:
+  name: stuttgart-things-org
+  namespace: crossplane-system
+spec:
+  clusterName: sthings-runner
+  githubConfigSecret: github-arc # pragma: allowlist secret
