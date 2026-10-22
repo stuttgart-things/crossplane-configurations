@@ -82,7 +82,6 @@ spec:
     - bridge: vmbrvlan
       model: virtio
       vlanId: 102
-    nodeName: ul-pve11
     operatingSystem:
     - type: l26
     poolId: stuttgart-things
@@ -92,6 +91,8 @@ spec:
       product: crossplane-proxmoxvm
     started: true
     stopOnDestroy: true
+  initProvider:
+    nodeName: ul-pve11
   providerConfigRef:
     kind: ClusterProviderConfig
     name: default

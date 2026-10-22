@@ -154,7 +154,7 @@ spec:
             _emitCloneDatastore = _cloneDatastore != "" and _cloneDatastore != "none"
 
             # Node the TEMPLATE lives on, as opposed to the node the VM runs on.
-            # bpg splits these: forProvider.nodeName is the TARGET, and
+            # bpg splits these: (init)Provider.nodeName is the TARGET, and
             # clone.nodeName is the SOURCE ("leave blank, if equal to the
             # node_name argument"). Emitting only the target is what forces the
             # two to be the same — so a template that moves takes every build
@@ -358,7 +358,6 @@ spec:
             }
 
             _forProvider = {
-                nodeName = _node
                 # NOT _name: the PVE VM name IS the guest hostname (see above).
                 name = _hostname
                 description = _annotation
@@ -416,6 +415,20 @@ spec:
                 }
                 spec = {
                     forProvider = _forProvider
+                    # The TARGET node is a creation-time fact, not a desired state.
+                    # Proxmox moves VMs (HA, maintenance, offline migration), and
+                    # node_name is ForceNew in bpg: with it in forProvider a
+                    # migrated VM planned as destroy + recreate. app-dev and
+                    # dagger-gh-runner-labul sat at Synced=False from 2026-10-15
+                    # until this, held only by lifecycle.prevent_destroy
+                    # (stuttgart-things#3962). initProvider is merged into the
+                    # create call and added to terraform's ignore_changes, so the
+                    # VM is built where the XR says and may live wherever PVE puts
+                    # it afterwards. The CRD accepts nodeName here in place of
+                    # forProvider (its required-field rule checks both).
+                    initProvider = {
+                        nodeName = _node
+                    }
                     providerConfigRef = {
                         kind = _providerConfigKind
                         name = _providerConfigName
