@@ -57,6 +57,17 @@ spec:
                       description: |
                         Optional explicit VMID for the new VM. Omit to let
                         Proxmox / the provider assign one.
+                    rebootAfterUpdate:
+                      type: boolean
+                      description: |
+                        Let the provider shut the VM down and start it again when
+                        an update needs it (bpg `reboot_after_update`, whose own
+                        default is true). Off by default: with it on, any field a
+                        NEW provider version reads as changed reboots the VM
+                        silently -- provider-proxmox-bpg v1.18.0 -> v1.22.0 did
+                        that to two LabUL VMs at once (stuttgart-things#3962).
+                        Changes that need a reboot then wait for the next one.
+                      default: false
                     # --- fields below default from the EnvironmentConfig ---
                     # No XRD default: leaving them unset lets the
                     # EnvironmentConfig value win; setting them overrides it.

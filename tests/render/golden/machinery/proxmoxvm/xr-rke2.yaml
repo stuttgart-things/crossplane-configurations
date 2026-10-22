@@ -87,6 +87,7 @@ spec:
     operatingSystem:
     - type: l26
     poolId: stuttgart-things
+    rebootAfterUpdate: false
     smbios:
     - manufacturer: stuttgart-things
       product: crossplane-proxmoxvm

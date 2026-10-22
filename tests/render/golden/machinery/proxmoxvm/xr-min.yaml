@@ -76,6 +76,7 @@ spec:
     nodeName: ""
     operatingSystem:
     - type: l26
+    rebootAfterUpdate: false
     smbios:
     - manufacturer: stuttgart-things
       product: crossplane-proxmoxvm
