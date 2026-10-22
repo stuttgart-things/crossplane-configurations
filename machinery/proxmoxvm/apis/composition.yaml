@@ -365,6 +365,13 @@ spec:
                 bios = _bios
                 started = True
                 stopOnDestroy = True
+                # Off unless the XR asks: bpg's own default (true) turns any field
+                # a new provider version reads as changed into a silent shutdown
+                # + start. provider-proxmox-bpg v1.18.0 -> v1.22.0 rebooted two
+                # LabUL VMs in the same second; one came back on another DHCP
+                # address and its etcd no longer knew itself
+                # (stuttgart-things#3962).
+                rebootAfterUpdate = True if _vm?.rebootAfterUpdate == True else False
                 agent = [{ enabled = _agent }]
                 cpu = [{ cores = int(_cpu), type = _cpuType }]
                 memory = [{ dedicated = int(_memory) }]
