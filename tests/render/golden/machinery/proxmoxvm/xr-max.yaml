@@ -89,7 +89,6 @@ spec:
     - bridge: vmbrvlan
       model: virtio
       vlanId: 102
-    nodeName: ul-pve01
     operatingSystem:
     - type: l26
     poolId: stuttgart-things
@@ -105,6 +104,8 @@ spec:
     - stuttgart-things
     - v5010
     vmId: 131
+  initProvider:
+    nodeName: ul-pve01
   providerConfigRef:
     kind: ClusterProviderConfig
     name: default

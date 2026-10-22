@@ -73,7 +73,6 @@ spec:
     networkDevice:
     - bridge: vmbr0
       model: virtio
-    nodeName: ""
     operatingSystem:
     - type: l26
     rebootAfterUpdate: false
@@ -82,6 +81,8 @@ spec:
       product: crossplane-proxmoxvm
     started: true
     stopOnDestroy: true
+  initProvider:
+    nodeName: ""
   providerConfigRef:
     kind: ClusterProviderConfig
     name: default
