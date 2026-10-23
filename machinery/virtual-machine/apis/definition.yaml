@@ -93,6 +93,26 @@ spec:
                     it fails with "Permission denied (publickey)" — set
                     `ansible: false` there.
                   default: true
+                hostDevices:
+                  type: array
+                  description: |
+                    harvester only: PCI devices passed through to the VM, e.g. a
+                    GPU. Handed to `HarvesterVM.spec.vm.hostDevices` unchanged;
+                    ignored for vsphere/proxmox. `deviceName` is the resource
+                    name Harvester's pcidevices-controller advertises once
+                    passthrough is enabled for the device
+                    (`kubectl get pcidevices -o custom-columns=NAME:.metadata.name,RESOURCE:.status.resourceName`).
+                    Needs harvester-vm >= v0.1.14.
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      deviceName:
+                        type: string
+                    required:
+                      - name
+                      - deviceName
                 providerRef:
                   type: object
                   description: "Override the ProviderConfig reference"

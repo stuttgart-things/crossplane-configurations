@@ -267,6 +267,28 @@ spec:
                         required:
                           - name
                           - networkName
+                    hostDevices:
+                      type: array
+                      description: |
+                        PCI devices passed through to the VM (KubeVirt
+                        `domain.devices.hostDevices`), e.g. a GPU. `deviceName`
+                        is the resource name Harvester's pcidevices-controller
+                        advertises for a device with passthrough enabled
+                        (`kubectl get pcidevices -o custom-columns=NAME:.metadata.name,RESOURCE:.status.resourceName`).
+                        The node must have the device free; a VM with host
+                        devices cannot live-migrate, so it stays on that node.
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                            description: Device name inside the VMI spec (unique per VM).
+                          deviceName:
+                            type: string
+                            description: Resource name advertised by the node, e.g. nvidia.com/GB206_GEFORCE_RTX_5060_TI.
+                        required:
+                          - name
+                          - deviceName
                   required:
                     - cpu
                     - resources
