@@ -74,6 +74,11 @@ spec:
     networks:
       - name: default
         networkName: default/vms
+    # PCI passthrough, e.g. a GPU. deviceName = the PCIDevice's
+    # .status.resourceName once passthrough is enabled in Harvester.
+    hostDevices:
+      - name: gpu0
+        deviceName: nvidia.com/GB206_GEFORCE_RTX_5060_TI
   # Optional base-OS provisioning. Emits an AnsibleRun (Tekton PipelineRun)
   # once the VM is Running and its IP is on status.share.ip; the inventory
   # auto-populates with that IP. Requires the ansible-run Configuration and

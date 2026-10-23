@@ -476,6 +476,18 @@ spec:
                                 bridge: {}
                                 model: virtio
                             {{- end }}
+                            {{- if $xr.spec.vm.hostDevices }}
+                            # PCI passthrough (e.g. a GPU). deviceName is the
+                            # resource name Harvester's pcidevices-controller
+                            # advertises once passthrough is enabled for the
+                            # device (PCIDevice .status.resourceName). Such a
+                            # VMI cannot live-migrate.
+                            hostDevices:
+                            {{- range $xr.spec.vm.hostDevices }}
+                              - name: {{ .name }}
+                                deviceName: {{ .deviceName }}
+                            {{- end }}
+                            {{- end }}
                           features:
                             acpi:
                               enabled: true

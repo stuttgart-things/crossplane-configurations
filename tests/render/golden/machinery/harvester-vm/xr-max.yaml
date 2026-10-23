@@ -218,6 +218,9 @@ spec:
                 - disk:
                     bus: virtio
                   name: cloudinitdisk
+                hostDevices:
+                - deviceName: nvidia.com/GB206_GEFORCE_RTX_5060_TI
+                  name: gpu0
                 interfaces:
                 - bridge: {}
                   model: virtio

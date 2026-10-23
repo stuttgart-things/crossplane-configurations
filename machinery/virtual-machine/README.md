@@ -33,6 +33,7 @@ The Composition pipeline:
 | `os` | XR | `ubuntu24` | **Golden** (`sthings-u26` / `sthings-u26-k3s` / `sthings-rocky9` / `sthings-leap`) or **vanilla** (`ubuntu24` = the `u26-dev` cloud image / `rocky9-dev`). Keys the per-provider `templates` map (vsphere/proxmox) or the `images` map → `{imageId, storageClassName}` (harvester). **`ansible: true` requires a golden image** — see the `ansible` row. |
 | `count` | XR | `"1"` | Number of VMs (vsphere/proxmox only; `harvester` is always a single VM) |
 | `ansible` | XR | `true` | Run base-OS Ansible provisioning after VM creation. **Only works on a golden `sthings-*` image** (see the note below) — the Ansible runner authenticates over SSH with the `sthings` user + password from the `ansible-credentials` Secret, which only the golden images bake in. On a vanilla image (`ubuntu24`/`rocky9-dev`) the run fails with `Permission denied (publickey)`. Set `ansible: false` for vanilla images. |
+| `hostDevices` | XR | - | `harvester` only: PCI passthrough `[{name, deviceName}]`, e.g. a GPU, handed to `HarvesterVM.spec.vm.hostDevices` (harvester-vm ≥ v0.1.14). `deviceName` is the PCIDevice's `.status.resourceName`; see harvester-vm's README, *PCI passthrough*. |
 | `providerRef.name` | XR | `default` | OpenTofu provider config name (vsphere/proxmox; `harvester` uses the sub-block's `providerConfigRef`) |
 | `providerRef.kind` | XR | `ClusterProviderConfig` | `ProviderConfig` or `ClusterProviderConfig` |
 

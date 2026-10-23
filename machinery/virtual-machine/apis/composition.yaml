@@ -64,6 +64,8 @@ spec:
             _os = _spec?.os or "ubuntu24"
             _count = _spec?.count or "1"
             _ansibleEnabled = False if _spec?.ansible == False else True
+            # harvester only: PCI devices for HarvesterVM.spec.vm.hostDevices.
+            _hostDevices = _spec?.hostDevices or []
 
             # --- T-shirt size map (inline; not environment-specific) ---
             _sizes = {
@@ -279,6 +281,9 @@ spec:
                                 networkName = _env?.networkName or "default/vms"
                             }
                         ]
+                        # PCI passthrough (e.g. a GPU), passed through as-is.
+                        if _hostDevices:
+                            hostDevices = _hostDevices
                     }
                     ansible = _ansibleSpec
                 }

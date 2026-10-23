@@ -51,6 +51,7 @@ Per-VM settings (vm name, cpu, memory, disk, cloud-init users/packages, …) com
 | `vm.cpu.cores` | XR (required) | - | vCPU cores |
 | `vm.resources.memory` / `vm.resources.cpu` | XR (required) | - | Memory / CPU limits |
 | `vm.networks` | XR | from EnvironmentConfig `networkName` | Multus networks; one `default` interface to `networkName` when omitted |
+| `vm.hostDevices` | XR | - | PCI passthrough (`[{name, deviceName}]`), e.g. a GPU. See [PCI passthrough](#pci-passthrough-gpu) |
 | `vm.*` | XR | various | os, runStrategy, machineType, … (see XRD) |
 | `providerConfigRef` | XR or EnvironmentConfig | - | provider-kubernetes ClusterProviderConfig name |
 | `environmentConfig` | XR | `default` | EnvironmentConfig selector label value |
@@ -78,6 +79,37 @@ See [`examples/xr.yaml`](examples/xr.yaml) — VM sized per spec, infra inherite
 ### Maximum
 
 See [`examples/xr-max.yaml`](examples/xr-max.yaml) — every field set explicitly, overriding all EnvironmentConfig defaults.
+
+## PCI passthrough (GPU)
+
+`spec.vm.hostDevices` lands unchanged in the KubeVirt
+`domain.devices.hostDevices`:
+
+```yaml
+spec:
+  vm:
+    hostDevices:
+      - name: gpu0
+        deviceName: nvidia.com/GB206_GEFORCE_RTX_5060_TI
+```
+
+`deviceName` is not something you choose: it is the resource name Harvester's
+`pcidevices-controller` advertises once passthrough is enabled for the device
+(Harvester UI → Advanced → PCI Devices → Enable Passthrough, which creates a
+`PCIDeviceClaim`):
+
+```bash
+kubectl get pcidevices -o custom-columns=NAME:.metadata.name,RESOURCE:.status.resourceName,ADDR:.status.address
+```
+
+Preconditions on the Harvester side: IOMMU (VT-d / AMD-Vi) on in the host
+BIOS, the `pcidevices-controller` add-on enabled, and every function in the
+device's IOMMU group claimed (a GPU usually brings its HDMI audio function).
+Pass the audio function as a second entry only if the guest needs it.
+
+A VMI with host devices cannot live-migrate; the default
+`evictionStrategy: LiveMigrateIfPossible` then falls back to shutting it down
+on a drain. One device serves one VM.
 
 ## Cluster preconditions
 

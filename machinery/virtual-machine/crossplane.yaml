@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.1.15
+    meta.crossplane.io/version: v0.1.16
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -102,5 +102,10 @@ spec:
     # reaches status.share.ip as soon as the guest agent reports instead of
     # after the next --poll (default 10m; harvester#345). It takes effect only
     # where provider-kubernetes runs with --enable-watches.
+    #
+    # v0.1.14 accepts spec.vm.hostDevices (PCI passthrough, e.g. a GPU), which
+    # this Configuration's spec.hostDevices hands through. On v0.1.13 the field
+    # is not in the XRD and the API server prunes it: the VM comes up without
+    # the device and nothing reports why.
     - configuration: ghcr.io/stuttgart-things/crossplane-configurations/harvester-vm
-      version: ">=v0.1.13,<v0.2.0"
+      version: ">=v0.1.14,<v0.2.0"
