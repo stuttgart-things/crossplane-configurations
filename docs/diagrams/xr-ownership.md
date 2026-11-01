@@ -132,7 +132,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | machinery | [vm-provision](../../machinery/vm-provision/) | `VMProvision` | `resources.stuttgart-things.com` | Namespaced | v0.1.2 | `ansible-run`, `proxmox-vm`, `vsphere-vm` |
 | machinery | [vsphere-vm](../../machinery/vsphere-vm/) | `VsphereVM` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
 | machinery | [vspherevm](../../machinery/vspherevm/) | `NativeVsphereVM` | `resources.stuttgart-things.com` | Namespaced | v0.13.0 | `ansible-run` |
-| storage | [minio](../../storage/minio/) | `MinioBucket` | `storage.stuttgart-things.com` | Cluster | v0.1.0 | — |
+| storage | [minio](../../storage/minio/) | `MinioBucket` | `storage.stuttgart-things.com` | Cluster | v0.1.1 | — |
 | vault | [app-secret-profile](../../vault/app-secret-profile/) | `AppSecretProfile` | `secrets.stuttgart-things.com` | Cluster | v0.1.1 | — |
 | vault | [vault-k8s-auth](../../vault/vault-k8s-auth/) | `VaultK8sAuth` | `vault.stuttgart-things.com` | Namespaced | v0.4.2 | — |
 | vault | [vault-secrets](../../vault/vault-secrets/) | `VaultSecretSet` | `vault.stuttgart-things.com` | Namespaced | v0.4.0 | — |
