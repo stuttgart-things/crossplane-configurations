@@ -20,7 +20,7 @@ status:
       version: 2.3.3
     packages:
       ready: 0
-      total: 21
+      total: 35
     providerConfigs:
       emitted: 0
       total: 3
@@ -45,6 +45,7 @@ status:
   ready: false
   transitive:
   - ansible-run
+  - app-secret-profile
   - cloud-config
   - cni
   - flux-apps
@@ -53,9 +54,12 @@ status:
   - management-plane
   - platform
   - proxmoxvm
+  - rancher-cluster
   - remote-cluster
   - vault-auth
+  - vault-k8s-auth
   - vault-pki-secrets
+  - vault-secrets
   - volume-claim
   - vspherevm
 ---
