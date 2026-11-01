@@ -17,10 +17,10 @@ status:
   components:
     crossplane:
       ready: false
-      version: 2.3.3
+      version: 2.4.2
     packages:
       ready: 0
-      total: 21
+      total: 35
     providerConfigs:
       emitted: 0
       total: 3
@@ -40,11 +40,12 @@ status:
     reason: Creating
     status: "False"
     type: Ready
-  crossplaneVersion: 2.3.3
+  crossplaneVersion: 2.4.2
   profile: machinery
   ready: false
   transitive:
   - ansible-run
+  - app-secret-profile
   - cloud-config
   - cni
   - flux-apps
@@ -53,9 +54,12 @@ status:
   - management-plane
   - platform
   - proxmoxvm
+  - rancher-cluster
   - remote-cluster
   - vault-auth
+  - vault-k8s-auth
   - vault-pki-secrets
+  - vault-secrets
   - volume-claim
   - vspherevm
 ---
@@ -80,7 +84,7 @@ spec:
     chart:
       name: crossplane
       repository: https://charts.crossplane.io/stable
-      version: 2.3.3
+      version: 2.4.2
     namespace: crossplane-system
     skipCreateNamespace: false
     wait: true
