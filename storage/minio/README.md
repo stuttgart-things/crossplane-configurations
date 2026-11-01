@@ -69,6 +69,16 @@ have. The reason is recorded on the XRD in
 still land wherever `access[].connectionSecret.namespace` says (default
 `crossplane-system`).
 
+## bucketName is fixed
+
+The XRD refuses any change to `spec.bucketName`, including adding or removing
+it later (that moves the name to or from the XR name). Policy and User are
+named `<bucketName>-<access.name>`, and provider-minio's webhook refuses a
+username change ("Changing the username is not allowed"). Before this rule a
+rename left the XR on `Synced=False` at `user-replication` for weeks, while
+bucket and policy still updated (#551). For a new name, create a new
+`MinioBucket`, move the data, delete the old one.
+
 ## Two provider behaviours worth knowing
 
 Both found on a lab MinIO with provider-minio v0.4.5 and Crossplane 2.3.3.

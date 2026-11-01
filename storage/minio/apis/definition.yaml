@@ -48,8 +48,8 @@ spec:
                   type: string
                   description: >-
                     Bucket to create. Defaults to the XR name. S3 names are
-                    RFC 1123 and CANNOT be changed afterwards — a changed value
-                    creates a second bucket and orphans the first.
+                    RFC 1123 and CANNOT be changed afterwards: the XRD refuses
+                    a change, as the composed user cannot be renamed.
                   maxLength: 63
                   minLength: 3
                   pattern: '^[a-z0-9][a-z0-9.-]*[a-z0-9]$'
@@ -153,6 +153,13 @@ spec:
               x-kubernetes-validations:
                 - rule: '!has(self.access) || self.access.all(a, self.access.exists_one(b, b.name == a.name))'
                   message: access entries need distinct names
+                # The composed User is named <bucketName>-<access.name>, and
+                # provider-minio refuses a username change: a renamed bucket
+                # used to wedge the XR on Synced=False without a visible error
+                # (#551). Adding or dropping the field counts as a change, as
+                # it moves the name to or from the XR name.
+                - rule: 'has(self.bucketName) == has(oldSelf.bucketName) && (!has(self.bucketName) || self.bucketName == oldSelf.bucketName)'
+                  message: bucketName cannot change -- the composed MinIO user cannot be renamed; create a new MinioBucket instead
             status:
               type: object
               properties:
