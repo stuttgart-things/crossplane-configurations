@@ -1,0 +1,41 @@
+# #554: runID changed, but the VM is not Ready and has no IP. The old
+# AnsibleRun is re-emitted VERBATIM (old IP 10.31.103.9, no runID) instead of
+# being dropped -- dropping it would delete it. The rebuild waits for the VM.
+apiVersion: virtualmachine.vspherevm.m.stuttgart-things.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: vspherevm-max
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: vspherevm
+status:
+  conditions:
+    - type: Ready
+      status: "False"
+      reason: Unavailable
+      lastTransitionTime: "2026-11-05T10:00:00Z"
+  atProvider:
+    defaultIpAddress: ""
+---
+# The AnsibleRun from the FIRST attempt. Its inventory carries the old IP
+# 10.31.103.9, so a verbatim re-emit and a rebuild are told apart by the IP.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: AnsibleRun
+metadata:
+  name: vspherevm-max-ansible-run
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: ansible-run
+spec:
+  pipelineRunName: vspherevm-max-ansible
+  ansiblePlaybooks:
+    - sthings.baseos.setup
+  ansibleVarsInventory:
+    - all+["10.31.103.9"]
+  wrapInCrossplane: true
+  crossplaneObjectName: vspherevm-max-ansible
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
+status:
+  succeeded: "False"
+  reason: Failed

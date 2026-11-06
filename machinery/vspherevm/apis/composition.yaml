@@ -308,7 +308,17 @@ spec:
             _prevAnsible = _ansibleObserved[0] if len(_ansibleObserved) > 0 else {}
             _prevAnsibleSpec = _prevAnsible?.spec or {}
 
-            if _ansibleEnabled and (_prevAnsibleSpec?.pipelineRunName or "") != "":
+            # `ansible.runID` is the deliberate way out of the stickiness
+            # (crossplane-configurations#554): a runID that differs from the
+            # observed AnsibleRun's rebuilds it from the current spec, and
+            # ansible-run then suffixes PipelineRun and Object with it, so a
+            # NEW PipelineRun starts. Until the VM is Ready with an IP the old
+            # AnsibleRun stays as it is -- dropping it would delete it.
+            _runID = _ansible?.runID or ""
+            _runIDChanged = (_prevAnsibleSpec?.runID or "") != _runID
+            _canBuild = _vmReady and _vmIP != ""
+
+            if _ansibleEnabled and (_prevAnsibleSpec?.pipelineRunName or "") != "" and (not _runIDChanged or not _canBuild):
                 _resources += [{
                     apiVersion = _prevAnsible.apiVersion
                     kind = _prevAnsible.kind
@@ -321,7 +331,7 @@ spec:
                     }
                     spec = _prevAnsibleSpec
                 }]
-            elif _ansibleEnabled and _vmReady and _vmIP != "":
+            elif _ansibleEnabled and _canBuild:
                 _playbooks = _ansible?.playbooks or ["sthings.baseos.setup"]
                 _varsFile = _ansible?.varsFile or []
 
@@ -374,6 +384,8 @@ spec:
                     }
                     spec = {
                         pipelineRunName = _pipelineRunName
+                        if _runID:
+                            runID = _runID
                         # NOT the XR's own environmentConfig. That one names a
                         # vSphere environment and is resolved against the
                         # vspherevm label; ansible-run resolves its OWN label, and

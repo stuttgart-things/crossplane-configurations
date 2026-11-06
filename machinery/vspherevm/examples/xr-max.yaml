@@ -47,6 +47,9 @@ spec:
   # in-cluster provider-kubernetes config).
   ansible:
     enabled: true
+    # Deliberate re-run: differs from the observed AnsibleRun's runID ->
+    # rebuilt, PipelineRun/Object suffixed -2 (crossplane-configurations#554).
+    runID: "2"
     playbooks:
       - sthings.baseos.setup
     varsFile:

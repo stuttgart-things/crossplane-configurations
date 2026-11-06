@@ -484,6 +484,34 @@ on the cluster: Tekton, the ansible credentials Secret (default
 > See [#421](https://github.com/stuttgart-things/crossplane-configurations/issues/421).
 
 
+### Retrying a failed run (`ansible.runID`)
+
+The AnsibleRun is sticky: once it exists it is re-emitted verbatim, so editing
+`spec.ansible` does not re-run anything, and **deleting the AnsibleRun does not
+either** -- the recreated AnsibleRun adopts the completed PipelineRun's Object
+and stays `Synced=False` on Tekton's "Once the PipelineRun is complete, no
+updates are allowed"
+([#554](https://github.com/stuttgart-things/crossplane-configurations/issues/554)).
+
+Bump `ansible.runID` instead, in the order file (GitOps PR):
+
+```yaml
+  ansible:
+    enabled: true
+    runID: "2"   # was unset; next retry "3"
+```
+
+A runID that differs from the observed AnsibleRun's rebuilds it from the
+current spec and EnvironmentConfig defaults (so a fixed collection is picked
+up), and [ansible-run](../../cicd/ansible-run/) suffixes PipelineRun and Object
+with it (`<xr>-ansible` -> `<xr>-ansible-2`). The rebuild waits until the VM is
+Ready with an IP; until then the old AnsibleRun stays.
+
+> **Read the failed run's logs first.** The previous Object is no longer
+> composed and is deleted -- and with it, through its `Delete` management
+> policy (ansible-run #75), the failed PipelineRun and its TaskRun logs. Find
+> the cause, then bump.
+
 ## Cluster preconditions
 
 - The native Proxmox provider — **auto-installed via the Configuration's
