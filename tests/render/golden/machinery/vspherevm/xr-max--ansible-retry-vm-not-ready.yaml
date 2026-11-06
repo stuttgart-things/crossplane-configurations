@@ -1,0 +1,116 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  name: vspherevm-max
+  namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: resources.stuttgart-things.com/v1alpha1
+      kind: AnsibleRun
+      name: vspherevm-max-ansible-run
+    - apiVersion: virtualmachine.vspherevm.m.stuttgart-things.com/v1alpha1
+      kind: VirtualMachine
+      name: vspherevm-max
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: vspherevm-max, vspherevm-max-ansible-run'
+    reason: Creating
+    status: "False"
+    type: Ready
+  share:
+    ansibleCompletionTime: ""
+    ansibleReady: false
+    ansibleSucceeded: "False"
+    ip: []
+    moid: ""
+    powerState: ""
+---
+apiVersion: virtualmachine.vspherevm.m.stuttgart-things.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vspherevm-max
+  labels:
+    crossplane.io/composite: vspherevm-max
+  name: vspherevm-max
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: NativeVsphereVM
+    name: vspherevm-max
+    uid: dffd83dc-ba83-54a9-942c-7684d303d001
+spec:
+  forProvider:
+    annotation: VSPHERE-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
+    clone:
+    - templateUuid: 42212cd2-5060-9bc5-ac82-7fdef66efc61
+      timeout: 30
+    customAttributes:
+      "101": stuttgart-things
+      "102": crossplane
+    datastoreId: datastore-12
+    disk:
+    - label: disk0
+      size: 96
+      thinProvisioned: true
+    extraConfig:
+      guestinfo.metadata: '{"local-hostname":"vspherevm-max","instance-id":"vspherevm-max"}'
+    firmware: bios
+    folder: stuttgart-things/testing
+    guestId: ubuntu64Guest
+    memory: 16384
+    name: vspherevm-max
+    networkInterface:
+    - adapterType: vmxnet3
+      networkId: dvportgroup-2048
+    numCpus: 8
+    resourcePoolId: resgroup-8
+    scsiType: pvscsi
+    tags:
+    - urn:vmomi:InventoryServiceTag:1d3f7a90-0000-0000-0000-000000000001:GLOBAL
+    - urn:vmomi:InventoryServiceTag:1d3f7a90-0000-0000-0000-000000000002:GLOBAL
+    waitForGuestIpTimeout: 5
+    waitForGuestNetTimeout: 5
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: default
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: AnsibleRun
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: vspherevm-max-ansible-run
+  labels:
+    crossplane.io/composite: vspherevm-max
+  name: vspherevm-max-ansible-run
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: NativeVsphereVM
+    name: vspherevm-max
+    uid: dffd83dc-ba83-54a9-942c-7684d303d001
+spec:
+  ansiblePlaybooks:
+  - sthings.baseos.setup
+  ansibleVarsInventory:
+  - all+["10.31.103.9"]
+  crossplaneNamespace: default
+  crossplaneObjectName: vspherevm-max-ansible
+  crossplaneProviderConfig: in-cluster
+  pipelineRunName: vspherevm-max-ansible
+  wrapInCrossplane: true

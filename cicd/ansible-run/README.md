@@ -22,6 +22,29 @@ The actual playbook execution lives in the upstream Tekton pipeline (`spec.gitRe
 - **PipelineRun status surfaced on the XR** — a `derive-status` pipeline step reflects the live PipelineRun onto `status`: `succeeded` (True/False/Unknown), `reason`, `message`, `pipelineRunName`, `startTime`, `completionTime`, the child `taskRuns`, and the pipeline `results` as name/value pairs (string-valued only — Tekton also permits array- and object-typed results, which the status schema cannot represent).
 - **Readiness tracks the pipeline** — `spec.deriveReadiness` (default `true`) makes the XR Ready only once the PipelineRun's `Succeeded` condition is `True`; set to `false` to be Ready as soon as the Object is applied.
 
+### Retrying a failed run
+
+Order: **read the logs, fix the cause, then re-run.** A re-run deletes the
+previous Object, and through its `Delete` management policy (#75) the failed
+PipelineRun and its logs.
+
+- **Standalone AnsibleRun:** bump `spec.runID` (`"2"`, `"3"`, ...).
+- **Composed by a VM** (`NativeVsphereVM`, `NativeProxmoxVM`): bump
+  `spec.ansible.runID` on the VM XR, which forwards it. Editing the AnsibleRun
+  directly is overwritten by the parent.
+- **Do not delete the AnsibleRun.** The parent recomposes it within seconds
+  under the same name, the new AnsibleRun adopts the old Object before the
+  garbage collector removes it, and applying the new spec to the completed
+  PipelineRun fails (`Once the PipelineRun is complete, no updates are
+  allowed`) -- the run stays `Ready=False` forever
+  ([#554](https://github.com/stuttgart-things/crossplane-configurations/issues/554)).
+  If it already happened, delete the Object, then the PipelineRun:
+
+  ```bash
+  kubectl delete objects.kubernetes.m.crossplane.io -n <ns> <xr>-ansible --wait=true
+  kubectl delete pipelinerun -n tekton-ci <xr>-ansible --ignore-not-found
+  ```
+
 ## Usage
 
 ### Minimum
