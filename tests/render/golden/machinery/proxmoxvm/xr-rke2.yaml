@@ -94,6 +94,11 @@ spec:
     stopOnDestroy: true
   initProvider:
     nodeName: ul-pve11
+  managementPolicies:
+  - Observe
+  - Create
+  - Update
+  - Delete
   providerConfigRef:
     kind: ClusterProviderConfig
     name: default
