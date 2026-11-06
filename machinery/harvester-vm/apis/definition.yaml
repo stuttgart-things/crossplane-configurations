@@ -312,6 +312,22 @@ spec:
                       type: boolean
                       description: Enable Ansible provisioning after VM creation.
                       default: false
+                    runID:
+                      type: string
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      description: |
+                        Opt-in suffix for a DELIBERATE re-run of the AnsibleRun,
+                        forwarded as its `spec.runID` (ansible-run >= v0.3.2).
+                        The AnsibleRun is otherwise sticky: once it exists it is
+                        re-emitted verbatim, so neither an edit here nor deleting
+                        it re-runs anything (deleting re-adopts the completed
+                        PipelineRun, crossplane-configurations#554). Changing
+                        runID is the one thing that rebuilds it: the AnsibleRun is
+                        rendered afresh from the current spec, PipelineRun and
+                        Object get the `-<runID>` suffix, and the previous Object
+                        -- and with it the previous PipelineRun and its logs -- is
+                        deleted. Read the failed run's logs BEFORE bumping. The
+                        rebuild waits for the VM to be Running with an IP.
                     pipelineNamespace:
                       type: string
                       description: Namespace for the Tekton PipelineRun.

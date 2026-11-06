@@ -1,0 +1,48 @@
+# #556: the observed AnsibleRun already carries runID "2" (the retry ran).
+# Sticky gate as before: re-emitted VERBATIM (old IP 10.31.104.9) even though
+# the VM IP changed.
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  name: harvester-vm-max-vmi
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: harvester-vm-max-vmi
+status:
+  atProvider:
+    manifest:
+      apiVersion: kubevirt.io/v1
+      kind: VirtualMachineInstance
+      metadata:
+        name: harvester-vm-max
+        namespace: vms
+      status:
+        phase: Running
+        interfaces:
+          - name: default
+            ipAddress: 10.31.104.50
+            ipAddresses: ["10.31.104.50"]
+---
+# The AnsibleRun from the FIRST attempt. Its inventory carries the old IP
+# 10.31.104.9, so a verbatim re-emit and a rebuild are told apart by the IP.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: AnsibleRun
+metadata:
+  name: harvester-vm-max-ansible-run
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: harvester-vm-max-ansible-run
+spec:
+  pipelineRunName: harvester-vm-max-ansible
+  runID: "2"
+  ansiblePlaybooks:
+    - sthings.baseos.setup
+  ansibleVarsInventory:
+    - all+["10.31.104.9"]
+  wrapInCrossplane: true
+  crossplaneObjectName: harvester-vm-max-ansible
+  crossplaneNamespace: default
+  crossplaneProviderConfig: in-cluster
+status:
+  succeeded: "False"
+  reason: Failed

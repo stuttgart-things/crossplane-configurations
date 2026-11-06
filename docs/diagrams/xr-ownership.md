@@ -123,7 +123,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | k8s | [cloud-config](../../k8s/cloud-config/) | `CloudInit` | `resources.stuttgart-things.com` | Namespaced | v0.5.5 | — |
 | k8s | [namespace](../../k8s/namespace/) | `ManagedNamespace` | `resources.stuttgart-things.com` | Namespaced | v0.1.2 | — |
 | k8s | [volume-claim](../../k8s/volume-claim/) | `VolumeClaim` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
-| machinery | [harvester-vm](../../machinery/harvester-vm/) | `HarvesterVM` | `resources.stuttgart-things.com` | Namespaced | v0.1.14 | `ansible-run`, `cloud-config`, `volume-claim` |
+| machinery | [harvester-vm](../../machinery/harvester-vm/) | `HarvesterVM` | `resources.stuttgart-things.com` | Namespaced | v0.2.0 | `ansible-run`, `cloud-config`, `volume-claim` |
 | machinery | [proxmox-vm](../../machinery/proxmox-vm/) | `ProxmoxVM` | `resources.stuttgart-things.com` | Namespaced | v0.2.0 | — |
 | machinery | [proxmoxvm](../../machinery/proxmoxvm/) | `NativeProxmoxVM` | `resources.stuttgart-things.com` | Namespaced | v0.20.0 | `ansible-run` |
 | machinery | [rancher-cluster](../../machinery/rancher-cluster/) | `RancherCluster` | `resources.stuttgart-things.com` | Namespaced | v0.12.0 | `vault-auth` |

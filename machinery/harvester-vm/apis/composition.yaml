@@ -573,9 +573,23 @@ spec:
 
                    Setting `ansible.enabled: false` still removes it — the
                    stickiness absorbs involuntary flaps, not an explicit
-                   opt-out. */}}
+                   opt-out.
+
+                   `ansible.runID` is the deliberate way out (#554, #556): a
+                   runID that differs from the observed AnsibleRun's rebuilds
+                   it from the current spec, and ansible-run suffixes
+                   PipelineRun and Object with it, so a NEW PipelineRun
+                   starts. Until the VM is Running with an IP the old
+                   AnsibleRun stays as it is -- dropping it would delete it. */}}
             {{- $prevAns := index (.observed.resources | default dict) (print $vmName "-ansible-run") }}
-            {{- if and $ansEnabled $prevAns (dig "spec" "pipelineRunName" "" $prevAns.resource) }}
+            {{- $prevAnsSpec := dict }}
+            {{- if $prevAns }}
+            {{-   $prevAnsSpec = dig "spec" dict $prevAns.resource }}
+            {{- end }}
+            {{- $runID := dig "runID" "" $ans }}
+            {{- $runIDChanged := ne (dig "runID" "" $prevAnsSpec) $runID }}
+            {{- $canBuild := and (eq $phase "Running") (ne $ip "") }}
+            {{- if and $ansEnabled (dig "pipelineRunName" "" $prevAnsSpec) (or (not $runIDChanged) (not $canBuild)) }}
             ---
             apiVersion: {{ dig "apiVersion" "resources.stuttgart-things.com/v1alpha1" $prevAns.resource }}
             kind: AnsibleRun
@@ -586,8 +600,8 @@ spec:
                 app.kubernetes.io/name: harvester-vm
                 app.kubernetes.io/instance: {{ $vmName }}
                 app.kubernetes.io/managed-by: crossplane
-            spec: {{ toYaml (dig "spec" dict $prevAns.resource) | nindent 2 }}
-            {{- else if and $ansEnabled (eq $phase "Running") (ne $ip "") }}
+            spec: {{ toYaml $prevAnsSpec | nindent 2 }}
+            {{- else if and $ansEnabled $canBuild }}
             ---
             apiVersion: resources.stuttgart-things.com/v1alpha1
             kind: AnsibleRun
@@ -600,6 +614,9 @@ spec:
                 app.kubernetes.io/managed-by: crossplane
             spec:
               pipelineRunName: {{ $vmName }}-ansible
+              {{- if $runID }}
+              runID: {{ $runID | quote }}
+              {{- end }}
               namespace: {{ dig "pipelineNamespace" "tekton-ci" $ans }}
               gitRepoUrl: {{ dig "gitRepoUrl" "https://github.com/stuttgart-things/stage-time.git" $ans }}
               ansibleWorkingImage: {{ dig "ansibleWorkingImage" "ghcr.io/stuttgart-things/sthings-ansible:13.5.0-test" $ans }}

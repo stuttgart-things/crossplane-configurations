@@ -111,6 +111,35 @@ A VMI with host devices cannot live-migrate; the default
 `evictionStrategy: LiveMigrateIfPossible` then falls back to shutting it down
 on a drain. One device serves one VM.
 
+## Retrying a failed Ansible run (`ansible.runID`)
+
+The AnsibleRun is sticky. Once it exists it is re-emitted verbatim, so editing
+`spec.ansible` does not re-run anything. **Deleting the AnsibleRun does not
+either:** the recreated AnsibleRun adopts the completed PipelineRun's Object and
+stays `Synced=False` on Tekton's "Once the PipelineRun is complete, no updates
+are allowed"
+([#554](https://github.com/stuttgart-things/crossplane-configurations/issues/554)).
+
+Bump `ansible.runID` instead, in the order file (GitOps PR):
+
+```yaml
+  ansible:
+    enabled: true
+    runID: "2"   # was unset; next retry "3"
+```
+
+A runID that differs from the observed AnsibleRun's rebuilds the AnsibleRun from
+the current spec. [ansible-run](../../cicd/ansible-run/) then suffixes the
+PipelineRun and the Object with it (`<vm>-ansible` -> `<vm>-ansible-2`). The
+rebuild waits until the VMI is `Running` with an IP; until then the old
+AnsibleRun stays. This works the same as in [vspherevm](../vspherevm/) and
+[proxmoxvm](../proxmoxvm/) (#555).
+
+> **Read the failed run's logs first.** The previous Object is no longer
+> composed and is deleted, and with it (through its `Delete` management policy,
+> ansible-run #75) the failed PipelineRun and its TaskRun logs. Find the cause,
+> then bump.
+
 ## Cluster preconditions
 
 ### 1. provider-kubernetes + ClusterProviderConfig

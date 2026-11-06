@@ -85,6 +85,9 @@ spec:
   # its preconditions (Tekton stack + credentials Secret) on the cluster.
   ansible:
     enabled: true
+    # Deliberate re-run: differs from the observed AnsibleRun's runID ->
+    # rebuilt, PipelineRun/Object suffixed -2 (crossplane-configurations#556).
+    runID: "2"
     pipelineNamespace: tekton-ci
     credentialsSecretName: ansible-credentials # pragma: allowlist secret
     crossplaneProviderConfig: in-cluster
