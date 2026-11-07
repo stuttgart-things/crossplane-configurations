@@ -29,7 +29,7 @@ previous Object, and through its `Delete` management policy (#75) the failed
 PipelineRun and its logs.
 
 - **Standalone AnsibleRun:** bump `spec.runID` (`"2"`, `"3"`, ...).
-- **Composed by a VM** (`NativeVsphereVM`, `NativeProxmoxVM`): bump
+- **Composed by a VM** (`NativeVsphereVM`, `NativeProxmoxVM`, `HarvesterVM`): bump
   `spec.ansible.runID` on the VM XR, which forwards it. Editing the AnsibleRun
   directly is overwritten by the parent.
 - **Do not delete the AnsibleRun.** The parent recomposes it within seconds
