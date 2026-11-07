@@ -429,6 +429,17 @@ spec:
                     initProvider = {
                         nodeName = _node
                     }
+                    # Everything but LateInitialize (crossplane-configurations#558).
+                    # Late-init copied bpg's mac_addresses into forProvider once;
+                    # bpg reads that list from the guest agent, so it holds every
+                    # interface in the guest (docker0, container veths, CNI
+                    # bridges) and changes with each container. forProvider never
+                    # matched it again: an Update to Proxmox every ~8s per VM,
+                    # since at least 2026-11-01. Without late-init only what this
+                    # Composition renders is desired state. A value late-init
+                    # already wrote stays in forProvider until it is removed once
+                    # by hand (see README, "Upgrading to v0.21.0").
+                    managementPolicies = ["Observe", "Create", "Update", "Delete"]
                     providerConfigRef = {
                         kind = _providerConfigKind
                         name = _providerConfigName

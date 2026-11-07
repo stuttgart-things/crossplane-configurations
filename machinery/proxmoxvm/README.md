@@ -512,6 +512,37 @@ Ready with an IP; until then the old AnsibleRun stays.
 > policy (ansible-run #75), the failed PipelineRun and its TaskRun logs. Find
 > the cause, then bump.
 
+## No late-init (`managementPolicies`, v0.21.0)
+
+The `EnvironmentVM` carries `managementPolicies: [Observe, Create, Update, Delete]`,
+everything but `LateInitialize`. With the default `['*']` the provider copied
+bpg's `mac_addresses` into `forProvider` once. bpg reads that list from the QEMU
+guest agent: every interface in the guest (`docker0`, container veths, CNI
+bridges), so it changes with each container, and `forProvider` never matched it
+again -- an `UpdatedExternalResource` against Proxmox every ~8 s per VM
+([#558](https://github.com/stuttgart-things/crossplane-configurations/issues/558)).
+Without late-init only what this Composition renders is desired state.
+
+### Upgrading to v0.21.0
+
+The package does not undo what late-init already wrote: `forProvider.macAddresses`
+stays on every existing `EnvironmentVM`, owned by the provider's field manager,
+and the loop goes on. After v0.21.0 is installed (not before -- with
+`LateInitialize` still on the provider writes it straight back), remove it once:
+
+```bash
+for vm in $(kubectl get environmentvms.virtualenvironmentvm.proxmoxbpg.m.crossplane.io -A \
+    -o jsonpath='{range .items[?(@.spec.forProvider.macAddresses)]}{.metadata.namespace}/{.metadata.name}{" "}{end}'); do
+  kubectl -n "${vm%/*}" patch environmentvms.virtualenvironmentvm.proxmoxbpg.m.crossplane.io "${vm#*/}" \
+    --type=json -p '[{"op":"remove","path":"/spec/forProvider/macAddresses"}]'
+done
+```
+
+Check: the `UpdatedExternalResource` events stop (`kubectl get events -A
+--field-selector involvedObject.kind=EnvironmentVM,reason=UpdatedExternalResource`).
+`macAddresses` is optional and computed in bpg; with no desired value the plan keeps what
+Proxmox has, nothing on the VM changes.
+
 ## Cluster preconditions
 
 - The native Proxmox provider — **auto-installed via the Configuration's
