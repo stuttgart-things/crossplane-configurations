@@ -1,0 +1,219 @@
+# Re-run case: the observed Object still mirrors the PREVIOUS PipelineRun
+# (other name, older spec) while the module now renders a new PipelineRun name.
+# pin-pipelinerun-spec must NOT pin here -- the new run gets the freshly
+# rendered spec (current image, validateInventory present).
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: run-ansible-baseos
+    uptest.upbound.io/timeout: '60'
+  labels:
+    crossplane.io/composite: ansible-run-baseos
+  name: run-ansible-baseos
+  namespace: default
+spec:
+  forProvider:
+    manifest:
+      apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        name: run-ansible-baseos
+        namespace: tekton-ci
+      spec:
+        params:
+        - name: storageSize
+          value: 20Mi
+        - name: storageAccessModes
+          value: ReadWriteOnce
+        - name: ansiblePlaybooks
+          value:
+          - sthings.baseos.setup
+        - name: ansibleExtraCollections
+          value:
+          - community.general:10.1.0
+          - https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.6.449.tar.gz/sthings-baseos-26.6.449.tar.gz
+        - name: ansibleExtraRoles
+          value:
+          - https://github.com/stuttgart-things/install-requirements.git,2024.05.11
+        - name: ansibleVarsInventory
+          value:
+          - all+["10.31.102.107"]
+        - name: ansibleVarsFile
+          value:
+          - manage_filesystem+-true
+          - update_packages+-true
+          - ansible_become+-true
+          - ansible_become_method+-sudo
+        - name: ansibleWorkingImage
+          value: ghcr.io/stuttgart-things/sthings-ansible:11.11.0
+        - name: ansibleCredentialsSecretName
+          value: ansible-credentials
+        - name: ansibleCredentialsUserKey
+          value: ANSIBLE_USER
+        - name: ansibleCredentialsPasswordKey
+          value: ANSIBLE_PASSWORD
+        - name: createInventory
+          value: 'true'
+        - name: ansibleTargetHost
+          value: all
+        - name: gitWorkspaceSubdirectory
+          value: /ansible/workdir/
+        - name: installExtraRoles
+          value: 'true'
+        - name: installExtraCollections
+          value: 'true'
+        - name: userHome
+          value: /home/nonroot
+        - name: vaultSecretName
+          value: vault
+        - name: inventory
+          value: ''
+        - name: varsFile
+          value: ''
+        - name: ansibleVerbosity
+          value: '2'
+        - name: validateInventory
+          value: 'true'
+        - name: gitRepoUrl
+          value: https://github.com/stuttgart-things/stage-time.git
+        - name: gitRevision
+          value: main
+        pipelineRef:
+          params:
+          - name: url
+            value: https://github.com/stuttgart-things/stage-time.git
+          - name: revision
+            value: v0.11.1
+          - name: pathInRepo
+            value: pipelines/execute-ansible-playbooks.yaml
+          resolver: git
+        taskRunTemplate:
+          serviceAccountName: default
+        timeouts:
+          pipeline: 1h0m0s
+        workspaces:
+        - name: shared-workspace
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 20Mi
+              storageClassName: openebs-hostpath
+  managementPolicies:
+  - Observe
+  - Create
+  - Delete
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: in-cluster
+status:
+  atProvider:
+    manifest:
+      apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        name: run-ansible-baseos-previous
+        namespace: tekton-ci
+      spec:
+        params:
+        - name: storageSize
+          value: 20Mi
+        - name: storageAccessModes
+          value: ReadWriteOnce
+        - name: ansiblePlaybooks
+          value:
+          - sthings.baseos.setup
+        - name: ansibleExtraCollections
+          value:
+          - community.general:10.1.0
+          - https://github.com/stuttgart-things/ansible/releases/download/sthings-baseos-26.6.449.tar.gz/sthings-baseos-26.6.449.tar.gz
+        - name: ansibleExtraRoles
+          value:
+          - https://github.com/stuttgart-things/install-requirements.git,2024.05.11
+        - name: ansibleVarsInventory
+          value:
+          - all+["10.31.102.107"]
+        - name: ansibleVarsFile
+          value:
+          - manage_filesystem+-true
+          - update_packages+-true
+          - ansible_become+-true
+          - ansible_become_method+-sudo
+        - name: ansibleWorkingImage
+          value: ghcr.io/stuttgart-things/sthings-ansible:11.10.0
+        - name: ansibleCredentialsSecretName
+          value: ansible-credentials
+        - name: ansibleCredentialsUserKey
+          value: ANSIBLE_USER
+        - name: ansibleCredentialsPasswordKey
+          value: ANSIBLE_PASSWORD
+        - name: createInventory
+          value: 'true'
+        - name: ansibleTargetHost
+          value: all
+        - name: gitWorkspaceSubdirectory
+          value: /ansible/workdir/
+        - name: installExtraRoles
+          value: 'true'
+        - name: installExtraCollections
+          value: 'true'
+        - name: userHome
+          value: /home/nonroot
+        - name: vaultSecretName
+          value: vault
+        - name: inventory
+          value: ''
+        - name: varsFile
+          value: ''
+        - name: ansibleVerbosity
+          value: '2'
+        - name: gitRepoUrl
+          value: https://github.com/stuttgart-things/stage-time.git
+        - name: gitRevision
+          value: main
+        pipelineRef:
+          params:
+          - name: url
+            value: https://github.com/stuttgart-things/stage-time.git
+          - name: revision
+            value: v0.11.1
+          - name: pathInRepo
+            value: pipelines/execute-ansible-playbooks.yaml
+          resolver: git
+        taskRunTemplate:
+          serviceAccountName: default
+          metadata: {}
+        timeouts:
+          pipeline: 1h0m0s
+        workspaces:
+        - name: shared-workspace
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 20Mi
+              storageClassName: openebs-hostpath
+      status:
+        conditions:
+        - type: Succeeded
+          status: 'True'
+          reason: Succeeded
+          message: 'Tasks Completed: 1 (Failed: 0, Cancelled 0), Skipped: 0'
+        startTime: '2026-11-12T04:00:07Z'
+        completionTime: '2026-11-12T04:06:41Z'
+  conditions:
+  - type: Ready
+    status: 'True'
+    reason: Available
+  - type: Synced
+    status: 'False'
+    reason: ReconcileError
+    message: 'observe failed: cannot get desired state: cannot dry run SSA: admission
+      webhook "validation.webhook.pipeline.tekton.dev" denied the request: validation
+      failed: invalid value: Once the PipelineRun is complete, no updates are allowed:
+      spec'

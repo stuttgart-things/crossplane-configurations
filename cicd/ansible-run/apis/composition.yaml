@@ -74,7 +74,9 @@ spec:
     # Re-emitting the observed spec turns that dry run into a no-op. Before
     # creation nothing is observed and the freshly rendered spec is used.
     # The spec is REPLACED, never unioned: a KCL union of two specs merges
-    # the params lists index-wise.
+    # the params lists index-wise. Only pinned while the observed
+    # PipelineRun has the SAME name as the rendered one: a re-run that
+    # renders a new PipelineRun name must get its fresh spec.
     - step: pin-pipelinerun-spec
       functionRef:
         name: function-kcl
@@ -93,7 +95,9 @@ spec:
                 n for n, d in _dcds
                 if d?.Resource?.kind == "Object" \
                     and d?.Resource?.spec?.forProvider?.manifest?.kind == "PipelineRun" \
-                    and _ocds?[n]?.Resource?.status?.atProvider?.manifest?.spec
+                    and _ocds?[n]?.Resource?.status?.atProvider?.manifest?.spec \
+                    and _ocds?[n]?.Resource?.status?.atProvider?.manifest?.metadata?.name \
+                        == d?.Resource?.spec?.forProvider?.manifest?.metadata?.name
             ]
 
             items = [
