@@ -62,6 +62,57 @@ spec:
           name: ansiblerun
         spec:
           source: oci://ghcr.io/stuttgart-things/kcl-tekton-pr?tag=0.15.1
+    # Pin the PipelineRun spec once the PipelineRun exists. Tekton rejects
+    # any spec change on a completed PipelineRun ("Once the PipelineRun is
+    # complete, no updates are allowed: spec"), and provider-kubernetes
+    # dry-runs an SSA patch of the desired manifest on EVERY observe, even
+    # without Update in managementPolicies. So each bump of a default the
+    # module renders (collection release, image tag, pipeline revision from
+    # the EnvironmentConfig) left every finished AnsibleRun's Object
+    # Synced=False, with a CannotObserveExternalResource warning per
+    # reconcile (seen 2026-10-21 and 2026-11-12, stuttgart-things#4484).
+    # Re-emitting the observed spec turns that dry run into a no-op. Before
+    # creation nothing is observed and the freshly rendered spec is used.
+    # The spec is REPLACED, never unioned: a KCL union of two specs merges
+    # the params lists index-wise.
+    - step: pin-pipelinerun-spec
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        metadata:
+          name: ansiblerun-pin-spec
+        spec:
+          source: |
+            _params = option("params") or {}
+            _ocds = _params?.ocds or {}
+            _dcds = _params?.dcds or {}
+
+            _names = [
+                n for n, d in _dcds
+                if d?.Resource?.kind == "Object" \
+                    and d?.Resource?.spec?.forProvider?.manifest?.kind == "PipelineRun" \
+                    and _ocds?[n]?.Resource?.status?.atProvider?.manifest?.spec
+            ]
+
+            items = [
+                {k: v for k, v in _dcds[n].Resource if k not in ["metadata", "spec"]} | {
+                    metadata = {k: v for k, v in (_dcds[n].Resource?.metadata or {}) if k != "annotations"} | {
+                        annotations = {k: v for k, v in (_dcds[n].Resource?.metadata?.annotations or {}) if k != "krm.kcl.dev/composition-resource-name"} | {
+                            "krm.kcl.dev/composition-resource-name" = n
+                        }
+                    }
+                    spec = {k: v for k, v in _dcds[n].Resource.spec if k != "forProvider"} | {
+                        forProvider = {k: v for k, v in _dcds[n].Resource.spec.forProvider if k != "manifest"} | {
+                            manifest = {k: v for k, v in _dcds[n].Resource.spec.forProvider.manifest if k != "spec"} | {
+                                spec = _ocds[n].Resource.status.atProvider.manifest.spec
+                            }
+                        }
+                    }
+                }
+                for n in _names
+            ]
     # Surface the live Tekton PipelineRun status onto the AnsibleRun XR.
     # The wrapped provider-kubernetes Object mirrors the PipelineRun under
     # status.atProvider.manifest; this inline KCL reads it (observed

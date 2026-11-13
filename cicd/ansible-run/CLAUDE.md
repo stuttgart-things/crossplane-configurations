@@ -23,9 +23,19 @@ is rendered by the external KCL module
    required resource, got 2").
 2. **`render-pipelinerun`** (`function-kcl`, OCI `kcl-tekton-pr:<pin>`) —
    renders the PipelineRun + wrapping Object.
-3. **`derive-status`** (`function-kcl`, **inline** KCL) — reads the observed
+3. **`pin-pipelinerun-spec`** (`function-kcl`, **inline** KCL) — once the
+   Object is observed, re-emits the LIVE PipelineRun spec
+   (`ocds[<name>].Resource.status.atProvider.manifest.spec`) as the desired
+   spec. Tekton rejects any spec change on a completed PipelineRun, and
+   provider-kubernetes SSA-dry-runs the desired manifest on every observe
+   (managementPolicies without Update do not skip that), so a bumped default
+   (collection release, image, pipeline revision) otherwise left every
+   finished run Synced=False (stuttgart-things#4484). The spec is replaced,
+   never unioned (KCL union merges lists index-wise). Golden:
+   `tests/render/golden/cicd/ansible-run/xr--completed-older-defaults.yaml`.
+4. **`derive-status`** (`function-kcl`, **inline** KCL) — reads the observed
    Object and patches the XR status (see below).
-4. **`ready`** (`function-auto-ready`) — bubbles Object readiness to the XR.
+5. **`ready`** (`function-auto-ready`) — bubbles Object readiness to the XR.
 
 ## The `derive-status` step (the inline KCL)
 `function-kcl` contract used here:

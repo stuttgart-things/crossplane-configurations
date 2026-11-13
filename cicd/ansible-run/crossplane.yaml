@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.3.2
+    meta.crossplane.io/version: v0.3.3
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -36,7 +36,11 @@ metadata:
         KCL module wraps the PipelineRun in a
         `kubernetes.m.crossplane.io/v1alpha1` Object that targets the
         XR's `spec.crossplaneProviderConfig` ClusterProviderConfig.
-      - A second `function-kcl` step (`derive-status`) reads the observed
+      - A second `function-kcl` step (`pin-pipelinerun-spec`) re-emits the
+        live PipelineRun spec once the PipelineRun exists, so bumped
+        defaults never turn a finished run Synced=False (Tekton forbids
+        spec updates on completed PipelineRuns).
+      - A third `function-kcl` step (`derive-status`) reads the observed
         Object (which mirrors the live PipelineRun under
         `status.atProvider.manifest`) and surfaces the PipelineRun's
         `Succeeded` condition, reason/message, start/completion times and
