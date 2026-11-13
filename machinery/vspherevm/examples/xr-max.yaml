@@ -17,6 +17,10 @@ spec:
     ram: "16384"
     disk: "96"
     waitForGuestNetTimeout: "5"
+    # OS from the labda EnvironmentConfig's templates table. The explicit
+    # guestId/templateUuid below WIN over the entry (XR > templates[os] > env),
+    # so this renders the Ubuntu template — it exercises the precedence, not Rocky.
+    os: rocky10
     guestId: ubuntu64Guest
     firmware: bios
     scsiType: pvscsi

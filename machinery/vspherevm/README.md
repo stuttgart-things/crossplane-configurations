@@ -45,6 +45,61 @@ spec:
     disk: "40"
 ```
 
+## OS choice (`spec.vm.os`)
+
+An environment can offer more than one template. Its EnvironmentConfig then
+carries a `templates` table, keyed by OS, and each entry names the template
+**and its guestId**:
+
+```yaml
+# EnvironmentConfig data
+templateUuid: 4221ba01-98eb-7974-ae21-8914d650c18b   # default OS (no spec.vm.os)
+guestId: ubuntu64Guest
+templates:
+  ubuntu26:
+    templateUuid: 4221ba01-98eb-7974-ae21-8914d650c18b
+    guestId: ubuntu64Guest
+  rocky10:
+    templateUuid: 422173de-8117-c83f-982a-887ea4ae3993
+    guestId: rhel9_64Guest      # vCenter 7.0.3 has no rhel10 id
+```
+
+```yaml
+# XR
+spec:
+  environmentConfig: labda
+  vm:
+    os: rocky10
+```
+
+The two must travel together: vCenter refuses a clone whose guestId does not
+match the template's — a Rocky template cloned with the environment's
+`ubuntu64Guest` fails with `invalid guest ID "ubuntu64Guest" for clone. Please
+set it to "rhel9_64Guest"`
+([stuttgart-things#4489](https://github.com/stuttgart-things/stuttgart-things/issues/4489)).
+So an order says only *which OS*, never a UUID.
+
+Resolution, first set wins:
+
+| field | 1. XR | 2. `templates[os]` | 3. EnvironmentConfig | 4. builtin |
+|---|---|---|---|---|
+| `templateUuid` | `spec.vm.templateUuid` | `templateUuid` | `templateUuid` | — |
+| `guestId` | `spec.vm.guestId` | `guestId` | `guestId` | `ubuntu64Guest` |
+
+- `os` unset renders exactly as before — the top-level `templateUuid` / `guestId`
+  are the environment's default OS. An EnvironmentConfig without `templates`
+  keeps working; the table is additive.
+- An `os` the table does not carry **fails the render** (`spec.vm.os 'x' is not
+  in the EnvironmentConfig's templates table (have: …)`) instead of quietly
+  cloning the default template. The XR shows it as a failed `render` step.
+- The template UUID is still a pin, not a name: re-read it after every Packer
+  rebuild or promotion (see the comment on the default `templateUuid`). A clone
+  is ForceNew, so changing the entry an existing VM resolved to replaces that VM
+  unless the XR pins `spec.vm.templateUuid` itself.
+
+See `examples/xr-rocky.yaml`; `xr-max.yaml` sets `os` *and* explicit
+`templateUuid`/`guestId` to exercise the precedence.
+
 ## Naming
 
 Two distinct names, and only one of them is `spec.vm.name`:

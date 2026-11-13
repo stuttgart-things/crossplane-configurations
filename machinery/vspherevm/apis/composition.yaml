@@ -72,15 +72,28 @@ spec:
             _wait = _vm?.waitForGuestNetTimeout or "5"
             _waitIp = _vm?.waitForGuestIpTimeout or "5"
 
+            # --- OS choice: the EnvironmentConfig's `templates` table ---
+            # `spec.vm.os` names an entry; the entry carries templateUuid AND
+            # guestId, because vCenter refuses a clone whose guestId does not
+            # match the template's ("invalid guest ID ubuntu64Guest for clone.
+            # Please set it to rhel9_64Guest", stuttgart-things#4489). Unset os =
+            # the env's top-level templateUuid/guestId, so an XR without it
+            # renders exactly as before. An unknown os FAILS the render instead
+            # of quietly cloning the default template under the wrong guestId.
+            _osTable = _env?.templates or {}
+            _os = _vm?.os or ""
+            assert _os == "" or _os in _osTable, "spec.vm.os '{}' is not in the EnvironmentConfig's templates table (have: {})".format(_os, ", ".join(sorted([k for k, v in _osTable])) or "none")
+            _osEntry = _osTable[_os] if _os else {}
+
             # --- fields that fall back to the EnvironmentConfig, then a builtin ---
-            _guestId = _vm?.guestId or _env?.guestId or "ubuntu64Guest"
+            _guestId = _vm?.guestId or _osEntry?.guestId or _env?.guestId or "ubuntu64Guest"
             _firmware = _vm?.firmware or _env?.firmware or "bios"
             _scsiType = _vm?.scsiType or _env?.scsiType or "pvscsi"
             _adapterType = _vm?.adapterType or _env?.adapterType or "vmxnet3"
             _annotation = _vm?.annotation or _env?.annotation or "VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS"
 
             # --- placement MOIDs (EnvironmentConfig default, XR override) ---
-            _templateUuid = _vm?.templateUuid or _env?.templateUuid or ""
+            _templateUuid = _vm?.templateUuid or _osEntry?.templateUuid or _env?.templateUuid or ""
             _datastoreId = _vm?.datastoreId or _env?.datastoreId or ""
             _resourcePoolId = _vm?.resourcePoolId or _env?.resourcePoolId or ""
             _networkId = _vm?.networkId or _env?.networkId or ""

@@ -69,6 +69,20 @@ spec:
                     # --- fields below default from the EnvironmentConfig ---
                     # No XRD default: leaving them unset lets the
                     # EnvironmentConfig value win; setting them overrides it.
+                    os:
+                      type: string
+                      description: |
+                        Operating system to clone, as a key of the
+                        EnvironmentConfig's `templates` table (e.g. `ubuntu26`,
+                        `rocky10`). The entry supplies `templateUuid` AND
+                        `guestId` together — a clone whose guestId does not
+                        match the template's is refused by vCenter ("invalid
+                        guest ID ... for clone"). An explicit `templateUuid` /
+                        `guestId` on this XR still wins over the entry. Unset =
+                        the EnvironmentConfig's top-level `templateUuid` /
+                        `guestId` (the environment's default OS). A key the
+                        table does not carry fails the render rather than
+                        cloning the default template.
                     guestId:
                       type: string
                     firmware:
