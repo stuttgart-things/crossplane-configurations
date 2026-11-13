@@ -61,6 +61,20 @@ data:
   scsiType: pvscsi
   adapterType: vmxnet3
   annotation: VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
+  # OS table for `spec.vm.os` (stuttgart-things#4489). Each entry carries the
+  # template AND its guestId: vCenter refuses a clone whose guestId does not
+  # match the template's, so the two must travel together. The top-level
+  # templateUuid/guestId above stay the default for an XR without `os`.
+  # Optional — an EnvironmentConfig without `templates` works as before, and
+  # then any `spec.vm.os` fails the render.
+  templates:
+    ubuntu26:
+      templateUuid: 42212cd2-5060-9bc5-ac82-7fdef66efc61
+      guestId: ubuntu64Guest
+    rocky10:
+      templateUuid: 422173de-8117-c83f-982a-887ea4ae3993
+      # vCenter 7.0.3 has no rhel10 guest id; the template is built as rhel9.
+      guestId: rhel9_64Guest
   # PLACEHOLDER IDS — unlike the MOIDs above these are not LabDA values, because
   # no tag or custom attribute is in use there yet. Look yours up before applying
   # this file: an id that does not exist in the vCenter fails the clone, and

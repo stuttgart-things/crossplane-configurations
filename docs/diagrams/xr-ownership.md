@@ -112,7 +112,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | bootstrap | [vault-auth](../../bootstrap/vault-auth/) | `VaultK8sAuth` | `config.stuttgart-things.com` | Namespaced | v0.4.0 | — |
 | bootstrap | [vault-config](../../bootstrap/vault-config/) | `VaultConfig` | `config.stuttgart-things.com` | Namespaced | v0.1.0 | — |
 | bootstrap | [vault-pki-secrets](../../bootstrap/vault-pki-secrets/) | `VaultPkiSecret` | `config.stuttgart-things.com` | Namespaced | v0.1.5 | — |
-| cicd | [ansible-run](../../cicd/ansible-run/) | `AnsibleRun` | `resources.stuttgart-things.com` | Namespaced | v0.3.2 | — |
+| cicd | [ansible-run](../../cicd/ansible-run/) | `AnsibleRun` | `resources.stuttgart-things.com` | Namespaced | v0.3.3 | — |
 | cicd | [cluster-backup](../../cicd/cluster-backup/) | `ClusterBackup` | `resources.stuttgart-things.com` | Namespaced | v0.2.0 | — |
 | cicd | [github-arc-controller](../../cicd/github-arc-controller/) | `GithubArcController` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
 | cicd | [github-runner-set](../../cicd/github-runner-set/) | `GithubRunnerSet` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
@@ -131,7 +131,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | machinery | [vm-batch](../../machinery/vm-batch/) | `VMBatch` | `resources.stuttgart-things.com` | Namespaced | v0.1.3 | `ansible-run`, `proxmoxvm`, `vspherevm` |
 | machinery | [vm-provision](../../machinery/vm-provision/) | `VMProvision` | `resources.stuttgart-things.com` | Namespaced | v0.1.2 | `ansible-run`, `proxmox-vm`, `vsphere-vm` |
 | machinery | [vsphere-vm](../../machinery/vsphere-vm/) | `VsphereVM` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
-| machinery | [vspherevm](../../machinery/vspherevm/) | `NativeVsphereVM` | `resources.stuttgart-things.com` | Namespaced | v0.14.0 | `ansible-run` |
+| machinery | [vspherevm](../../machinery/vspherevm/) | `NativeVsphereVM` | `resources.stuttgart-things.com` | Namespaced | v0.15.0 | `ansible-run` |
 | storage | [minio](../../storage/minio/) | `MinioBucket` | `storage.stuttgart-things.com` | Cluster | v0.1.1 | — |
 | vault | [app-secret-profile](../../vault/app-secret-profile/) | `AppSecretProfile` | `secrets.stuttgart-things.com` | Cluster | v0.1.1 | — |
 | vault | [vault-k8s-auth](../../vault/vault-k8s-auth/) | `VaultK8sAuth` | `vault.stuttgart-things.com` | Namespaced | v0.4.2 | — |
@@ -159,7 +159,7 @@ diagrams can see.
 | `vault-auth` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-vault-auth?tag=0.9.0` |
 | `vault-config` | kcl → auto-ready | `oci://ghcr.io/stuttgart-things/xplane-vault-config?tag=0.5.0` |
 | `vault-pki-secrets` | environment-configs → go-templating → auto-ready | inline |
-| `ansible-run` | environment-configs → kcl → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/kcl-tekton-pr?tag=0.15.1` |
+| `ansible-run` | environment-configs → kcl → kcl → kcl → auto-ready | `oci://ghcr.io/stuttgart-things/kcl-tekton-pr?tag=0.15.1` |
 | `cluster-backup` | environment-configs → kcl → kcl → auto-ready | inline |
 | `github-arc-controller` | go-templating → auto-ready | inline |
 | `github-runner-set` | go-templating → auto-ready | inline |

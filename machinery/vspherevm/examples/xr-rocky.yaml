@@ -1,0 +1,18 @@
+---
+# OS choice: `spec.vm.os` picks an entry of the EnvironmentConfig's `templates`
+# table, which supplies templateUuid AND guestId together (a Rocky template
+# cloned with the env default `ubuntu64Guest` is refused by vCenter). Everything
+# else still comes from the `labda` EnvironmentConfig.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeVsphereVM
+metadata:
+  name: vspherevm-rocky
+  namespace: default
+spec:
+  environmentConfig: labda
+  vm:
+    name: vspherevm-rocky
+    os: rocky10
+    cpu: "2"
+    ram: "4096"
+    disk: "40"

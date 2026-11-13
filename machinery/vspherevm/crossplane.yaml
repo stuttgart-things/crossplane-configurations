@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.14.0
+    meta.crossplane.io/version: v0.15.0
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -40,7 +40,9 @@ metadata:
         (value from `spec.environmentConfig`).
       - `render` (`function-kcl`) emits a native `VirtualMachine`, taking
         per-VM fields from the XR and placement MOIDs from the loaded
-        EnvironmentConfig (XR spec overrides the EnvironmentConfig). When
+        EnvironmentConfig (XR spec overrides the EnvironmentConfig).
+        `spec.vm.os` picks an entry of the EnvironmentConfig's `templates`
+        table, which supplies `templateUuid` and `guestId` together. When
         `spec.ansible.enabled`, it also emits an `AnsibleRun` once the VM is
         Ready with an IP (inventory auto-populated with the VM IP; `ansible.inventoryGroups`
         puts it into named groups, e.g. for rke2).
