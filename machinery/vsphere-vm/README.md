@@ -31,7 +31,8 @@ Per-VM settings (name, cpu, ram, disk, count, firmware, bootstrap) come from the
 | `vm.datastore` | XR or EnvironmentConfig | - | vSphere datastore |
 | `vm.resourcePool` | XR or EnvironmentConfig | - | vSphere resource pool |
 | `vm.network` | XR or EnvironmentConfig | - | vSphere network |
-| `vm.template` | XR or EnvironmentConfig | - | VM template name |
+| `vm.template` | XR or EnvironmentConfig | - | VM template name (or inventory path, e.g. `stuttgart-things/vm-templates/sthings-u26`) |
+| `vm.templateUuid` | no | - | Template `config.uuid` (v0.2.0). When set, the module looks the template up by UUID (`vsphere_vm_template_uuid`, vsphere-vm module >= v2.12.0-1.2.0) — a later rename/move of the template cannot break refresh or destroy ([#565](https://github.com/stuttgart-things/crossplane-configurations/issues/565)) |
 | `vm.annotation` | XR or EnvironmentConfig | Workspace base value | VM annotation |
 | `vm.unverifiedSsl` | XR or EnvironmentConfig | Workspace base value (`"true"`) | Skip SSL verification |
 | `tfvars.secretName` | XR or EnvironmentConfig | `vsphere-tfvars` | tfvars Secret name |
@@ -58,6 +59,8 @@ See [`examples/xr.yaml`](examples/xr.yaml) — VM sized per spec, infra inherite
 See [`examples/xr-max.yaml`](examples/xr-max.yaml) — every field set explicitly, overriding all EnvironmentConfig defaults.
 
 ## Cluster preconditions
+
+An `EnvironmentConfig` for `spec.environmentConfig` is **optional** since v0.2.0: the selector accepts zero or one match. Without one, every placement field must come from the XR (as the PackerRelease smoke test does). Before v0.2.0 a missing EnvironmentConfig failed the render with `expected exactly one required resource, got 0` ([#565](https://github.com/stuttgart-things/crossplane-configurations/issues/565)).
 
 ### 1. provider-opentofu + ClusterProviderConfig
 

@@ -106,6 +106,17 @@ spec:
             _proxmoxName = _displayName if _displayName != _templateName else ""
             _testTemplate = (_proxmoxName or _templateName) if _provider == "proxmox" else _templateName
 
+            # vSphere: the built template's config.uuid (`template-uuid`, the
+            # same result packer-build turns into status.templateUuid). The
+            # test VM clones by it, not by name: promote RENAMES the template
+            # (-> goldenName) while the test VM still exists, and a by-name
+            # lookup then breaks the Workspace's destroy ("vm '<build>' not
+            # found") -- the test VM leaked on every release (#565).
+            _uuids = [
+                r.value for r in (_pbStatus?.results or []) if r?.name == "template-uuid"
+            ]
+            _testTemplateUuid = (_uuids[0] if _uuids else "") if _provider == "vsphere" else ""
+
             # --- Gate --------------------------------------------------------
             # `tested` is a LATCH read back off this XR's own observed status
             # (written by the derive-status step on an earlier reconcile). It is
@@ -288,6 +299,8 @@ spec:
                         # not whatever the environment calls current. By name on
                         # both providers (see _testTemplate above).
                         template = _testTemplate
+                        if _testTemplateUuid:
+                            templateUuid = _testTemplateUuid
                         annotation = "PACKER RELEASE SMOKE TEST for {} -- managed by PackerRelease/{}".format(_testTemplate, _name)
                     }
                     if _provider == "vsphere":

@@ -20,6 +20,8 @@ spec:
     disk: "128G"
     firmware: seabios
     template: ubuntu24
+    # vSphere only -- ignored for Proxmox (#565).
+    templateUuid: 4221bb22-8765-7c1e-d8b9-ae2e42fb9723
     annotation: VM-PROVISION MAX BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
   proxmox:
     node: ul-pve01

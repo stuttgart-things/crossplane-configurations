@@ -47,6 +47,16 @@ spec:
                     # minimal XR before XRD defaulting) skip this matcher
                     # instead of erroring; the step then becomes a no-op.
                     fromFieldPathPolicy: Optional
+                # Zero or one match, not exactly one (#565): the XRD defaults
+                # spec.environmentConfig to "default", and a cluster that ships
+                # no EnvironmentConfig for it failed with "expected exactly one
+                # required resource, got 0" -- even when the XR (e.g. the
+                # PackerRelease smoke test) sets every placement field itself.
+                # With none loaded the env patches below are skipped
+                # (fromFieldPath: Optional) and the XR spec / base values apply.
+                mode: Multiple
+                minMatch: 0
+                maxMatch: 1
     - step: patch-and-transform
       functionRef:
         name: function-patch-and-transform
@@ -69,7 +79,7 @@ spec:
                   name: vsphere-vm
                 forProvider:
                   source: Remote
-                  module: git::https://github.com/stuttgart-things/vsphere-vm.git?ref=v2.12.0-1.0.0
+                  module: git::https://github.com/stuttgart-things/vsphere-vm.git?ref=v2.12.0-1.2.0
                   vars:
                     - key: vm_count
                       value: "1"
@@ -200,6 +210,15 @@ spec:
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.vm.template
                 toFieldPath: spec.forProvider.vars[11].value
+                policy:
+                  fromFieldPath: Optional
+              # Template by UUID (#565): into varmap rather than vars, so the
+              # module variable is only SET when the XR names a UUID -- the
+              # module tests `vsphere_vm_template_uuid == null`, and an empty
+              # string in vars would be a lookup of UUID "".
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.vm.templateUuid
+                toFieldPath: spec.forProvider.varmap.vsphere_vm_template_uuid
                 policy:
                   fromFieldPath: Optional
 

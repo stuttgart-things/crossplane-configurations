@@ -1,0 +1,31 @@
+# Observed state of a LabDA (vSphere) release whose nested build SUCCEEDED:
+# the PackerBuild reports template-name AND template-uuid. The smoke-test
+# VMProvision must clone by the UUID (vm.templateUuid), not only by name:
+# promote renames the template while the test VM still exists, and a by-name
+# lookup then broke the test VM's destroy (#565).
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: PackerBuild
+metadata:
+  name: u26-labda-build
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: u26-labda-build
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      lastTransitionTime: "2026-11-13T15:31:00Z"
+  phase: Succeeded
+  installed: true
+  succeeded: "True"
+  reason: Succeeded
+  message: "Tasks Completed: 2 (Failed: 0, Cancelled 0), Skipped: 0"
+  pipelineRunName: u26-labda-build
+  startTime: "2026-11-13T15:02:30Z"
+  completionTime: "2026-11-13T15:31:00Z"
+  results:
+    - name: template-name
+      value: ubuntu26-base-20261113-1502
+    - name: template-uuid
+      value: 4221bb22-8765-7c1e-d8b9-ae2e42fb9723

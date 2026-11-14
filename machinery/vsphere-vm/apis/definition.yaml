@@ -66,6 +66,15 @@ spec:
                       type: string
                     template:
                       type: string
+                    templateUuid:
+                      type: string
+                      description: >-
+                        config.uuid of the template to clone. When set, the
+                        module looks the template up by UUID instead of
+                        `template` (vsphere-vm >= v2.12.0-1.2.0,
+                        vsphere_vm_template_uuid), so a later rename/move of the
+                        template -- e.g. a PackerRelease promote -- cannot break
+                        refresh or destroy of the Workspace.
                     annotation:
                       type: string
                     unverifiedSsl:

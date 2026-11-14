@@ -60,6 +60,13 @@ spec:
                     template:
                       type: string
                       description: VM template name
+                    templateUuid:
+                      type: string
+                      description: >-
+                        vSphere only: config.uuid of the template. Passed to
+                        VsphereVM spec.vm.templateUuid, which then looks the
+                        template up by UUID instead of `template` -- survives a
+                        rename of the template (#565). Ignored for Proxmox.
                     annotation:
                       type: string
                       description: VM annotation/notes

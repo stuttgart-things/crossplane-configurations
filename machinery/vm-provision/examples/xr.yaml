@@ -19,6 +19,8 @@ spec:
     disk: "64"
     firmware: bios
     template: sthings-u24
+    # vSphere: clone by UUID -- survives a rename of the template (#565).
+    templateUuid: 4221bb22-8765-7c1e-d8b9-ae2e42fb9723
   vsphere:
     folderPath: stuttgart-things/testing
     datacenter: /LabUL

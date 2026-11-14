@@ -25,6 +25,7 @@ spec:
     resourcePool: /LabUL/host/Cluster-V6.7/Resources
     network: /LabUL/network/LAB-10.31.102
     template: sthings-u25
+    templateUuid: 4221bb22-8765-7c1e-d8b9-ae2e42fb9723
     annotation: VSPHERE-VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS
     unverifiedSsl: "true"
   tfvars:

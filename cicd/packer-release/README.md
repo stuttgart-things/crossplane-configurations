@@ -437,6 +437,7 @@ On the target cluster, additionally:
 | Test VM never boots after a clean build | firmware mismatch — `spec.test.firmware` must match what the template was built with |
 | Test VM up but Ansible fails to connect | the template lacks the user in `vm_ssh_user`; a base-OS build creates it, a vanilla OS image does not |
 | Test VM still around after a pass | the latch never got set — check `status.tested` and the test VM's Ready condition |
+| Test VM stuck in `Deleting` after promote, Workspace `delete failed: … vm '<build>' not found` | before v0.7.0 the test VM looked the template up by NAME, and promote had already renamed it to `goldenName`. Since v0.7.0 (vSphere) the test VM gets the build's `template-uuid` and clones/destroys by UUID ([#565](https://github.com/stuttgart-things/crossplane-configurations/issues/565)). Cleanup of an old leak: `govc vm.destroy` the test VM, then drop the Workspace finalizer |
 
 ## Local render
 
