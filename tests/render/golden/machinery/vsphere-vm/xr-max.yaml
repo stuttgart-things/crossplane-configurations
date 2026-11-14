@@ -46,13 +46,15 @@ metadata:
     uid: c0e1e951-1ab0-5007-86b6-d42f0adf591b
 spec:
   forProvider:
-    module: git::https://github.com/stuttgart-things/vsphere-vm.git?ref=v2.12.0-1.0.0
+    module: git::https://github.com/stuttgart-things/vsphere-vm.git?ref=v2.12.0-1.2.0
     source: Remote
     varFiles:
     - secretKeyRef:
         key: terraform.tfvars
         name: vsphere-tfvars
       source: SecretKey
+    varmap:
+      vsphere_vm_template_uuid: 4221bb22-8765-7c1e-d8b9-ae2e42fb9723
     vars:
     - key: vm_count
       value: "1"

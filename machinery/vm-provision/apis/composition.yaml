@@ -55,6 +55,8 @@ spec:
                     annotation = _vm?.annotation or "VM BUILD w/ CROSSPLANE FOR STUTTGART-THINGS"
                     unverifiedSsl = _vs?.unverifiedSsl or "true"
                 }
+                if _vm?.templateUuid:
+                    _vsVm |= {templateUuid = _vm.templateUuid}
                 if _vs?.folderPath:
                     _vsVm |= {folderPath = _vs.folderPath}
                 if _vs?.datacenter:

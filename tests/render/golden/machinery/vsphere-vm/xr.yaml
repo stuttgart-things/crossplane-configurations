@@ -46,7 +46,7 @@ metadata:
     uid: 0cfdacdb-8264-58a4-98f6-b77083ee0acf
 spec:
   forProvider:
-    module: git::https://github.com/stuttgart-things/vsphere-vm.git?ref=v2.12.0-1.0.0
+    module: git::https://github.com/stuttgart-things/vsphere-vm.git?ref=v2.12.0-1.2.0
     source: Remote
     varFiles:
     - secretKeyRef:

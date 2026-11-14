@@ -71,4 +71,5 @@ spec:
     ram: "4096"
     resourcePool: /LabUL/host/Cluster-V6.7/Resources
     template: sthings-u24
+    templateUuid: 4221bb22-8765-7c1e-d8b9-ae2e42fb9723
     unverifiedSsl: "true"

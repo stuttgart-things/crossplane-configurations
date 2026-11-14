@@ -117,7 +117,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | cicd | [github-arc-controller](../../cicd/github-arc-controller/) | `GithubArcController` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
 | cicd | [github-runner-set](../../cicd/github-runner-set/) | `GithubRunnerSet` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
 | cicd | [packer-build](../../cicd/packer-build/) | `PackerBuild` | `resources.stuttgart-things.com` | Namespaced | v0.7.0 | — |
-| cicd | [packer-release](../../cicd/packer-release/) | `PackerRelease` | `resources.stuttgart-things.com` | Namespaced | v0.6.0 | `packer-build`, `vm-provision` |
+| cicd | [packer-release](../../cicd/packer-release/) | `PackerRelease` | `resources.stuttgart-things.com` | Namespaced | v0.7.0 | `packer-build`, `vm-provision` |
 | cicd | [scheduled-run](../../cicd/scheduled-run/) | `ScheduledRun` | `resources.stuttgart-things.com` | Namespaced | v0.2.0 | — |
 | cicd | [tofu-run](../../cicd/tofu-run/) | `TofuRun` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
 | k8s | [cloud-config](../../k8s/cloud-config/) | `CloudInit` | `resources.stuttgart-things.com` | Namespaced | v0.5.5 | — |
@@ -129,8 +129,8 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | machinery | [rancher-cluster](../../machinery/rancher-cluster/) | `RancherCluster` | `resources.stuttgart-things.com` | Namespaced | v0.12.0 | `vault-auth` |
 | machinery | [virtual-machine](../../machinery/virtual-machine/) | `XVirtualMachine` | `resources.stuttgart-things.com` | Namespaced | v0.1.16 | `harvester-vm`, `vm-provision` |
 | machinery | [vm-batch](../../machinery/vm-batch/) | `VMBatch` | `resources.stuttgart-things.com` | Namespaced | v0.1.3 | `ansible-run`, `proxmoxvm`, `vspherevm` |
-| machinery | [vm-provision](../../machinery/vm-provision/) | `VMProvision` | `resources.stuttgart-things.com` | Namespaced | v0.1.2 | `ansible-run`, `proxmox-vm`, `vsphere-vm` |
-| machinery | [vsphere-vm](../../machinery/vsphere-vm/) | `VsphereVM` | `resources.stuttgart-things.com` | Namespaced | v0.1.0 | — |
+| machinery | [vm-provision](../../machinery/vm-provision/) | `VMProvision` | `resources.stuttgart-things.com` | Namespaced | v0.2.0 | `ansible-run`, `proxmox-vm`, `vsphere-vm` |
+| machinery | [vsphere-vm](../../machinery/vsphere-vm/) | `VsphereVM` | `resources.stuttgart-things.com` | Namespaced | v0.2.0 | — |
 | machinery | [vspherevm](../../machinery/vspherevm/) | `NativeVsphereVM` | `resources.stuttgart-things.com` | Namespaced | v0.15.0 | `ansible-run` |
 | storage | [minio](../../storage/minio/) | `MinioBucket` | `storage.stuttgart-things.com` | Cluster | v0.1.1 | — |
 | vault | [app-secret-profile](../../vault/app-secret-profile/) | `AppSecretProfile` | `secrets.stuttgart-things.com` | Cluster | v0.1.1 | — |

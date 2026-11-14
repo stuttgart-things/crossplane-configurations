@@ -21,6 +21,7 @@ The Composition is a [`function-kcl`](https://github.com/crossplane-contrib/func
 | `provider` | yes | - | `vsphere` or `proxmox` |
 | `vm.name` | yes | - | VM name |
 | `vm.template` | yes | - | VM template |
+| `vm.templateUuid` | no | - | vSphere only (v0.2.0): template `config.uuid`, passed to `VsphereVM` `vm.templateUuid` — clone/destroy by UUID, survives a template rename ([#565](https://github.com/stuttgart-things/crossplane-configurations/issues/565)). Ignored for Proxmox |
 | `vm.count` | no | `"1"` | Number of VMs |
 | `vm.cpu` | no | `"4"` | vCPUs |
 | `vm.ram` | no | `"4096"` | Memory (MB) |
