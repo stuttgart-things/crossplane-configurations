@@ -155,6 +155,16 @@ data:
   # not 110 — see above. Note 211 is NOT called `sthings-u26` any more; it is
   # `ubuntu26-base-20260731-0909`. bpg clones by VMID, so this still resolves.
   templateVmId: "211"
+  # OS table for `spec.vm.os` (proxmoxvm >= v0.22.0). Each entry names the
+  # template's VMID and, only when it lives on another node than `node`, its
+  # templateNode (an entry without one does NOT inherit the env's). The
+  # top-level templateVmId above stays the default for an XR without `os`.
+  # Optional -- without `templates`, any `spec.vm.os` fails the render.
+  templates:
+    ubuntu26:
+      templateVmId: "211"
+    rocky10:
+      templateVmId: "279"
   cpuType: host
   osType: l26
   bios: seabios

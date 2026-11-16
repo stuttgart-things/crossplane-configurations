@@ -1,0 +1,107 @@
+---
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: NativeProxmoxVM
+metadata:
+  name: proxmoxvm-rocky
+  namespace: default
+spec:
+  crossplane:
+    resourceRefs:
+    - apiVersion: virtualenvironmentvm.proxmoxbpg.m.crossplane.io/v1alpha1
+      kind: EnvironmentVM
+      name: proxmoxvm-rocky
+status:
+  conditions:
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: WatchCircuitClosed
+    status: "True"
+    type: Responsive
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    reason: ReconcileSuccess
+    status: "True"
+    type: Synced
+  - lastTransitionTime: "2024-01-01T00:00:00Z"
+    message: 'Unready resources: proxmoxvm-rocky'
+    reason: Creating
+    status: "False"
+    type: Ready
+  share:
+    ansibleCompletionTime: ""
+    ansibleReady: false
+    ansibleSucceeded: ""
+    ip: []
+    started: false
+    vmId: ""
+---
+apiVersion: virtualenvironmentvm.proxmoxbpg.m.crossplane.io/v1alpha1
+kind: EnvironmentVM
+metadata:
+  annotations:
+    crossplane.io/composition-resource-name: proxmoxvm-rocky
+  labels:
+    crossplane.io/composite: proxmoxvm-rocky
+  name: proxmoxvm-rocky
+  namespace: default
+  ownerReferences:
+  - apiVersion: resources.stuttgart-things.com/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: NativeProxmoxVM
+    name: proxmoxvm-rocky
+    uid: ce29393e-1f76-5ab6-9955-5a4f7e1a8e5f
+spec:
+  forProvider:
+    agent:
+    - enabled: true
+    bios: seabios
+    clone:
+    - datastoreId: V5010-01-1
+      full: true
+      vmId: 279
+    cpu:
+    - cores: 2
+      type: host
+    description: PROXMOX-VM BUILD w/ CROSSPLANE (native) FOR STUTTGART-THINGS
+    disk:
+    - datastoreId: V5010-01-1
+      interface: virtio0
+      size: 40
+    initialization:
+    - datastoreId: DD-sthings
+      ipConfig:
+      - ipv4:
+        - address: dhcp
+      userAccount:
+      - passwordSecretRef:
+          key: password
+          name: proxmoxvm-ci-password
+        username: sthings
+    memory:
+    - dedicated: 4096
+    name: proxmoxvm-rocky
+    networkDevice:
+    - bridge: vmbrvlan
+      model: virtio
+      vlanId: 102
+    operatingSystem:
+    - type: l26
+    poolId: stuttgart-things
+    rebootAfterUpdate: false
+    smbios:
+    - manufacturer: stuttgart-things
+      product: crossplane-proxmoxvm
+    started: true
+    stopOnDestroy: true
+    tags:
+    - crossplane
+    - stuttgart-things
+  initProvider:
+    nodeName: ul-pve11
+  managementPolicies:
+  - Observe
+  - Create
+  - Update
+  - Delete
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: proxmoxvm-labul

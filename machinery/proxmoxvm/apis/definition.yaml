@@ -149,6 +149,18 @@ spec:
                         on `cloneDatastore`, and the same caveat — the render has
                         no API server, so this default is applied by the
                         Composition as well, not only by the XRD.
+                    os:
+                      type: string
+                      description: |
+                        Operating system to clone, as a key of the
+                        EnvironmentConfig's `templates` table (e.g. `ubuntu26`,
+                        `rocky10`). The entry supplies `templateVmId` and,
+                        optionally, `templateNode`. An explicit `templateVmId` /
+                        `templateNode` on this XR still wins over the entry.
+                        Unset = the EnvironmentConfig's top-level
+                        `templateVmId` / `templateNode` (the environment's
+                        default OS). A key the table does not carry fails the
+                        render rather than cloning the default template.
                     templateVmId:
                       type: string
                       description: |

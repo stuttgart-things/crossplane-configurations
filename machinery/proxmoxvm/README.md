@@ -144,6 +144,56 @@ Three template-specific gotchas the example values already account for:
   `DD-sthings` stops and starts cleanly, which is why the shipped LabUL
   EnvironmentConfig sets `cloudInitDatastore: DD-sthings`. The storage-side root
   cause is unfixed.
+## OS choice (`spec.vm.os`, v0.22.0)
+
+An environment can offer more than one template. Its EnvironmentConfig then
+carries a `templates` table, keyed by OS, and each entry names the template's
+VMID (and its node, if that differs from `node`):
+
+```yaml
+# EnvironmentConfig data
+templateVmId: "280"      # default OS (no spec.vm.os)
+templates:
+  ubuntu26:
+    templateVmId: "280"
+  rocky10:
+    templateVmId: "279"
+    # templateNode: ul-pve01   # only if the template is not on `node`
+```
+
+```yaml
+# XR
+spec:
+  environmentConfig: labul
+  vm:
+    os: rocky10
+```
+
+So an order says only *which OS*, never a VMID — the same contract as
+vspherevm's `spec.vm.os`
+([stuttgart-things#4489](https://github.com/stuttgart-things/stuttgart-things/issues/4489)).
+
+Resolution, first set wins:
+
+| field | 1. XR | 2. `templates[os]` | 3. EnvironmentConfig |
+|---|---|---|---|
+| `templateVmId` | `spec.vm.templateVmId` | entry `templateVmId` | `templateVmId` |
+| `templateNode` | `spec.vm.templateNode` | entry `templateNode` | `templateNode` — **only when `os` is unset** |
+
+An entry without `templateNode` does not inherit the environment's: that value
+belongs to the environment's default template, and the entry's template may sit
+elsewhere. Unset means bpg derives the clone source from `node`.
+
+- `os` unset renders byte-identical to v0.21.0 — existing XRs are untouched.
+- An `os` the table does not carry **fails the render** (`spec.vm.os 'x' is not
+  in the EnvironmentConfig's templates table (have: …)`) instead of quietly
+  cloning the default template.
+- A changed entry is a ForceNew clone for every VM that resolved through it
+  without pinning `spec.vm.templateVmId` — the same rule as the top-level
+  `templateVmId`.
+- EL10 (Rocky 10) needs x86-64-v3, so the environment's `cpuType` must be
+  `host` (LabUL is).
+
 ## SMBIOS (`PegaProxManagment` / bpg `illegal base64 data`)
 
 > **RESOLVED 2026-08-10 — the root cause was removed, not worked around.** The
