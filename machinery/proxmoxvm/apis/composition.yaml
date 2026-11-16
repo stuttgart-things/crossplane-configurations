@@ -101,12 +101,24 @@ spec:
             _smbiosManufacturer = _env?.smbiosManufacturer or "stuttgart-things"
             _smbiosProduct = _env?.smbiosProduct or "crossplane-proxmoxvm"
 
+            # --- OS choice: the EnvironmentConfig's `templates` table ---
+            # `spec.vm.os` names an entry; the entry carries templateVmId and,
+            # when the template sits on another node than `node`, templateNode
+            # (stuttgart-things#4489 for vspherevm; Rocky 10 on LabUL = 279).
+            # Unset os = the env's top-level templateVmId/templateNode, so an XR
+            # without it renders exactly as before. An unknown os FAILS the
+            # render instead of quietly cloning the default template.
+            _osTable = _env?.templates or {}
+            _os = _vm?.os or ""
+            assert _os == "" or _os in _osTable, "spec.vm.os '{}' is not in the EnvironmentConfig's templates table (have: {})".format(_os, ", ".join(sorted([k for k, v in _osTable])) or "none")
+            _osEntry = _osTable[_os] if _os else {}
+
             # --- placement (EnvironmentConfig default, XR override) ---
             _node = _vm?.node or _env?.node or ""
             _datastore = _vm?.datastore or _env?.datastore or ""
             _bridge = _vm?.bridge or _env?.bridge or "vmbr0"
             _pool = _vm?.pool or _env?.pool or ""
-            _templateVmId = _vm?.templateVmId or _env?.templateVmId or ""
+            _templateVmId = _vm?.templateVmId or _osEntry?.templateVmId or _env?.templateVmId or ""
             _vlanTag = _vm?.vlanTag or _env?.vlanTag or ""
 
             # --- tags ---
@@ -172,7 +184,10 @@ spec:
             # compositionUpdatePolicy is Automatic. Set `templateNode: none` on
             # the XRs already built first, then add the real value to the
             # EnvironmentConfig; new VMs pick it up, old ones stay exempt.
-            _templateNode = _vm?.templateNode or _env?.templateNode or ""
+            # An os entry with templateVmId but no templateNode does NOT inherit the
+            # env's templateNode: that one belongs to the env's default template,
+            # and the entry's template may live elsewhere. Unset = derive from `node`.
+            _templateNode = _vm?.templateNode or (_osEntry?.templateNode or "" if _os else _env?.templateNode) or ""
             _emitTemplateNode = _templateNode != "" and _templateNode != "none"
 
             _providerConfigName = _spec?.providerConfigRef?.name or _env?.providerConfigName or "default"
