@@ -32,14 +32,21 @@ via the sub-block `images` map; and reuses `_ansibleSpec` (its `enabled`/
 **not** set `cloudInit.packages` — the `qemu-guest-agent` default lives in the
 `harvester-vm` XRD. `count` is ignored for harvester (single VM).
 
-**`imageId` + `storageClassName` are STICKY (v0.1.15, harvester#344).** Once
-`ocds["harvester-vm"]` exists, both are re-emitted from its observed
+**`imageId` + `storageClassName` are STICKY (v0.1.15, harvester#344; fixed in
+v0.1.17).** Once the observed HarvesterVM exists, both are re-emitted from its observed
 `spec.volume`, not from the `images` lookup. A pin change used to rewrite every
 existing VM's disk, and a PVC's `storageClassName` is immutable, so the disk
 Object went `Synced=False` for ever while the VM ran and the XR stayed Ready.
 The fallback chain is observed -> `images[os]` -> sub-block `storageClassName`.
-`crossplane render` has no observed state, so the goldens only cover the fresh
-path.
+**Key gotcha (v0.1.17):** function-kcl keys observed resources by the annotation
+`krm.kcl.dev/composition-resource-name`, falling back to `metadata.name` --
+`crossplane.io/composition-resource-name` in the KCL output does not set the
+key. So the HarvesterVM is `ocds[<XR name>]`, not `ocds["harvester-vm"]`;
+v0.1.15/v0.1.16 looked up the latter and the sticky logic never ran. Do not
+add the krm annotation to "fix" the key: that renames the composed resource
+and Crossplane drops the existing one. The golden
+`xr-harvester--sticky-disk.yaml` (tests/render/observed-resources) covers the
+observed path.
 
 `patch-status` reads either a `VMProvision` or a `HarvesterVM` from `ocds`
 (`kind in [...]`); VM readiness is `vmReady` (VMProvision) or `vm.ready`

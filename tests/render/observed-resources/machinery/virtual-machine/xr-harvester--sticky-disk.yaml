@@ -1,0 +1,19 @@
+---
+# harvester#344: an EXISTING VM whose HarvesterVM still carries the image and
+# storage class it was created with, while the EnvironmentConfig now pins a
+# newer image. As on the live cluster, the observed HarvesterVM is keyed by
+# its metadata.name (function-kcl sets crossplane.io/composition-resource-name
+# to the object name), not by "harvester-vm". Expected: the rendered
+# HarvesterVM keeps default/old-image + old-storage-class (sticky), everything
+# else as in xr-harvester.yaml.
+apiVersion: resources.stuttgart-things.com/v1alpha1
+kind: HarvesterVM
+metadata:
+  name: vm-harvester
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: vm-harvester
+spec:
+  volume:
+    imageId: default/old-image
+    storageClassName: old-storage-class
