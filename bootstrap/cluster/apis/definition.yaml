@@ -450,6 +450,80 @@ spec:
                           type: string
                           default: in-cluster
                           description: OpenTofu ClusterProviderConfig for the Workspace.
+                clusterscope:
+                  type: object
+                  description: >-
+                    What this stack provides for clusterscope on platform, which
+                    reads the lab's clusters through the OpenBao KV mount
+                    `clusterscope`, one entry per cluster (harvester#753).
+                  properties:
+                    reader:
+                      type: object
+                      description: >-
+                        A READ-ONLY kubeconfig for clusterscope, never the admin
+                        one: a ClusterSecretStore on platform can be referenced
+                        from any namespace (#454).
+
+                        Enabled, this composes a Workspace (provider-opentofu),
+                        `{name}-clusterscope-reader`, once ClusterAccess is Ready.
+                        It reads the admin kubeconfig from
+                        <kubeconfig.lifecycle.mount>/<kubeconfig.vaultPath or
+                        clusterName> only to reach the cluster, creates
+                        ServiceAccount, ClusterRole, ClusterRoleBinding and a token
+                        Secret `clusterscope-reader` in kube-system (get/list/watch,
+                        no Secrets, no writes), and writes a kubeconfig to
+                        <mount>/<entry>, property `kubeconfig`. Destroy removes the
+                        RBAC and every version of the entry. The stack cannot be
+                        deleted while the Workspace exists: teardown phase 1 is
+                        platformEnabled false AND reader.enabled false.
+
+                        A cluster seeded by hand before has the four objects
+                        already, and the Workspace fails with AlreadyExists —
+                        delete them before opting in. Needs xplane-cluster 0.28.0.
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                          description: >-
+                            Opt-in per order. No per-provisioner default, unlike
+                            kubeconfig.lifecycle: this creates RBAC on the built
+                            cluster and a credential platform hands out.
+                        vaultAddr:
+                          type: string
+                          description: >-
+                            Defaults to kubeconfig.lifecycle.vaultAddr — the reader
+                            reads the admin kubeconfig from the same Vault. One of
+                            the two is required when enabled; the render fails
+                            without it.
+                        mount:
+                          type: string
+                          default: clusterscope
+                          description: KV v2 mount clusterscope reads.
+                        entry:
+                          type: string
+                          description: >-
+                            Entry under the mount, the cluster's name in
+                            clusterscope. Defaults to clusterName.
+                        server:
+                          type: string
+                          description: >-
+                            API server URL written into the kubeconfig. Defaults
+                            to the admin kubeconfig's server.
+                        credentialSecret:
+                          type: string
+                          default: vault-kubeconfig-writer
+                          description: >-
+                            Secret next to this XR with terraform.tfvars
+                            (vault_role_id + vault_secret_id) for an approle that
+                            reads kubeconfigs/data/* and may write
+                            <mount>/data/* (write-clusterscope-kubeconfigs).
+                        providerConfigName:
+                          type: string
+                          description: >-
+                            OpenTofu ClusterProviderConfig for the Workspace.
+                            Defaults to kubeconfig.lifecycle.providerConfigName,
+                            then in-cluster — deliberately no schema default, which
+                            would hide the lifecycle's.
                 platformEnabled:
                   type: boolean
                   default: true

@@ -263,6 +263,33 @@ ClusterStack  size: medium-mem, nodes: 3, distribution: rancher-rke2
 - A successful join play means the Rancher **agent** runs on the node. Whether Rancher finished adding the etcd member shows in Rancher's cluster status.
 - **No three-node reference run yet.** The first LabDA order is that run.
 
+## A read-only kubeconfig for clusterscope (v0.17.0)
+
+clusterscope on `platform` reads the lab's clusters through the OpenBao KV mount `clusterscope`, one entry per cluster, property `kubeconfig` ([harvester#753](https://github.com/stuttgart-things/harvester/issues/753)). Those entries must be **read-only ServiceAccount kubeconfigs, never the admin ones** in `kubeconfigs`: a ClusterSecretStore on platform can be referenced from any namespace ([#454](https://github.com/stuttgart-things/crossplane-configurations/issues/454)). Until now each entry was seeded by hand; since xplane-cluster 0.28.0 the stack does it, **opt-in per order**:
+
+```yaml
+spec:
+  clusterscope:
+    reader:
+      enabled: true          # default false
+      # all optional:
+      # vaultAddr: …         default kubeconfig.lifecycle.vaultAddr
+      # mount: clusterscope
+      # entry: <clusterName> the cluster's name in clusterscope
+      # server: https://…    default: the admin kubeconfig's server
+      # credentialSecret: vault-kubeconfig-writer
+      # providerConfigName: … default kubeconfig.lifecycle's, then in-cluster
+```
+
+Once `ClusterAccess` is Ready (a sticky gate, like every other) it composes **one Workspace, `{name}-clusterscope-reader`**, which reads the admin kubeconfig from `<kubeconfig.lifecycle.mount>/<kubeconfig.vaultPath or clusterName>` only to reach the cluster, creates `ServiceAccount`, `ClusterRole`, `ClusterRoleBinding` and a token Secret — all `clusterscope-reader` in `kube-system`, get/list/watch on what clusterscope shows, no Secrets, no writes — and writes a kubeconfig to `<mount>/<entry>`. `status.stages.clusterscopeReader = {ready, emitted}` appears only when enabled; a stack without the block renders byte-identical to v0.16.4.
+
+- **Credential:** the kubeconfig-writer AppRole (`vault-kubeconfig-writer`) needs the `write-clusterscope-kubeconfigs` policy on top of reading `kubeconfigs/data/+`. Without it the Workspace fails with a 403 on `clusterscope/data/<entry>` and the stage stays `ready: false`.
+- **Seeded by hand before?** The four objects already exist and the Workspace fails with `AlreadyExists`. Delete them first (`kubectl -n kube-system delete sa,secret clusterscope-reader clusterscope-reader-token; kubectl delete clusterrole,clusterrolebinding clusterscope-reader`); the Vault entry is simply overwritten.
+- **Teardown:** destroy removes the RBAC (revoking the token) and every version of the entry. The stack cannot be deleted while the Workspace exists, so phase 1 is `platformEnabled: false` **and** `clusterscope.reader.enabled: false`.
+- **The token lives in TF state only** — nothing reaches the Workspace's or the XR's status.
+
+`examples/xr-clusterscope-reader.yaml` is `xr-vsphere-rancher-ha.yaml` with the reader enabled; its `--all-joined` golden differs from that example's only by the Workspace, the seven Usages that order its teardown (VM and extra nodes, ClusterAccess, `kubeconfig-vault`, the stack itself) and the stage; `--reader-ready` observes the Workspace Ready.
+
 ## Gates: sticky, and keyed on success
 
 Each stage opens when the previous one **succeeded** — not when it is Ready. An `AnsibleRun` whose PipelineRun failed still reports Ready once its Object is applied; unblocking on that would upload a kubeconfig from a cluster that was never installed.
