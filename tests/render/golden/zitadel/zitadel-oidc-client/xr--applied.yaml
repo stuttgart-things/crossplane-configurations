@@ -67,7 +67,7 @@ spec:
   - LateInitialize
   providerConfigRef:
     kind: ClusterProviderConfig
-    name: vault
+    name: vault-cluster-secrets
 ---
 apiVersion: opentofu.m.upbound.io/v1beta1
 kind: Workspace

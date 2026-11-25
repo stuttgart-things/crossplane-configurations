@@ -251,7 +251,7 @@ spec:
                 zitadel.stuttgart-things.com/entry: {{ printf "%s/%s" $vault.mount $vault.path | quote }}
             spec:
               providerConfigRef:
-                name: {{ $vpc.name | default "vault" }}
+                name: {{ $vpc.name }}
                 kind: {{ $vpc.kind | default "ClusterProviderConfig" }}
               managementPolicies: {{ $policies | toJson }}
               forProvider:

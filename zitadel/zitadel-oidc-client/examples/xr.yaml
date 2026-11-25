@@ -20,5 +20,9 @@ spec:
     postLogoutRedirectUris:
       - https://argocd.cluster1.example.com/
   vault:
+    # Required: the CPC whose Vault policy may write <mount>/data/<path>.
+    # On LabUL that is vault-cluster-secrets, not the CPC named `vault`.
+    providerConfigRef:
+      name: vault-cluster-secrets
     mount: kv
     path: cluster1/argocd-oidc

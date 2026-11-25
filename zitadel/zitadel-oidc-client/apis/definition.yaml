@@ -172,16 +172,25 @@ spec:
                     (the WHOLE entry is owned). Left out: the credentials are
                     only in the Workspace's connection Secret next to the XR.
                   required:
+                    - providerConfigRef
                     - mount
                     - path
                   properties:
                     providerConfigRef:
                       type: object
-                      description: provider-vault ProviderConfig / ClusterProviderConfig (vault.m.upbound.io).
+                      description: >-
+                        provider-vault ProviderConfig / ClusterProviderConfig
+                        (vault.m.upbound.io) that may write the entry. Required,
+                        no default: which credential may write where is a fact
+                        of the cluster and its Vault policies (on LabUL the CPC
+                        named `vault` has no KV write at all), not something a
+                        default can guess.
+                      required:
+                        - name
                       properties:
                         name:
                           type: string
-                          default: vault
+                          minLength: 1
                         kind:
                           type: string
                           enum:
