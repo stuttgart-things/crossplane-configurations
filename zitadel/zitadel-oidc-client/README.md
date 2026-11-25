@@ -31,6 +31,8 @@ spec:
     redirectUris: [https://argocd.cluster1.example.com/auth/callback]
     postLogoutRedirectUris: [https://argocd.cluster1.example.com/]
   vault:                                 # optional
+    providerConfigRef:                   # required with vault, no default
+      name: vault-cluster-secrets
     mount: kv
     path: cluster1/argocd-oidc           # keys client_id, client_secret
 ```
@@ -93,11 +95,12 @@ the app, for the same reason.
 | provider-opentofu `ClusterProviderConfig` | `default` | `spec.providerConfigRef`. Its backend holds the state; see below |
 | Secret with the machine key, in the XR's namespace | `zitadel-terraform` / `terraform.tfvars` | tfvars line `jwt_profile_json = "<key JSON>"`, see `examples/credentials-secret.yaml` |
 | ZITADEL machine user | — | rights on the project's apps, read on orgs and projects (the module looks both up by name) |
-| provider-vault `ClusterProviderConfig` (with `spec.vault`) | `vault` | may write `<mount>/data/<path>` and `<mount>/metadata/<path>` (and delete the metadata, for `releaseOnDelete: false`); the KV v2 mount must exist. See below |
+| provider-vault `ClusterProviderConfig` (with `spec.vault`) | none — `spec.vault.providerConfigRef` is required (v0.2.0) | may write `<mount>/data/<path>` and `<mount>/metadata/<path>` (and delete the metadata, for `releaseOnDelete: false`); the KV v2 mount must exist. See below |
 | ZITADEL's CA, trusted by the provider-opentofu pod | — | the zitadel provider talks TLS from inside that pod. A lab CA that the image does not carry fails the TLS handshake, so no Workspace gets Ready. See below |
 
-**Which Vault credential.** The default name `vault` is only a default. On
-the LabUL management clusters the CPC called `vault` logs in as
+**Which Vault credential.** `spec.vault.providerConfigRef` is required and
+has no default (since v0.2.0; v0.1.0 defaulted to `vault`). On the LabUL
+management clusters the CPC called `vault` logs in as
 `vault-k8sauth-bootstrap`, which has no KV write at all; the one that can
 write is `vault-cluster-secrets` (mounts `cicd`, `kargo`, `observability`,
 `homerun2`, `schmetterpause`). Its policies grant `<mount>/data/+`, and `+`

@@ -136,7 +136,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | vault | [app-secret-profile](../../vault/app-secret-profile/) | `AppSecretProfile` | `secrets.stuttgart-things.com` | Cluster | v0.1.1 | — |
 | vault | [vault-k8s-auth](../../vault/vault-k8s-auth/) | `VaultK8sAuth` | `vault.stuttgart-things.com` | Namespaced | v0.4.2 | — |
 | vault | [vault-secrets](../../vault/vault-secrets/) | `VaultSecretSet` | `vault.stuttgart-things.com` | Namespaced | v0.4.0 | — |
-| zitadel | [zitadel-oidc-client](../../zitadel/zitadel-oidc-client/) | `ZitadelOidcClient` | `zitadel.stuttgart-things.com` | Namespaced | v0.1.0 | — |
+| zitadel | [zitadel-oidc-client](../../zitadel/zitadel-oidc-client/) | `ZitadelOidcClient` | `zitadel.stuttgart-things.com` | Namespaced | v0.2.0 | — |
 
 ## Where each Composition's body lives
 

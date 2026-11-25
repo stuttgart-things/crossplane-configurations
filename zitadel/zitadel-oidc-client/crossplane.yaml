@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Local convention used by `task push` to bump and re-publish.
     # Not a Crossplane-standard field — the true package version is the OCI tag.
-    meta.crossplane.io/version: v0.1.0
+    meta.crossplane.io/version: v0.2.0
     meta.crossplane.io/maintainer: patrick.hermann@sva.de
     meta.crossplane.io/source: github.com/stuttgart-things/crossplane-configurations
     meta.crossplane.io/license: Apache-2.0
@@ -41,7 +41,8 @@ metadata:
         `jwt_profile_json = "<machine key JSON>"` for a ZITADEL machine user
         that may manage the project's apps and read orgs and projects.
       - With `spec.vault`: provider-vault and a `vault.m.upbound.io`
-        ClusterProviderConfig (default `vault`) that may write the entry.
+        ClusterProviderConfig that may write the entry, named in
+        `spec.vault.providerConfigRef` (required since v0.2.0, no default).
         Its policy decides `path`: `<mount>/data/+` allows one segment only.
       - The provider-opentofu pod must trust ZITADEL's CA (e.g. the
         trust-manager `cluster-trust-bundle` mounted via its
