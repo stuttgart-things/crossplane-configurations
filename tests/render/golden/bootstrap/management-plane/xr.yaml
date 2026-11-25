@@ -20,7 +20,7 @@ status:
       version: 2.4.2
     packages:
       ready: 0
-      total: 35
+      total: 37
     providerConfigs:
       emitted: 0
       total: 3
