@@ -59,7 +59,7 @@ jobs:
       fail-fast: false
       matrix:
         config: ${{ fromJson(needs.discover-all.outputs.configs) }}
-    uses: stuttgart-things/github-workflow-templates/.github/workflows/call-crossplane-verify.yaml@main
+    uses: stuttgart-things/github-workflow-templates/.github/workflows/call-crossplane-verify.yaml@15bb803fd72658fda50120f8a566d5594061e6ee # v1.2.0
     with:
       src: ${{ matrix.config }}
       runs-on: dagger-labda
