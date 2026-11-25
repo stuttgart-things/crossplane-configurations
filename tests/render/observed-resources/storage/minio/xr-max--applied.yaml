@@ -1,0 +1,19 @@
+# The bucket exists: Ready. xr-max mixes entries with and without a user,
+# so status.share lists every policy but only the users actually composed.
+apiVersion: minio.crossplane.io/v1
+kind: Bucket
+metadata:
+  name: schmetterpause-cnpg
+  annotations:
+    crossplane.io/composition-resource-name: bucket
+    crossplane.io/external-name: schmetterpause-cnpg
+status:
+  atProvider:
+    bucketName: schmetterpause-cnpg
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+    - type: Synced
+      status: "True"
+      reason: ReconcileSuccess

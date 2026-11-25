@@ -1,0 +1,23 @@
+# The bucket exists: Ready. Only now does the XR publish status.share -- and
+# with no access entry (or only `user: false` ones) its `users` list is EMPTY,
+# which must render as [] and not as null: a null failed the XR's status
+# update ("share.users ... must be of type array") and left the XR at
+# Ready=False forever, although bucket and policy were Available
+# (tofu-state on machinery-labul, 2026-11-25).
+apiVersion: minio.crossplane.io/v1
+kind: Bucket
+metadata:
+  name: tofu-state
+  annotations:
+    crossplane.io/composition-resource-name: bucket
+    crossplane.io/external-name: tofu-state
+status:
+  atProvider:
+    bucketName: tofu-state
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+    - type: Synced
+      status: "True"
+      reason: ReconcileSuccess
