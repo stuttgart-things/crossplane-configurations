@@ -90,7 +90,7 @@ graph LR
   n_vspherevm --> n_ansible_run
 ```
 
-Not in the graph (11): `argocd-cluster`, `capability`, `cilium`, `cluster-backup`, `github-arc-controller`, `github-runner-set`, `minio`, `namespace`, `scheduled-run`, `tofu-run`, `vault-config` — neither depends on a Configuration of this repo nor is depended on by one.
+Not in the graph (12): `argocd-cluster`, `capability`, `cilium`, `cluster-backup`, `github-arc-controller`, `github-runner-set`, `minio`, `namespace`, `scheduled-run`, `tofu-run`, `vault-config`, `zitadel-oidc-client` — neither depends on a Configuration of this repo nor is depended on by one.
 
 Entry points (nothing in this repo depends on them): `cluster`, `packer-release`, `virtual-machine`, `vm-batch`.
 
@@ -136,6 +136,7 @@ Entry points (nothing in this repo depends on them): `cluster`, `packer-release`
 | vault | [app-secret-profile](../../vault/app-secret-profile/) | `AppSecretProfile` | `secrets.stuttgart-things.com` | Cluster | v0.1.1 | — |
 | vault | [vault-k8s-auth](../../vault/vault-k8s-auth/) | `VaultK8sAuth` | `vault.stuttgart-things.com` | Namespaced | v0.4.2 | — |
 | vault | [vault-secrets](../../vault/vault-secrets/) | `VaultSecretSet` | `vault.stuttgart-things.com` | Namespaced | v0.4.0 | — |
+| zitadel | [zitadel-oidc-client](../../zitadel/zitadel-oidc-client/) | `ZitadelOidcClient` | `zitadel.stuttgart-things.com` | Namespaced | v0.1.0 | — |
 
 ## Where each Composition's body lives
 
@@ -183,6 +184,7 @@ diagrams can see.
 | `app-secret-profile` | go-templating | inline |
 | `vault-k8s-auth` | go-templating → auto-ready | inline |
 | `vault-secrets` | go-templating → auto-ready | inline |
+| `zitadel-oidc-client` | go-templating → auto-ready | inline |
 
 ## Providers and functions each one requires
 
@@ -226,10 +228,11 @@ diagrams can see.
 | `app-secret-profile` | `xpkg.crossplane.io/crossplane-contrib/function-go-templating` |
 | `vault-k8s-auth` | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready`<br/>`xpkg.crossplane.io/crossplane-contrib/function-go-templating`<br/>`xpkg.upbound.io/upbound/provider-vault` |
 | `vault-secrets` | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready`<br/>`xpkg.crossplane.io/crossplane-contrib/function-go-templating`<br/>`xpkg.upbound.io/upbound/provider-vault` |
+| `zitadel-oidc-client` | `xpkg.crossplane.io/crossplane-contrib/function-auto-ready`<br/>`xpkg.crossplane.io/crossplane-contrib/function-go-templating`<br/>`xpkg.upbound.io/upbound/provider-opentofu`<br/>`xpkg.upbound.io/upbound/provider-vault` |
 
 ## What this deliberately does not show
 
-**Which managed resources an XR composes.** 13 of 38 Configurations delegate their Composition body to a KCL
+**Which managed resources an XR composes.** 13 of 39 Configurations delegate their Composition body to a KCL
 module (see the table above), so their children are not in this repo at
 all. For the rest the body is inline, but reading kinds out of it means
 pattern-matching a template — and the first draft of this generator did

@@ -1,0 +1,15 @@
+# Only the XRD-required fields: exercises every default. No spec.vault, so the
+# credentials stay in the Workspace's connection Secret next to the XR.
+apiVersion: zitadel.stuttgart-things.com/v1alpha1
+kind: ZitadelOidcClient
+metadata:
+  name: oidc-min
+  namespace: default
+spec:
+  zitadel:
+    domain: zitadel.example.com
+  project: argocd
+  app:
+    name: argocd-cluster1
+    redirectUris:
+      - https://argocd.cluster1.example.com/auth/callback

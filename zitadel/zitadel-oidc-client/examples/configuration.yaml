@@ -1,0 +1,6 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: zitadel-oidc-client
+spec:
+  package: ghcr.io/stuttgart-things/crossplane-configurations/zitadel-oidc-client:v0.1.0

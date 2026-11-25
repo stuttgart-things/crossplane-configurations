@@ -1,0 +1,17 @@
+# provider-opentofu's ClusterProviderConfig. The backend holds every
+# Workspace's state; with the kubernetes backend it lives on the management
+# cluster and is lost with it (crossplane-configurations#482 moves it to S3).
+# Losing it means a second app on the next reconcile, or a name conflict.
+apiVersion: opentofu.m.upbound.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  configuration: |
+    terraform {
+      backend "kubernetes" {
+        secret_suffix     = "providerconfig-default"
+        namespace         = "crossplane-system"
+        in_cluster_config = true
+      }
+    }

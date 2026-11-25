@@ -1,0 +1,23 @@
+# The Workspace has applied: Ready, with its non-sensitive outputs in
+# status.atProvider.outputs. Only now is the Vault entry composed — before,
+# the connection Secret it reads does not exist (see xr.yaml's golden, which
+# has none).
+apiVersion: opentofu.m.upbound.io/v1beta1
+kind: Workspace
+metadata:
+  name: argocd-cluster1-zitadel-app
+  namespace: default
+  annotations:
+    crossplane.io/composition-resource-name: workspace
+status:
+  atProvider:
+    outputs:
+      app_id: "300000000000000001"
+      project_id: "200000000000000001"
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+    - type: Synced
+      status: "True"
+      reason: ReconcileSuccess
