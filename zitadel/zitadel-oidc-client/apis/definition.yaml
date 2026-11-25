@@ -1,0 +1,238 @@
+---
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: zitadeloidcclients.zitadel.stuttgart-things.com
+spec:
+  group: zitadel.stuttgart-things.com
+  scope: Namespaced
+  defaultCompositeDeletePolicy: Foreground
+  names:
+    kind: ZitadelOidcClient
+    plural: zitadeloidcclients
+    singular: zitadeloidcclient
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      additionalPrinterColumns:
+        - name: PROJECT
+          type: string
+          jsonPath: .spec.project
+        - name: APP
+          type: string
+          jsonPath: .spec.app.name
+        - name: VAULT
+          type: string
+          jsonPath: .status.vault.entry
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - zitadel
+                - project
+                - app
+              properties:
+                providerConfigRef:
+                  type: object
+                  description: provider-opentofu ProviderConfig / ClusterProviderConfig (opentofu.m.upbound.io). Its backend holds the Workspace state.
+                  properties:
+                    name:
+                      type: string
+                      default: default
+                    kind:
+                      type: string
+                      enum:
+                        - ClusterProviderConfig
+                        - ProviderConfig
+                      default: ClusterProviderConfig
+                zitadel:
+                  type: object
+                  required:
+                    - domain
+                  properties:
+                    domain:
+                      type: string
+                      minLength: 1
+                      pattern: "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$"
+                      description: >-
+                        Host name of the ZITADEL instance, without scheme and
+                        port. The provider is configured without `port` on
+                        purpose: an explicit 443 makes it expect the issuer
+                        `https://<domain>:443` and fail against the discovery
+                        document.
+                    orgName:
+                      type: string
+                      default: ZITADEL
+                      description: Organization that owns the project, looked up by exact name.
+                    credentialsSecretRef:
+                      type: object
+                      description: >-
+                        A Secret in the XR's OWN namespace whose key holds a
+                        tfvars file with `jwt_profile_json = "<machine key
+                        JSON>"`. No namespace field, deliberately: reading
+                        across namespaces would let anyone allowed to create
+                        this XR use any ZITADEL key the provider can read.
+                      properties:
+                        name:
+                          type: string
+                          default: zitadel-terraform
+                        key:
+                          type: string
+                          default: terraform.tfvars
+                project:
+                  type: string
+                  minLength: 1
+                  description: >-
+                    Name of an EXISTING project (exact match; the plan fails
+                    unless exactly one project has it). The project, its roles
+                    and its user grants are not managed here.
+                app:
+                  type: object
+                  required:
+                    - name
+                    - redirectUris
+                  description: >-
+                    The OIDC app. Fields left out take the module's defaults —
+                    a confidential web client with the code flow, basic auth,
+                    bearer tokens, roles and userinfo in the ID token.
+                  properties:
+                    name:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                      description: >-
+                        App name, unique within the project, e.g.
+                        `argocd-<cluster>`. Changing it replaces the app: new
+                        client ID and secret.
+                    redirectUris:
+                      type: array
+                      minItems: 1
+                      items:
+                        type: string
+                        pattern: "^https?://"
+                      description: Exact match in ZITADEL, no wildcards.
+                    postLogoutRedirectUris:
+                      type: array
+                      items:
+                        type: string
+                        pattern: "^https?://"
+                    appType:
+                      type: string
+                      enum:
+                        - OIDC_APP_TYPE_WEB
+                        - OIDC_APP_TYPE_USER_AGENT
+                        - OIDC_APP_TYPE_NATIVE
+                    authMethodType:
+                      type: string
+                      enum:
+                        - OIDC_AUTH_METHOD_TYPE_BASIC
+                        - OIDC_AUTH_METHOD_TYPE_POST
+                        - OIDC_AUTH_METHOD_TYPE_NONE
+                        - OIDC_AUTH_METHOD_TYPE_PRIVATE_KEY_JWT
+                      description: NONE for a public client (browser PKCE, native); it gets no secret.
+                    grantTypes:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          - OIDC_GRANT_TYPE_AUTHORIZATION_CODE
+                          - OIDC_GRANT_TYPE_IMPLICIT
+                          - OIDC_GRANT_TYPE_REFRESH_TOKEN
+                          - OIDC_GRANT_TYPE_DEVICE_CODE
+                          - OIDC_GRANT_TYPE_TOKEN_EXCHANGE
+                    responseTypes:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          - OIDC_RESPONSE_TYPE_CODE
+                          - OIDC_RESPONSE_TYPE_ID_TOKEN
+                          - OIDC_RESPONSE_TYPE_ID_TOKEN_TOKEN
+                    accessTokenType:
+                      type: string
+                      enum:
+                        - OIDC_TOKEN_TYPE_BEARER
+                        - OIDC_TOKEN_TYPE_JWT
+                    accessTokenRoleAssertion:
+                      type: boolean
+                    idTokenRoleAssertion:
+                      type: boolean
+                    idTokenUserinfoAssertion:
+                      type: boolean
+                    devMode:
+                      type: boolean
+                vault:
+                  type: object
+                  description: >-
+                    Write the client ID and secret to this Vault KV v2 entry
+                    (the WHOLE entry is owned). Left out: the credentials are
+                    only in the Workspace's connection Secret next to the XR.
+                  required:
+                    - mount
+                    - path
+                  properties:
+                    providerConfigRef:
+                      type: object
+                      description: provider-vault ProviderConfig / ClusterProviderConfig (vault.m.upbound.io).
+                      properties:
+                        name:
+                          type: string
+                          default: vault
+                        kind:
+                          type: string
+                          enum:
+                            - ClusterProviderConfig
+                            - ProviderConfig
+                          default: ClusterProviderConfig
+                    mount:
+                      type: string
+                      minLength: 1
+                      pattern: "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"
+                      description: KV v2 mount, which must exist.
+                    path:
+                      type: string
+                      minLength: 1
+                      pattern: "^[a-zA-Z0-9]([a-zA-Z0-9._/-]*[a-zA-Z0-9._-])?$"
+                      description: Entry below the mount, e.g. `<cluster>/argocd-oidc`.
+                    clientIdKey:
+                      type: string
+                      minLength: 1
+                      default: client_id
+                    clientSecretKey:
+                      type: string
+                      minLength: 1
+                      default: client_secret
+                releaseOnDelete:
+                  type: boolean
+                  default: true
+                  description: >-
+                    Compose the Workspace and the Vault entry WITHOUT the
+                    Delete management policy, so deleting the XR leaves the
+                    app (and the entry) in place. On by default: a recreated
+                    app gets a new client ID and secret, and every login that
+                    uses the old ones breaks. Set false only to tear an app
+                    down on purpose.
+            status:
+              type: object
+              properties:
+                app:
+                  type: object
+                  properties:
+                    ready:
+                      type: boolean
+                    appId:
+                      type: string
+                    projectId:
+                      type: string
+                vault:
+                  type: object
+                  properties:
+                    entry:
+                      type: string
+                      description: "<mount>/<path> the credentials are written to."
+                    ready:
+                      type: boolean

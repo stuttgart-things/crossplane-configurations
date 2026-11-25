@@ -1,0 +1,294 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: zitadel-oidc-client
+  labels:
+    crossplane.io/xrd: zitadeloidcclients.zitadel.stuttgart-things.com
+    service: zitadel-oidc-client
+spec:
+  compositeTypeRef:
+    apiVersion: zitadel.stuttgart-things.com/v1alpha1
+    kind: ZitadelOidcClient
+  mode: Pipeline
+  pipeline:
+    - step: render-oidc-client
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: | # pragma: allowlist secret
+            {{- $xr := .observed.composite.resource }}
+            {{- $spec := $xr.spec }}
+            {{- $xrName := $xr.metadata.name }}
+            {{- $base := $xrName | trunc 40 | trimSuffix "-" }}
+            {{- /* `crossplane render` applies no XRD defaults (CLAUDE.md gotcha 5),
+                   so every default below restates the XRD's. */}}
+            {{- $pc := $spec.providerConfigRef | default dict }}
+            {{- $pcName := $pc.name | default "default" }}
+            {{- $pcKind := $pc.kind | default "ClusterProviderConfig" }}
+            {{- $z := $spec.zitadel }}
+            {{- $cred := $z.credentialsSecretRef | default dict }}
+            {{- $credName := $cred.name | default "zitadel-terraform" }}
+            {{- $credKey := $cred.key | default "terraform.tfvars" }}
+            {{- $app := $spec.app }}
+            {{- $vault := $spec.vault | default dict }}
+            {{- $release := true }}
+            {{- if hasKey $spec "releaseOnDelete" }}{{ $release = $spec.releaseOnDelete }}{{ end }}
+            {{- /* Without Delete: removing the XR leaves the app. A recreated app
+                   gets a new client ID and secret, which breaks every login. */}}
+            {{- $policies := ternary (list "Observe" "Create" "Update" "LateInitialize") (list "*") $release }}
+            {{- $wsName := printf "%s-zitadel-app" $base }}
+            {{- $connName := printf "%s-zitadel-oidc" $base }}
+            {{- $observed := .observed.resources | default dict }}
+            {{- $wsObs := index $observed "workspace" }}
+            {{- $wsReady := false }}
+            {{- $outputs := dict }}
+            {{- if $wsObs }}
+            {{-   range (dig "status" "conditions" list $wsObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $wsReady = true }}{{ end }}{{ end }}
+            {{-   $outputs = dig "status" "atProvider" "outputs" dict $wsObs.resource }}
+            {{- end }}
+            ---
+            # The ZITADEL app. An inline root around the oidc-app module, so the
+            # provider is configured here (from the XR) and the module stays
+            # generic. Every value reaches OpenTofu through varmap, typed: no
+            # string is spliced into HCL. The machine key comes from a tfvars
+            # Secret next to the XR and never appears in this spec.
+            apiVersion: opentofu.m.upbound.io/v1beta1
+            kind: Workspace
+            metadata:
+              name: {{ $wsName }}
+              annotations:
+                {{ setResourceNameAnnotation "workspace" }}
+            spec:
+              providerConfigRef:
+                name: {{ $pcName }}
+                kind: {{ $pcKind }}
+              managementPolicies: {{ $policies | toJson }}
+              writeConnectionSecretToRef:
+                name: {{ $connName }}
+              forProvider:
+                source: Inline
+                module: |
+                  terraform {
+                    required_version = ">= 1.5"
+                    required_providers {
+                      zitadel = {
+                        source  = "zitadel/zitadel"
+                        version = "~> 3.0"
+                      }
+                    }
+                  }
+
+                  variable "zitadel_domain" {
+                    type = string
+                  }
+
+                  variable "jwt_profile_json" {
+                    type      = string
+                    sensitive = true
+                  }
+
+                  variable "org_name" {
+                    type = string
+                  }
+
+                  variable "project_name" {
+                    type = string
+                  }
+
+                  # null in any optional field means the module's default.
+                  variable "app" {
+                    type = object({
+                      name                        = string
+                      redirect_uris               = list(string)
+                      post_logout_redirect_uris   = optional(list(string))
+                      app_type                    = optional(string)
+                      auth_method_type            = optional(string)
+                      grant_types                 = optional(list(string))
+                      response_types              = optional(list(string))
+                      access_token_type           = optional(string)
+                      access_token_role_assertion = optional(bool)
+                      id_token_role_assertion     = optional(bool)
+                      id_token_userinfo_assertion = optional(bool)
+                      dev_mode                    = optional(bool)
+                    })
+                  }
+
+                  variable "vault_keys" {
+                    type = object({
+                      client_id     = string
+                      client_secret = string
+                    })
+                  }
+
+                  # No `port` (an explicit 443 breaks the issuer match) and no
+                  # `insecure` (it means plain http).
+                  provider "zitadel" {
+                    domain           = var.zitadel_domain
+                    jwt_profile_json = var.jwt_profile_json
+                  }
+
+                  module "app" {
+                    source = "git::https://github.com/stuttgart-things/zitadel-base-setup//modules/oidc-app?ref=v0.2.0"
+
+                    org_name     = var.org_name
+                    project_name = var.project_name
+
+                    name                        = var.app.name
+                    redirect_uris               = var.app.redirect_uris
+                    post_logout_redirect_uris   = var.app.post_logout_redirect_uris
+                    app_type                    = var.app.app_type
+                    auth_method_type            = var.app.auth_method_type
+                    grant_types                 = var.app.grant_types
+                    response_types              = var.app.response_types
+                    access_token_type           = var.app.access_token_type
+                    access_token_role_assertion = var.app.access_token_role_assertion
+                    id_token_role_assertion     = var.app.id_token_role_assertion
+                    id_token_userinfo_assertion = var.app.id_token_userinfo_assertion
+                    dev_mode                    = var.app.dev_mode
+                  }
+
+                  output "client_id" {
+                    value     = module.app.client_id
+                    sensitive = true
+                  }
+
+                  output "client_secret" {
+                    value     = module.app.client_secret
+                    sensitive = true
+                  }
+
+                  # The Vault entry as one JSON object, for the SecretV2's
+                  # dataJsonSecretRef: the credentials go Workspace -> connection
+                  # Secret -> Vault without passing through any spec.
+                  output "vault_data_json" {
+                    value = jsonencode({
+                      (var.vault_keys.client_id)     = module.app.client_id
+                      (var.vault_keys.client_secret) = module.app.client_secret
+                    })
+                    sensitive = true
+                  }
+
+                  output "app_id" {
+                    value = module.app.app_id
+                  }
+
+                  output "project_id" {
+                    value = module.app.project_id
+                  }
+                varmap:
+                  zitadel_domain: {{ $z.domain | quote }}
+                  org_name: {{ $z.orgName | default "ZITADEL" | quote }}
+                  project_name: {{ $spec.project | quote }}
+                  vault_keys:
+                    client_id: {{ $vault.clientIdKey | default "client_id" | quote }}
+                    client_secret: {{ $vault.clientSecretKey | default "client_secret" | quote }}
+                  app:
+                    name: {{ $app.name | quote }}
+                    redirect_uris: {{ $app.redirectUris | toJson }}
+                    {{- with $app.postLogoutRedirectUris }}
+                    post_logout_redirect_uris: {{ . | toJson }}
+                    {{- end }}
+                    {{- with $app.appType }}
+                    app_type: {{ . | quote }}
+                    {{- end }}
+                    {{- with $app.authMethodType }}
+                    auth_method_type: {{ . | quote }}
+                    {{- end }}
+                    {{- with $app.grantTypes }}
+                    grant_types: {{ . | toJson }}
+                    {{- end }}
+                    {{- with $app.responseTypes }}
+                    response_types: {{ . | toJson }}
+                    {{- end }}
+                    {{- with $app.accessTokenType }}
+                    access_token_type: {{ . | quote }}
+                    {{- end }}
+                    {{- /* Booleans by hasKey, not `with`: false is a value. */}}
+                    {{- if hasKey $app "accessTokenRoleAssertion" }}
+                    access_token_role_assertion: {{ $app.accessTokenRoleAssertion }}
+                    {{- end }}
+                    {{- if hasKey $app "idTokenRoleAssertion" }}
+                    id_token_role_assertion: {{ $app.idTokenRoleAssertion }}
+                    {{- end }}
+                    {{- if hasKey $app "idTokenUserinfoAssertion" }}
+                    id_token_userinfo_assertion: {{ $app.idTokenUserinfoAssertion }}
+                    {{- end }}
+                    {{- if hasKey $app "devMode" }}
+                    dev_mode: {{ $app.devMode }}
+                    {{- end }}
+                varFiles:
+                  - source: SecretKey
+                    format: HCL
+                    secretKeyRef:
+                      name: {{ $credName }}
+                      key: {{ $credKey }}
+
+            {{- $vaultReady := false }}
+            {{- if $vault }}
+            {{- $vpc := $vault.providerConfigRef | default dict }}
+            {{- $kvObs := index $observed "vault-entry" }}
+            {{- if $kvObs }}
+            {{-   range (dig "status" "conditions" list $kvObs.resource) }}{{ if and (eq .type "Ready") (eq .status "True") }}{{ $vaultReady = true }}{{ end }}{{ end }}
+            {{- end }}
+            {{- /* Only once the Workspace has applied: before that its connection
+                   Secret does not exist and the MR would only report errors. Kept
+                   once composed, so a Workspace blip cannot delete the entry. */}}
+            {{- if or $wsReady $kvObs }}
+            ---
+            # The Vault entry, fed from the Workspace's connection Secret. The
+            # WHOLE entry is owned: keys written by anything else are removed.
+            apiVersion: kv.vault.m.upbound.io/v1alpha1
+            kind: SecretV2
+            metadata:
+              name: {{ printf "%s-vault" $base }}
+              annotations:
+                {{ setResourceNameAnnotation "vault-entry" }}
+                zitadel.stuttgart-things.com/entry: {{ printf "%s/%s" $vault.mount $vault.path | quote }}
+            spec:
+              providerConfigRef:
+                name: {{ $vpc.name | default "vault" }}
+                kind: {{ $vpc.kind | default "ClusterProviderConfig" }}
+              managementPolicies: {{ $policies | toJson }}
+              forProvider:
+                mount: {{ $vault.mount | quote }}
+                name: {{ $vault.path | quote }}
+                deleteAllVersions: true
+                dataJsonSecretRef:
+                  name: {{ $connName }}
+                  key: vault_data_json
+            {{- end }}
+            {{- end }}
+            ---
+            apiVersion: {{ $xr.apiVersion }}
+            kind: {{ $xr.kind }}
+            {{- if and $vault (not $vaultReady) }}
+            # Explicit until the Vault entry is Ready: readiness is otherwise
+            # derived from composed resources only, and while the entry is not
+            # composed yet an XR whose Workspace is Ready would report
+            # Ready=True before Vault has the credentials the cluster waits for.
+            metadata:
+              annotations:
+                gotemplating.fn.crossplane.io/ready: "False"
+            {{- end }}
+            status:
+              app:
+                ready: {{ $wsReady }}
+                {{- with $outputs.app_id }}
+                appId: {{ . | quote }}
+                {{- end }}
+                {{- with $outputs.project_id }}
+                projectId: {{ . | quote }}
+                {{- end }}
+              {{- if $vault }}
+              vault:
+                entry: {{ printf "%s/%s" $vault.mount $vault.path | quote }}
+                ready: {{ $vaultReady }}
+              {{- end }}
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

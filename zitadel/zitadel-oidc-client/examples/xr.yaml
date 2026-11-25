@@ -1,0 +1,24 @@
+# Standard ZitadelOidcClient — the copy-paste template: the Argo CD login of
+# one cluster, in the lab's existing `argocd` project, with client ID and
+# secret written to Vault for the cluster's ESO.
+apiVersion: zitadel.stuttgart-things.com/v1alpha1
+kind: ZitadelOidcClient
+metadata:
+  name: argocd-cluster1
+  namespace: default
+spec:
+  zitadel:
+    domain: zitadel.example.com
+    credentialsSecretRef:
+      name: zitadel-terraform
+      key: terraform.tfvars
+  project: argocd
+  app:
+    name: argocd-cluster1
+    redirectUris:
+      - https://argocd.cluster1.example.com/auth/callback
+    postLogoutRedirectUris:
+      - https://argocd.cluster1.example.com/
+  vault:
+    mount: kv
+    path: cluster1/argocd-oidc
