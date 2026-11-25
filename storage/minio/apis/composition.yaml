@@ -165,6 +165,21 @@ spec:
             {{- if and (eq $c.type "Ready") (eq $c.status "True") }}{{ $bucketReady = true }}{{ end }}
             {{- end }}
             {{- if $bucketReady }}
+            {{- /* Built first and emitted as JSON, so an EMPTY list renders as []
+                   and not as a bare key (= null). A null failed the XR's status
+                   update ("share.users ... must be of type array") for every
+                   bucket without access entries or with only `user: false` ones,
+                   and the XR stayed Ready=False with bucket and policy Available
+                   (tofu-state on machinery-labul, 2026-11-25). */}}
+            {{- $policies := list }}
+            {{- $users := list }}
+            {{- range $a := $access }}
+            {{- $policies = append $policies (printf "%s-%s" $bucket $a.name) }}
+            {{- $wantUser := true }}{{ if hasKey $a "user" }}{{ $wantUser = $a.user }}{{ end }}
+            {{- if $wantUser }}
+            {{- $users = append $users (dict "name" (printf "%s-%s" $bucket $a.name) "connectionSecret" (printf "%s/%s" ((($a.connectionSecret | default dict).namespace) | default "crossplane-system") ((($a.connectionSecret | default dict).name) | default (printf "%s-%s" $bucket $a.name)))) }}
+            {{- end }}
+            {{- end }}
             ---
             apiVersion: storage.stuttgart-things.com/v1alpha1
             kind: MinioBucket
@@ -172,18 +187,8 @@ spec:
               share:
                 bucket: {{ $bucket | quote }}
                 region: {{ $region | quote }}
-                policies:
-                {{- range $a := $access }}
-                  - {{ printf "%s-%s" $bucket $a.name | quote }}
-                {{- end }}
-                users:
-                {{- range $a := $access }}
-                {{- $wantUser := true }}{{ if hasKey $a "user" }}{{ $wantUser = $a.user }}{{ end }}
-                {{- if $wantUser }}
-                  - name: {{ printf "%s-%s" $bucket $a.name | quote }}
-                    connectionSecret: {{ printf "%s/%s" ((($a.connectionSecret | default dict).namespace) | default "crossplane-system") ((($a.connectionSecret | default dict).name) | default (printf "%s-%s" $bucket $a.name)) | quote }}
-                {{- end }}
-                {{- end }}
+                policies: {{ $policies | toJson }}
+                users: {{ $users | toJson }}
             {{- end }}
     - step: automatically-detect-ready-composed-resources
       functionRef:
