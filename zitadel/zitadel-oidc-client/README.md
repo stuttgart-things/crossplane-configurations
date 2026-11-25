@@ -54,10 +54,12 @@ Inline `function-go-templating`, two composed resources:
      *its* default, so the defaults live in one place.
    - The machine key comes from a tfvars Secret next to the XR (`varFiles`)
      and never appears in a spec.
-   - Outputs go to the connection Secret `<xr>-zitadel-oidc`: `client_id`,
-     `client_secret`, and `vault_data_json` (the entry as one JSON object).
-     `app_id` and `project_id` are not sensitive, so they appear in the
-     Workspace status and from there in the XR's `status.app`.
+   - provider-opentofu writes **every** output to the connection Secret
+     `<xr>-zitadel-oidc`, each under its own name: `client_id`,
+     `client_secret`, `vault_data_json` (the entry as one JSON object), and
+     also `app_id` and `project_id`. Those two are not sensitive, so they
+     appear in the Workspace status as well and from there in the XR's
+     `status.app`. Only `vault_data_json` is read by anything here.
 2. **`SecretV2`** (`kv.vault.m.upbound.io/v1alpha1`, only with `spec.vault`):
    - It owns the **whole** entry `<mount>/<path>` and reads it through
      `dataJsonSecretRef` from the Workspace's connection Secret. The
@@ -91,7 +93,25 @@ the app, for the same reason.
 | provider-opentofu `ClusterProviderConfig` | `default` | `spec.providerConfigRef`. Its backend holds the state; see below |
 | Secret with the machine key, in the XR's namespace | `zitadel-terraform` / `terraform.tfvars` | tfvars line `jwt_profile_json = "<key JSON>"`, see `examples/credentials-secret.yaml` |
 | ZITADEL machine user | — | rights on the project's apps, read on orgs and projects (the module looks both up by name) |
-| provider-vault `ClusterProviderConfig` (with `spec.vault`) | `vault` | may write `<mount>/data/<path>` and `<mount>/metadata/<path>`; the KV v2 mount must exist |
+| provider-vault `ClusterProviderConfig` (with `spec.vault`) | `vault` | may write `<mount>/data/<path>` and `<mount>/metadata/<path>` (and delete the metadata, for `releaseOnDelete: false`); the KV v2 mount must exist. See below |
+| ZITADEL's CA, trusted by the provider-opentofu pod | — | the zitadel provider talks TLS from inside that pod. A lab CA that the image does not carry fails the TLS handshake, so no Workspace gets Ready. See below |
+
+**Which Vault credential.** The default name `vault` is only a default. On
+the LabUL management clusters the CPC called `vault` logs in as
+`vault-k8sauth-bootstrap`, which has no KV write at all; the one that can
+write is `vault-cluster-secrets` (mounts `cicd`, `kargo`, `observability`,
+`homerun2`, `schmetterpause`). Its policies grant `<mount>/data/+`, and `+`
+is exactly **one** path segment, so `path: pilot/oidc` is denied while
+`path: pilot-oidc` is not. Set `spec.vault.providerConfigRef` and pick `path`
+to fit the policy, not the other way round.
+
+**CA trust.** The fleet already distributes the lab CA: trust-manager's
+`cluster-trust-bundle` ConfigMap (public CAs plus the lab's) exists in
+`crossplane-system`. The provider pod still has to mount it — a
+`DeploymentRuntimeConfig` volume from that ConfigMap (`optional: true`) at
+`/etc/ssl/custom` plus `SSL_CERT_DIR=/etc/ssl/certs:/etc/ssl/custom`. Until
+the fleet's catalog renders that, a cluster without it cannot run this
+Configuration against a lab ZITADEL.
 
 **State.** With the `kubernetes` backend (`examples/cluster-provider-config.yaml`)
 the state lives on the management cluster and is lost with it. A new
@@ -115,3 +135,8 @@ status:
 - `tests/render/observed-resources/zitadel/zitadel-oidc-client/xr--applied.yaml`:
   the Workspace is Ready, which is the only path that composes the Vault
   entry and fills `status.app`.
+- Pilot on machinery-dev against the LabUL ZITADEL, 2026-11-25 (module
+  v0.2.0): created the app, wrote the Vault entry with exactly `client_id`
+  and `client_secret`, and with `releaseOnDelete: false` removed both again
+  on delete. It needed the CA trust and the `vault-cluster-secrets` CPC from
+  the preconditions above.

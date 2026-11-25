@@ -42,6 +42,10 @@ metadata:
         that may manage the project's apps and read orgs and projects.
       - With `spec.vault`: provider-vault and a `vault.m.upbound.io`
         ClusterProviderConfig (default `vault`) that may write the entry.
+        Its policy decides `path`: `<mount>/data/+` allows one segment only.
+      - The provider-opentofu pod must trust ZITADEL's CA (e.g. the
+        trust-manager `cluster-trust-bundle` mounted via its
+        DeploymentRuntimeConfig); a lab CA otherwise fails the handshake.
 spec:
   crossplane:
     version: ">=v2.1.3"
